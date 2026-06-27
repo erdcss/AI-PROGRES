@@ -219,6 +219,10 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (reqPath.startsWith("/api")) {
+      if (reqPath === "/api/history") {
+        return;
+      }
+
       let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
@@ -236,6 +240,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  const { ensureDatabaseSchema } = await import('./db-init');
+  await ensureDatabaseSchema();
+
+  // Eski istemciler için — artık localStorage kullanılıyor; ağır polling'i kes
+  app.get("/api/history", (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=600");
+    res.status(200).json({ urls: [] });
+  });
+
   // CRITICAL: API routes MUST be registered before any other middleware
   // to prevent Vite catch-all from intercepting API calls
   
@@ -598,8 +611,8 @@ app.use(pendingChangesRoutes);
   
   if (process.env.NODE_ENV !== "production") {
     console.log("");
-    console.log("⚠️  UYARI: npm run dev — Vite geliştirme modu (kod geliştirme içindir).");
-    console.log("   Veri çekme / scraper kullanımı için: npm run dev:stable");
+    console.log("⚠️  UYARI: npm run dev:vite — Vite geliştirme modu (kod geliştirme içindir).");
+    console.log("   Veri çekme / scraper kullanımı için: npm run dev");
     console.log("   (Vite dev server veri çekme sırasında önerilmez.)");
     console.log("");
     // Use Replit-optimized Vite setup if running on Replit
@@ -643,12 +656,24 @@ app.use(pendingChangesRoutes);
     if (fs.existsSync(pathModule.join(staticRoot, "index.html"))) {
       app.use(express.static(staticRoot));
       app.use("*", (_req, res) => {
-        res.sendFile(pathModule.resolve(staticRoot, "index.html"));
+        const indexPath = pathModule.resolve(staticRoot, "index.html");
+        res.sendFile(indexPath, (err) => {
+          if (err && !res.headersSent) {
+            res.status(503).json({
+              message: "Arayüz dosyası bulunamadı. npm run build çalıştırın.",
+            });
+          }
+        });
       });
       process.stderr.write(`✅ Static serving configured from ${staticRoot}\n`);
     } else {
-      process.stderr.write("⚠️ index.html not found, falling back to serveStatic\n");
-      serveStatic(app);
+      process.stderr.write("⚠️ index.html not found — npm run build gerekli\n");
+      app.use("*", (_req, res) => {
+        if (_req.path.startsWith("/api")) return;
+        res.status(503).json({
+          message: "Arayüz henüz derlenmedi. npm run build çalıştırın.",
+        });
+      });
     }
   }
   
@@ -750,6 +775,14 @@ app.use(pendingChangesRoutes);
     // This fixes disabled trackers that were created before shopifyProductId linkage was added
     setTimeout(async () => {
       try {
+        const { assertCoreTablesReady, refreshDbFeatureState, warnDbFeatureSkipped } = await import('./db-health');
+        const ready = await assertCoreTablesReady(['url_tracking', 'shopify_transferred_products']);
+        if (!ready) {
+          const status = await refreshDbFeatureState();
+          warnDbFeatureSkipped('Auto-reconcile', status.missingTables);
+          return;
+        }
+
         const { db } = await import('./db');
         const { urlTracking, shopifyTransferredProducts } = await import('@shared/schema');
         const { productEligibilityService } = await import('./product-eligibility-service');
@@ -801,6 +834,12 @@ app.use(pendingChangesRoutes);
 
         console.log(`✅ Auto-reconcile tamamlandı: ${fixed} tracker Shopify ile bağlandı, ${toRestart.length} takip aktifleştirildi`);
       } catch (err) {
+        if ((err as { code?: string })?.code === '42P01') {
+          const { refreshDbFeatureState, warnDbFeatureSkipped } = await import('./db-health');
+          const status = await refreshDbFeatureState(true);
+          warnDbFeatureSkipped('Auto-reconcile', status.missingTables);
+          return;
+        }
         console.warn('⚠️ Auto-reconcile hatası (kritik değil):', err);
       }
     }, 5000);

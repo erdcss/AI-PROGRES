@@ -6,6 +6,7 @@
 import * as cheerio from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
 import { openaiPriceEnhancer } from './openai-price-enhancer';
+import { isTrendyolPromotionalPriceText } from './trendyol-price-utils';
 
 // 10% standardized profit margin
 const PROFIT_MARGIN = 1.10;
@@ -241,10 +242,14 @@ export class UltimatePriceExtractor {
     console.log('🔍 Strategy 1: Current price selectors');
     
     const currentPriceSelectors = [
-      // PRIORITIZE DISCOUNTED/CURRENT PRICE SELECTORS FIRST
-      '.prc-dsc', // Discounted price - TOP PRIORITY
-      '.prc-slg', // Sale price - TOP PRIORITY
-      '[data-testid="price-current-price"]', // Current price data attribute
+      '.prc-org',
+      '.original-price',
+      '.price-original',
+      '.was-price',
+      '.before-discount',
+      '.prc-dsc',
+      '.prc-slg',
+      '[data-testid="price-current-price"]',
       '.discounted-price',
       '.sale-price',
       '.discount-price', 
@@ -292,6 +297,10 @@ export class UltimatePriceExtractor {
           const priceText = element.text().trim();
           
           if (priceText) {
+            if (isTrendyolPromotionalPriceText(priceText)) {
+              console.log(`   ⏭️ Skipping promotional price text: "${priceText}"`);
+              continue;
+            }
             console.log(`   Element ${i}: "${priceText}"`);
             
             // CRITICAL FIX: Special handling for "Son X Günün" pattern with Turkish decimal format

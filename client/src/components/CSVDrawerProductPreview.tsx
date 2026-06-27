@@ -1,10 +1,73 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Package, Tag, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { resolvePreviewImageUrl } from "@/lib/product-image-url";
+import { resolvePreviewImagesForEntry, resolvePreviewProxyUrl } from "@/lib/product-image-url";
 import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
+import { getTrendyolImageFallbackUrls } from "@shared/trendyol-product-images";
+
+function PreviewCarouselImage({
+  directUrl,
+  alt,
+  onFailed,
+}: {
+  directUrl: string;
+  alt: string;
+  onFailed?: () => void;
+}) {
+  const candidates = useMemo(
+    () => getTrendyolImageFallbackUrls(directUrl),
+    [directUrl],
+  );
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [useProxy, setUseProxy] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setCandidateIndex(0);
+    setUseProxy(true);
+    setFailed(false);
+  }, [directUrl]);
+
+  const currentCandidate = candidates[candidateIndex] ?? directUrl;
+  const src = useProxy
+    ? resolvePreviewProxyUrl(currentCandidate) ?? currentCandidate
+    : currentCandidate;
+
+  if (failed || !src) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-slate-400">
+        <Package className="w-6 h-6" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      key={`${currentCandidate}-${useProxy}`}
+      src={src}
+      alt={alt}
+      className="w-full h-full object-cover"
+      loading="eager"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => {
+        if (useProxy) {
+          setUseProxy(false);
+          return;
+        }
+        if (candidateIndex + 1 < candidates.length) {
+          setCandidateIndex((index) => index + 1);
+          setUseProxy(true);
+          return;
+        }
+        setFailed(true);
+        onFailed?.();
+      }}
+    />
+  );
+}
 
 export interface CSVPreviewData {
   id: string;
@@ -36,6 +99,7 @@ export interface ProductPreviewProps {
   tags: string[];
   onPrevImage: () => void;
   onNextImage: () => void;
+  onSelectImage?: (index: number) => void;
   onRemoveTag: (tagIndex: number) => void;
   onAddTag: (tag: string) => void;
 }
@@ -46,6 +110,7 @@ export const ProductPreview = memo(function ProductPreview({
   tags,
   onPrevImage,
   onNextImage,
+  onSelectImage,
   onRemoveTag,
   onAddTag,
 }: ProductPreviewProps) {
@@ -53,9 +118,16 @@ export const ProductPreview = memo(function ProductPreview({
     const sanitizedVariants = sanitizeTrendyolVariants(preview.variants, {
       productTitle: preview.productTitle,
     });
-    const currentImageIndex = imageIndex;
-    const hasMultipleImages = preview.images && preview.images.length > 1;
-    const currentImageUrl = resolvePreviewImageUrl(preview.images?.[currentImageIndex]) ?? "";
+    const { urls: previewImages } = resolvePreviewImagesForEntry({
+      images: preview.images,
+      csvContent: preview.csvContent,
+    });
+    const safeImageIndex =
+      previewImages.length > 0
+        ? Math.min(Math.max(0, imageIndex), previewImages.length - 1)
+        : 0;
+    const hasMultipleImages = previewImages.length > 1;
+    const currentImageUrl = previewImages[safeImageIndex] ?? "";
     
     // Extract tracking ID from CSV
     const getTrackingId = () => {
@@ -102,10 +174,24 @@ export const ProductPreview = memo(function ProductPreview({
     
     // Enhanced price parsing from CSV with multiple strategies
     const parsePriceFromCSV = () => {
-      if (preview.price && preview.price.original > 0) {
+      const rawPrice = preview.price as
+        | { original?: number; withProfit?: number }
+        | number
+        | undefined;
+
+      if (typeof rawPrice === "number" && rawPrice > 0) {
         return {
-          original: preview.price.original,
-          withProfit: preview.price.withProfit
+          original: rawPrice,
+          withProfit: Math.round(rawPrice * 1.10 * 100) / 100,
+        };
+      }
+
+      if (rawPrice && typeof rawPrice === "object" && (rawPrice.original ?? 0) > 0) {
+        return {
+          original: rawPrice.original!,
+          withProfit:
+            rawPrice.withProfit ??
+            Math.round(rawPrice.original! * 1.10 * 100) / 100,
         };
       }
       
@@ -204,14 +290,13 @@ export const ProductPreview = memo(function ProductPreview({
             <div className="relative w-[100px] h-[100px] flex-shrink-0 bg-slate-700/30 rounded overflow-hidden border border-slate-600/30">
               {currentImageUrl ? (
                 <>
-                  <img 
-                    src={currentImageUrl} 
+                  <PreviewCarouselImage
+                    directUrl={currentImageUrl}
                     alt={preview.productTitle}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/120x100?text=No+Image';
+                    onFailed={() => {
+                      if (previewImages.length > 1) {
+                        onSelectImage?.((safeImageIndex + 1) % previewImages.length);
+                      }
                     }}
                   />
                   
@@ -231,12 +316,15 @@ export const ProductPreview = memo(function ProductPreview({
                         <ChevronRight className="w-3 h-3" />
                       </button>
                       
-                      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">
-                        {preview.images.map((_, index) => (
-                          <div
+                      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1 max-w-[90px] overflow-x-auto">
+                        {previewImages.map((_, index) => (
+                          <button
                             key={index}
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              index === currentImageIndex ? 'bg-cyan-400' : 'bg-white/40'
+                            type="button"
+                            aria-label={`Görsel ${index + 1}`}
+                            onClick={() => onSelectImage?.(index)}
+                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors ${
+                              index === safeImageIndex ? 'bg-cyan-400' : 'bg-white/40 hover:bg-white/70'
                             }`}
                           />
                         ))}

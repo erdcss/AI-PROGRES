@@ -90,16 +90,22 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
 
 export function parseSlicingAttributesFromHtml(htmlContent: string): SlicingAttributesData {
   const empty: SlicingAttributesData = { colors: [], sizes: [] };
-  const match = htmlContent.match(
+  const patterns = [
+    /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({[\s\S]*?});/,
     /__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({[\s\S]*?});/,
-  );
-  if (!match?.[1]) return empty;
-  try {
-    const state = JSON.parse(match[1]);
-    return parseSlicingAttributesFromProduct(state?.product ?? state);
-  } catch {
-    return empty;
+  ];
+  for (const pattern of patterns) {
+    const match = htmlContent.match(pattern);
+    if (!match?.[1]) continue;
+    try {
+      const state = JSON.parse(match[1]);
+      const parsed = parseSlicingAttributesFromProduct(state?.product ?? state);
+      if (parsed.colors.length > 0 || parsed.sizes.length > 0) return parsed;
+    } catch {
+      /* try next pattern */
+    }
   }
+  return empty;
 }
 
 export function isDomElementOutOfStock($el: Cheerio<unknown>): boolean {

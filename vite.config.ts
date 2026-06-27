@@ -40,6 +40,7 @@ export default defineConfig({
       ? {
           ignored: [
             "**/server/**",
+            "**/shared/**",
             "**/dist/**",
             "**/temp/**",
             "**/exports/**",

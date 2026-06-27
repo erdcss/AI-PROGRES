@@ -13,9 +13,12 @@ import { fetchTrendyolDirectHtmlRaw } from './trendyol-direct-html';
 
 function parseImagesFromHtml(html: string): string[] {
   const $ = cheerio.load(html);
+  const ogImage = $('meta[property="og:image"]').attr('content')?.trim() || '';
   const fromExtractor = extractProductImages(html, $).images;
   const fromRegex = extractProductImagesFromHtmlRegex(html);
-  return filterValidProductImages(mergeTrendyolImageLists(fromExtractor, fromRegex));
+  return filterValidProductImages(
+    mergeTrendyolImageLists(ogImage ? [ogImage] : [], fromExtractor, fromRegex),
+  );
 }
 
 /** Deploy ortamında eksik görselleri HTML/API ile tamamlar */

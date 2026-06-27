@@ -212,6 +212,10 @@ export async function syncEnvApiKeyToDB(): Promise<void> {
       console.log(`✅ ENV kimlik bilgileri DB'ye kaydedildi: ${shopDomain}`);
     }
   } catch (err) {
+    if ((err as { code?: string })?.code === '42P01') {
+      console.warn('syncEnvApiKeyToDB: shopify_credentials tablosu yok — ENV kullanılacak');
+      return;
+    }
     console.error('syncEnvApiKeyToDB error:', err);
   }
 }
@@ -246,6 +250,10 @@ export async function syncNewTokenToDB(): Promise<void> {
     }
     console.log(`✅ SHOPIFY_APP_SECRET_NEW DB'ye senkronize edildi: ${shopDomain}`);
   } catch (err) {
+    if ((err as { code?: string })?.code === '42P01') {
+      console.warn('syncNewTokenToDB: shopify_credentials tablosu yok — atlandı');
+      return;
+    }
     console.error('syncNewTokenToDB error:', err);
   }
 }

@@ -4,6 +4,12 @@ import { shopifyMemoryProducts } from '@shared/schema';
 import { eq, desc, count, max } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { getShopifyConfig } from './shopify-credentials';
+import {
+  assertCoreTablesReady,
+  isPgMissingRelationError,
+  refreshDbFeatureState,
+  warnDbFeatureSkipped,
+} from './db-health';
 
 // Credential cache — 60 saniye TTL, çok fazla DB sorgusu yapmamak için
 let _credCache: { shopDomain: string; accessToken: string; cachedAt: number } | null = null;
@@ -114,6 +120,19 @@ export class ShopifyApiService {
   // Tüm ürünleri çek ve hafızaya kaydet
   async syncAllProducts(): Promise<{ success: boolean; totalProducts: number; newProducts: number; updatedProducts: number; deletedProducts?: number }> {
     try {
+      const dbReady = await assertCoreTablesReady(['shopify_memory_products']);
+      if (!dbReady) {
+        const status = await refreshDbFeatureState();
+        warnDbFeatureSkipped('Shopify ürün senkronizasyonu', status.missingTables);
+        return {
+          success: false,
+          totalProducts: 0,
+          newProducts: 0,
+          updatedProducts: 0,
+          deletedProducts: 0,
+        };
+      }
+
       console.log('🔄 Shopify ürün senkronizasyonu başlatılıyor...');
       
       // Shopify maximum limit kullan
@@ -200,6 +219,10 @@ export class ShopifyApiService {
           }
 
         } catch (error) {
+          if (isPgMissingRelationError(error)) {
+            warnDbFeatureSkipped('Shopify ürün senkronizasyonu', ['shopify_memory_products']);
+            break;
+          }
           console.error(`❌ Ürün kaydetme hatası (ID: ${product.id}):`, error);
         }
       }

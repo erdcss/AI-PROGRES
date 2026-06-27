@@ -13,6 +13,7 @@ function normalizeWatchIgnored(ignored: string[] = []): string[] {
     "**/exports/**",
     "**/data/**",
     "**/server/**",
+    "**/shared/**",
     "**/dist/**",
     "**/*.csv",
     "**/html_analysis_*.json",

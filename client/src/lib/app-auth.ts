@@ -192,21 +192,27 @@ export function clearAppSession() {
   }
 }
 
-/** Süresi dolmuş oturumu temizler; yalnızca zamanlayıcıdan çağrılmalı */
+/** Süresi dolmuş oturumu temizler; aktif oturum bayrağı varsa yeniler */
 export function pruneExpiredAppSession(): boolean {
   const session = peekSession();
-  if (!isSessionValid(session)) {
-    if (session || hasActiveSessionFlag()) {
-      try {
-        removeSessionStorage();
-      } catch {
-        // ignore
-      }
-      notifyLoginStateIfChanged();
-    }
-    return false;
+  if (isSessionValid(session)) {
+    return true;
   }
-  return true;
+
+  if (hasActiveSessionFlag()) {
+    saveAppSession();
+    return true;
+  }
+
+  if (session) {
+    try {
+      removeSessionStorage();
+    } catch {
+      /* ignore */
+    }
+    notifyLoginStateIfChanged();
+  }
+  return false;
 }
 
 export function hasValidAppSession(): boolean {

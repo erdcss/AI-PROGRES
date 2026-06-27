@@ -127,15 +127,15 @@ export function calculatePriceWithCustomMargin(originalPrice: number, profitMarg
   };
 }
 
-export function normalizeTrendyolDisplayPrice(price: any, defaultProfitMargin = 0.15): StandardPrice {
-  let standard = normalizePrice(price, defaultProfitMargin);
+export function normalizeTrendyolDisplayPrice(price: any, defaultProfitMargin = 0.10): StandardPrice {
+  const standard = normalizePrice(price, defaultProfitMargin);
   const original = standard.original;
 
   if (original >= 10000) {
     return calculatePriceWithCustomMargin(original / 100, defaultProfitMargin);
   }
 
-  if (original >= 1000 && Number.isInteger(original)) {
+  if (original >= 1000 && Number.isInteger(original) && original % 100 === 0) {
     const asTl = original / 100;
     if (asTl >= 1 && asTl <= 200_000) {
       return calculatePriceWithCustomMargin(asTl, defaultProfitMargin);

@@ -95,34 +95,38 @@ function extractFromJsonLd($: cheerio.CheerioAPI): Partial<HttpScrapeResult['pro
   return out;
 }
 
+import { getTrendyolProductFromState } from './trendyol-product-state';
+import {
+  extractOriginalTrendyolPriceFromProduct,
+} from './trendyol-price-utils';
+
 function extractFromProductState(html: string): Partial<HttpScrapeResult['product']> {
-  const stateMatch = html.match(/__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({[\s\S]*?});/);
-  if (!stateMatch?.[1]) return {};
-  try {
-    const state = JSON.parse(stateMatch[1]);
-    const product = state?.product;
-    if (!product) return {};
-    const original = parsePrice(
-      product.price?.sellingPrice?.value ?? product.price?.discountedPrice?.value
-    );
-    return {
-      title: product.name || product.title,
-      brand: product.brand?.name || product.brand,
-      price:
-        original > 0
-          ? { original, withProfit: Math.round(original * 1.1 * 100) / 100, currency: 'TRY' }
-          : undefined,
-      images: normalizeTrendyolImages(
-        (product.images || [])
-          .map((img: any) => img.url || img.src || img.path || img.link || (typeof img === 'string' ? img : ''))
-          .filter(Boolean),
-      ),
-      description: product.description || '',
-      category: product.category?.name || product.categoryName || '',
-    };
-  } catch {
-    return {};
-  }
+  const product = getTrendyolProductFromState(html);
+  if (!product) return {};
+
+  const original = extractOriginalTrendyolPriceFromProduct(product);
+  return {
+    title: String(product.name || product.title || '').trim() || undefined,
+    brand: String((product.brand as { name?: string })?.name || product.brand || '').trim() || undefined,
+    price:
+      original > 0
+        ? { original, withProfit: Math.round(original * 1.1 * 100) / 100, currency: 'TRY' }
+        : undefined,
+    images: normalizeTrendyolImages(
+      ((product.images as unknown[]) || [])
+        .map((img: unknown) => {
+          if (typeof img === 'string') return img;
+          if (img && typeof img === 'object') {
+            const record = img as Record<string, unknown>;
+            return record.url || record.src || record.path || record.link || '';
+          }
+          return '';
+        })
+        .filter(Boolean),
+    ),
+    description: String(product.description || '').trim(),
+    category: String((product.category as { name?: string })?.name || product.categoryName || '').trim(),
+  };
 }
 
 function extractFromNextData(html: string): Partial<HttpScrapeResult['product']> {
@@ -136,7 +140,7 @@ function extractFromNextData(html: string): Partial<HttpScrapeResult['product']>
       data?.props?.pageProps?.initialState?.productDetail?.product ||
       data?.props?.pageProps?.initialData?.product;
     if (!product) return {};
-    const original = parsePrice(product.price?.sellingPrice?.value ?? product.price?.discountedPrice?.value);
+    const original = extractOriginalTrendyolPriceFromProduct(product);
     return {
       title: product.name || product.title,
       brand: product.brand?.name || product.brand,

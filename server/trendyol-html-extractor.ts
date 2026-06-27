@@ -7,9 +7,12 @@ import { extractProductImages } from './trendyol-image-extractor';
 import { mergeTrendyolImageLists, normalizeTrendyolImages, filterValidProductImages } from './trendyol-image-utils';
 import {
   buildTrendyolPriceObject,
+  extractOriginalTrendyolPriceFromProduct,
   normalizeTrendyolKurus,
   parseTurkishPriceText,
+  resolveTrendyolOriginalListPrice,
 } from './trendyol-price-utils';
+import { getTrendyolProductFromState } from './trendyol-product-state';
 import {
   brandFromTrendyolUrl,
   isInvalidTrendyolTitle,
@@ -67,42 +70,29 @@ function parseFromProductState(html: string): {
   description?: string;
   category?: string;
 } {
-  const match = html.match(/__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({[\s\S]*?});/);
-  if (!match?.[1]) return {};
-  try {
-    const state = JSON.parse(match[1]);
-    const product = state?.product;
-    if (!product) return {};
-    const rawPrice =
-      product.price?.discountedPrice?.value ??
-      product.price?.sellingPrice?.value ??
-      product.price?.originalPrice?.value;
-    const price =
-      typeof rawPrice === 'number' && rawPrice > 0
-        ? normalizeTrendyolKurus(rawPrice, 'api')
-        : undefined;
-    return {
-      title: product.name || product.title,
-      brand: product.brand?.name || product.brand,
-      price,
-      images: normalizeTrendyolImages(
-        (product.images || [])
-          .map((img: unknown) => {
-            if (typeof img === 'string') return img;
-            if (img && typeof img === 'object') {
-              const r = img as Record<string, unknown>;
-              return r.url || r.src || r.path || r.link || r.imageUrl || '';
-            }
-            return '';
-          })
-          .filter(Boolean),
-      ),
-      description: product.description || '',
-      category: product.category?.name || product.categoryName || '',
-    };
-  } catch {
-    return {};
-  }
+  const product = getTrendyolProductFromState(html);
+  if (!product) return {};
+
+  const price = extractOriginalTrendyolPriceFromProduct(product) || undefined;
+  return {
+    title: String(product.name || product.title || '').trim() || undefined,
+    brand: String((product.brand as { name?: string })?.name || product.brand || '').trim() || undefined,
+    price,
+    images: normalizeTrendyolImages(
+      ((product.images as unknown[]) || [])
+        .map((img: unknown) => {
+          if (typeof img === 'string') return img;
+          if (img && typeof img === 'object') {
+            const r = img as Record<string, unknown>;
+            return r.url || r.src || r.path || r.link || r.imageUrl || '';
+          }
+          return '';
+        })
+        .filter(Boolean),
+    ),
+    description: String(product.description || '').trim(),
+    category: String((product.category as { name?: string })?.name || product.categoryName || '').trim(),
+  };
 }
 
 function parseFromNextData(html: string): Partial<HtmlExtractedProduct> {
@@ -115,14 +105,7 @@ function parseFromNextData(html: string): Partial<HtmlExtractedProduct> {
       data?.props?.pageProps?.initialState?.product ||
       data?.props?.pageProps?.initialState?.productDetail?.product;
     if (!product) return {};
-    const rawPrice =
-      product.price?.discountedPrice?.value ??
-      product.price?.sellingPrice?.value ??
-      product.price?.originalPrice?.value;
-    const normalized =
-      typeof rawPrice === 'number' && rawPrice > 0
-        ? normalizeTrendyolKurus(rawPrice, 'api')
-        : 0;
+    const normalized = extractOriginalTrendyolPriceFromProduct(product);
     return {
       title: product.name || product.title,
       brand: String(product.brand?.name || product.brand || '').trim(),
@@ -193,24 +176,22 @@ export async function extractTrendyolProductFromHtml(url: string): Promise<HtmlE
     brandFromTrendyolUrl(url) ||
     'Marka';
 
-  let original =
-    fromState.price ||
-    fromNext.price?.original ||
-    fromLdPrice ||
-    parseTurkishPriceText($('.prc-dsc, [data-testid="price-current-price"], .price').first().text());
+  let original = resolveTrendyolOriginalListPrice({
+    html,
+    product: getTrendyolProductFromState(html),
+    jsonLdPrice: fromLdPrice,
+    domPrice: parseTurkishPriceText($('.prc-org, .original-price, .price-original').first().text()) ||
+      parseTurkishPriceText($('.prc-dsc, [data-testid="price-current-price"], .price').first().text()),
+  });
 
   if (original <= 0) {
-    const priceMatch = html.match(/"discountedPrice"\s*:\s*\{\s*"value"\s*:\s*(\d+)/);
-    if (priceMatch) original = normalizeTrendyolKurus(parseInt(priceMatch[1], 10), 'api');
-  }
-  if (original <= 0) {
-    const sellingMatch = html.match(/"sellingPrice"\s*:\s*\{\s*"value"\s*:\s*(\d+)/);
-    if (sellingMatch) original = normalizeTrendyolKurus(parseInt(sellingMatch[1], 10), 'api');
+    original = fromState.price || fromNext.price?.original || 0;
   }
 
+  const ogImage = $('meta[property="og:image"]').attr('content')?.trim() || '';
   const regexImages = extractProductImagesFromHtmlRegex(html);
   const images = filterValidProductImages(
-    mergeTrendyolImageLists(fromState.images, fromNext.images, fromExtractor, regexImages),
+    mergeTrendyolImageLists(ogImage ? [ogImage] : [], fromState.images, fromNext.images, fromExtractor, regexImages),
   );
 
   const variants = buildVariantsFromHtml(html, $, title);

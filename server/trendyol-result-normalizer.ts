@@ -49,12 +49,16 @@ function normalizeImages(images: unknown): string[] {
   return normalizeTrendyolImages(images);
 }
 
+function hasValidImages(images: unknown): boolean {
+  return filterValidProductImages(images).length > 0;
+}
+
 export function hasUsableTrendyolResult(result: any): boolean {
   if (!result) return false;
   const title = resolveProductTitle(result.sourceUrl || result.url || '', result.title);
   const hasTitle = isValidTrendyolProductTitle(title) && !PLACEHOLDER_TITLES.has(title);
   const hasPrice = !needsPrice(result.price);
-  const hasImages = normalizeImages(result.images).length > 0;
+  const hasImages = hasValidImages(result.images);
   return hasTitle && (hasPrice || hasImages);
 }
 
@@ -88,7 +92,7 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
   }
 
   const missingPrice = needsPrice(result.price);
-  const missingImages = normalizeImages(result.images).length === 0;
+  const missingImages = !hasValidImages(result.images);
   const wasBlocked = result.blocked === true;
 
   if (missingPrice || missingImages || titleWasPlaceholder || wasBlocked) {
@@ -131,8 +135,8 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
       }
     }
 
-    const stillMissingPrice = needsPrice(result.price);
-    let stillMissingImages = normalizeImages(result.images).length === 0;
+    let stillMissingPrice = needsPrice(result.price);
+    let stillMissingImages = !hasValidImages(result.images);
     const missingVariants = !hasRealTrendyolVariants(result.variants);
 
     if (stillMissingPrice || stillMissingImages || missingVariants) {
@@ -145,6 +149,7 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
         if (stillMissingPrice && htmlProduct.price.original > 0) {
           result.price = htmlProduct.price;
           result._priceSource = 'html-extractor';
+          stillMissingPrice = false;
         }
         if (stillMissingImages && htmlProduct.images.length > 0) {
           result.images = htmlProduct.images;
@@ -173,13 +178,22 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
       }
     }
 
+    stillMissingPrice = needsPrice(result.price);
+    stillMissingImages = !hasValidImages(result.images);
+
     const { isCloudRuntime } = await import('@shared/deploy-runtime');
     const skipPuppeteerOnCloud =
       isCloudRuntime() &&
-      !needsPrice(result.price) &&
-      filterValidProductImages(result.images).length > 0;
+      !stillMissingPrice &&
+      !stillMissingImages;
 
-    if ((stillMissingPrice || stillMissingImages) && !alreadyFromBrowser && !result._puppeteerEnrichAttempted && !skipPuppeteerOnCloud) {
+    const needsVariantsOnly =
+      !stillMissingPrice &&
+      !stillMissingImages &&
+      missingVariants &&
+      isValidTrendyolProductTitle(result.title);
+
+    if ((stillMissingPrice || stillMissingImages || needsVariantsOnly) && !alreadyFromBrowser && !result._puppeteerEnrichAttempted && !skipPuppeteerOnCloud) {
       result._puppeteerEnrichAttempted = true;
       try {
         console.log('🎭 enrich: HTTP/API yetersiz — Puppeteer scenario scrape deneniyor...');

@@ -17,16 +17,20 @@ import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
 import MiniBrowser from "@/components/MiniBrowser";
+import { UrlHistory } from "@/components/UrlHistory";
+import { addRecentUrl } from "@/lib/url-history-client";
 import { fetchShopifyCsvStatus } from "@/lib/shopify-csv-download";
 import {
   clearScraperState,
   loadScraperState,
+  savePendingUrls,
   saveScraperState,
 } from "@/lib/scraper-state-persist";
-import { resolvePreviewImageUrl, resolvePreviewImageUrls } from "@/lib/product-image-url";
+import { resolvePreviewImageUrl, resolvePreviewImageUrls, resolvePreviewProxyUrl } from "@/lib/product-image-url";
 import {
   buildCsvPreviewEntry,
   fetchScenarioScrapeResult,
+  normalizeStoredCsvPreview,
   type ScrapedUrlPayload,
 } from "@/lib/scrape-url-client";
 import {
@@ -39,10 +43,7 @@ import { formatOriginalPrice, formatSalePrice, normalizeTrendyolDisplayPrice } f
 
 
 const scrapeSchema = z.object({
-  url: z.string().url("Geçerli bir URL giriniz").refine(
-    (url) => url.includes("trendyol.com"),
-    "Sadece Trendyol URL'leri desteklenmektedir"
-  ),
+  url: z.string().optional(),
 });
 
 const multiUrlSchema = z.object({
@@ -58,6 +59,35 @@ type ScrapeFormData = z.infer<typeof scrapeSchema>;
 type MultiUrlFormData = z.infer<typeof multiUrlSchema>;
 
 type ScrapingMode = 'single' | 'multi-url';
+
+function isSupportedProductUrl(raw: string): boolean {
+  const url = raw.trim().toLowerCase();
+  return (
+    url.includes("trendyol.com") ||
+    url.includes("arcelik.com.tr") ||
+    url.includes("pttavm.com")
+  );
+}
+
+function normalizeProductUrl(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  try {
+    const href = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(href);
+    const normalized = parsed.toString();
+    return isSupportedProductUrl(normalized) ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
+function readInitialPendingUrls(): string[] {
+  const saved = loadScraperState();
+  if (!Array.isArray(saved?.pendingUrls)) return [];
+  return saved.pendingUrls.filter((url): url is string => typeof url === "string" && isSupportedProductUrl(url));
+}
 
 interface Product {
   id?: string;
@@ -105,7 +135,7 @@ function ScraperPage() {
   const [scrapingMode, setScrapingMode] = useState<ScrapingMode>('single');
   const [allImages, setAllImages] = useState<any[]>([]);
   const [productFeatures, setProductFeatures] = useState<any[]>([]);
-  const [draggedUrls, setDraggedUrls] = useState<string[]>([]);
+  const [draggedUrls, setDraggedUrls] = useState<string[]>(readInitialPendingUrls);
   const [isDragOver, setIsDragOver] = useState(false);
   const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
   const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
@@ -125,6 +155,7 @@ function ScraperPage() {
   } | null>(null);
   const isMobile = useIsMobile();
   const restoredScraperState = useRef(false);
+  const persistReadyRef = useRef(false);
   
   const singleForm = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
@@ -145,28 +176,47 @@ function ScraperPage() {
     restoredScraperState.current = true;
 
     const saved = loadScraperState();
-    if (!saved) return;
+    if (saved) {
+      startTransition(() => {
+        if (saved.product) {
+          setProduct(saved.product as Product);
+        }
+        if (Array.isArray(saved.csvPreviews) && saved.csvPreviews.length > 0) {
+          setCsvPreviews(saved.csvPreviews.map((p) => normalizeStoredCsvPreview(p)));
+        }
+        if (saved.url) {
+          singleForm.setValue("url", saved.url);
+        }
+        if (saved.scrapingMode) {
+          setScrapingMode(saved.scrapingMode);
+        }
+        if (saved.workflowStep) {
+          setWorkflowStep(saved.workflowStep);
+        }
+      });
+    }
 
-    if (saved.product) {
-      setProduct(saved.product as Product);
-    }
-    if (Array.isArray(saved.csvPreviews) && saved.csvPreviews.length > 0) {
-      setCsvPreviews(saved.csvPreviews);
-    }
-    if (saved.url) {
-      singleForm.setValue("url", saved.url);
-    }
-    if (saved.scrapingMode) {
-      setScrapingMode(saved.scrapingMode);
-    }
-    if (saved.workflowStep) {
-      setWorkflowStep(saved.workflowStep);
-    }
+    const readyTimer = window.setTimeout(() => {
+      persistReadyRef.current = true;
+    }, 1800);
+
+    return () => window.clearTimeout(readyTimer);
   }, [singleForm]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (!product && csvPreviews.length === 0 && !workflowStep) {
+      if (!persistReadyRef.current) return;
+      if (!product && csvPreviews.length === 0 && !workflowStep && draggedUrls.length === 0) {
+        return;
+      }
+
+      const existing = loadScraperState();
+      const existingHasData =
+        Boolean(existing?.product) ||
+        (Array.isArray(existing?.csvPreviews) && existing.csvPreviews.length > 0);
+      const currentEmpty = !product && csvPreviews.length === 0;
+
+      if (currentEmpty && existingHasData) {
         return;
       }
 
@@ -174,13 +224,31 @@ function ScraperPage() {
         product,
         csvPreviews,
         url: singleForm.getValues("url") ?? "",
+        pendingUrls: draggedUrls,
         scrapingMode,
         workflowStep,
       });
-    }, 600);
+    }, 1200);
 
     return () => window.clearTimeout(timer);
-  }, [product, csvPreviews, scrapingMode, workflowStep, singleForm]);
+  }, [product, csvPreviews, draggedUrls, scrapingMode, workflowStep, singleForm]);
+
+  useEffect(() => {
+    const flush = () => {
+      saveScraperState({
+        product,
+        csvPreviews,
+        url: singleForm.getValues("url") ?? "",
+        pendingUrls: draggedUrls,
+        scrapingMode,
+        workflowStep,
+      });
+    };
+
+    window.addEventListener("beforeunload", flush);
+    return () => window.removeEventListener("beforeunload", flush);
+  }, [product, csvPreviews, draggedUrls, scrapingMode, workflowStep, singleForm]);
+
 
   const singleScrapeMutation = useMutation({
     onMutate: () => {
@@ -193,8 +261,13 @@ function ScraperPage() {
       });
     },
     mutationFn: async (data: ScrapeFormData & { onlyExtractData?: boolean }) => {
+      const scrapeUrl = normalizeProductUrl(data.url ?? "");
+      if (!scrapeUrl) {
+        throw new Error("Geçerli bir Trendyol, Arçelik veya PttAVM URL'si gerekli");
+      }
+
       // Shopify URL'lerini tespit et ve doğru endpoint'e yönlendir
-      if (data.url.includes('.myshopify.com') || data.url.includes('shopify.com')) {
+      if (scrapeUrl.includes('.myshopify.com') || scrapeUrl.includes('shopify.com')) {
         // Bu bir Shopify URL'si - CSV generation endpoint'ine git
         console.log('🛒 Shopify URL detected, redirecting to CSV generation');
         const response = await fetch("/api/generate-multi-variant-csv", {
@@ -204,7 +277,7 @@ function ScraperPage() {
           },
           body: JSON.stringify({ 
             productData: { 
-              url: data.url, 
+              url: scrapeUrl, 
               title: "Shopify Product",
               tags: []
             }
@@ -216,11 +289,11 @@ function ScraperPage() {
           throw new Error(errorData.message || `HTTP ${response.status}`);
         }
         const result = await response.json();
-        return { ...result, originalUrl: data.url };
+        return { ...result, originalUrl: scrapeUrl };
       }
       
       // Toplu çekim ile aynı normalize + poll mantığı
-      return fetchScenarioScrapeResult(data.url, data.onlyExtractData ?? true);
+      return fetchScenarioScrapeResult(scrapeUrl, data.onlyExtractData ?? true);
     },
     onSuccess: async (data: ScrapedUrlPayload | Record<string, unknown>) => {
       // Shopify CSV yolu farklı payload döner
@@ -291,6 +364,9 @@ function ScraperPage() {
       };
 
       setProduct(transformedProduct);
+      if (sourceUrl) {
+        addRecentUrl(sourceUrl);
+      }
       setWorkflowStep(
         csvReady
           ? "Ürün hazır — Shopify'a gönderebilirsiniz"
@@ -708,12 +784,122 @@ function ScraperPage() {
     }
   });
 
-  const onSingleSubmit = singleForm.handleSubmit((data) => {
-    // Start the main scraping process - ONLY EXTRACT DATA (no tracking/transfer)
-    singleScrapeMutation.mutate({ ...data, onlyExtractData: true });
-    
-    // No need for additional comprehensive image extraction since scenario-based scraper already extracts all needed images
-    // Removed: extractAllImagesMutation.mutate(data.url); to prevent "Görsel Çıkarma Hatası" notifications
+  const appendPendingUrls = useCallback((rawUrls: string[]) => {
+    const normalized = rawUrls
+      .map(normalizeProductUrl)
+      .filter((url): url is string => Boolean(url));
+
+    if (normalized.length === 0) return 0;
+
+    let added = 0;
+    setDraggedUrls((prev) => {
+      const next = [...prev];
+      for (const url of normalized) {
+        if (!next.includes(url)) {
+          next.push(url);
+          added += 1;
+        }
+      }
+      if (added > 0) {
+        savePendingUrls(next);
+        return next;
+      }
+      return prev;
+    });
+    return added;
+  }, []);
+
+  const processAllUrls = async (urls: string[]) => {
+    const queue = urls.map(normalizeProductUrl).filter((url): url is string => Boolean(url));
+    if (queue.length === 0) {
+      toast({
+        title: "Hata",
+        description: "İşlemek için geçerli URL eklemeniz gerekiyor",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBulkProcessing(true);
+    setBulkProgress({ current: 0, total: queue.length });
+
+    toast({
+      title: "🚀 Toplu Çekim Başladı",
+      description: `${queue.length} ürün teker teker işlenecek...`,
+      duration: 6000,
+    });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < queue.length; i++) {
+      const url = queue[i];
+      setBulkProgress({ current: i + 1, total: queue.length });
+
+      try {
+        const scraped = await fetchScenarioScrapeResult(url, true);
+        const newPreview = buildCsvPreviewEntry(scraped, url, "bulk");
+        setCsvPreviews((prev) => [newPreview, ...prev]);
+        successCount++;
+
+        toast({
+          title: `✅ ${i + 1}/${queue.length} tamamlandı`,
+          description: scraped.title || url,
+          duration: 3000,
+        });
+      } catch (error) {
+        failCount++;
+        toast({
+          title: `❌ ${i + 1}/${queue.length} başarısız`,
+          description: error instanceof Error ? error.message : "Bilinmeyen hata",
+          variant: "destructive",
+          duration: 4000,
+        });
+      }
+    }
+
+    setIsBulkProcessing(false);
+    setBulkProgress(null);
+
+    toast({
+      title: "Toplu İşlem Tamamlandı",
+      description: `✅ Başarılı: ${successCount}, ❌ Hatalı: ${failCount}`,
+      duration: 8000,
+    });
+  };
+
+  const handleFetchProducts = useCallback(async () => {
+    if (singleScrapeMutation.isPending || isBulkProcessing) return;
+
+    const inputUrl = normalizeProductUrl(singleForm.getValues("url") ?? "");
+    let queue = [...draggedUrls];
+
+    if (inputUrl && !queue.includes(inputUrl)) {
+      queue = [...queue, inputUrl];
+      setDraggedUrls(queue);
+      savePendingUrls(queue);
+      singleForm.setValue("url", "");
+    }
+
+    if (queue.length === 0) {
+      toast({
+        title: "URL gerekli",
+        description: "Sürükleyin, yapıştırıp Ekle'ye basın veya URL alanına yazın",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (queue.length === 1) {
+      singleScrapeMutation.mutate({ url: queue[0], onlyExtractData: true });
+      return;
+    }
+
+    await processAllUrls(queue);
+  }, [draggedUrls, isBulkProcessing, singleForm, singleScrapeMutation]);
+
+  const onSingleSubmit = singleForm.handleSubmit(() => {
+    void handleFetchProducts();
   });
 
   // Shopify transfer mutation
@@ -783,53 +969,130 @@ function ScraperPage() {
 
 
   // Sürükle-bırak fonksiyonları
+  const extractDroppedUrls = (e: React.DragEvent): string[] => {
+    const candidates: string[] = [];
+
+    const plain = e.dataTransfer.getData("text/plain");
+    if (plain) candidates.push(...plain.split(/\r?\n/));
+
+    const uriList = e.dataTransfer.getData("text/uri-list");
+    if (uriList) {
+      candidates.push(
+        ...uriList
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line && !line.startsWith("#")),
+      );
+    }
+
+    const html = e.dataTransfer.getData("text/html");
+    if (html) {
+      for (const match of html.matchAll(/href=["']([^"']+)["']/gi)) {
+        candidates.push(match[1]);
+      }
+    }
+
+    const urlPattern = /https?:\/\/[^\s<>"']+/gi;
+    if (plain) {
+      for (const match of plain.matchAll(urlPattern)) {
+        candidates.push(match[0]);
+      }
+    }
+
+    return [...new Set(candidates.map((u) => u.trim()).filter(Boolean))]
+      .map(normalizeProductUrl)
+      .filter((url): url is string => Boolean(url));
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+    setIsDragOver(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
     setIsDragOver(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDragOver(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
-    
-    const text = e.dataTransfer.getData('text/plain');
-    const urls = text.split('\n').filter(line => 
-      line.trim() && 
-      (line.includes('trendyol.com') || line.includes('arcelik.com.tr'))
-    );
-    
+
+    const urls = extractDroppedUrls(e);
+
     if (urls.length > 0) {
-      const newUrls = urls.filter(url => !draggedUrls.includes(url.trim()));
-      setDraggedUrls(prev => [...prev, ...newUrls.map(url => url.trim())]);
-      toast({
-        title: "URL'ler Eklendi",
-        description: `${newUrls.length} yeni URL eklendi`
-      });
+      const added = appendPendingUrls(urls);
+      if (added > 0) {
+        toast({
+          title: "URL'ler Eklendi",
+          description: `${added} yeni URL eklendi`,
+        });
+      } else {
+        toast({
+          title: "Zaten Ekli",
+          description: "Bu URL'ler zaten listede",
+        });
+      }
+      return;
     }
+
+    toast({
+      title: "Geçersiz URL",
+      description: "Trendyol, Arçelik veya PttAVM linki sürükleyin",
+      variant: "destructive",
+    });
   };
 
   const addUrlManually = () => {
-    const url = singleForm.getValues('url');
-    if (url.trim() && !draggedUrls.includes(url.trim())) {
-      setDraggedUrls(prev => [...prev, url.trim()]);
-      singleForm.setValue('url', '');
+    const raw = singleForm.getValues("url") ?? "";
+    const normalized = normalizeProductUrl(raw);
+
+    if (!normalized) {
+      toast({
+        title: "Geçersiz URL",
+        description: "Trendyol, Arçelik veya PttAVM linki girin",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const added = appendPendingUrls([normalized]);
+    if (added > 0) {
+      singleForm.setValue("url", "");
       toast({
         title: "URL Eklendi",
-        description: "URL listeye eklendi"
+        description: "URL listeye eklendi",
+      });
+    } else {
+      toast({
+        title: "Zaten Ekli",
+        description: "Bu URL zaten listede",
       });
     }
   };
 
   const removeUrl = (indexToRemove: number) => {
-    setDraggedUrls(prev => prev.filter((_, index) => index !== indexToRemove));
+    setDraggedUrls((prev) => {
+      const next = prev.filter((_, index) => index !== indexToRemove);
+      savePendingUrls(next);
+      return next;
+    });
   };
 
   const clearAllUrls = () => {
+    savePendingUrls([]);
     setDraggedUrls([]);
     setCsvPreviews([]); // CSV önizlemelerini de temizle
     toast({
@@ -1015,71 +1278,6 @@ function ScraperPage() {
         duration: 8000,
       });
     }, 50);
-  };
-
-  const processAllUrls = async () => {
-    if (draggedUrls.length === 0) {
-      toast({
-        title: "Hata",
-        description: "İşlemek için URL eklemeniz gerekiyor",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsBulkProcessing(true);
-    setBulkProgress({ current: 0, total: draggedUrls.length });
-
-    toast({
-      title: "🚀 Toplu Çekim Başladı",
-      description: `${draggedUrls.length} ürün teker teker işlenecek...`,
-      duration: 6000,
-    });
-
-    let successCount = 0;
-    let failCount = 0;
-
-    for (let i = 0; i < draggedUrls.length; i++) {
-      const url = draggedUrls[i].trim();
-      if (!url) continue;
-
-      setBulkProgress({ current: i + 1, total: draggedUrls.length });
-
-      try {
-        console.log(`📦 [${i + 1}/${draggedUrls.length}] Processing: ${url}`);
-
-        const scraped = await fetchScenarioScrapeResult(url, true);
-        const newPreview = buildCsvPreviewEntry(scraped, url, "bulk");
-
-        setCsvPreviews((prev) => [newPreview, ...prev]);
-        successCount++;
-
-        toast({
-          title: `✅ ${i + 1}/${draggedUrls.length} tamamlandı`,
-          description: scraped.title || url,
-          duration: 3000,
-        });
-
-      } catch (error) {
-        failCount++;
-        console.error(`❌ [${i + 1}/${draggedUrls.length}] Error:`, error);
-        toast({
-          title: `❌ ${i + 1}/${draggedUrls.length} başarısız`,
-          description: error instanceof Error ? error.message : 'Bilinmeyen hata',
-          variant: "destructive",
-          duration: 4000,
-        });
-      }
-    }
-
-    setIsBulkProcessing(false);
-    setBulkProgress(null);
-
-    toast({
-      title: "Toplu İşlem Tamamlandı",
-      description: `✅ Başarılı: ${successCount}, ❌ Hatalı: ${failCount}`,
-      duration: 8000,
-    });
   };
 
   const onMultiSubmit = multiForm.handleSubmit((data) => {
@@ -1395,7 +1593,7 @@ function ScraperPage() {
   );
 
   const displayPrice = useMemo(
-    () => (product?.price ? normalizeTrendyolDisplayPrice(product.price, 0.15) : null),
+    () => (product?.price ? normalizeTrendyolDisplayPrice(product.price, 0.10) : null),
     [product?.price],
   );
 
@@ -1509,31 +1707,24 @@ function ScraperPage() {
                       </label>
                       
                       {/* Sürükle-Bırak Alanı */}
-                      <div 
-                        className={`border-2 border-dashed transition-all duration-200 rounded-lg text-center ${
-                          isDragOver 
-                            ? 'border-cyan-400 bg-cyan-900/20' 
-                            : 'border-slate-600 bg-slate-800/50'
-                        } ${isMobile ? 'p-6' : 'p-8'}`}
+                      <div
+                        className={`border-2 border-dashed transition-all duration-200 rounded-lg flex items-center justify-center select-none ${
+                          isDragOver
+                            ? "border-cyan-400 bg-cyan-900/20"
+                            : "border-slate-600 bg-slate-800/50"
+                        } ${isMobile ? "min-h-[72px] px-4 py-5" : "min-h-[80px] px-6 py-6"}`}
+                        onDragEnter={handleDragEnter}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                       >
-                        <div className={`flex flex-col items-center ${isMobile ? 'gap-3' : 'gap-3'}`}>
-                          <Package className={`text-cyan-400/70 ${isMobile ? 'w-8 h-8' : 'w-8 h-8'}`} />
-                          <div className="text-center">
-                            <p className={`text-white font-medium leading-tight ${
-                              isMobile ? 'text-base' : 'text-base'
-                            }`}>
-                              Trendyol veya Arçelik URL'lerini buraya sürükleyin
-                            </p>
-                            <p className={`text-slate-400 mt-2 leading-tight ${
-                              isMobile ? 'text-sm' : 'text-sm'
-                            }`}>
-                              Veya aşağıdaki alandan manuel olarak ekleyin
-                            </p>
-                          </div>
-                        </div>
+                        <p
+                          className={`font-medium leading-none ${
+                            isDragOver ? "text-cyan-300" : "text-slate-300"
+                          } ${isMobile ? "text-base" : "text-lg"}`}
+                        >
+                          url sürükle
+                        </p>
                       </div>
 
                       {/* Manuel URL Ekleme */}
@@ -1587,56 +1778,67 @@ function ScraperPage() {
                           <span className="font-semibold">Ekle</span>
                         </Button>
                       </div>
+
+                      {/* Eklenen URL listesi — hemen görünür */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-white font-thin text-sm">
+                            Eklenmiş URL&apos;ler ({draggedUrls.length})
+                          </label>
+                          {draggedUrls.length > 0 && (
+                            <Button
+                              type="button"
+                              onClick={clearAllUrls}
+                              variant="ghost"
+                              className="text-red-400 hover:text-red-300 text-xs h-6 px-2"
+                            >
+                              Tümünü Sil
+                            </Button>
+                          )}
+                        </div>
+                        {draggedUrls.length > 0 ? (
+                          <div className="max-h-44 overflow-y-auto space-y-2 rounded-lg border border-cyan-800/30 bg-slate-800/40 p-3">
+                            {draggedUrls.map((url, index) => (
+                              <div
+                                key={`${url}-${index}`}
+                                className="flex items-center gap-2 rounded-md bg-slate-700/50 px-3 py-2"
+                              >
+                                <span className="text-cyan-400 text-xs font-mono">#{index + 1}</span>
+                                <span className="text-white text-xs flex-1 truncate" title={url}>
+                                  {url}
+                                </span>
+                                <Button
+                                  type="button"
+                                  onClick={() => removeUrl(index)}
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 text-red-400 hover:text-red-300"
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 text-xs px-1">
+                            Henüz URL eklenmedi. Sürükleyin veya alttan ekleyin.
+                          </p>
+                        )}
+                      </div>
+
+                      <UrlHistory onSelect={(url) => singleForm.setValue("url", url, { shouldDirty: true })} />
                     </div>
 
                     {/* Dahili Mini Tarayıcı */}
                     <MiniBrowser
                       onExtract={(url) => {
-                        const trimmed = url.trim();
-                        if (!trimmed) return;
-                        if (!draggedUrls.includes(trimmed)) {
-                          setDraggedUrls(prev => [...prev, trimmed]);
+                        const added = appendPendingUrls([url]);
+                        if (added > 0) {
                           toast({ title: "URL Eklendi", description: "Tarayıcıdan URL listeye eklendi" });
                         } else {
                           toast({ title: "Zaten Ekli", description: "Bu URL zaten listede mevcut" });
                         }
                       }}
                     />
-
-                    {/* URL Listesi */}
-                    {draggedUrls.length > 0 && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <label className="text-white font-thin text-sm">
-                            Eklenmiş URL'ler ({draggedUrls.length})
-                          </label>
-                          <Button
-                            type="button"
-                            onClick={clearAllUrls}
-                            variant="ghost"
-                            className="text-red-400 hover:text-red-300 text-xs h-6 px-2"
-                          >
-                            Tümünü Sil
-                          </Button>
-                        </div>
-                        <div className="max-h-40 overflow-y-auto space-y-2 bg-slate-800/30 rounded-lg p-3">
-                          {draggedUrls.map((url, index) => (
-                            <div key={index} className="flex items-center gap-2 bg-slate-700/50 px-3 py-2 rounded-md">
-                              <span className="text-cyan-400 text-xs font-mono">#{index + 1}</span>
-                              <span className="text-white text-xs flex-1 truncate">{url}</span>
-                              <Button
-                                type="button"
-                                onClick={() => removeUrl(index)}
-                                variant="ghost"
-                                className="h-6 w-6 p-0 text-red-400 hover:text-red-300"
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                     
                     <div className="space-y-3">
                       {/* Toplu çekim yükleme banner'ı */}
@@ -1677,113 +1879,67 @@ function ScraperPage() {
                         </div>
                       )}
 
-                      {draggedUrls.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="relative">
-                            {/* Nabız halkası animasyonu */}
-                            {isBulkProcessing && (
-                              <>
-                                <span className="absolute inset-0 rounded-md animate-ping bg-green-400 opacity-20 pointer-events-none" />
-                                <span className="absolute inset-0 rounded-md animate-pulse bg-green-300 opacity-10 pointer-events-none" />
-                              </>
-                            )}
-                            <Button 
-                              type="button"
-                              onClick={processAllUrls}
-                              disabled={isBulkProcessing}
-                              className={`relative w-full overflow-hidden bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium transition-all duration-300 ${isBulkProcessing ? "shadow-lg shadow-green-500/40 scale-[1.01]" : ""}`}
-                            >
-                              {/* Hareketli shimmer şeridi */}
-                              {isBulkProcessing && (
-                                <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-                              )}
-                              {isBulkProcessing ? (
-                                <div className="flex items-center gap-3">
-                                  <div className="relative w-5 h-5 shrink-0">
-                                    <span className="absolute inset-0 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                                    <span className="absolute inset-1 rounded-full bg-white/20 animate-pulse" />
-                                  </div>
-                                  <span className="flex flex-col items-start leading-tight">
-                                    <span className="text-sm font-semibold">Veriler Çekiliyor...</span>
-                                    <span className="text-xs font-normal opacity-75">{draggedUrls.length} ürün işleniyor</span>
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2">
-                                  <Package className="w-5 h-5" />
-                                  ÜRÜN VERİLERİNİ ÇEK ({draggedUrls.length})
-                                </div>
-                              )}
-                            </Button>
-                          </div>
-                          
-
-                        </div>
-                        
-                      ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="relative">
-                            {singleScrapeMutation.isPending && (
-                              <>
-                                <span className="absolute inset-0 rounded-md animate-ping bg-green-400 opacity-20 pointer-events-none" />
-                                <span className="absolute inset-0 rounded-md animate-pulse bg-green-300 opacity-10 pointer-events-none" />
-                              </>
-                            )}
-                            <Button
-                              type="submit"
-                              disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
-                              className={`relative w-full overflow-hidden bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium transition-all duration-300 ${singleScrapeMutation.isPending ? "shadow-lg shadow-green-500/40 scale-[1.01]" : ""}`}
-                            >
-                              {singleScrapeMutation.isPending && (
-                                <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-                              )}
-                              {singleScrapeMutation.isPending ? (
-                                <div className="flex items-center gap-3">
-                                  <div className="relative w-5 h-5 shrink-0">
-                                    <span className="absolute inset-0 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                                    <span className="absolute inset-1 rounded-full bg-white/20 animate-pulse" />
-                                  </div>
-                                  <span className="flex flex-col items-start leading-tight">
-                                    <span className="text-sm font-semibold">Ürün Verisi Çekiliyor...</span>
-                                    <span className="text-xs font-normal opacity-75">Lütfen bekleyin</span>
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2">
-                                  <Package className="w-5 h-5" />
-                                  <span>ÜRÜN VERİLERİNİ ÇEK</span>
-                                </div>
-                              )}
-                            </Button>
-                          </div>
-                          
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="relative">
+                          {(singleScrapeMutation.isPending || isBulkProcessing) && (
+                            <>
+                              <span className="absolute inset-0 rounded-md animate-ping bg-green-400 opacity-20 pointer-events-none" />
+                              <span className="absolute inset-0 rounded-md animate-pulse bg-green-300 opacity-10 pointer-events-none" />
+                            </>
+                          )}
                           <Button
                             type="button"
-                            onClick={onShopifyTransfer}
-                            disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending || !product}
-                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 text-lg font-medium disabled:opacity-50"
+                            onClick={() => void handleFetchProducts()}
+                            disabled={singleScrapeMutation.isPending || isBulkProcessing || shopifyTransferMutation.isPending}
+                            className={`relative w-full overflow-hidden bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium transition-all duration-300 ${singleScrapeMutation.isPending || isBulkProcessing ? "shadow-lg shadow-green-500/40 scale-[1.01]" : ""}`}
                           >
-                            {shopifyTransferMutation.isPending ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                <span>Shopify'a Aktarılıyor...</span>
+                            {(singleScrapeMutation.isPending || isBulkProcessing) && (
+                              <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                            )}
+                            {singleScrapeMutation.isPending || isBulkProcessing ? (
+                              <div className="flex items-center gap-3">
+                                <div className="relative w-5 h-5 shrink-0">
+                                  <span className="absolute inset-0 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                  <span className="absolute inset-1 rounded-full bg-white/20 animate-pulse" />
+                                </div>
+                                <span className="flex flex-col items-start leading-tight">
+                                  <span className="text-sm font-semibold">Veriler Çekiliyor...</span>
+                                  <span className="text-xs font-normal opacity-75">
+                                    {draggedUrls.length > 0 ? `${draggedUrls.length} URL` : "Lütfen bekleyin"}
+                                  </span>
+                                </span>
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
-                                <ShoppingCart className="w-5 h-5" />
-                                <span>SHOPIFY'A AKTAR</span>
+                                <Package className="w-5 h-5" />
+                                <span>
+                                  ÜRÜN VERİLERİNİ ÇEK
+                                  {draggedUrls.length > 0 ? ` (${draggedUrls.length})` : ""}
+                                </span>
                               </div>
                             )}
                           </Button>
-                          
-
-                          
-
-                          
-
                         </div>
-                      )}
 
+                        <Button
+                          type="button"
+                          onClick={onShopifyTransfer}
+                          disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending || isBulkProcessing || !product}
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 text-lg font-medium disabled:opacity-50"
+                        >
+                          {shopifyTransferMutation.isPending ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span>Shopify&apos;a Aktarılıyor...</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <ShoppingCart className="w-5 h-5" />
+                              <span>SHOPIFY&apos;A AKTAR</span>
+                            </div>
+                          )}
+                        </Button>
+                      </div>
 
                     </div>
                   </form>
@@ -2573,7 +2729,15 @@ function ScraperPage() {
                         loading="lazy"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
-                          e.currentTarget.src = 'https://via.placeholder.com/120?text=?';
+                          const img = e.currentTarget;
+                          const direct = resolvePreviewImageUrl(image.url || image);
+                          const proxy = direct ? resolvePreviewProxyUrl(direct) : null;
+                          if (proxy && img.dataset.fallback !== "proxy") {
+                            img.dataset.fallback = "proxy";
+                            img.src = proxy;
+                            return;
+                          }
+                          img.src = "https://via.placeholder.com/120?text=?";
                         }}
                       />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
@@ -2821,7 +2985,14 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
                 alt={previewData.title}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.currentTarget.src = '/placeholder-image.jpg';
+                  const img = e.currentTarget;
+                  const proxy = imageUrl ? resolvePreviewProxyUrl(imageUrl) : null;
+                  if (proxy && img.dataset.fallback !== "proxy") {
+                    img.dataset.fallback = "proxy";
+                    img.src = proxy;
+                    return;
+                  }
+                  img.src = "/placeholder-image.jpg";
                 }}
               />
             ) : (

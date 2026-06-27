@@ -1,6 +1,7 @@
 import { normalizeTrendyolDisplayPrice } from "@/utils/price-utils";
-import { resolveOriginalImageUrl } from "@/lib/product-image-url";
+import { extractImagesFromCsv, resolveOriginalImageUrl } from "@/lib/product-image-url";
 import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
+import { filterValidProductImages, prioritizeProductImagesForPreview } from "@shared/trendyol-product-images";
 
 export type ScrapedUrlPayload = {
   title: string;
@@ -41,19 +42,7 @@ export type ScrapedUrlPayload = {
 };
 
 function normalizeImageList(images: unknown): string[] {
-  if (!Array.isArray(images)) return [];
-
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const item of images) {
-    const url = resolveOriginalImageUrl(item);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    result.push(url);
-  }
-
-  return result;
+  return filterValidProductImages(images);
 }
 
 function buildFallbackCsvContent(data: {
@@ -76,7 +65,7 @@ export function normalizeScrapedPayload(
   url: string,
 ): ScrapedUrlPayload {
   const images = normalizeImageList(raw.images);
-  const displayPrice = normalizeTrendyolDisplayPrice(raw.price, 0.15);
+  const displayPrice = normalizeTrendyolDisplayPrice(raw.price, 0.10);
 
   let csvContent =
     typeof raw.csvContent === "string" && raw.csvContent.length > 50
@@ -202,8 +191,44 @@ export function buildCsvPreviewEntry(
       sizes: data.variants?.sizes || [],
     },
     images: data.images,
-    price: data.price.original,
+    price: {
+      original: data.price.original,
+      withProfit: data.price.withProfit,
+    },
     brand: data.brand,
     createdAt: new Date().toISOString(),
   };
+}
+
+/** localStorage'dan gelen eski önizlemeleri normalize et */
+export function normalizeStoredCsvPreview(preview: Record<string, unknown>) {
+  const rawPrice = preview.price;
+  let price: { original: number; withProfit: number };
+  if (typeof rawPrice === "number" && rawPrice > 0) {
+    price = {
+      original: rawPrice,
+      withProfit: Math.round(rawPrice * 1.10 * 100) / 100,
+    };
+  } else if (rawPrice && typeof rawPrice === "object") {
+    const p = rawPrice as { original?: number; withProfit?: number };
+    price = {
+      original: p.original ?? 0,
+      withProfit: p.withProfit ?? Math.round((p.original ?? 0) * 1.15 * 100) / 100,
+    };
+  } else {
+    price = { original: 0, withProfit: 0 };
+  }
+
+  const rawImages = Array.isArray(preview.images) ? preview.images : [];
+  const csvContent = typeof preview.csvContent === "string" ? preview.csvContent : "";
+  const images = prioritizeProductImagesForPreview(
+    filterValidProductImages([
+      ...rawImages
+        .map((item) => resolveOriginalImageUrl(item) || (typeof item === "string" ? item : null))
+        .filter((u): u is string => Boolean(u)),
+      ...extractImagesFromCsv(csvContent),
+    ]),
+  );
+
+  return { ...preview, price, images };
 }

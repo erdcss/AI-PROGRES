@@ -15,7 +15,6 @@ import PriceMovementTest from "@/pages/price-movement-test";
 // Removed auto-csv page import
 // Removed bulk-csv page import
 import { useState, useEffect, useSyncExternalStore, Component, type ReactNode } from "react";
-import { UrlHistory } from "@/components/UrlHistory";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -54,6 +53,7 @@ import {
   touchAppSession,
   verifyAppPassword,
 } from "@/lib/app-auth";
+import { markUserInitiatedReload } from "@/lib/dev-stability";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -230,7 +230,7 @@ class AppErrorBoundary extends Component<
             <p className="text-slate-400 text-sm">{this.state.error.message}</p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button onClick={this.resetError}>Devam Et</Button>
-              <Button variant="outline" onClick={() => window.location.reload()}>Sayfayı Yenile</Button>
+              <Button variant="outline" onClick={() => { markUserInitiatedReload(); window.location.reload(); }}>Sayfayı Yenile</Button>
             </div>
           </div>
         </div>
@@ -264,40 +264,16 @@ function Router() {
       </Route>
       {/* Scraper routes */}
       <Route path="/scraper/:platform?">
-        {(params) => (
-          <PageTransition>
-            <div className={`mx-auto ${isMobile ? 'px-4 py-4 max-w-full' : 'container px-4 py-4'}`}>
-              <div className={`flex flex-col ${isMobile ? 'gap-4' : 'gap-4'}`}>
-                <ScraperPage />
-                <UrlHistory onSelect={(url) => {
-                  // Find the scraper component and update its URL
-                  const scraperComponent = document.querySelector('input[name="url"]');
-                  if (scraperComponent) {
-                    const event = new Event('change', { bubbles: true });
-                    Object.defineProperty(event, 'target', { value: { value: url } });
-                    scraperComponent.dispatchEvent(event);
-                  }
-                }} />
-              </div>
-            </div>
-          </PageTransition>
-        )}
+        <PageTransition>
+          <div className={`mx-auto ${isMobile ? "px-4 py-4 max-w-full" : "container px-4 py-4"}`}>
+            <ScraperPage />
+          </div>
+        </PageTransition>
       </Route>
       <Route path="/trendyol">
         <PageTransition>
-          <div className={`mx-auto ${isMobile ? 'px-4 py-4 max-w-full' : 'container px-4 py-4'}`}>
-            <div className={`flex flex-col ${isMobile ? 'gap-4' : 'gap-4'}`}>
-              <ScraperPage />
-              <UrlHistory onSelect={(url) => {
-                // Find the scraper component and update its URL
-                const scraperComponent = document.querySelector('input[name="url"]');
-                if (scraperComponent) {
-                  const event = new Event('change', { bubbles: true });
-                  Object.defineProperty(event, 'target', { value: { value: url } });
-                  scraperComponent.dispatchEvent(event);
-                }
-              }} />
-            </div>
+          <div className={`mx-auto ${isMobile ? "px-4 py-4 max-w-full" : "container px-4 py-4"}`}>
+            <ScraperPage />
           </div>
         </PageTransition>
       </Route>

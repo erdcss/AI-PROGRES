@@ -2142,25 +2142,36 @@ setTimeout(check, 1000);
 
         const apiHasImages = filterValidProductImages(result?.images || []).length > 0;
 
-        let cloudSkipScenario = false;
-        if (shouldPreferApiOnlyScrape() && result) {
-          console.log('☁️ Cloud: zorunlu HTML enrich (bot sayfası koruması)...');
+        // ⚡ 1.5) Direct HTML — Safari UA ile hızlı görsel/fiyat (tüm ortamlar)
+        let skipScenarioFastPath = false;
+        {
+          console.log('⚡ Direct HTML enrich (Safari UA)...');
+          if (!result) {
+            result = {
+              success: true,
+              title: resolveProductTitle(url, null),
+              brand: brandFromTrendyolUrl(url) || 'Marka',
+              price: { original: 0, withProfit: 0, currency: 'TRY' },
+              images: [],
+              sourceUrl: url,
+            };
+          }
+
           const { fetchTrendyolProductImages } = await import('./trendyol-image-fetcher');
-          const directImages = await fetchTrendyolProductImages(url);
-          if (directImages.length > 0) {
-            result.images = directImages;
-            console.log(`☁️ Direct görsel: ${directImages.length} adet`);
+          if (!apiHasImages) {
+            const directImages = await fetchTrendyolProductImages(url);
+            if (directImages.length > 0) {
+              result.images = directImages;
+              console.log(`⚡ Direct görsel: ${directImages.length} adet`);
+            }
           }
 
           const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
           const htmlProduct = await extractTrendyolProductFromHtml(url);
           if (htmlProduct) {
             result.title = resolveProductTitle(url, htmlProduct.title || result.title);
-            if (htmlProduct.images.length > 0 && directImages.length === 0) {
+            if (filterValidProductImages(result.images).length === 0 && htmlProduct.images.length > 0) {
               result.images = htmlProduct.images;
-            } else if (directImages.length === 0) {
-              const retryImages = await fetchTrendyolProductImages(url);
-              if (retryImages.length > 0) result.images = retryImages;
             }
             if (hasRealTrendyolVariants(htmlProduct.variants)) {
               result.variants = htmlProduct.variants;
@@ -2170,27 +2181,28 @@ setTimeout(check, 1000);
             }
             if (htmlProduct.description && !result.description) result.description = htmlProduct.description;
             console.log(
-              `☁️ HTML extractor (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel, title="${result.title}"`,
+              `⚡ HTML extractor (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel, fiyat=${htmlProduct.price.original}`,
             );
           } else {
             result.title = resolveProductTitle(url, result.title);
-            if (directImages.length === 0) {
-              const retryImages = await fetchTrendyolProductImages(url);
-              if (retryImages.length > 0) result.images = retryImages;
-            }
-            console.log(`☁️ HTML extractor başarısız — URL slug title: "${result.title}"`);
           }
 
           const hasImagesNow = filterValidProductImages(result?.images || []).length > 0;
           const hasValidTitle = isValidTrendyolProductTitle(result.title);
-          cloudSkipScenario = hasValidTitle && hasImagesNow && result.price?.original > 0;
-          if (cloudSkipScenario) {
-            console.log('☁️ Cloud: API+HTML yeterli — scenario scrape atlandı');
+          const hasVariantsNow = hasRealTrendyolVariants(result.variants);
+          skipScenarioFastPath = hasValidTitle && hasImagesNow && result.price?.original > 0 && hasVariantsNow;
+          if (skipScenarioFastPath) {
+            console.log('⚡ Direct HTML yeterli — scenario scrape atlandı');
           } else {
             console.log(
-              `☁️ Cloud: eksik veri (title=${hasValidTitle}, images=${hasImagesNow}, price=${result.price?.original > 0}) — enrich devam`,
+              `⚡ Direct HTML kısmi (title=${hasValidTitle}, images=${hasImagesNow}, price=${result.price?.original > 0}, variants=${hasVariantsNow}) — scenario devam`,
             );
           }
+        }
+
+        let cloudSkipScenario = skipScenarioFastPath;
+        if (shouldPreferApiOnlyScrape() && result && skipScenarioFastPath) {
+          console.log('☁️ Cloud: direct HTML tam veri — scenario atlandı');
         }
 
         // ☁️ Deploy: API fiyat+başlık+görsel yeterliyse Puppeteer atla
@@ -2206,7 +2218,7 @@ setTimeout(check, 1000);
         try {
           const scrapeResult = await Promise.race([
             scenarioBasedScrape(url),
-            createTimeout(60000)
+            createTimeout(90000)
           ]) as any;
           
           const { isValidTrendyolProductTitle } = await import('./trendyol-title-utils');
@@ -2446,10 +2458,12 @@ setTimeout(check, 1000);
             const { ultimatePriceExtract } = await import('./ultimate-price-extractor');
             
             const manualResponse = await axios.default.get(url, {
-              timeout: 8000,
+              timeout: 20000,
               headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-              }
+                'User-Agent':
+                  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              },
             });
             
             const htmlContent = manualResponse.data;
@@ -3236,7 +3250,7 @@ setTimeout(check, 1000);
   // Image proxy endpoint to bypass CORS restrictions
   app.get('/api/image-proxy', async (req, res) => {
     const imageUrl = req.query.url as string;
-    
+
     try {
       if (!imageUrl || !/(cdn\.dsmcdn\.com|cdn\.trendyol\.com)/.test(imageUrl)) {
         return res.status(400).json({ error: 'Invalid image URL' });
@@ -3244,83 +3258,38 @@ setTimeout(check, 1000);
 
       console.log('🖼️ Proxy image request:', imageUrl);
 
-      // Fetch the image from Trendyol
-      const response = await axios.get(imageUrl, {
-        responseType: 'arraybuffer',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Cache-Control': 'no-cache',
-          'Referer': 'https://www.trendyol.com/',
-          'sec-ch-ua': '"Google Chrome";v="120", "Chromium";v="120", "Not_A Brand";v="24"',
-          'sec-ch-ua-mobile': '?0',
-          'sec-ch-ua-platform': '"Windows"',
-          'sec-fetch-dest': 'image',
-          'sec-fetch-mode': 'no-cors',
-          'sec-fetch-site': 'same-site'
-        },
-        timeout: 10000,
-        maxRedirects: 5,
-        validateStatus: (status) => status >= 200 && status < 300
-      });
+      const { fetchTrendyolProxiedImage } = await import('./trendyol-image-proxy');
+      const result = await fetchTrendyolProxiedImage(imageUrl);
 
-      if (!response.data || response.data.byteLength === 0) {
-        return res.status(502).json({ error: 'Empty image response' });
+      if (!result) {
+        return res.status(404).json({ error: 'Image not found' });
       }
 
-      // Get content type from response
-      const contentType = response.headers['content-type'] || 'image/jpeg';
-      
-      // Set cache headers
       res.set({
-        'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
-        'Access-Control-Allow-Origin': '*'
+        'Content-Type': result.contentType,
+        'Cache-Control': 'public, max-age=86400',
+        'Access-Control-Allow-Origin': '*',
       });
 
-      // Send the image
-      res.send(Buffer.from(response.data));
+      return res.send(result.data);
     } catch (error: any) {
       console.error('❌ Image proxy error:', error.response?.status || error.message);
-      
-      // If it's a 404, try with alternative URL patterns
-      if (error.response?.status === 404 && imageUrl) {
-        try {
-          // Try without version path
-          const altUrl = imageUrl.replace(/\/ty\d+\//, '/');
-          console.log('🔄 Trying alternative URL:', altUrl);
-          
-          const altResponse = await axios.get(altUrl, {
-            responseType: 'arraybuffer',
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Accept': 'image/*',
-              'Referer': 'https://www.trendyol.com/'
-            },
-            timeout: 5000
-          });
-          
-          const contentType = altResponse.headers['content-type'] || 'image/jpeg';
-          res.set({
-            'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=86400',
-            'Access-Control-Allow-Origin': '*'
-          });
-          
-          return res.send(Buffer.from(altResponse.data));
-        } catch (altError) {
-          console.error('❌ Alternative URL also failed:', altError);
-        }
+      return res.status(502).json({ error: 'Image proxy failed' });
+    }
+  });
+
+  app.get('/api/product-preview-images', async (req, res) => {
+    try {
+      const url = req.query.url as string;
+      if (!url || !url.includes('trendyol.com')) {
+        return res.status(400).json({ error: 'Geçerli Trendyol URL gerekli' });
       }
-      
-      // Return a transparent 1x1 pixel as fallback
-      const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-      res.set({
-        'Content-Type': 'image/gif',
-        'Cache-Control': 'no-cache'
-      });
-      res.send(pixel);
+      const { fetchTrendyolProductImages } = await import('./trendyol-image-fetcher');
+      const images = await fetchTrendyolProductImages(url);
+      return res.json({ images, count: images.length });
+    } catch (error: any) {
+      console.error('❌ Preview images error:', error?.message || error);
+      return res.status(502).json({ error: 'Görsel yenileme başarısız' });
     }
   });
 
@@ -5570,60 +5539,7 @@ setTimeout(check, 1000);
 
 
 
-  // Image proxy endpoint for CORS issues
-  app.get('/api/image-proxy', async (req, res) => {
-    try {
-      const { url } = req.query;
-      
-      if (!url || typeof url !== 'string') {
-        return res.status(400).json({ error: 'URL parametresi gerekli' });
-      }
-
-      // Only allow Trendyol CDN images
-      if (!/(cdn\.dsmcdn\.com|cdn\.trendyol\.com)/.test(url)) {
-        return res.status(403).json({ error: 'Sadece Trendyol CDN görselleri desteklenir' });
-      }
-
-      console.log('🖼️ Proxy image request:', url);
-
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'image/webp,image/apng,image/jpeg,image/png,image/*,*/*;q=0.8',
-          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Referer': 'https://www.trendyol.com/',
-          'Sec-Fetch-Dest': 'image',
-          'Sec-Fetch-Mode': 'no-cors',
-          'Sec-Fetch-Site': 'cross-site'
-        }
-      });
-
-      if (!response.ok) {
-        console.error('❌ Image proxy error:', response.status, response.statusText);
-        return res.status(404).send('Image not found');
-      }
-
-      const contentType = response.headers.get('content-type') || 'image/jpeg';
-      const buffer = await response.arrayBuffer();
-
-      // Set CORS headers
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-
-      console.log('✅ Image proxy success:', url);
-      res.send(Buffer.from(buffer));
-      
-    } catch (error) {
-      console.error('❌ Image proxy error:', error);
-      return res.status(500).send('Proxy error');
-    }
-  });
+  // (image-proxy tek endpoint — yukarıda tanımlı)
 
   // COMPLETE PRODUCT WORKFLOW - Extract → Store → Sync → Monitor
   app.post('/api/process-product-complete', async (req, res) => {
@@ -8851,7 +8767,15 @@ setTimeout(check, 1000);
   });
 
   // Shopify auto-sync on startup (dev'de geciktir — sunucu/UI donmasın)
-  const runInitialShopifySync = () => {
+  const runInitialShopifySync = async () => {
+    const { assertCoreTablesReady, refreshDbFeatureState, warnDbFeatureSkipped } = await import('./db-health');
+    const ready = await assertCoreTablesReady(['shopify_memory_products']);
+    if (!ready) {
+      const status = await refreshDbFeatureState();
+      warnDbFeatureSkipped('Başlangıç Shopify senkronizasyonu', status.missingTables);
+      return;
+    }
+
     console.log('🔄 Starting initial Shopify products sync...');
     shopifyProductsSync.syncAllShopifyProducts()
       .then(result => {
@@ -8867,9 +8791,9 @@ setTimeout(check, 1000);
   };
 
   if (process.env.NODE_ENV === 'production') {
-    runInitialShopifySync();
+    void runInitialShopifySync();
   } else {
-    setTimeout(runInitialShopifySync, 120_000);
+    setTimeout(() => void runInitialShopifySync(), 120_000);
   }
 
   // ========================================

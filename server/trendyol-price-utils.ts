@@ -1,6 +1,135 @@
 /** Trendyol fiyat normalizasyonu — kuruş/TL ve Türkçe format desteği */
 
-const PROFIT_MARGIN = 0.15;
+export const TRENDYOL_PROFIT_MARGIN = 0.10;
+
+function readNestedPriceValue(field: unknown): number {
+  if (field == null) return 0;
+  if (typeof field === "object" && field !== null && "value" in field) {
+    return normalizeTrendyolKurus(Number((field as { value: unknown }).value), "api");
+  }
+  return normalizeTrendyolPriceValue(field);
+}
+
+/** Plus / sepette / indirimli metin — orijinal liste fiyatı değil */
+export function isTrendyolPromotionalPriceText(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("sepette") ||
+    lower.includes("trendyol plus") ||
+    lower.includes("plus'a özel") ||
+    lower.includes("plusa özel") ||
+    lower.includes("kupon") ||
+    lower.includes("kampanya fiyat") ||
+    lower.includes("indirimli fiyat")
+  );
+}
+
+/**
+ * Ürün state/API nesnesinden ORİJİNAL liste fiyatını çıkarır.
+ * Trendyol Plus / sepette / discounted fiyat asla tercih edilmez.
+ */
+export function extractOriginalTrendyolPriceFromProduct(product: unknown): number {
+  if (!product || typeof product !== "object") {
+    return normalizeTrendyolPriceValue(product);
+  }
+
+  const root = product as Record<string, unknown>;
+  const price = root.price as Record<string, unknown> | undefined;
+  const priceInfo = root.priceInfo as Record<string, unknown> | undefined;
+  const merchant = root.merchant as Record<string, unknown> | undefined;
+
+  const originalCandidates = [
+    readNestedPriceValue(price?.originalPrice),
+    readNestedPriceValue(root.originalPrice),
+    readNestedPriceValue(priceInfo?.originalPrice),
+    readNestedPriceValue(merchant?.originalPrice),
+    readNestedPriceValue(root.listPrice),
+    readNestedPriceValue(price?.listPrice),
+  ].filter((value) => value > 0);
+
+  if (originalCandidates.length > 0) {
+    return Math.max(...originalCandidates);
+  }
+
+  const saleCandidates = [
+    readNestedPriceValue(price?.sellingPrice),
+    readNestedPriceValue(price?.discountedPrice),
+    readNestedPriceValue(root.sellingPrice),
+    readNestedPriceValue(root.discountedPrice),
+    readNestedPriceValue(priceInfo?.sellingPrice),
+    readNestedPriceValue(priceInfo?.discountedPrice),
+    readNestedPriceValue(priceInfo?.price),
+    readNestedPriceValue(root.price),
+  ].filter((value) => value > 0);
+
+  return saleCandidates.length > 0 ? Math.max(...saleCandidates) : 0;
+}
+
+/** HTML script içindeki tüm originalPrice değerleri (benzersiz) */
+export function collectOriginalPricesFromHtmlScript(html: string): number[] {
+  if (!html) return [];
+
+  const seen = new Set<number>();
+  const values: number[] = [];
+  const patterns = [
+    /"originalPrice"\s*:\s*\{\s*"value"\s*:\s*(\d+)/g,
+    /"listPrice"\s*:\s*\{\s*"value"\s*:\s*(\d+)/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of html.matchAll(pattern)) {
+      const normalized = normalizeTrendyolKurus(parseInt(match[1], 10), "api");
+      if (normalized > 0 && normalized < 500_000 && !seen.has(normalized)) {
+        seen.add(normalized);
+        values.push(normalized);
+      }
+    }
+  }
+
+  return values;
+}
+
+/** HTML script içindeki originalPrice / listPrice alanlarından liste fiyatı */
+export function extractOriginalPriceFromHtmlScript(html: string): number {
+  const values = collectOriginalPricesFromHtmlScript(html);
+  return values.length === 1 ? values[0] : 0;
+}
+
+/**
+ * Orijinal liste fiyatı — JSON-LD indirimli fiyatından önce script/state kullanır.
+ */
+export function resolveTrendyolOriginalListPrice(input: {
+  html?: string;
+  product?: unknown;
+  jsonLdPrice?: number;
+  domPrice?: number;
+}): number {
+  const fromProduct = input.product ? extractOriginalTrendyolPriceFromProduct(input.product) : 0;
+  const scriptPrices = input.html ? collectOriginalPricesFromHtmlScript(input.html) : [];
+  const jsonLd = input.jsonLdPrice ?? 0;
+
+  if (fromProduct > 0) {
+    return fromProduct;
+  }
+
+  // Tek originalPrice script değeri güvenilir (ör. Daniel Klein → 2750 TL)
+  if (scriptPrices.length === 1) {
+    return scriptPrices[0];
+  }
+
+  // Birden fazla script fiyatı = öneri/çapraz satış karışımı → JSON-LD ürün fiyatı
+  if (scriptPrices.length > 1 && jsonLd > 0) {
+    return jsonLd;
+  }
+
+  if (jsonLd > 0) return jsonLd;
+
+  if (scriptPrices.length > 0) {
+    return Math.min(...scriptPrices);
+  }
+
+  return input.domPrice ?? 0;
+}
 
 export function parseTurkishPriceText(text: string): number {
   if (!text) return 0;
@@ -54,11 +183,13 @@ export function normalizeTrendyolKurus(
     return Math.round(value * 100) / 100;
   }
 
+  // Trendyol API kuruş: 61000 → 610 TL, 35400 → 354 TL
   if (value >= 10000) {
     return Math.round((value / 100) * 100) / 100;
   }
 
-  if (value >= 1000 && Number.isInteger(value)) {
+  // 1000–9999: yalnızca tam yüzlük kuruş (6100→61); 1549 gibi değerler zaten TL
+  if (value >= 1000 && Number.isInteger(value) && value % 100 === 0) {
     const asTl = value / 100;
     if (asTl >= 1 && asTl <= 200_000) {
       return Math.round(asTl * 100) / 100;
@@ -84,10 +215,10 @@ export function normalizeTrendyolPriceValue(raw: unknown): number {
     const record = raw as Record<string, unknown>;
     for (const key of [
       "original",
+      "originalPrice",
       "value",
       "sellingPrice",
       "discountedPrice",
-      "originalPrice",
       "currentPrice",
       "withProfit",
     ]) {
@@ -106,7 +237,7 @@ export function pickPlausibleTrendyolPrice(a: number, b: number): number {
   if (b <= 0) return a;
   if (a > b * 20) return b;
   if (b > a * 20) return a;
-  return a;
+  return Math.max(a, b);
 }
 
 export function formatTryPrice(amount: number): string {
@@ -118,7 +249,7 @@ export function formatTryPrice(amount: number): string {
 
 export function buildTrendyolPriceObject(
   originalRaw: unknown,
-  profitMargin = PROFIT_MARGIN,
+  profitMargin = TRENDYOL_PROFIT_MARGIN,
 ) {
   const original = normalizeTrendyolPriceValue(originalRaw);
   const withProfit = Math.round(original * (1 + profitMargin) * 100) / 100;

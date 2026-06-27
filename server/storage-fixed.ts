@@ -18,6 +18,8 @@ interface IStorage {
 
 // Simple storage implementation
 class SimpleStorage implements IStorage {
+  private urlHistory: string[] = [];
+
   async addProduct(productData: any): Promise<any> {
     try {
       console.log('Storage: Ürün kaydediliyor...');
@@ -59,16 +61,18 @@ class SimpleStorage implements IStorage {
   }
 
   async getUrlHistory(): Promise<string[]> {
-    return [];
+    return [...this.urlHistory];
   }
 
   // Legacy compatibility methods
   getHistory(): string[] {
-    return [];
+    return [...this.urlHistory];
   }
 
   addToHistory(url: string): void {
-    console.log('URL added to history:', url);
+    const trimmed = String(url || "").trim();
+    if (!trimmed) return;
+    this.urlHistory = [trimmed, ...this.urlHistory.filter((entry) => entry !== trimmed)].slice(0, 50);
   }
 
   async getProductCount(): Promise<number> {

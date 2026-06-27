@@ -4,6 +4,7 @@
  */
 
 import * as cheerio from 'cheerio';
+import { extractOriginalTrendyolPriceFromProduct } from './trendyol-price-utils';
 
 /**
  * Extract product data from Trendyol's JavaScript state
@@ -135,69 +136,20 @@ function extractProductFromState(stateData: any): any {
 function extractPriceFromState(product: any): any {
   try {
     console.log('💰 JS-STATE: Analyzing price data from state...');
-    console.log('💰 JS-STATE: Product price keys:', Object.keys(product).filter(key => key.toLowerCase().includes('price')));
-    
-    const priceSources = [
-      // PRIORITIZE DISCOUNTED/SELLING PRICES FIRST
-      product.price?.sellingPrice,
-      product.price?.discountedPrice,
-      product.sellingPrice,
-      product.discountedPrice,
-      product.priceInfo?.sellingPrice,
-      product.priceInfo?.discountedPrice,
-      product.merchant?.sellingPrice,
-      product.skus?.[0]?.sellingPrice,
-      product.variants?.[0]?.sellingPrice,
-      // ORIGINAL PRICES AS FALLBACK
-      product.price?.originalPrice,
-      product.originalPrice,
-      product.priceInfo?.originalPrice,
-      product.merchant?.originalPrice,
-      product.variants?.[0]?.price,
-      product.skus?.[0]?.originalPrice
-    ];
-    
-    let originalPrice = null;
-    for (const source of priceSources) {
-      if (source && typeof source === 'number' && source > 0) {
-        originalPrice = source;
-        console.log(`💰 JS-STATE: Found numeric price: ${originalPrice}`);
-        break;
-      }
-    }
-    
-    if (!originalPrice) {
-      // Try string parsing - PRIORITIZE SELLING PRICE TEXT
-      const priceStrings = [
-        product.price?.sellingPriceText,
-        product.price?.discountedPriceText,
-        product.priceText,
-        product.price?.originalPriceText
-      ];
-      
-      for (const priceStr of priceStrings) {
-        if (priceStr && typeof priceStr === 'string') {
-          const match = priceStr.match(/(\d{1,3}(?:\.\d{3})*,\d{2})/);
-          if (match) {
-            originalPrice = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
-            break;
-          }
-        }
-      }
-    }
-    
-    if (originalPrice && originalPrice > 0) {
+    const originalPrice = extractOriginalTrendyolPriceFromProduct(product);
+
+    if (originalPrice > 0) {
+      console.log(`💰 JS-STATE: Original list price: ${originalPrice} TL`);
       return {
         original: originalPrice,
         currency: 'TL',
         formatted: `${originalPrice} TL`,
-        withProfit: Math.round(originalPrice * 1.15 * 100) / 100,
-        method: 'JavaScript State'
+        withProfit: Math.round(originalPrice * 1.1 * 100) / 100,
+        method: 'JavaScript State',
       };
     }
-    
+
     return null;
-    
   } catch (error) {
     console.log('⚠️ JS-STATE: Price extraction error:', error.message);
     return null;

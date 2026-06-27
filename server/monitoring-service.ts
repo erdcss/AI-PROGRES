@@ -88,6 +88,14 @@ export class MonitoringService {
   // İzlenmesi gereken ürünleri kontrol et
   private async checkProducts(): Promise<void> {
     try {
+      const { assertCoreTablesReady, refreshDbFeatureState, warnDbFeatureSkipped } = await import('./db-health');
+      const ready = await assertCoreTablesReady(['url_tracking']);
+      if (!ready) {
+        const status = await refreshDbFeatureState();
+        warnDbFeatureSkipped('Monitoring service', status.missingTables);
+        return;
+      }
+
       console.log('🔍 Product schedules kontrol ediliyor...');
       
       // 🔄 CACHE REFRESH: Invalidate cache before each cycle to get fresh Shopify data
@@ -129,6 +137,12 @@ export class MonitoringService {
       await this.discoverAndRegisterColorVariants(trackedProducts);
 
     } catch (error) {
+      const { isPgMissingRelationError, refreshDbFeatureState, warnDbFeatureSkipped } = await import('./db-health');
+      if (isPgMissingRelationError(error)) {
+        const status = await refreshDbFeatureState(true);
+        warnDbFeatureSkipped('Monitoring service', status.missingTables);
+        return;
+      }
       console.error('❌ Monitoring kontrol hatası:', error);
     }
   }

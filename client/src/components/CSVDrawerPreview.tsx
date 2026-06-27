@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
 import { sanitizeTrendyolVariants } from '@shared/trendyol-variant-utils';
+import { resolvePreviewImagesForEntry, resolvePreviewProxyUrl } from '@/lib/product-image-url';
 import { PriceEditor } from '@/components/PriceEditor';
 
 interface CSVDrawerPreviewProps {
@@ -298,6 +299,11 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
           
           const uniqueColors = variants.colors;
           const uniqueSizes = variants.sizes;
+          const { urls: previewImageUrls } = resolvePreviewImagesForEntry({
+            images: preview.images,
+            csvContent: preview.csvContent,
+          });
+          const previewImageCount = Math.max(previewImageUrls.length, 1);
 
           return (
             <div key={preview.id} className="space-y-2">
@@ -306,8 +312,11 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                 preview={preview}
                 imageIndex={selectedImageIndex[preview.id] || 0}
                 tags={individualTags[preview.id] || []}
-                onPrevImage={() => prevImage(preview.id, preview.images.length)}
-                onNextImage={() => nextImage(preview.id, preview.images.length)}
+                onPrevImage={() => prevImage(preview.id, previewImageCount)}
+                onNextImage={() => nextImage(preview.id, previewImageCount)}
+                onSelectImage={(index) =>
+                  setSelectedImageIndex((prev) => ({ ...prev, [preview.id]: index }))
+                }
                 onRemoveTag={(tagIndex) => removeTag(preview.id, tagIndex)}
                 onAddTag={(tag) =>
                   setIndividualTags((prev) => ({
@@ -347,7 +356,7 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                           {headers.length}s
                         </Badge>
                         <Badge variant="outline" className="text-purple-300 border-purple-800 text-[10px] px-1 py-0 h-4 leading-none">
-                          {preview.images.length}g
+                          {previewImageUrls.length || preview.images.length}g
                         </Badge>
                       </div>
                     </div>
@@ -481,22 +490,31 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                                 </div>
                                 
                                 <div className="space-y-2">
-                                  <h4 className="text-cyan-300 font-medium text-sm">Görseller ({preview.images.length})</h4>
+                                  <h4 className="text-cyan-300 font-medium text-sm">Görseller ({previewImageUrls.length})</h4>
                                   <div className="flex gap-2">
-                                    {preview.images.slice(0, 3).map((image, index) => (
+                                    {previewImageUrls.slice(0, 3).map((image, index) => (
                                       <img
                                         key={index}
                                         src={image}
                                         alt={`Product ${index + 1}`}
                                         className="w-12 h-12 object-cover rounded border border-cyan-800/30"
+                                        loading="lazy"
+                                        referrerPolicy="no-referrer"
                                         onError={(e) => {
-                                          e.currentTarget.style.display = 'none';
+                                          const img = e.currentTarget;
+                                          const proxy = resolvePreviewProxyUrl(image);
+                                          if (proxy && img.dataset.fallback !== "proxy") {
+                                            img.dataset.fallback = "proxy";
+                                            img.src = proxy;
+                                            return;
+                                          }
+                                          img.style.display = "none";
                                         }}
                                       />
                                     ))}
-                                    {preview.images.length > 3 && (
+                                    {previewImageUrls.length > 3 && (
                                       <div className="w-12 h-12 bg-slate-700 rounded border border-cyan-800/30 flex items-center justify-center">
-                                        <span className="text-xs text-slate-400">+{preview.images.length - 3}</span>
+                                        <span className="text-xs text-slate-400">+{previewImageUrls.length - 3}</span>
                                       </div>
                                     )}
                                   </div>

@@ -19,6 +19,14 @@ const indexSrc = path.join(dist, "index.html");
 const indexDst = path.join(publicDir, "index.html");
 if (fs.existsSync(indexSrc)) {
   fs.copyFileSync(indexSrc, indexDst);
+} else {
+  console.error("❌ Post-build: dist/index.html bulunamadı");
+  process.exit(1);
+}
+
+if (!fs.existsSync(indexDst)) {
+  console.error("❌ Post-build: dist/public/index.html oluşturulamadı");
+  process.exit(1);
 }
 
 console.log("✅ Post-build tamamlandı");

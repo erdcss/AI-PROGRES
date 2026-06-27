@@ -1,5 +1,6 @@
 import axios from 'axios';
 import {
+  extractOriginalTrendyolPriceFromProduct,
   normalizeTrendyolKurus,
   parseTurkishPriceText,
 } from './trendyol-price-utils';
@@ -38,14 +39,13 @@ function normalizeApiPrice(raw: unknown): number {
     return normalizeTrendyolKurus(raw, 'api');
   }
   if (raw && typeof raw === 'object') {
+    const fromProduct = extractOriginalTrendyolPriceFromProduct({ price: raw, ...raw as object });
+    if (fromProduct > 0) return fromProduct;
     const obj = raw as Record<string, unknown>;
     if (typeof obj.value === 'number') return normalizeApiPrice(obj.value);
-    if (typeof obj.discountedPrice === 'number') return normalizeApiPrice(obj.discountedPrice);
     if (typeof obj.originalPrice === 'number') return normalizeApiPrice(obj.originalPrice);
     if (typeof obj.sellingPrice === 'number') return normalizeApiPrice(obj.sellingPrice);
-    if (obj.sellingPrice) return normalizeApiPrice(obj.sellingPrice);
-    if (obj.discountedPrice) return normalizeApiPrice(obj.discountedPrice);
-    if (obj.originalPrice) return normalizeApiPrice(obj.originalPrice);
+    if (typeof obj.discountedPrice === 'number') return normalizeApiPrice(obj.discountedPrice);
   }
   if (typeof raw === 'string') {
     return parseTurkishPriceText(raw);
@@ -99,18 +99,7 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
     title = titleFromTrendyolUrl(url) || title;
   }
 
-  const original = normalizeApiPrice(
-    root.price?.discountedPrice?.value ??
-      root.price?.sellingPrice?.value ??
-      root.price?.originalPrice?.value ??
-      root.price?.discountedPrice ??
-      root.price?.sellingPrice ??
-      root.price?.originalPrice ??
-      root.priceInfo?.discountedPrice ??
-      root.priceInfo?.price ??
-      root.originalPrice ??
-      root.price
-  );
+  const original = extractOriginalTrendyolPriceFromProduct(root);
 
   const images = extractImages(root);
 
@@ -149,13 +138,7 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
 
 function parsePriceOnlyPayload(data: any, url: string, base: TrendyolApiProduct): TrendyolApiProduct | null {
   const root = data?.result || data;
-  const original = normalizeApiPrice(
-    root?.discountedPrice?.value ??
-      root?.sellingPrice?.value ??
-      root?.originalPrice?.value ??
-      root?.price ??
-      root
-  );
+  const original = extractOriginalTrendyolPriceFromProduct(root) || normalizeApiPrice(root?.price ?? root);
   if (original <= 0) return null;
   return {
     ...base,

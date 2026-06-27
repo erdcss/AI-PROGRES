@@ -3,6 +3,12 @@ import { filteredNotifier } from './filtered-telegram-notifier';
 import { db } from './db';
 import { monitoringSchedules, products, productVariants } from '@shared/schema';
 import { eq, and, lte } from 'drizzle-orm';
+import {
+  assertCoreTablesReady,
+  isPgMissingRelationError,
+  refreshDbFeatureState,
+  warnDbFeatureSkipped,
+} from './db-health';
 
 let activeTimers: Map<string, NodeJS.Timeout> = new Map();
 
@@ -50,6 +56,13 @@ const TASKS = {
 // Product Schedule Monitoring - Database'deki schedules'u kontrol et
 async function checkProductSchedules(): Promise<void> {
   try {
+    const dbReady = await assertCoreTablesReady(['monitoring_schedules', 'products']);
+    if (!dbReady) {
+      const status = await refreshDbFeatureState();
+      warnDbFeatureSkipped('Product schedule monitoring', status.missingTables);
+      return;
+    }
+
     console.log('🔍 Product schedules kontrol ediliyor...');
     
     const now = new Date();
@@ -142,6 +155,11 @@ async function checkProductSchedules(): Promise<void> {
     console.log(`✅ Product schedule monitoring completed - processed ${totalSchedules} products`);
     
   } catch (error) {
+    if (isPgMissingRelationError(error)) {
+      const status = await refreshDbFeatureState(true);
+      warnDbFeatureSkipped('Product schedule monitoring', status.missingTables);
+      return;
+    }
     console.error('❌ Product schedule monitoring error:', error);
     await sendTaskCompletionNotification('product-schedule-monitoring', 'error', 
       `Failed to check product schedules: ${(error as Error).message}`);

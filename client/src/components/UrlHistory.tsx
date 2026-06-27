@@ -1,23 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { memo, useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { History } from "lucide-react";
+import { getRecentUrls, subscribeRecentUrls } from "@/lib/url-history-client";
 
 interface Props {
   onSelect: (url: string) => void;
 }
 
-interface HistoryResponse {
-  urls?: string[];
-  developer?: string;
-}
+export const UrlHistory = memo(function UrlHistory({ onSelect }: Props) {
+  const [urls, setUrls] = useState<string[]>(() => getRecentUrls());
 
-export function UrlHistory({ onSelect }: Props) {
-  const { data } = useQuery<HistoryResponse>({
-    queryKey: ['/api/history'],
-    refetchInterval: 5000 // Reduced frequency for better performance
-  });
-
-  const urls = data?.urls || [];
+  useEffect(() => subscribeRecentUrls(() => setUrls(getRecentUrls())), []);
 
   if (urls.length === 0) return null;
 
@@ -25,10 +18,10 @@ export function UrlHistory({ onSelect }: Props) {
     <div className="flex flex-col gap-2 mt-2">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <History className="w-3 h-3" />
-        <span>Son kullanılan URL'ler</span>
+        <span>Son kullanılan URL&apos;ler</span>
       </div>
       <div className="flex flex-col gap-1">
-        {urls.map((url: string) => (
+        {urls.map((url) => (
           <Button
             key={url}
             variant="ghost"
@@ -41,4 +34,4 @@ export function UrlHistory({ onSelect }: Props) {
       </div>
     </div>
   );
-}
+});
