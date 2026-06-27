@@ -6,6 +6,8 @@ const INVALID_TITLE_EXACT = new Set([
   'trendyol.com',
   'Product',
   'Trendyol Ürünü',
+  'Welcome to Trendyol',
+  'Access Denied',
   "Online Alışveriş Sitesi, Türkiye'nin Trend Yolu",
   "Online Alışveriş Sitesi | Türkiye'nin Trend Yolu",
 ]);
@@ -16,6 +18,11 @@ const INVALID_TITLE_PATTERNS = [
   /trend yolu/i,
   /^trendyol\s*[|–-]/i,
   /^trendyol$/i,
+  /^welcome to trendyol/i,
+  /access denied/i,
+  /captcha/i,
+  /checking your browser/i,
+  /just a moment/i,
 ];
 
 export function extractTrendyolProductId(url: string): string | null {

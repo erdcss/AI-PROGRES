@@ -2100,8 +2100,8 @@ setTimeout(check, 1000);
 
         const convertApiProduct = (apiProduct: any) => ({
           success: true,
-          title: apiProduct.title,
-          brand: apiProduct.brand,
+          title: resolveProductTitle(url, apiProduct.title),
+          brand: apiProduct.brand || brandFromTrendyolUrl(url) || 'Marka',
           category: apiProduct.category || 'Genel',
           description: apiProduct.description || '',
           price: apiProduct.price,
@@ -2122,6 +2122,7 @@ setTimeout(check, 1000);
         const { enrichTrendyolResult, mergeApiWithScrape, resolveProductTitle } = await import(
           './trendyol-result-normalizer'
         );
+        const { brandFromTrendyolUrl, isValidTrendyolProductTitle } = await import('./trendyol-title-utils');
         const { shouldPreferApiOnlyScrape, isCloudRuntime } = await import('@shared/deploy-runtime');
         const { normalizeTrendyolImages } = await import('./trendyol-image-utils');
         const { hasRealTrendyolVariants } = await import('@shared/trendyol-variant-utils');
@@ -2136,43 +2137,45 @@ setTimeout(check, 1000);
 
         const apiHasCoreData =
           Boolean(result) &&
-          (result.price?.original > 0 || (result.images?.length ?? 0) > 0) &&
-          Boolean(result.title);
+          result.price?.original > 0 &&
+          isValidTrendyolProductTitle(result.title);
 
         const apiHasImages = normalizeTrendyolImages(result?.images || []).length > 0;
 
         let cloudSkipScenario = false;
-        if (shouldPreferApiOnlyScrape() && apiHasCoreData) {
-          const needsHtmlEnrich =
-            !apiHasImages || !hasRealTrendyolVariants(result?.variants);
-          if (needsHtmlEnrich) {
-            console.log('☁️ Cloud: HTML extractor ile görsel/varyant tamamlanıyor...');
-            const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
-            const htmlProduct = await extractTrendyolProductFromHtml(url);
-            if (htmlProduct) {
-              if (!apiHasImages && htmlProduct.images.length > 0) {
-                result.images = htmlProduct.images;
-              }
-              if (!hasRealTrendyolVariants(result?.variants) && hasRealTrendyolVariants(htmlProduct.variants)) {
-                result.variants = htmlProduct.variants;
-              }
-              if ((!result.price?.original || result.price.original <= 0) && htmlProduct.price.original > 0) {
-                result.price = htmlProduct.price;
-              }
-              if (htmlProduct.description && !result.description) result.description = htmlProduct.description;
-              console.log(
-                `☁️ HTML extractor (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel`,
-              );
+        if (shouldPreferApiOnlyScrape() && result) {
+          console.log('☁️ Cloud: zorunlu HTML enrich (bot sayfası koruması)...');
+          const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
+          const htmlProduct = await extractTrendyolProductFromHtml(url);
+          if (htmlProduct) {
+            result.title = resolveProductTitle(url, htmlProduct.title || result.title);
+            if (htmlProduct.images.length > 0) {
+              result.images = htmlProduct.images;
             }
-          }
-          const hasImagesNow = normalizeTrendyolImages(result?.images || []).length > 0;
-          if (apiHasCoreData && hasImagesNow) {
-            cloudSkipScenario = true;
+            if (hasRealTrendyolVariants(htmlProduct.variants)) {
+              result.variants = htmlProduct.variants;
+            }
+            if ((!result.price?.original || result.price.original <= 0) && htmlProduct.price.original > 0) {
+              result.price = htmlProduct.price;
+            }
+            if (htmlProduct.description && !result.description) result.description = htmlProduct.description;
             console.log(
-              `☁️ Cloud runtime (${isCloudRuntime() ? 'detected' : 'skip flag'}): API+HTML yeterli — scenario scrape atlandı`,
+              `☁️ HTML extractor (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel, title="${result.title}"`,
             );
-          } else if (!hasImagesNow) {
-            console.log('☁️ Cloud runtime: Görsel hâlâ eksik — scenario scrape denenecek');
+          } else {
+            result.title = resolveProductTitle(url, result.title);
+            console.log(`☁️ HTML extractor başarısız — URL slug title: "${result.title}"`);
+          }
+
+          const hasImagesNow = normalizeTrendyolImages(result?.images || []).length > 0;
+          const hasValidTitle = isValidTrendyolProductTitle(result.title);
+          cloudSkipScenario = hasValidTitle && hasImagesNow && result.price?.original > 0;
+          if (cloudSkipScenario) {
+            console.log('☁️ Cloud: API+HTML yeterli — scenario scrape atlandı');
+          } else {
+            console.log(
+              `☁️ Cloud: eksik veri (title=${hasValidTitle}, images=${hasImagesNow}, price=${result.price?.original > 0}) — enrich devam`,
+            );
           }
         }
 

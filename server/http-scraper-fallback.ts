@@ -13,6 +13,10 @@ import { normalizeTrendyolImages } from './trendyol-image-utils';
 import { extractProductImages } from './trendyol-image-extractor';
 import { tryGoogleCache, tryWaybackMachine, tryProxyServices } from './alternative-data-sources';
 import {
+  extractProductImagesFromHtmlRegex,
+  isBlockedTrendyolHtml,
+} from '@shared/trendyol-bot-detection';
+import {
   EMPTY_TRENDYOL_VARIANTS,
   sanitizeTrendyolVariants,
 } from '@shared/trendyol-variant-utils';
@@ -219,6 +223,58 @@ function parseHtmlProduct(html: string, url: string, $: cheerio.CheerioAPI) {
   };
 }
 
+function scoreProductHtml(html: string): number {
+  if (!html || isBlockedTrendyolHtml(html)) {
+    const regexImages = extractProductImagesFromHtmlRegex(html);
+    if (regexImages.length >= 2) return regexImages.length;
+    return 0;
+  }
+  let score = 0;
+  if (html.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__')) score += 50;
+  if (html.includes('__NEXT_DATA__')) score += 30;
+  score += (html.match(/cdn\.dsmcdn\.com\/ty\d+\/prod\//g) || []).length;
+  return score;
+}
+
+function acceptFetchedHtml(html: string, source: string): { html: string; source: string } | null {
+  if (!html || html.length < 500) return null;
+  if (scoreProductHtml(html) <= 0) return null;
+  return { html, source };
+}
+
+async function fetchGoogleCacheVariants(url: string): Promise<{ html: string; source: string } | null> {
+  const cacheUrls = [
+    `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}`,
+    `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}&strip=1`,
+  ];
+  const headers = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'tr-TR,tr;q=0.9',
+  };
+
+  let best: { html: string; score: number } | null = null;
+  const results = await Promise.allSettled(
+    cacheUrls.map((cacheUrl) =>
+      axios.get(cacheUrl, { timeout: 15000, headers, validateStatus: (s) => s < 500 }),
+    ),
+  );
+
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    const html = String(result.value.data || '');
+    const score = scoreProductHtml(html);
+    if (score > (best?.score ?? 0)) best = { html, score };
+  }
+
+  if (best && best.score > 0) {
+    console.log(`✅ Google Cache variant (${best.score} product signals)`);
+    return { html: best.html, source: 'google-cache' };
+  }
+  return null;
+}
+
 export async function fetchTrendyolHtml(url: string): Promise<{ html: string; source: string } | null> {
   const headerSets = [
     {
@@ -247,26 +303,33 @@ export async function fetchTrendyolHtml(url: string): Promise<{ html: string; so
 
       const html = String(response.data || '');
       if (response.status !== 403 && response.status !== 429 && html.length >= 5000) {
-        return { html, source: 'direct' };
+        const accepted = acceptFetchedHtml(html, 'direct');
+        if (accepted) return accepted;
       }
     } catch {
       /* try next */
     }
   }
 
+  const cacheVariant = await fetchGoogleCacheVariants(url);
+  if (cacheVariant) return cacheVariant;
+
   const cache = await tryGoogleCache(url);
-  if (cache?.html && cache.html.length >= 500) {
-    return { html: cache.html, source: 'google-cache' };
+  if (cache?.html) {
+    const accepted = acceptFetchedHtml(cache.html, 'google-cache');
+    if (accepted) return accepted;
   }
 
   const proxy = await tryProxyServices(url);
-  if (proxy?.html && proxy.html.length >= 500) {
-    return { html: proxy.html, source: 'proxy-referer' };
+  if (proxy?.html) {
+    const accepted = acceptFetchedHtml(String(proxy.html), 'proxy-referer');
+    if (accepted) return accepted;
   }
 
   const wayback = await tryWaybackMachine(url);
-  if (wayback?.html && wayback.html.length >= 500) {
-    return { html: wayback.html, source: 'wayback' };
+  if (wayback?.html) {
+    const accepted = acceptFetchedHtml(wayback.html, 'wayback');
+    if (accepted) return accepted;
   }
 
   return null;

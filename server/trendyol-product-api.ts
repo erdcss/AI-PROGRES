@@ -10,6 +10,7 @@ import {
   isValidTrendyolProductTitle,
   titleFromTrendyolUrl,
 } from './trendyol-title-utils';
+import { isBlockedTrendyolTitle } from '@shared/trendyol-bot-detection';
 
 export interface TrendyolApiProduct {
   title: string;
@@ -94,15 +95,9 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
   if (!root || typeof root !== 'object') return null;
 
   let title = String(root.name || root.title || root.productName || '').trim();
-  if (!isValidTrendyolProductTitle(title)) {
+  if (isBlockedTrendyolTitle(title) || !isValidTrendyolProductTitle(title)) {
     title = titleFromTrendyolUrl(url) || title;
   }
-  if (!isValidTrendyolProductTitle(title)) return null;
-
-  const brand =
-    String(root.brand?.name || root.brandName || root.brand || '').trim() ||
-    brandFromTrendyolUrl(url) ||
-    'Marka';
 
   const original = normalizeApiPrice(
     root.price?.discountedPrice?.value ??
@@ -118,6 +113,19 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
   );
 
   const images = extractImages(root);
+
+  const urlTitle = titleFromTrendyolUrl(url);
+  if ((!isValidTrendyolProductTitle(title) || isBlockedTrendyolTitle(title)) && urlTitle && original > 0) {
+    title = urlTitle;
+  }
+  if (!isValidTrendyolProductTitle(title) && original <= 0 && images.length === 0) {
+    return null;
+  }
+
+  const brand =
+    String(root.brand?.name || root.brandName || root.brand || '').trim() ||
+    brandFromTrendyolUrl(url) ||
+    'Marka';
 
   // Fiyat endpoint'i sadece fiyat dönebilir
   if (original <= 0 && images.length === 0 && !root.name && !root.title) {

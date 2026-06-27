@@ -23,6 +23,11 @@ import {
   EMPTY_TRENDYOL_VARIANTS,
   sanitizeTrendyolVariants,
 } from '@shared/trendyol-variant-utils';
+import {
+  extractProductImagesFromHtmlRegex,
+  isBlockedTrendyolHtml,
+  isBlockedTrendyolTitle,
+} from '@shared/trendyol-bot-detection';
 
 export interface HtmlExtractedProduct {
   title: string;
@@ -174,8 +179,11 @@ export async function extractTrendyolProductFromHtml(url: string): Promise<HtmlE
     $('meta[property="og:title"]').attr('content') ||
     $('h1').first().text().trim() ||
     '';
-  if (isInvalidTrendyolTitle(title)) {
+  if (isInvalidTrendyolTitle(title) || isBlockedTrendyolTitle(title)) {
     title = titleFromTrendyolUrl(url) || title;
+  }
+  if (!title || title.length < 3 || isBlockedTrendyolTitle(title)) {
+    title = titleFromTrendyolUrl(url) || '';
   }
   if (!title || title.length < 3) return null;
 
@@ -200,13 +208,16 @@ export async function extractTrendyolProductFromHtml(url: string): Promise<HtmlE
     if (sellingMatch) original = normalizeTrendyolKurus(parseInt(sellingMatch[1], 10), 'api');
   }
 
+  const regexImages = extractProductImagesFromHtmlRegex(html);
   const images = filterValidProductImages(
-    mergeTrendyolImageLists(fromState.images, fromNext.images, fromExtractor),
+    mergeTrendyolImageLists(fromState.images, fromNext.images, fromExtractor, regexImages),
   );
 
   const variants = buildVariantsFromHtml(html, $, title);
 
+  const blockedPage = isBlockedTrendyolHtml(html);
   if (original <= 0 && images.length === 0) return null;
+  if (blockedPage && images.length === 0) return null;
 
   return {
     title,

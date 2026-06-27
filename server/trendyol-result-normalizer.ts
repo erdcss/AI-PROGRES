@@ -19,6 +19,8 @@ import {
   sanitizeTrendyolVariants,
 } from '@shared/trendyol-variant-utils';
 
+import { isBlockedTrendyolTitle } from '@shared/trendyol-bot-detection';
+
 const PLACEHOLDER_TITLES = new Set([
   'Trendyol Ürünü',
   'Trendyol',
@@ -26,6 +28,7 @@ const PLACEHOLDER_TITLES = new Set([
   'trendyol.com',
   'Ürün',
   'Ürün Yüklenemedi',
+  'Welcome to Trendyol',
 ]);
 
 export function resolveProductTitle(url: string, title?: string | null): string {
@@ -63,13 +66,26 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
 
   const titleWasPlaceholder =
     PLACEHOLDER_TITLES.has(String(result.title || '').trim()) ||
+    isBlockedTrendyolTitle(result.title) ||
     !isValidTrendyolProductTitle(result.title);
 
-  if (titleWasPlaceholder && !result._priceSource && !result.extractionMethod?.includes('scenario')) {
-    result.price = { original: 0, withProfit: 0, currency: 'TRY' };
-  }
-
   result.title = resolveProductTitle(url, result.title);
+
+  const { isCloudRuntime } = await import('@shared/deploy-runtime');
+  if (isCloudRuntime()) {
+    const missingImagesAfterFirstPass = normalizeImages(result.images).length === 0;
+    if (missingImagesAfterFirstPass || titleWasPlaceholder) {
+      const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
+      const htmlProduct = await extractTrendyolProductFromHtml(url);
+      if (htmlProduct) {
+        result.title = resolveProductTitle(url, htmlProduct.title || result.title);
+        if (htmlProduct.images.length > 0) result.images = htmlProduct.images;
+        if (hasRealTrendyolVariants(htmlProduct.variants)) result.variants = htmlProduct.variants;
+        if (needsPrice(result.price) && htmlProduct.price.original > 0) result.price = htmlProduct.price;
+      }
+    }
+    result.title = resolveProductTitle(url, result.title);
+  }
 
   const missingPrice = needsPrice(result.price);
   const missingImages = normalizeImages(result.images).length === 0;
