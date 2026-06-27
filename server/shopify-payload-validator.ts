@@ -114,7 +114,9 @@ export function validateShopifyPayload(input: NormalizedShopifyProductInput): Pa
   const errors: string[] = [];
 
   if (!input.title || input.title.length < 2) errors.push('title zorunlu (min 2 karakter)');
-  if (!input.price.withProfit || input.price.withProfit <= 0) errors.push('price geçersiz — fiyat bulunamadı');
+  if (!input.price.withProfit || input.price.withProfit <= 0) {
+    errors.push('price geçersiz — fiyat bulunamadı');
+  }
   if (!input.variants.allVariants.length) errors.push('en az 1 variant gerekli');
   // Görsel zorunluluğu CSV yükleme yolunda ayrı kontrol edilir
   if (!input.images.length) {

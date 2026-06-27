@@ -140,3 +140,117 @@ export const normalizeShopifyCsvHeaderLine = sanitizeShopifyCsvHeaderLine;
 export function getCanonicalShopifyCsvHeaders(): string[] {
   return [...SHOPIFY_NEW_TEMPLATE_HEADERS];
 }
+
+/** CSV satırını güvenli escape ile serialize eder */
+export function serializeShopifyCsvRow(fields: string[]): string {
+  return fields
+    .map((cell) => {
+      const s = cell !== null && cell !== undefined ? String(cell) : "";
+      if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    })
+    .join(",");
+}
+
+export function validateCsvRowLength(headerCount: number, row: string[]): boolean {
+  return row.length === headerCount;
+}
+
+export function validateCsvContent(csvContent: string): {
+  valid: boolean;
+  headerCount: number;
+  rowCounts: number[];
+  error?: string;
+} {
+  const lines = csvContent.replace(/^\uFEFF/, "").trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length === 0) {
+    return { valid: false, headerCount: 0, rowCounts: [], error: "empty-csv" };
+  }
+
+  const headerCells = splitCsvLine(lines[0]);
+  const headerCount = headerCells.length;
+  const rowCounts: number[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const count = splitCsvLine(lines[i]).length;
+    rowCounts.push(count);
+    if (count !== headerCount) {
+      console.error("[CSV] validateCsvContent mismatch", {
+        headerCount,
+        rowCount: count,
+        line: i + 1,
+      });
+      return {
+        valid: false,
+        headerCount,
+        rowCounts,
+        error: `columns length is ${headerCount}, got ${count} on line ${i + 1}`,
+      };
+    }
+  }
+
+  return { valid: true, headerCount, rowCounts };
+}
+
+/** Tek satırlık minimal ürün CSV — canonical header ile */
+export function buildMinimalShopifyCsvRow(input: {
+  title: string;
+  brand?: string;
+  price: number;
+  imageUrl?: string;
+}): string | null {
+  if (!input.title || input.price <= 0) return null;
+
+  const handle = input.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  const row = Array(SHOPIFY_NEW_TEMPLATE_COLUMN_COUNT).fill("") as string[];
+  row[0] = input.title;
+  row[1] = handle;
+  row[3] = input.brand || "";
+  row[4] = "Kategori";
+  row[5] = "Kategori";
+  row[7] = "TRUE";
+  row[8] = "active";
+  row[20] = String(input.price);
+  row[23] = "TRUE";
+  row[29] = "shopify";
+  row[30] = "0";
+  row[31] = "CONTINUE";
+  row[33] = "g";
+  row[34] = "TRUE";
+  row[35] = "manual";
+  if (input.imageUrl) {
+    row[36] = input.imageUrl;
+    row[37] = "1";
+    row[38] = input.title;
+  }
+  row[40] = "FALSE";
+  row[41] = input.title;
+  row[42] = input.title;
+
+  const validation = validateCsvRowLength(SHOPIFY_NEW_TEMPLATE_COLUMN_COUNT, row);
+  if (!validation) {
+    console.error("[CSV] buildMinimalShopifyCsvRow column mismatch", {
+      headerCount: SHOPIFY_NEW_TEMPLATE_COLUMN_COUNT,
+      rowCount: row.length,
+    });
+    return null;
+  }
+
+  const headerLine = serializeShopifyCsvRow([...SHOPIFY_NEW_TEMPLATE_HEADERS]);
+  const dataLine = serializeShopifyCsvRow(row);
+  const csv = `${headerLine}\n${dataLine}`;
+  const check = validateCsvContent(csv);
+  console.log("[CSV] buildMinimalShopifyCsvRow", {
+    headerCount: check.headerCount,
+    rowCount: check.rowCounts[0] ?? 0,
+    valid: check.valid,
+  });
+  return check.valid ? csv : null;
+}

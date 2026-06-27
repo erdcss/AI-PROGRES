@@ -509,5 +509,16 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     }).join(',')
   ).join('\n');
 
-  return sanitizeShopifyCsvHeaders(csvBody);
+  const sanitized = sanitizeShopifyCsvHeaders(csvBody);
+  const { validateCsvContent } = await import("./shopify-csv-headers");
+  const check = validateCsvContent(sanitized);
+  console.log("[CSV] generateMultiVariantShopifyCSV", {
+    headerCount: check.headerCount,
+    rowCounts: check.rowCounts,
+    valid: check.valid,
+  });
+  if (!check.valid) {
+    throw new Error(check.error || "CSV column mismatch");
+  }
+  return sanitized;
 }

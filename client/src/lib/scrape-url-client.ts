@@ -38,6 +38,12 @@ export type ScrapedUrlPayload = {
   extractionMethod?: string;
   success?: boolean;
   partialSuccess?: boolean;
+  previewOk?: boolean;
+  titleSource?: string;
+  usableForCsv?: boolean;
+  usableForShopify?: boolean;
+  blockedForExport?: boolean;
+  finalSuccessReason?: string;
   stageErrors?: string[];
   originalUrl: string;
   sourceUrl: string;
@@ -47,21 +53,6 @@ function normalizeImageList(images: unknown): string[] {
   return filterValidProductImages(images);
 }
 
-function buildFallbackCsvContent(data: {
-  title: string;
-  brand?: string;
-  price?: { original: number };
-  images?: string[];
-}): string {
-  const handle = data.title
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "-")
-    .replace(/-+/g, "-");
-  const price = data.price?.original ?? "";
-  const imgUrl = data.images?.[0] ?? "";
-  return `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n"${data.title}","${handle}",,,"${data.brand || ""}","Kategori","Kategori","","TRUE","active",,,,,,,,,,,,"${price}","","","TRUE","","","","","","shopify","0","CONTINUE","","g","TRUE","manual","${imgUrl}","1","${data.title}","","FALSE","${data.title}","${data.title}","","","","","","","","","","","","","",""`;
-}
-
 export function normalizeScrapedPayload(
   raw: Record<string, unknown>,
   url: string,
@@ -69,19 +60,22 @@ export function normalizeScrapedPayload(
   const images = normalizeImageList(raw.images);
   const displayPrice = normalizeTrendyolDisplayPrice(raw.price, 0.10);
 
+  const usableForCsv = raw.usableForCsv === true;
+  const blockedForExport = raw.blockedForExport === true;
+  const hasValidPrice = displayPrice.original > 0;
+
   let csvContent =
     typeof raw.csvContent === "string" && raw.csvContent.length > 50
       ? raw.csvContent
       : undefined;
 
-  if (!csvContent && raw.title) {
-    csvContent = buildFallbackCsvContent({
-      title: String(raw.title),
-      brand: raw.brand ? String(raw.brand) : undefined,
-      price: { original: displayPrice.original },
-      images,
-    });
+  if (!csvContent && usableForCsv && hasValidPrice && !blockedForExport) {
+    // Sunucu CSV üretemediyse istemci tarafında fallback oluşturma — kolon uyumsuzluğuna yol açar
+    csvContent = undefined;
   }
+
+  const csvInfo = raw.csvInfo as ScrapedUrlPayload["csvInfo"];
+  const csvReady = csvInfo?.ready === true && Boolean(csvContent);
 
   return {
     title: String(raw.title || "Ürün"),
@@ -101,13 +95,23 @@ export function normalizeScrapedPayload(
     }),
     features: (raw.features as ScrapedUrlPayload["features"]) || [],
     tags: (raw.tags as string[]) || [],
-    csvContent,
-    csvInfo: raw.csvInfo as ScrapedUrlPayload["csvInfo"],
+    csvContent: csvReady ? csvContent : undefined,
+    csvInfo: csvInfo
+      ? { ...csvInfo, ready: csvReady }
+      : { filename: "", downloadUrl: "", ready: false, productCount: 0 },
     extractionMethod: raw.extractionMethod
       ? String(raw.extractionMethod)
       : undefined,
     success: raw.success !== false,
     partialSuccess: raw.partialSuccess === true,
+    previewOk: raw.previewOk === true,
+    titleSource: raw.titleSource ? String(raw.titleSource) : undefined,
+    usableForCsv,
+    usableForShopify: raw.usableForShopify === true,
+    blockedForExport,
+    finalSuccessReason: raw.finalSuccessReason
+      ? String(raw.finalSuccessReason)
+      : undefined,
     stageErrors: Array.isArray(raw.stageErrors) ? (raw.stageErrors as string[]) : undefined,
     originalUrl: url,
     sourceUrl: url,
@@ -158,12 +162,15 @@ export async function fetchScenarioScrapeResult(
 
       const pollData = await pollResp.json();
       if (pollData.status === "done") {
-        if (pollData.result?.success === false) {
+        const result = pollData.result as Record<string, unknown> | undefined;
+        const canPreview =
+          result?.success === true || result?.previewOk === true;
+        if (!canPreview) {
           throw new Error(
-            pollData.result.message || pollData.result.error || "Çekim başarısız",
+            String(result?.message || result?.error || "Çekim başarısız"),
           );
         }
-        polled = { ...pollData.result, originalUrl: url };
+        polled = { ...result, originalUrl: url };
         break;
       }
       if (pollData.status === "error") {

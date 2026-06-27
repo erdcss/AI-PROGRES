@@ -26,6 +26,26 @@ export function isCloudRuntime(): boolean {
   return false;
 }
 
+function envFlag(name: string, defaultInCloud: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  return isCloudRuntime() ? defaultInCloud : true;
+}
+
+/** Cloud'da varsayılan kapalı — TRACKING_ENABLED=true ile açılır */
+export function isTrackingEnabled(): boolean {
+  return envFlag("TRACKING_ENABLED", false);
+}
+
+export function isMonitoringEnabled(): boolean {
+  return envFlag("MONITORING_ENABLED", false);
+}
+
+export function isAutonomousSyncEnabled(): boolean {
+  return envFlag("AUTONOMOUS_SYNC_ENABLED", false);
+}
+
 /** Cloud'da Puppeteer/Chromium yalnızca ENABLE_PUPPETEER_IN_CLOUD=true ile açılır */
 export function puppeteerAllowed(): boolean {
   if (process.env.FORCE_PUPPETEER_SCRAPE === "true") return true;

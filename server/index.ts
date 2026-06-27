@@ -737,9 +737,15 @@ app.use(pendingChangesRoutes);
     enhancedErrorDetection.startMonitoring();
     
     // Initialize daily monitoring system
-    import('./daily-monitor').then(({ dailyMonitor }) => {
-      dailyMonitor.start();
-    }).catch(console.error);
+    import('@shared/deploy-runtime').then(({ isMonitoringEnabled }) => {
+      if (!isMonitoringEnabled()) {
+        console.info('ℹ️ Daily monitor atlandı (MONITORING_ENABLED=false)');
+        return;
+      }
+      import('./daily-monitor').then(({ dailyMonitor }) => {
+        dailyMonitor.start();
+      }).catch(console.error);
+    });
 
     // Dahili tarayıcı — yalnızca Puppeteer izinli ortamlarda ön ısıt
     setTimeout(async () => {
@@ -757,9 +763,14 @@ app.use(pendingChangesRoutes);
 
     // Initialize scheduler system
     // Monitoring service başlat (Trendyol fiyat takibi)
-    setTimeout(() => {
+    setTimeout(async () => {
+      const { isMonitoringEnabled } = await import('@shared/deploy-runtime');
+      if (!isMonitoringEnabled()) {
+        console.info('ℹ️ Monitoring service atlandı (MONITORING_ENABLED=false)');
+        return;
+      }
       import('./monitoring-service').then(({ MonitoringService }) => {
-        const monitoringService = new MonitoringService(300000); // 5 dakika interval
+        const monitoringService = new MonitoringService(300000);
         monitoringService.start();
         console.log('🎯 Monitoring service başlatıldı');
       }).catch(error => {
@@ -768,7 +779,12 @@ app.use(pendingChangesRoutes);
     }, 2000);
     
     // Shopify monitoring sistemini başlat
-    setTimeout(() => {
+    setTimeout(async () => {
+      const { isMonitoringEnabled } = await import('@shared/deploy-runtime');
+      if (!isMonitoringEnabled()) {
+        console.info('ℹ️ Shopify monitoring atlandı (MONITORING_ENABLED=false)');
+        return;
+      }
       import('./shopify-monitoring-service').then(({ shopifyMonitoringService }) => {
         console.log('📦 Shopify monitoring service başlatıldı');
       }).catch(error => {

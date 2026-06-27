@@ -39,7 +39,16 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
 
   const normalized = normalizeTrendyolProductForShopify(req.productData || {});
   const validation = validateShopifyPayload(normalized);
-  if (!validation.valid && !req.csvContent) {
+
+  if (normalized.price.original <= 0 || normalized.price.withProfit <= 0) {
+    return {
+      success: false,
+      error: 'Fiyat alınamadığı için Shopify aktarımı yapılamaz.',
+      step: 'price_validation',
+    };
+  }
+
+  if (!req.csvContent && !validation.valid) {
     return {
       success: false,
       error: 'Payload doğrulama hatası',

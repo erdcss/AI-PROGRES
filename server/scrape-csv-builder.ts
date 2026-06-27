@@ -207,6 +207,17 @@ export async function buildScrapeCsvContent(
       console.error("[CSV] generateMultiVariantShopifyCSV boş içerik döndü", { title: product.title });
       return null;
     }
+    const { validateCsvContent } = await import("./shopify-csv-headers");
+    const check = validateCsvContent(csvContent);
+    console.log("[CSV] buildScrapeCsvContent validation", {
+      headerCount: check.headerCount,
+      rowCounts: check.rowCounts,
+      valid: check.valid,
+    });
+    if (!check.valid) {
+      console.error("[CSV] validation failed:", check.error);
+      return null;
+    }
     return csvContent;
   } catch (error) {
     console.error("[CSV] generateMultiVariantShopifyCSV hatası:", error);
@@ -253,6 +264,15 @@ export async function attachCsvToScrapeResult<T extends Record<string, unknown>>
   sourceUrl?: string,
   endpoint = "unknown",
 ): Promise<T & { csvContent?: string; csvInfo: ScrapeCsvInfo }> {
+  if (result.usableForCsv === false || result.blockedForExport === true) {
+    console.log("[CSV] attach skipped — usableForCsv=false", {
+      title: result.title,
+      titleSource: result.titleSource,
+      endpoint,
+    });
+    return { ...result, csvInfo: emptyScrapeCsvInfo() };
+  }
+
   const { csvContent, csvInfo } = await buildCsvFromScrapeResult(result, sourceUrl, endpoint);
   if (csvContent) {
     return { ...result, csvContent, csvInfo };

@@ -94,6 +94,12 @@ async function registerProductForTracking(
   variants: any[] = [],
   shopifyVariants: any[] = []
 ) {
+  const { isTrackingEnabled } = await import('@shared/deploy-runtime');
+  if (!isTrackingEnabled()) {
+    console.info('ℹ️ Tracking atlandı (TRACKING_ENABLED=false)');
+    return { success: false, skipped: true, reason: 'tracking_disabled' };
+  }
+
   try {
     console.log('🎯 TRACKING REGISTRATION - Starting for:', shopifyProductId);
     console.log(`📦 Received ${shopifyVariants.length} Shopify variant IDs to sync`);
@@ -2252,11 +2258,8 @@ setTimeout(check, 1000);
         }
 
         const { hasUsableTrendyolResult } = await import('./trendyol-result-normalizer');
-        const pipelinePartial = result?.partialSuccess === true;
-        const usable = hasUsableTrendyolResult({ ...result, url });
-        result.success = usable || pipelinePartial;
-        if (pipelinePartial && !usable) {
-          result.partialSuccess = true;
+        if (result.titleSource === undefined && result.scrapeDiagnostics === undefined) {
+          result.success = hasUsableTrendyolResult({ ...result, url });
         }
         result.title = resolveProductTitle(url, result.title);
         
@@ -2511,9 +2514,15 @@ setTimeout(check, 1000);
             status: 'done' as const,
             startedAt: scrapeJobs.get(jobId)!.startedAt,
             result: {
-              success: true,
+              success: Boolean(result.success),
               partialSuccess: Boolean(result.partialSuccess),
+              titleSource: result.titleSource,
+              usableForCsv: result.usableForCsv,
+              usableForShopify: result.usableForShopify,
+              blockedForExport: result.blockedForExport,
+              previewOk: result.previewOk,
               stageErrors: result.stageErrors || scrapeDiagnostics?.stageErrors || [],
+              finalSuccessReason: scrapeDiagnostics?.finalSuccessReason || result.finalSuccessReason,
               extractionMethod: result.extractionMethod || 'trendyol-pipeline',
               scenario: result.scenario,
               confidence: result.confidence,
@@ -3965,16 +3974,50 @@ setTimeout(check, 1000);
       console.log('🔍 DEBUG: Product title:', req.body.productTitle);
       console.log('🔍 DEBUG: Individual tags:', req.body.individualTags);
       
-      const { csvContent, productTitle, individualTags } = req.body;
+      const { csvContent, productTitle, individualTags, productData, csvInfo } = req.body;
+
+      const priceOriginal = Number(
+        productData?.price?.original ?? productData?.price?.withProfit ?? 0,
+      );
+      if (priceOriginal <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Fiyat alınamadığı için Shopify aktarımı yapılamaz.',
+          step: 'price_validation',
+        });
+      }
+
+      if (csvInfo?.ready === false || csvInfo?.productCount === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'CSV hazır değil — önce geçerli fiyatlı ürün verisi çekin.',
+          step: 'csv_not_ready',
+        });
+      }
       
-      if (!csvContent) {
+      if (!csvContent || csvContent.trim().length < 50) {
         console.log('❌ CSV content is missing or empty');
         return res.status(400).json({
           success: false,
           error: 'CSV content is required'
         });
       }
-      
+
+      const { validateCsvContent } = await import('./shopify-csv-headers');
+      const csvCheck = validateCsvContent(csvContent);
+      console.log('[CSV] upload-csv-product validation', {
+        headerCount: csvCheck.headerCount,
+        rowCounts: csvCheck.rowCounts,
+        valid: csvCheck.valid,
+      });
+      if (!csvCheck.valid) {
+        return res.status(400).json({
+          success: false,
+          error: csvCheck.error || 'CSV kolon sayısı uyumsuz',
+          step: 'csv_validation',
+        });
+      }
+
       console.log('✅ CSV content validated, proceeding with upload...');
       
       // ✅ TAGS ALREADY ADDED BY FRONTEND - No need to parse/stringify CSV again
@@ -4400,8 +4443,31 @@ setTimeout(check, 1000);
     const requestId = getRequestId(req);
     const dryRun = req.query.dryRun === 'true' || req.body?.dryRun === true;
     try {
+      const productData = req.body?.productData || req.body;
+      const priceOriginal = Number(
+        productData?.price?.original ?? productData?.price?.withProfit ?? 0,
+      );
+      if (priceOriginal <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Fiyat alınamadığı için Shopify aktarımı yapılamaz.',
+          step: 'price_validation',
+          requestId,
+        });
+      }
+
+      const csvInfo = req.body?.csvInfo ?? productData?.csvInfo;
+      if (csvInfo?.ready === false || (csvInfo?.productCount === 0 && req.body?.csvContent)) {
+        return res.status(400).json({
+          success: false,
+          error: 'CSV hazır değil — önce geçerli fiyatlı ürün verisi çekin.',
+          step: 'csv_not_ready',
+          requestId,
+        });
+      }
+
       const result = await handleShopifyProductUpload({
-        productData: req.body?.productData || req.body,
+        productData,
         csvContent: req.body?.csvContent,
         productTitle: req.body?.productTitle,
         sourceUrl: req.body?.sourceUrl,

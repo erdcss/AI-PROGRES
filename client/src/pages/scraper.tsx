@@ -125,6 +125,12 @@ interface Product {
     ready: boolean;
     productCount: number;
   };
+  usableForCsv?: boolean;
+  usableForShopify?: boolean;
+  blockedForExport?: boolean;
+  partialSuccess?: boolean;
+  titleSource?: string;
+  finalSuccessReason?: string;
   sourceUrl?: string;
   originalUrl?: string;
 }
@@ -355,10 +361,16 @@ function ScraperPage() {
         features: scraped.features || [],
         tags: scraped.tags || [],
         category: scraped.category || "",
-        success: true,
+        success: scraped.success !== false,
+        partialSuccess: scraped.partialSuccess,
         extractionMethod: scraped.extractionMethod,
         csvContent: scraped.csvContent,
         csvInfo,
+        usableForCsv: scraped.usableForCsv,
+        usableForShopify: scraped.usableForShopify,
+        blockedForExport: scraped.blockedForExport,
+        titleSource: scraped.titleSource,
+        finalSuccessReason: scraped.finalSuccessReason,
         sourceUrl,
         originalUrl: scraped.originalUrl,
       };
@@ -382,20 +394,22 @@ function ScraperPage() {
       const newCSVPreview = buildCsvPreviewEntry(scraped, sourceUrl, "csv");
       setCsvPreviews((prev) => [newCSVPreview, ...prev]);
 
-      const isPartial = scraped.partialSuccess === true;
+      const isPartial = scraped.partialSuccess === true || scraped.success === false;
       const missingParts: string[] = [];
-      if (!scraped.images?.length) missingParts.push("görsel");
-      if (!scraped.price?.original) missingParts.push("fiyat");
-      if (!scraped.title || scraped.title.length < 4) missingParts.push("başlık");
+      if (!scraped.price?.original || scraped.price.original <= 0) missingParts.push("fiyat yok");
+      if (!scraped.images?.length) missingParts.push("görsel yok");
+      if (scraped.titleSource === "url-slug") missingParts.push("başlık yalnızca URL'den");
 
       toast({
         title: isPartial ? "Kısmi Veri" : csvReady ? "Başarılı" : "Uyarı",
         description: isPartial
-          ? `Ürün kısmen çekildi${missingParts.length ? ` (eksik: ${missingParts.join(", ")})` : ""}. Mevcut verilerle devam edebilirsiniz.`
+          ? `Ürün kısmen çekildi${missingParts.length ? ` — ${missingParts.join(", ")}` : ""}. Shopify aktarımı için fiyat zorunludur.`
           : csvReady
             ? "Ürün hazır — Shopify'a gönderebilirsiniz"
-            : "Ürün çekildi ama CSV oluşturulamadı",
-        variant: isPartial ? "default" : csvReady ? "default" : "destructive",
+            : scraped.price?.original && scraped.price.original > 0
+              ? "Ürün çekildi ama CSV oluşturulamadı"
+              : "Fiyat alınamadığı için Shopify aktarımı engellendi",
+        variant: isPartial || !csvReady ? "default" : "default",
       });
     },
     onError: (error: any) => {
@@ -910,10 +924,35 @@ function ScraperPage() {
     void handleFetchProducts();
   });
 
+  const shopifyUploadBlockedReason = (() => {
+    if (!product) return null;
+    const priceOriginal =
+      typeof product.price === "object" && product.price !== null
+        ? (product.price as { original?: number }).original ?? 0
+        : typeof product.price === "number"
+          ? product.price
+          : 0;
+    if (priceOriginal <= 0) {
+      return "Fiyat alınamadığı için Shopify aktarımı engellendi";
+    }
+    if (product.csvInfo?.ready === false || !product.csvContent?.trim()) {
+      return "CSV hazır değil — önce geçerli fiyatlı ürün verisi çekin";
+    }
+    if (product.usableForShopify === false || product.blockedForExport) {
+      return "Fiyat alınamadığı için Shopify aktarımı engellendi";
+    }
+    return null;
+  })();
+
+  const canShopifyUpload = Boolean(product) && !shopifyUploadBlockedReason;
+
   // Shopify transfer mutation
   const shopifyTransferMutation = useMutation({
     mutationFn: async () => {
       if (!product) throw new Error('Önce ürün verisi çekilmelidir');
+      if (shopifyUploadBlockedReason) {
+        throw new Error(shopifyUploadBlockedReason);
+      }
 
       setWorkflowStep('Shopify bağlantısı kontrol ediliyor...');
       const connRes = await fetch('/api/shopify/connection-test', { method: 'POST' });
@@ -932,6 +971,7 @@ function ScraperPage() {
         body: JSON.stringify({
           productData: { ...product, variants: cleanVariants },
           csvContent: product.csvContent,
+          csvInfo: product.csvInfo,
           sourceUrl: product.sourceUrl || product.originalUrl || singleForm.getValues('url'),
           productTitle: product.title,
         }),
@@ -970,6 +1010,14 @@ function ScraperPage() {
   const onShopifyTransfer = () => {
     if (!product) {
       toast({ title: 'Ürün yok', description: 'Önce ürün verilerini çekin', variant: 'destructive' });
+      return;
+    }
+    if (shopifyUploadBlockedReason) {
+      toast({
+        title: 'Shopify aktarımı engellendi',
+        description: shopifyUploadBlockedReason,
+        variant: 'destructive',
+      });
       return;
     }
     shopifyTransferMutation.mutate();
@@ -1932,7 +1980,13 @@ function ScraperPage() {
                         <Button
                           type="button"
                           onClick={onShopifyTransfer}
-                          disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending || isBulkProcessing || !product}
+                          disabled={
+                            singleScrapeMutation.isPending ||
+                            shopifyTransferMutation.isPending ||
+                            isBulkProcessing ||
+                            !canShopifyUpload
+                          }
+                          title={shopifyUploadBlockedReason ?? undefined}
                           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 text-lg font-medium disabled:opacity-50"
                         >
                           {shopifyTransferMutation.isPending ? (

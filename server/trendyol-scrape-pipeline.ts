@@ -4,19 +4,18 @@
  */
 import { puppeteerAllowed, isCloudRuntime } from "@shared/deploy-runtime";
 import {
-  computeFinalSuccessReason,
   hasMinimumScrapeData,
   isCompleteScrapeData,
   logScrapeDiagnostics,
   resolveEffectiveScrapeMode,
   ScrapeStageTimeoutError,
   withStageTimeout,
-  type FinalSuccessReason,
   type PipelineOutcome,
   type ScrapeDiagnostics,
   type ScrapeStageErrorCode,
   type SelectedScrapeMode,
 } from "@shared/scrape-runtime";
+import { evaluateScrapeQuality } from "./scrape-quality";
 import { hasRealTrendyolVariants } from "@shared/trendyol-variant-utils";
 import { fetchTrendyolProductByUrl } from "./trendyol-product-api";
 import {
@@ -90,11 +89,6 @@ function finalizeOutcome(
   pipelineStart: number,
   forcedGlobalTimeout = false,
 ): PipelineOutcome {
-  result.title = resolveProductTitle(url, result.title);
-  const fields = evaluateFields(result, url);
-  const minimum = hasMinimumScrapeData(fields);
-  const complete = isCompleteScrapeData(fields);
-
   if (forcedGlobalTimeout) {
     pushStageError(diagnostics, "pipeline-global-timeout");
     diagnostics.scenarioSkippedReason =
@@ -102,46 +96,61 @@ function finalizeOutcome(
   }
 
   diagnostics.pipelineDurationMs = Date.now() - pipelineStart;
-  diagnostics.finalSuccessReason = computeFinalSuccessReason({
-    fields,
+  result.title = resolveProductTitle(url, result.title);
+
+  const quality = evaluateScrapeQuality(url, result, {
     apiSuccess: diagnostics.apiSuccess,
+    htmlParseSuccess: diagnostics.htmlParseSuccess,
     stageErrors: diagnostics.stageErrors,
-    minimum,
-    complete,
-  }) as FinalSuccessReason;
+  });
 
-  const partialSuccess =
-    minimum && (!complete || diagnostics.stageErrors.length > 0 || forcedGlobalTimeout);
-  diagnostics.partialSuccess = partialSuccess;
+  diagnostics.finalSuccessReason = quality.finalSuccessReason;
+  diagnostics.partialSuccess = quality.partialSuccess;
 
-  if (!minimum) {
-    logScrapeDiagnostics(diagnostics);
-    return {
-      result: {
-        ...result,
+  const finalResult = {
+    ...result,
+    success: quality.jobSuccess,
+    partialSuccess: quality.partialSuccess,
+    titleSource: quality.titleSource,
+    usableForCsv: quality.usableForCsv,
+    usableForShopify: quality.usableForShopify,
+    blockedForExport: quality.blockedForExport,
+    previewOk: quality.previewOk,
+    stageErrors: diagnostics.stageErrors,
+    scrapeDiagnostics: diagnostics,
+  };
+
+  logScrapeDiagnostics(diagnostics);
+
+  if (!quality.jobSuccess) {
+    if (quality.previewOk) {
+      return {
+        result: {
+          ...finalResult,
+          success: false,
+          partialSuccess: true,
+        },
+        diagnostics,
         success: false,
-        partialSuccess: false,
-        stageErrors: diagnostics.stageErrors,
-        scrapeDiagnostics: diagnostics,
-      },
+        partialSuccess: true,
+      };
+    }
+    return {
+      result: { ...finalResult, success: false, partialSuccess: false },
       diagnostics,
       success: false,
       partialSuccess: false,
     };
   }
 
-  logScrapeDiagnostics(diagnostics);
   return {
     result: {
-      ...result,
-      success: true,
-      partialSuccess,
-      stageErrors: diagnostics.stageErrors,
-      scrapeDiagnostics: diagnostics,
+      ...finalResult,
+      partialSuccess: quality.partialSuccess || !quality.hasImages,
     },
     diagnostics,
     success: true,
-    partialSuccess,
+    partialSuccess: quality.partialSuccess,
   };
 }
 

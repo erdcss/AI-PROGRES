@@ -329,7 +329,8 @@ export class MonitoringService {
 
         // 🤖 AUTONOMOUS SYNC: Feature-flagged for manual approval
         if (this.features.priceAutoSyncEnabled && trackedProduct.shopifyProductId) {
-          try {
+          const { isAutonomousSyncEnabled } = await import('@shared/deploy-runtime');
+          if (isAutonomousSyncEnabled()) try {
             console.log('\n🤖 AUTONOMOUS SYNC: Price change detected, triggering Shopify sync...');
             
             const syncResult = await shopifySyncManager.processChanges(trackedProduct.id, {
@@ -648,6 +649,8 @@ export class MonitoringService {
         
         // 🤖 AUTONOMOUS SYNC: Feature-flagged - disabled by default
         if (this.features.variantAutoSyncEnabled && comparisonResult && (comparisonResult.addedVariants.length > 0 || comparisonResult.removedVariants.length > 0 || comparisonResult.stockChanges.length > 0)) {
+          const { isAutonomousSyncEnabled } = await import('@shared/deploy-runtime');
+          if (isAutonomousSyncEnabled()) {
           console.log('\n🤖 AUTONOMOUS SYNC: Changes detected, triggering Shopify sync...');
           try {
             // Convert comparison result to variant changes for sync manager
@@ -683,6 +686,7 @@ export class MonitoringService {
               (syncError as Error).message
             );
           }
+          }
         } else {
           console.log('ℹ️ No variant changes detected, skipping Shopify sync');
         }
@@ -699,7 +703,20 @@ export class MonitoringService {
   // Trendyol'dan ürün verilerini çek
   private async scrapeProductData(url: string): Promise<any> {
     try {
-      // ✅ FAILOVER INTEGRATION: Use failover manager
+      const { isCloudRuntime } = await import('@shared/deploy-runtime');
+      if (isCloudRuntime()) {
+        const { runTrendyolScrapePipeline } = await import('./trendyol-scrape-pipeline');
+        const outcome = await runTrendyolScrapePipeline(url, 'auto-fast');
+        if (!outcome.success || outcome.result?.usableForShopify !== true) {
+          console.warn(
+            '☁️ Tracking scrape atlandı — kullanılabilir veri yok:',
+            outcome.diagnostics?.finalSuccessReason,
+          );
+          return null;
+        }
+        return outcome.result;
+      }
+
       const result = await failoverManager.executeWithFailover(url, async () => {
         return await scenarioBasedScrape(url);
       });
