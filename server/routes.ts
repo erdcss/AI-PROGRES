@@ -2124,6 +2124,7 @@ setTimeout(check, 1000);
         );
         const { shouldPreferApiOnlyScrape, isCloudRuntime } = await import('@shared/deploy-runtime');
         const { normalizeTrendyolImages } = await import('./trendyol-image-utils');
+        const { hasRealTrendyolVariants } = await import('@shared/trendyol-variant-utils');
 
         // ⚡ 1) Trendyol public API — hızlı ve güvenilir başlık/fiyat/görsel
         console.log('⚡ API PATH: Trying Trendyol product API first...');
@@ -2140,15 +2141,49 @@ setTimeout(check, 1000);
 
         const apiHasImages = normalizeTrendyolImages(result?.images || []).length > 0;
 
-        // ☁️ Deploy: API fiyat+başlık yeterliyse Puppeteer atla — ama görsel yoksa scenario scrape çalıştır
-        if (shouldPreferApiOnlyScrape() && apiHasCoreData && apiHasImages) {
+        let cloudSkipScenario = false;
+        if (shouldPreferApiOnlyScrape() && apiHasCoreData) {
+          const needsHtmlEnrich =
+            !apiHasImages || !hasRealTrendyolVariants(result?.variants);
+          if (needsHtmlEnrich) {
+            console.log('☁️ Cloud: HTML extractor ile görsel/varyant tamamlanıyor...');
+            const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
+            const htmlProduct = await extractTrendyolProductFromHtml(url);
+            if (htmlProduct) {
+              if (!apiHasImages && htmlProduct.images.length > 0) {
+                result.images = htmlProduct.images;
+              }
+              if (!hasRealTrendyolVariants(result?.variants) && hasRealTrendyolVariants(htmlProduct.variants)) {
+                result.variants = htmlProduct.variants;
+              }
+              if ((!result.price?.original || result.price.original <= 0) && htmlProduct.price.original > 0) {
+                result.price = htmlProduct.price;
+              }
+              if (htmlProduct.description && !result.description) result.description = htmlProduct.description;
+              console.log(
+                `☁️ HTML extractor (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel`,
+              );
+            }
+          }
+          const hasImagesNow = normalizeTrendyolImages(result?.images || []).length > 0;
+          if (apiHasCoreData && hasImagesNow) {
+            cloudSkipScenario = true;
+            console.log(
+              `☁️ Cloud runtime (${isCloudRuntime() ? 'detected' : 'skip flag'}): API+HTML yeterli — scenario scrape atlandı`,
+            );
+          } else if (!hasImagesNow) {
+            console.log('☁️ Cloud runtime: Görsel hâlâ eksik — scenario scrape denenecek');
+          }
+        }
+
+        // ☁️ Deploy: API fiyat+başlık+görsel yeterliyse Puppeteer atla
+        if (cloudSkipScenario) {
+          /* scenario scrape atlandı */
+        } else if (shouldPreferApiOnlyScrape() && apiHasCoreData && apiHasImages) {
           console.log(
             `☁️ Cloud runtime (${isCloudRuntime() ? 'detected' : 'skip flag'}): API verisi yeterli — scenario scrape atlandı`,
           );
         } else {
-        if (shouldPreferApiOnlyScrape() && apiHasCoreData && !apiHasImages) {
-          console.log('☁️ Cloud runtime: API görsel döndürmedi — scenario scrape ile görsel alınacak');
-        }
         // ⚡ 2) Scenario scrape — varyant/renk için (API başarısızsa veya varyant zenginleştirme)
         console.log('⚡ SCENARIO PATH: Running scenario-based scraper for variant data...');
         try {

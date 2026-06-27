@@ -48,7 +48,7 @@ export function optimizeTrendyolImageUrl(url: string): string | null {
   if (!optimized) return null;
   if (!CDN_HOSTS.some((host) => optimized.includes(host))) return null;
 
-  const exclude = ["/ui/", "/icon", "/logo", "/footer", "/brand/", "/web/", ".svg"];
+  const exclude = ["/ui/", "/icon", "/logo", "/footer", "/brand/", "/web/", "/sfint/", ".svg"];
   if (exclude.some((pattern) => optimized.includes(pattern))) return null;
 
   return optimized.replace(/mnresize\/\d+\/\d+\//, "mnresize/1200/1800/");
@@ -87,4 +87,24 @@ export function mergeTrendyolImageLists(...lists: unknown[]): string[] {
   }
 
   return merged;
+}
+
+/** Ürün görselleri — SVG, sfint ikonları ve CSS mask URL'lerini eler */
+export function filterValidProductImages(images: unknown): string[] {
+  return normalizeTrendyolImages(images).filter((img) => {
+    if (
+      img.includes("mask-image") ||
+      img.includes("background-image") ||
+      img.includes(".svg") ||
+      img.includes("/sfint/") ||
+      img.includes("data:")
+    ) {
+      return false;
+    }
+    if (!img.includes("/prod/") && !img.includes("/QC_") && !img.includes("/PIM/")) {
+      return false;
+    }
+    const path = img.split("?")[0];
+    return /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(path);
+  });
 }

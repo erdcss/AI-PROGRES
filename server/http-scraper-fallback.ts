@@ -11,7 +11,7 @@ import {
 } from './trendyol-price-utils';
 import { normalizeTrendyolImages } from './trendyol-image-utils';
 import { extractProductImages } from './trendyol-image-extractor';
-import { tryGoogleCache, tryWaybackMachine } from './alternative-data-sources';
+import { tryGoogleCache, tryWaybackMachine, tryProxyServices } from './alternative-data-sources';
 import {
   EMPTY_TRENDYOL_VARIANTS,
   sanitizeTrendyolVariants,
@@ -220,32 +220,48 @@ function parseHtmlProduct(html: string, url: string, $: cheerio.CheerioAPI) {
 }
 
 export async function fetchTrendyolHtml(url: string): Promise<{ html: string; source: string } | null> {
-  try {
-    const response = await axios.get(url, {
-      timeout: 25000,
-      maxRedirects: 5,
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
-        Referer: 'https://www.trendyol.com/',
-        'Cache-Control': 'no-cache',
-      },
-      validateStatus: (s) => s < 500,
-    });
+  const headerSets = [
+    {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+      Referer: 'https://www.trendyol.com/',
+    },
+    {
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      Referer: 'https://www.google.com/',
+    },
+  ];
 
-    const html = String(response.data || '');
-    if (response.status !== 403 && response.status !== 429 && html.length >= 500) {
-      return { html, source: 'direct' };
+  for (const headers of headerSets) {
+    try {
+      const response = await axios.get(url, {
+        timeout: 20000,
+        maxRedirects: 5,
+        headers: { ...headers, 'Cache-Control': 'no-cache' },
+        validateStatus: (s) => s < 500,
+      });
+
+      const html = String(response.data || '');
+      if (response.status !== 403 && response.status !== 429 && html.length >= 5000) {
+        return { html, source: 'direct' };
+      }
+    } catch {
+      /* try next */
     }
-  } catch {
-    /* try alternatives */
   }
 
   const cache = await tryGoogleCache(url);
   if (cache?.html && cache.html.length >= 500) {
     return { html: cache.html, source: 'google-cache' };
+  }
+
+  const proxy = await tryProxyServices(url);
+  if (proxy?.html && proxy.html.length >= 500) {
+    return { html: proxy.html, source: 'proxy-referer' };
   }
 
   const wayback = await tryWaybackMachine(url);

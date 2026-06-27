@@ -108,33 +108,25 @@ export async function tryGoogleCache(url: string): Promise<any> {
     const response = await axios.get(cacheUrl, {
       timeout: 15000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-      }
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
     });
 
-    if (response.data && response.data.length > 5000) {
-      const html = String(response.data);
-      const isGoogleWrapper =
-        html.includes('Google Search') ||
-        (html.includes('window.google') && !html.includes('cdn.dsmcdn.com'));
-      const isProductPage =
-        html.includes('cdn.dsmcdn.com') ||
-        html.includes('application/ld+json') ||
-        html.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__') ||
-        html.includes('__NEXT_DATA__');
-      if (!isGoogleWrapper && isProductPage) {
-        console.log('✅ Google Cache successful!');
-        return {
-          success: true,
-          html,
-          source: 'google-cache',
-        };
-      }
-      console.log('❌ Google Cache returned non-product page');
+    const html = String(response.data || '');
+    if (html.length > 2000 && (html.includes('cdn.dsmcdn.com') || html.includes('trendyol'))) {
+      console.log('✅ Google Cache successful!');
+      return {
+        success: true,
+        html,
+        source: 'google-cache',
+      };
     }
+    console.log('❌ Google Cache returned non-product page');
   } catch (error) {
-    console.log(`❌ Google Cache failed: ${error.message}`);
+    console.log(`❌ Google Cache failed: ${(error as Error).message}`);
   }
 
   return null;

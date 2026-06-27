@@ -311,27 +311,9 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
     }
   }
   
-  // Method 4: Absolute last resort S/M/L (only if truly nothing found)
+  // Tek ürün (krem, kozmetik vb.) — sahte S/M/L oluşturma
   if (variants.length === 0) {
-    console.log('⚠️ Hiç variant bulunamadı, fallback S/M/L oluşturuluyor...');
-    
-    const fallbackVariants = [
-      { size: 'S', inStock: true },
-      { size: 'M', inStock: true },
-      { size: 'L', inStock: false }
-    ];
-    
-    fallbackVariants.forEach(item => {
-      variants.push({
-        color: 'Krem',
-        colorCode: '#F5E6D3',
-        size: item.size,
-        inStock: item.inStock,
-        method: 'Manual Fallback'
-      });
-      
-      console.log(`📦 Fallback variant: Krem ${item.size} = ${item.inStock ? 'STOKTA' : 'TÜKENDİ'}`);
-    });
+    console.log('ℹ️ Varyant bulunamadı — tek ürün olarak bırakılıyor (sahte beden yok)');
   }
   
   console.log(`✅ REAL STOCK DETECTION tamamlandı: ${variants.length} variant, ${variants.filter(v => v.inStock).length} stokta`);

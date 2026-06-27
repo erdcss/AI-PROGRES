@@ -181,7 +181,10 @@ export const EMPTY_TRENDYOL_VARIANTS: SanitizedVariants = {
   allVariants: [],
 };
 
-export function hasRealTrendyolVariants(variants: SanitizedVariants): boolean {
+export function hasRealTrendyolVariants(variants: SanitizedVariants | null | undefined): boolean {
+  if (!variants || !Array.isArray(variants.colors) || !Array.isArray(variants.sizes)) {
+    return false;
+  }
   return variants.colors.length > 0 || variants.sizes.length > 0;
 }
 

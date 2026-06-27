@@ -3262,7 +3262,9 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     }
 
     // 🎨 SINGLE-COLOR: CSV tarafında Renk sütunu zaten bastırılıyor (multi-variant-csv-generator).
-    // Önizleme için renk/beden verisini koruyoruz — burada silme.
+    const uniqueColorSet = new Set(
+      validatedVariants.colors.map((c) => c.toLowerCase().trim()).filter(Boolean),
+    );
     if (uniqueColorSet.size === 1) {
       const onlyColor = [...uniqueColorSet][0];
       console.log(`ℹ️ SINGLE-COLOR: "${onlyColor}" — önizlemede korunuyor, CSV'de Renk sütunu bastırılacak`);

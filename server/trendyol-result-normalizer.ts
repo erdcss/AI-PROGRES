@@ -12,6 +12,7 @@ import {
 import {
   mergeTrendyolImageLists,
   normalizeTrendyolImages,
+  filterValidProductImages,
 } from './trendyol-image-utils';
 import {
   hasRealTrendyolVariants,
@@ -116,6 +117,36 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
 
     const stillMissingPrice = needsPrice(result.price);
     let stillMissingImages = normalizeImages(result.images).length === 0;
+    const missingVariants = !hasRealTrendyolVariants(result.variants);
+
+    if (stillMissingPrice || stillMissingImages || missingVariants) {
+      const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
+      const htmlProduct = await extractTrendyolProductFromHtml(url);
+      if (htmlProduct) {
+        console.log(
+          `📄 HTML extractor (${htmlProduct.htmlSource}): price=${htmlProduct.price.original}, images=${htmlProduct.images.length}`,
+        );
+        if (stillMissingPrice && htmlProduct.price.original > 0) {
+          result.price = htmlProduct.price;
+          result._priceSource = 'html-extractor';
+        }
+        if (stillMissingImages && htmlProduct.images.length > 0) {
+          result.images = htmlProduct.images;
+          stillMissingImages = false;
+        }
+        if (missingVariants && hasRealTrendyolVariants(htmlProduct.variants)) {
+          result.variants = htmlProduct.variants;
+        }
+        if (!isValidTrendyolProductTitle(result.title)) {
+          result.title = resolveProductTitle(url, htmlProduct.title);
+        }
+        if (htmlProduct.brand && (!result.brand || result.brand === 'Bilinmiyor')) {
+          result.brand = htmlProduct.brand;
+        }
+        if (htmlProduct.description && !result.description) result.description = htmlProduct.description;
+        if (htmlProduct.category && !result.category) result.category = htmlProduct.category;
+      }
+    }
 
     if (stillMissingImages) {
       const { fetchTrendyolProductImages } = await import('./trendyol-image-fetcher');
@@ -127,7 +158,8 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
     }
 
     const { isCloudRuntime } = await import('@shared/deploy-runtime');
-    const skipPuppeteerOnCloud = isCloudRuntime() && !stillMissingPrice && stillMissingImages;
+    const skipPuppeteerOnCloud =
+      isCloudRuntime() && !needsPrice(result.price) && normalizeImages(result.images).length > 0;
 
     if ((stillMissingPrice || stillMissingImages) && !alreadyFromBrowser && !result._puppeteerEnrichAttempted && !skipPuppeteerOnCloud) {
       result._puppeteerEnrichAttempted = true;
@@ -163,7 +195,7 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
     result.brand = brandFromTrendyolUrl(url) || result.brand || 'Marka';
   }
 
-  result.images = normalizeImages(result.images);
+  result.images = filterValidProductImages(result.images);
 
   const normalizedOriginal = normalizeTrendyolPriceValue(result.price);
   if (normalizedOriginal > 0) {
