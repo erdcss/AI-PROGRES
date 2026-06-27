@@ -2035,12 +2035,17 @@ setTimeout(check, 1000);
     }
   }, 5 * 60 * 1000);
 
+  app.get('/api/runtime/scrape-capabilities', async (_req, res) => {
+    const { scrapeCapabilitiesPayload } = await import('@shared/scrape-runtime');
+    res.json(scrapeCapabilitiesPayload());
+  });
+
   // Job status polling endpoint
   app.get('/api/scrape-job/:jobId', (req, res) => {
     const job = scrapeJobs.get(req.params.jobId);
     if (!job) return res.status(404).json({ status: 'not_found' });
     if (job.status === 'processing') return res.json({ status: 'processing' });
-    if (job.status === 'error') return res.json({ status: 'error', error: job.error });
+    if (job.status === 'error') return res.json({ status: 'error', error: job.error, code: (job as any).code });
     const result = job.result;
     scrapeJobs.delete(req.params.jobId);
     return res.json({ status: 'done', result });
@@ -2089,334 +2094,40 @@ setTimeout(check, 1000);
           try {
         const scrapeStartTime = Date.now();
         console.log("⚡ FAST EXTRACTION başlıyor...");
-        
-        const createTimeout = (ms: number) => new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('TIMEOUT')), ms);
-        });
-        
+
+        const selectedScrapeMode =
+          req.body.scrapeMode ||
+          req.body.selectedScrapeMode ||
+          (req.body.useBrowser ? "browser" : "auto-fast");
+
+        const { enrichTrendyolResult, resolveProductTitle } = await import("./trendyol-result-normalizer");
+        const { formatScrapeError, logScrapeDiagnostics } = await import("@shared/scrape-runtime");
+        const { runTrendyolScrapePipeline } = await import("./trendyol-scrape-pipeline");
+
         let result: any = null;
+        let scrapeDiagnostics: any = null;
 
-        const { sanitizeTrendyolVariants } = await import('@shared/trendyol-variant-utils');
-
-        const convertApiProduct = (apiProduct: any) => ({
-          success: true,
-          title: resolveProductTitle(url, apiProduct.title),
-          brand: apiProduct.brand || brandFromTrendyolUrl(url) || 'Marka',
-          category: apiProduct.category || 'Genel',
-          description: apiProduct.description || '',
-          price: apiProduct.price,
-          images: filterValidProductImages(apiProduct.images),
-          variants: sanitizeTrendyolVariants(
-            apiProduct.variants?.length ? { allVariants: apiProduct.variants } : undefined,
-            { productTitle: apiProduct.title },
-          ),
-          features: [],
-          tags: [],
-          extractionMethod: 'trendyol-api',
-          scenario: 'trendyol-api',
-          confidence: 90,
-          sourceUrl: url,
-        });
-
-        const { fetchTrendyolProductByUrl } = await import('./trendyol-product-api');
-        const { enrichTrendyolResult, mergeApiWithScrape, resolveProductTitle } = await import(
-          './trendyol-result-normalizer'
-        );
-        const { brandFromTrendyolUrl, isValidTrendyolProductTitle } = await import('./trendyol-title-utils');
-        const { shouldPreferApiOnlyScrape, isCloudRuntime } = await import('@shared/deploy-runtime');
-        const { normalizeTrendyolImages, filterValidProductImages } = await import('./trendyol-image-utils');
-        const { hasRealTrendyolVariants } = await import('@shared/trendyol-variant-utils');
-
-        // ⚡ 1) Trendyol public API — hızlı ve güvenilir başlık/fiyat/görsel
-        console.log('⚡ API PATH: Trying Trendyol product API first...');
-        const apiProduct = await fetchTrendyolProductByUrl(url);
-        if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
-          console.log(`✅ Trendyol API: "${apiProduct.title}" — ${apiProduct.price.original} TL`);
-          result = convertApiProduct(apiProduct);
-        }
-
-        const apiHasCoreData =
-          Boolean(result) &&
-          result.price?.original > 0 &&
-          isValidTrendyolProductTitle(result.title);
-
-        const apiHasImages = filterValidProductImages(result?.images || []).length > 0;
-
-        // ⚡ 1.5) Direct HTML — Safari UA ile hızlı görsel/fiyat (tüm ortamlar)
-        let skipScenarioFastPath = false;
-        {
-          console.log('⚡ Direct HTML enrich (Safari UA)...');
-          if (!result) {
-            result = {
-              success: true,
-              title: resolveProductTitle(url, null),
-              brand: brandFromTrendyolUrl(url) || 'Marka',
-              price: { original: 0, withProfit: 0, currency: 'TRY' },
-              images: [],
-              sourceUrl: url,
-            };
-          }
-
-          const { fetchTrendyolProductImages } = await import('./trendyol-image-fetcher');
-          if (!apiHasImages) {
-            const directImages = await fetchTrendyolProductImages(url);
-            if (directImages.length > 0) {
-              result.images = directImages;
-              console.log(`⚡ Direct görsel: ${directImages.length} adet`);
-            }
-          }
-
-          const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
-          const htmlProduct = await extractTrendyolProductFromHtml(url);
-          if (htmlProduct) {
-            result.title = resolveProductTitle(url, htmlProduct.title || result.title);
-            if (filterValidProductImages(result.images).length === 0 && htmlProduct.images.length > 0) {
-              result.images = htmlProduct.images;
-            }
-            if (hasRealTrendyolVariants(htmlProduct.variants)) {
-              result.variants = htmlProduct.variants;
-            }
-            if ((!result.price?.original || result.price.original <= 0) && htmlProduct.price.original > 0) {
-              result.price = htmlProduct.price;
-            }
-            if (htmlProduct.description && !result.description) result.description = htmlProduct.description;
-            console.log(
-              `⚡ HTML extractor (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel, fiyat=${htmlProduct.price.original}`,
-            );
-          } else {
-            result.title = resolveProductTitle(url, result.title);
-          }
-
-          const hasImagesNow = filterValidProductImages(result?.images || []).length > 0;
-          const hasValidTitle = isValidTrendyolProductTitle(result.title);
-          const hasVariantsNow = hasRealTrendyolVariants(result.variants);
-          skipScenarioFastPath = hasValidTitle && hasImagesNow && result.price?.original > 0 && hasVariantsNow;
-          if (skipScenarioFastPath) {
-            console.log('⚡ Direct HTML yeterli — scenario scrape atlandı');
-          } else {
-            console.log(
-              `⚡ Direct HTML kısmi (title=${hasValidTitle}, images=${hasImagesNow}, price=${result.price?.original > 0}, variants=${hasVariantsNow}) — scenario devam`,
-            );
-          }
-        }
-
-        let cloudSkipScenario = skipScenarioFastPath;
-        if (shouldPreferApiOnlyScrape() && result && skipScenarioFastPath) {
-          console.log('☁️ Cloud: direct HTML tam veri — scenario atlandı');
-        }
-
-        // ☁️ Deploy: API fiyat+başlık+görsel yeterliyse Puppeteer atla
-        if (cloudSkipScenario) {
-          /* scenario scrape atlandı */
-        } else if (shouldPreferApiOnlyScrape() && apiHasCoreData && apiHasImages) {
-          console.log(
-            `☁️ Cloud runtime (${isCloudRuntime() ? 'detected' : 'skip flag'}): API verisi yeterli — scenario scrape atlandı`,
-          );
-        } else {
-        // ⚡ 2) Scenario scrape — varyant/renk için (API başarısızsa veya varyant zenginleştirme)
-        console.log('⚡ SCENARIO PATH: Running scenario-based scraper for variant data...');
         try {
-          const scrapeResult = await Promise.race([
-            scenarioBasedScrape(url),
-            createTimeout(90000)
-          ]) as any;
-          
-          const { isValidTrendyolProductTitle } = await import('./trendyol-title-utils');
-          const scrapeHasValidTitle =
-            scrapeResult?.title &&
-            isValidTrendyolProductTitle(scrapeResult.title) &&
-            (scrapeResult.title as string).length > 5;
-          const scrapeHasValidData =
-            scrapeHasValidTitle &&
-            ((scrapeResult?.price?.original > 0) || (scrapeResult?.images?.length > 0));
-
-          if (scrapeResult?.blocked) {
-            console.log('⚠️ ROUTES: Scenario block flag — enrich/fallback deneniyor');
-            if (!result) {
-              result = {
-                title: scrapeResult.title,
-                brand: scrapeResult.brand,
-                price: scrapeResult.price,
-                images: scrapeResult.images || [],
-                variants: scrapeResult.variants,
-                success: false,
-                blocked: true,
-                sourceUrl: url,
-              };
-            }
-          } else if (scrapeResult && scrapeResult.success !== false && scrapeHasValidData) {
-            console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
-            if (result) {
-              result = mergeApiWithScrape(result, scrapeResult);
-            } else {
-              result = {
-                ...scrapeResult,
-                _source: 'scenario-scrape',
-                sourceUrl: url,
-                _priceSource: 'scenario-scrape',
-              };
-            }
-          } else if (!result) {
-            const failReason = !scrapeHasValidData ? `invalid data (title="${scrapeResult?.title}", price=${scrapeResult?.price?.original})` : 'success=false';
-            console.log(`⚠️ Scenario scrape rejected: ${failReason}`);
-            throw new Error('Scenario scrape failed');
+          const pipeline = await runTrendyolScrapePipeline(url, selectedScrapeMode);
+          result = pipeline.result;
+          scrapeDiagnostics = pipeline.diagnostics;
+          logScrapeDiagnostics(scrapeDiagnostics);
+        } catch (pipelineErr) {
+          const formatted = formatScrapeError(pipelineErr);
+          console.error("❌ Scrape pipeline error:", formatted.message);
+          const _entry = scrapeJobs.get(jobId);
+          if (_entry) {
+            scrapeJobs.set(jobId, {
+              ..._entry,
+              status: "error",
+              error: formatted.message,
+              code: formatted.code,
+            });
           }
-        } catch (fastError: any) {
-          if (result) {
-            console.log(`⚠️ Scenario enrich skipped (${fastError.message}), keeping API result`);
-          } else {
-          console.log(`⚠️ Fast path failed (${Date.now() - scrapeStartTime}ms): ${fastError.message}`);
-
-          try {
-            if (apiProduct) {
-              result = convertApiProduct(apiProduct);
-            } else {
-              throw new Error('Trendyol API fallback empty');
-            }
-          } catch (apiError: any) {
-            console.log(`⚠️ Trendyol API fallback failed: ${apiError.message}`);
-          
-        const convertMultiColorResult = (mcr: any) => ({
-            success: true,
-            title: mcr.combinedData.title,
-            brand: mcr.combinedData.brand,
-            category: mcr.combinedData.category,
-            description: mcr.combinedData.description,
-            price: mcr.combinedData.price,
-            images: mcr.combinedData.allImages,
-            variants: {
-              colors: [...new Set(mcr.combinedData.allVariants.map((v: any) => v.color))],
-              sizes: [...new Set(mcr.combinedData.allVariants.map((v: any) => v.size))],
-              allVariants: mcr.combinedData.allVariants,
-              stockMap: mcr.combinedData.allVariants.reduce((map: any, v: any) => {
-                map[`${v.color}-${v.size}`] = v.inStock;
-                return map;
-              }, {} as Record<string, boolean>)
-            },
-            features: mcr.combinedData.features || [],
-            tags: mcr.combinedData.tags || [],
-            extractionMethod: 'multi-color-scraper',
-            scenario: mcr.totalColors > 1 ? 'multi-color' : 'single-variant',
-            confidence: 100,
-            sourceUrl: url,
-          });
-
-          // FALLBACK: Try multi-color scraper directly
-          try {
-            const { MultiColorScraper } = await import('./multi-color-scraper');
-            const multiColorScraper = new MultiColorScraper();
-            const multiColorResult = await Promise.race([
-              multiColorScraper.scrapeAllColors(url),
-              createTimeout(20000)
-            ]) as any;
-            
-            if (multiColorResult?.success && multiColorResult?.combinedData) {
-              result = convertMultiColorResult(multiColorResult);
-            } else {
-              throw new Error('Multi-color fallback failed');
-            }
-          } catch (fallbackError: any) {
-            console.log(`❌ Fallback failed: ${fallbackError.message}`);
-            try {
-              const { tryAlternativeSources } = await import('./alternative-data-sources');
-              const emergencyResult = await tryAlternativeSources(url);
-              if (emergencyResult?.success) {
-                result = emergencyResult;
-                // Normalize: alternative sources may return {html} instead of {htmlContent}
-                if (result.html && !result.htmlContent) {
-                  result.htmlContent = result.html;
-                }
-                // If title/images are missing, extract them from the HTML
-                if (result.htmlContent && (!result.title || !result.images || result.images.length === 0)) {
-                  try {
-                    const cheerioLib = await import('cheerio');
-                    const $alt = cheerioLib.load(result.htmlContent);
-                    // Extract title from JSON-LD or meta tags
-                    if (!result.title) {
-                      $alt('script[type="application/ld+json"]').each((_: number, el: any) => {
-                        try {
-                          const ld = JSON.parse($alt(el).html() || '{}');
-                          if (ld['@type'] === 'Product' && ld.name) result.title = ld.name;
-                        } catch {}
-                      });
-                      if (!result.title) {
-                        const h1Title = $alt('h1.pr-new-br, h1[class*="product"], h1').first().text().trim();
-                        result.title = resolveProductTitle(url, h1Title);
-                      }
-                    }
-                    // Extract brand from JSON-LD
-                    if (!result.brand) {
-                      $alt('script[type="application/ld+json"]').each((_: number, el: any) => {
-                        try {
-                          const ld = JSON.parse($alt(el).html() || '{}');
-                          if (ld['@type'] === 'Product' && ld.manufacturer) result.brand = ld.manufacturer;
-                        } catch {}
-                      });
-                    }
-                    // Extract images from JSON-LD
-                    if (!result.images || result.images.length === 0) {
-                      const imgs: string[] = [];
-                      $alt('script[type="application/ld+json"]').each((_: number, el: any) => {
-                        try {
-                          const ld = JSON.parse($alt(el).html() || '{}');
-                          if (ld['@type'] === 'Product' && ld.image) {
-                            const ldImgs = Array.isArray(ld.image) ? ld.image : [ld.image];
-                            ldImgs.forEach((img: string) => { if (img && img.startsWith('http')) imgs.push(img); });
-                          }
-                        } catch {}
-                      });
-                      // Also try CDN image patterns in HTML
-                      const cdnMatches = result.htmlContent.match(/https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\.jpg/g) || [];
-                      cdnMatches.forEach((img: string) => { if (!imgs.includes(img)) imgs.push(img); });
-                      if (imgs.length > 0) result.images = imgs.slice(0, 20);
-                    }
-                    console.log(`✅ Alt-source HTML processed: title="${result.title}", images=${(result.images||[]).length}`);
-                  } catch (parseErr) {
-                    console.warn('⚠️ Alt-source HTML parse failed:', parseErr);
-                  }
-                }
-              } else {
-                throw new Error('All methods exhausted');
-              }
-            } catch {
-              try {
-                const { scrapeTrendyolHttpFallback } = await import('./http-scraper-fallback');
-                const httpResult = await scrapeTrendyolHttpFallback(url);
-                if (httpResult.success && httpResult.product) {
-                  const p = httpResult.product;
-                  result = {
-                    success: true,
-                    title: p.title,
-                    brand: p.brand,
-                    price: p.price,
-                    images: p.images,
-                    variants: p.variants,
-                    features: p.features,
-                    tags: p.tags,
-                    extractionMethod: 'http-fallback',
-                    scenario: 'http-fallback',
-                    confidence: 70,
-                  };
-                  console.log('✅ HTTP fallback scraper succeeded (no browser)');
-                } else {
-                  throw new Error(httpResult.error || 'HTTP fallback failed');
-                }
-              } catch {
-                result = {
-                  success: false,
-                  error: 'Extraction failed',
-                  step: 'all_methods_exhausted',
-                  message: 'Ürün bilgisi alınamadı — Trendyol engeli veya tarayıcı bulunamadı',
-                  title: resolveProductTitle(url, null),
-                  brand: 'Bilinmiyor',
-                };
-              }
-            }
-          }
-          }
-          }
+          return;
         }
-        }
+
+        console.log(`⚡ Pipeline completed in ${Date.now() - scrapeStartTime}ms`);
 
         if (result) {
           result = await enrichTrendyolResult(url, result);
@@ -4767,6 +4478,18 @@ setTimeout(check, 1000);
   // ── Mini Tarayıcı Proxy bitiş ──────────────────────────────────────────────
 
   // ── Puppeteer Tarayıcı API ─────────────────────────────────────────────────
+  app.use('/api/browser', async (_req, res, next) => {
+    const { puppeteerAllowed } = await import('@shared/deploy-runtime');
+    if (!puppeteerAllowed()) {
+      return res.status(503).json({
+        error: 'puppeteer-disabled-in-cloud',
+        code: 'puppeteer-disabled-in-cloud',
+        message: 'Dahili Tarayıcı bu ortamda devre dışı. Otomatik hızlı mod kullanılıyor.',
+      });
+    }
+    next();
+  });
+
   app.post('/api/browser/navigate', async (req, res) => {
     try {
       const { url } = req.body;

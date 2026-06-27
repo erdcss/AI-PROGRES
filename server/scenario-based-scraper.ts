@@ -40,6 +40,7 @@ import { detectRealStockStatus } from './real-stock-detector';
 import { extractColorFromUrl, cleanColorName, normalizeSize, parseVariantString, getColorCode } from './color-recognition';
 import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './performance-config';
 import { buildLaunchOptions } from './puppeteer-config';
+import { puppeteerAllowed as isPuppeteerAllowedInRuntime } from '@shared/deploy-runtime';
 import { generateAdvancedTags } from './tag-generator';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 import {
@@ -944,6 +945,10 @@ function releasePuppeteerSlot(): void {
 
 // Puppeteer Color Extraction Function
 async function tryPuppeteerColorExtraction(url: string): Promise<{success: boolean, htmlContent?: string, colors?: string[]}> {
+  if (!activeScenarioAllowPuppeteer) {
+    console.log('☁️ Puppeteer color extraction skipped: puppeteer-disabled-in-cloud');
+    return { success: false };
+  }
   let browser;
   await acquirePuppeteerSlot();
   try {
@@ -1284,9 +1289,21 @@ function extractAllVariantsFromProductGroupJsonLd(htmlContent: string): Array<{
   return result;
 }
 
-export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedResult> {
+export type ScenarioScrapeOptions = {
+  allowPuppeteer?: boolean;
+};
+
+let activeScenarioAllowPuppeteer = true;
+
+export async function scenarioBasedScrape(
+  url: string,
+  options: ScenarioScrapeOptions = {},
+): Promise<ScenarioBasedResult> {
+  activeScenarioAllowPuppeteer =
+    options.allowPuppeteer !== false && isPuppeteerAllowedInRuntime();
+
   const startTime = Date.now();
-  console.log(`🚨🚨🚨 FUNCTION ENTRY: scenarioBasedScrape called for ${url}`);
+  console.log(`🚨🚨🚨 FUNCTION ENTRY: scenarioBasedScrape called for ${url} (puppeteer=${activeScenarioAllowPuppeteer})`);
   
   // Local store for color variant URLs found during Puppeteer extraction
   let detectedColorVariantUrls: string[] = [];
@@ -1628,7 +1645,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           
           console.log(`🎨 Initial variant check: ${initialVariants?.length || 0} variants, hasColors: ${hasColors}, sizes: [${Array.from(initialSizeSet).join(',')}], incompleteSizes: ${incompleteSizes}, needsPuppeteer: ${needsPuppeteer}`);
           
-          if (needsPuppeteer) {
+          if (needsPuppeteer && activeScenarioAllowPuppeteer) {
             console.log(`🎨 Puppeteer needed: hasColors=${hasColors}, incompleteSizes=${incompleteSizes} - launching Puppeteer...`);
             try {
               const puppeteerResult = await tryPuppeteerColorExtraction(url);
@@ -1773,7 +1790,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           
         } catch (enhancedError) {
           console.log('⚠️ Enhanced headers failed, trying advanced Puppeteer...');
-          
+
+          if (!activeScenarioAllowPuppeteer) {
+            console.log('☁️ Skipping Puppeteer color extraction fallback in cloud');
+            throw enhancedError;
+          }
+
           // Method 2: Advanced Puppeteer with color extraction
           console.log('📡 Method 2: Puppeteer color extraction...');
           
@@ -2087,6 +2109,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       }
       
     } catch (axiosError: any) {
+      if (!activeScenarioAllowPuppeteer) {
+        console.log(`☁️ Axios failed (${axiosError.message}); Puppeteer fallback disabled in cloud`);
+        throw axiosError;
+      }
+
       // Axios başarısız — Puppeteer fallback (HTTP 403 olsa bile Chromium çoğu zaman geçer)
       console.log(`⚠️ Axios failed (${axiosError.message}), trying Puppeteer as fallback...`);
       

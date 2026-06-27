@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { fetchScrapeCapabilities, type ScrapeCapabilities } from "@/lib/scrape-capabilities";
 import {
   Globe,
   ArrowLeft,
@@ -113,6 +114,11 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
   const [dragStartY, setDragStartY] = useState(0);
   const [imgOpacity, setImgOpacity] = useState(1);
   const [prevScreenshot, setPrevScreenshot] = useState<string | null>(null);
+  const [capabilities, setCapabilities] = useState<ScrapeCapabilities | null>(null);
+
+  useEffect(() => {
+    void fetchScrapeCapabilities().then(setCapabilities);
+  }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -407,6 +413,14 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
   const isProduct = isTrendyolProductUrl(state?.url || "");
   const domain = getDomain(state?.url || addressBar);
   const isSecure = isHttps(state?.url || addressBar);
+
+  if (capabilities && !capabilities.browserUiEnabled) {
+    return (
+      <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-3 text-xs text-slate-400">
+        Dahili Tarayıcı (Chromium) bu ortamda devre dışı — ürün verileri otomatik hızlı mod ile çekilir.
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">

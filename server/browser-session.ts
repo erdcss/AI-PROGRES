@@ -1,6 +1,7 @@
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Browser, Page, KeyInput } from 'puppeteer';
+import { puppeteerAllowed } from '@shared/deploy-runtime';
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -26,6 +27,10 @@ let navIndex = -1;
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 async function ensureBrowser(): Promise<Page> {
+  if (!puppeteerAllowed()) {
+    throw new Error('puppeteer-disabled-in-cloud');
+  }
+
   if (browser && page) {
     try {
       await page.evaluate(() => document.title);

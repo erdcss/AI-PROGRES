@@ -118,7 +118,12 @@ export async function fetchScenarioScrapeResult(
   const startResp = await fetch("/api/scenario-scrape", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, mode: "single", onlyExtractData }),
+    body: JSON.stringify({
+      url,
+      mode: "single",
+      onlyExtractData,
+      scrapeMode: "auto-fast",
+    }),
   });
 
   if (!startResp.ok) {
@@ -158,7 +163,9 @@ export async function fetchScenarioScrapeResult(
         break;
       }
       if (pollData.status === "error") {
-        throw new Error(pollData.error || "Scraping başarısız");
+        throw new Error(
+          pollData.code || pollData.error || "Scraping başarısız",
+        );
       }
     }
 
