@@ -382,12 +382,20 @@ function ScraperPage() {
       const newCSVPreview = buildCsvPreviewEntry(scraped, sourceUrl, "csv");
       setCsvPreviews((prev) => [newCSVPreview, ...prev]);
 
+      const isPartial = scraped.partialSuccess === true;
+      const missingParts: string[] = [];
+      if (!scraped.images?.length) missingParts.push("görsel");
+      if (!scraped.price?.original) missingParts.push("fiyat");
+      if (!scraped.title || scraped.title.length < 4) missingParts.push("başlık");
+
       toast({
-        title: csvReady ? "Başarılı" : "Uyarı",
-        description: csvReady
-          ? "Ürün hazır — Shopify'a gönderebilirsiniz"
-          : "Ürün çekildi ama CSV oluşturulamadı",
-        variant: csvReady ? "default" : "destructive",
+        title: isPartial ? "Kısmi Veri" : csvReady ? "Başarılı" : "Uyarı",
+        description: isPartial
+          ? `Ürün kısmen çekildi${missingParts.length ? ` (eksik: ${missingParts.join(", ")})` : ""}. Mevcut verilerle devam edebilirsiniz.`
+          : csvReady
+            ? "Ürün hazır — Shopify'a gönderebilirsiniz"
+            : "Ürün çekildi ama CSV oluşturulamadı",
+        variant: isPartial ? "default" : csvReady ? "default" : "destructive",
       });
     },
     onError: (error: any) => {

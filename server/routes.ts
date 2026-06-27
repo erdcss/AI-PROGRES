@@ -2051,10 +2051,10 @@ setTimeout(check, 1000);
     return res.json({ status: 'done', result });
   });
 
-  // Dedicated scenario-based scraping endpoint
-  app.post('/api/scenario-scrape', async (req, res) => {
-    console.log("🎯 Scenario-based scrape isteği alındı");
-    console.log("🔧 CORRECT ENDPOINT: /api/scenario-scrape being used");
+  // Trendyol scrape — pipeline endpoint (scenario-scrape alias)
+  async function postTrendyolScrapeHandler(req: any, res: any) {
+    console.log("🎯 Trendyol scrape isteği alındı");
+    console.log("🔧 Pipeline endpoint:", req.path);
     
     console.log("🚀 URL:", req.body?.url);
     
@@ -2109,12 +2109,30 @@ setTimeout(check, 1000);
 
         try {
           const pipeline = await runTrendyolScrapePipeline(url, selectedScrapeMode);
-          result = pipeline.result;
           scrapeDiagnostics = pipeline.diagnostics;
           logScrapeDiagnostics(scrapeDiagnostics);
+
+          if (!pipeline.success) {
+            console.error("❌ Scrape pipeline: hiçbir veri bulunamadı", scrapeDiagnostics.stageErrors);
+            const _entry = scrapeJobs.get(jobId);
+            if (_entry) {
+              scrapeJobs.set(jobId, {
+                ..._entry,
+                status: "error",
+                error: "extraction-failed",
+                code: "extraction-failed",
+              });
+            }
+            return;
+          }
+
+          result = pipeline.result;
+          if (pipeline.partialSuccess) {
+            console.warn("⚠️ Scrape pipeline kısmi veri ile tamamlandı", scrapeDiagnostics.stageErrors);
+          }
         } catch (pipelineErr) {
           const formatted = formatScrapeError(pipelineErr);
-          console.error("❌ Scrape pipeline error:", formatted.message);
+          console.error("❌ Scrape pipeline fatal error:", formatted.message);
           const _entry = scrapeJobs.get(jobId);
           if (_entry) {
             scrapeJobs.set(jobId, {
@@ -2208,7 +2226,12 @@ setTimeout(check, 1000);
         }
 
         const { hasUsableTrendyolResult } = await import('./trendyol-result-normalizer');
-        result.success = hasUsableTrendyolResult({ ...result, url });
+        const pipelinePartial = result?.partialSuccess === true;
+        const usable = hasUsableTrendyolResult({ ...result, url });
+        result.success = usable || pipelinePartial;
+        if (pipelinePartial && !usable) {
+          result.partialSuccess = true;
+        }
         result.title = resolveProductTitle(url, result.title);
         
         console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result?.price?.original);
@@ -2463,7 +2486,9 @@ setTimeout(check, 1000);
             startedAt: scrapeJobs.get(jobId)!.startedAt,
             result: {
               success: true,
-              extractionMethod: 'scenario-based-scraper',
+              partialSuccess: Boolean(result.partialSuccess),
+              stageErrors: result.stageErrors || scrapeDiagnostics?.stageErrors || [],
+              extractionMethod: result.extractionMethod || 'trendyol-pipeline',
               scenario: result.scenario,
               confidence: result.confidence,
               brand: result.brand,
@@ -2476,7 +2501,8 @@ setTimeout(check, 1000);
               csvContent: csvContent,
               csvInfo,
               trackingActive: false,
-              extractionDetails: result.extractionDetails
+              extractionDetails: result.extractionDetails,
+              scrapeDiagnostics,
             }
           });
           return;
@@ -2513,14 +2539,17 @@ setTimeout(check, 1000);
       }
       
     } catch (error: any) {
-      console.error('❌ Scenario-based scrape error:', error);
+      console.error('❌ Trendyol scrape error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
         details: error.message
       });
     }
-  });
+  }
+
+  app.post('/api/trendyol-scrape', postTrendyolScrapeHandler);
+  app.post('/api/scenario-scrape', postTrendyolScrapeHandler);
 
   // URL çözümleyici fonksiyonu
   const resolveShortUrl = async (url: string): Promise<string> => {

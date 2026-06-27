@@ -318,6 +318,10 @@ export async function closeBrowser() {
 }
 
 export async function prewarmBrowser() {
+  if (!puppeteerAllowed()) {
+    console.info('ℹ️ Dahili tarayıcı ön ısıtma atlandı: puppeteer-disabled-in-cloud');
+    return;
+  }
   try {
     console.log('🌐 Dahili tarayıcı motoru önceden başlatılıyor...');
     const p = await ensureBrowser();

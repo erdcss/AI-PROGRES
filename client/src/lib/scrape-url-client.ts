@@ -37,6 +37,8 @@ export type ScrapedUrlPayload = {
   };
   extractionMethod?: string;
   success?: boolean;
+  partialSuccess?: boolean;
+  stageErrors?: string[];
   originalUrl: string;
   sourceUrl: string;
 };
@@ -105,17 +107,19 @@ export function normalizeScrapedPayload(
       ? String(raw.extractionMethod)
       : undefined,
     success: raw.success !== false,
+    partialSuccess: raw.partialSuccess === true,
+    stageErrors: Array.isArray(raw.stageErrors) ? (raw.stageErrors as string[]) : undefined,
     originalUrl: url,
     sourceUrl: url,
   };
 }
 
-/** Toplu ve tekli akışların ortak scenario-scrape + poll mantığı */
+/** Toplu ve tekli akışların ortak pipeline scrape + poll mantığı */
 export async function fetchScenarioScrapeResult(
   url: string,
   onlyExtractData = true,
 ): Promise<ScrapedUrlPayload> {
-  const startResp = await fetch("/api/scenario-scrape", {
+  const startResp = await fetch("/api/trendyol-scrape", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

@@ -741,8 +741,13 @@ app.use(pendingChangesRoutes);
       dailyMonitor.start();
     }).catch(console.error);
 
-    // Dahili tarayıcı motorunu önceden başlat (ilk istekte 502 önlemek için)
-    setTimeout(() => {
+    // Dahili tarayıcı — yalnızca Puppeteer izinli ortamlarda ön ısıt
+    setTimeout(async () => {
+      const { puppeteerAllowed } = await import('@shared/deploy-runtime');
+      if (!puppeteerAllowed()) {
+        console.info('ℹ️ Dahili tarayıcı ön ısıtma atlandı (cloud / puppeteer disabled)');
+        return;
+      }
       import('./browser-session').then(({ prewarmBrowser }) => {
         prewarmBrowser();
       }).catch(() => {});

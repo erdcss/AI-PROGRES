@@ -1347,8 +1347,9 @@ export async function scenarioBasedScrape(
       // ⚡ SPEED OPTIMIZATION: Try direct scraping FIRST (fastest method)
       console.log('⚡ SPEED MODE: Trying direct scraping first...');
       
-      // ── CURL SUBPROCESS: Bypasses TLS fingerprinting / HTTP2 restrictions ──
-      // Node.js HTTP libraries get 403 from Trendyol; curl uses HTTP/2 natively and succeeds.
+      // ── CURL SUBPROCESS: local only (Railway has no curl binary) ──
+      const { isCloudRuntime } = await import('@shared/deploy-runtime');
+      if (!isCloudRuntime()) {
       try {
         console.log('🌐 Trying curl subprocess (HTTP/2 bypass)...');
         const curlCmd = [
@@ -1373,6 +1374,9 @@ export async function scenarioBasedScrape(
         }
       } catch (curlErr: any) {
         console.log(`⚠️ Curl subprocess failed: ${curlErr?.message?.slice(0, 100)}, trying axios...`);
+      }
+      } else {
+        console.log('☁️ Curl subprocess skipped in cloud runtime');
       }
 
       try {

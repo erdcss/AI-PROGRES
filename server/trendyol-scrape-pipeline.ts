@@ -1,14 +1,18 @@
 /**
  * Trendyol cloud-safe scrape pipeline.
- * Sıra: API → Direct HTML → HTML parse → görseller → (eksikse) scenario
+ * Stage hataları pipeline'ı durdurmaz; yalnızca hiç veri yoksa fail.
  */
 import { puppeteerAllowed, isCloudRuntime } from "@shared/deploy-runtime";
 import {
+  hasMinimumScrapeData,
+  isCompleteScrapeData,
   logScrapeDiagnostics,
   resolveEffectiveScrapeMode,
   ScrapeStageTimeoutError,
   withStageTimeout,
+  type PipelineOutcome,
   type ScrapeDiagnostics,
+  type ScrapeStageErrorCode,
   type SelectedScrapeMode,
 } from "@shared/scrape-runtime";
 import { hasRealTrendyolVariants } from "@shared/trendyol-variant-utils";
@@ -21,53 +25,88 @@ import { filterValidProductImages } from "./trendyol-image-utils";
 import { mergeApiWithScrape, resolveProductTitle } from "./trendyol-result-normalizer";
 import { scenarioBasedScrape } from "./scenario-based-scraper";
 
-const DIRECT_HTML_TIMEOUT_MS = 25_000;
-const IMAGE_FETCH_TIMEOUT_MS = 30_000;
+const DIRECT_HTML_TIMEOUT_MS = 20_000;
+const IMAGE_FETCH_TIMEOUT_MS = 25_000;
 const SCENARIO_TIMEOUT_MS = 90_000;
 
-function hasCoreProductData(result: any): boolean {
-  if (!result) return false;
-  const hasTitle = isValidTrendyolProductTitle(
-    resolveProductTitle(result.sourceUrl || "", result.title),
-  );
-  const hasPrice = Boolean(result.price?.original && result.price.original > 0);
-  const hasImages = filterValidProductImages(result.images || []).length > 0;
-  return hasTitle && hasPrice && hasImages;
+function evaluateFields(result: any, url: string) {
+  const title = resolveProductTitle(url, result?.title);
+  const hasTitle = isValidTrendyolProductTitle(title) || title.length > 3;
+  const hasPrice = Boolean(result?.price?.original && result.price.original > 0);
+  const hasImages = filterValidProductImages(result?.images || []).length > 0;
+  return { hasTitle, hasPrice, hasImages, title };
 }
 
-function needsScenarioEnrichment(result: any): boolean {
-  if (!result) return true;
-  if (!hasCoreProductData(result)) return true;
-  const hasVariants = hasRealTrendyolVariants(result.variants);
-  return !hasVariants;
+function pushStageError(
+  diagnostics: ScrapeDiagnostics,
+  code: ScrapeStageErrorCode,
+): void {
+  if (!diagnostics.stageErrors.includes(code)) {
+    diagnostics.stageErrors.push(code);
+  }
+}
+
+function recordStageFailure(
+  diagnostics: ScrapeDiagnostics,
+  code: ScrapeStageErrorCode,
+  field: "directHtmlError" | "imageFetcherError",
+): void {
+  pushStageError(diagnostics, code);
+  diagnostics[field] = code;
+}
+
+function needsScenarioEnrichment(result: any, url: string): boolean {
+  const fields = evaluateFields(result, url);
+  if (!hasMinimumScrapeData(fields)) return true;
+  if (!isCompleteScrapeData(fields)) return true;
+  return !hasRealTrendyolVariants(result?.variants);
+}
+
+function emptyResult(url: string) {
+  return {
+    success: true,
+    title: resolveProductTitle(url, null),
+    brand: brandFromTrendyolUrl(url) || "Marka",
+    price: { original: 0, withProfit: 0, currency: "TRY" },
+    images: [] as string[],
+    sourceUrl: url,
+  };
 }
 
 export async function runTrendyolScrapePipeline(
   url: string,
   selectedScrapeMode?: SelectedScrapeMode,
-): Promise<{ result: any; diagnostics: ScrapeDiagnostics }> {
+): Promise<PipelineOutcome> {
   const modes = resolveEffectiveScrapeMode(selectedScrapeMode);
   const diagnostics: ScrapeDiagnostics = {
     selectedScrapeMode: modes.selected,
     effectiveScrapeMode: modes.effective,
     isCloudRuntime: isCloudRuntime(),
     puppeteerAllowed: puppeteerAllowed(),
+    apiStarted: false,
+    apiSuccess: false,
     directHtmlStarted: false,
     directHtmlSuccess: false,
+    imageFetcherStarted: false,
+    imageFetcherSuccess: false,
+    imageFallbackStarted: false,
+    imageFallbackSuccess: false,
+    stageErrors: [],
   };
   logScrapeDiagnostics(diagnostics);
 
-  let result: any = null;
+  let result: any = emptyResult(url);
+  let apiProduct: Awaited<ReturnType<typeof fetchTrendyolProductByUrl>> = null;
 
-  const convertApiProduct = (apiProduct: any) => ({
+  const convertApiProduct = (api: NonNullable<typeof apiProduct>) => ({
     success: true,
-    title: resolveProductTitle(url, apiProduct.title),
-    brand: apiProduct.brand || brandFromTrendyolUrl(url) || "Marka",
-    category: apiProduct.category || "Genel",
-    description: apiProduct.description || "",
-    price: apiProduct.price,
-    images: filterValidProductImages(apiProduct.images),
-    variants: apiProduct.variants,
+    title: resolveProductTitle(url, api.title),
+    brand: api.brand || brandFromTrendyolUrl(url) || "Marka",
+    category: api.category || "Genel",
+    description: api.description || "",
+    price: api.price,
+    images: filterValidProductImages(api.images),
+    variants: api.variants,
     features: [],
     tags: [],
     extractionMethod: "trendyol-api",
@@ -77,27 +116,23 @@ export async function runTrendyolScrapePipeline(
   });
 
   // 1) Trendyol API
-  console.log("⚡ [1/5] Trendyol API...");
-  const apiProduct = await fetchTrendyolProductByUrl(url);
-  if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
-    console.log(`✅ Trendyol API: "${apiProduct.title}" — ${apiProduct.price.original} TL`);
-    result = convertApiProduct(apiProduct);
+  diagnostics.apiStarted = true;
+  console.log("⚡ [1/6] Trendyol API...");
+  try {
+    apiProduct = await fetchTrendyolProductByUrl(url);
+    if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
+      result = convertApiProduct(apiProduct);
+      diagnostics.apiSuccess = true;
+      console.log(`✅ Trendyol API: "${apiProduct.title}" — ${apiProduct.price.original} TL`);
+    }
+  } catch (err) {
+    console.log(`⚠️ [1/6] API failed: ${err instanceof Error ? err.message : err}`);
   }
 
-  if (!result) {
-    result = {
-      success: true,
-      title: resolveProductTitle(url, null),
-      brand: brandFromTrendyolUrl(url) || "Marka",
-      price: { original: 0, withProfit: 0, currency: "TRY" },
-      images: [],
-      sourceUrl: url,
-    };
-  }
-
-  // 2) Direct HTML — Safari UA
+  // 2) Direct HTML — Safari UA (soft fail)
   diagnostics.directHtmlStarted = true;
   let directHtml: string | null = null;
+  console.log("⚡ [2/6] Direct HTML (Safari UA)...");
   try {
     const { fetchTrendyolDirectHtmlRaw } = await import("./trendyol-direct-html");
     const directRaw = await withStageTimeout(
@@ -108,15 +143,17 @@ export async function runTrendyolScrapePipeline(
     directHtml = directRaw?.html ?? null;
     diagnostics.directHtmlSuccess = Boolean(directHtml && directHtml.length > 5000);
     if (diagnostics.directHtmlSuccess) {
-      console.log(`✅ [2/5] Direct HTML: ${directHtml!.length} bytes`);
+      console.log(`✅ [2/6] Direct HTML: ${directHtml!.length} bytes`);
     }
   } catch (err) {
-    if (err instanceof ScrapeStageTimeoutError) throw err;
-    console.log(`⚠️ [2/5] Direct HTML failed: ${err instanceof Error ? err.message : err}`);
+    const code: ScrapeStageErrorCode =
+      err instanceof ScrapeStageTimeoutError ? err.code : "direct-html-error";
+    recordStageFailure(diagnostics, code, "directHtmlError");
+    console.warn(`⚠️ [2/6] Direct HTML soft-fail (${code}), devam ediliyor`);
   }
 
-  // 3) HTML / JSON-LD / product state parse
-  console.log("⚡ [3/5] HTML/JSON-LD parse...");
+  // 3) HTML / JSON-LD / productState parse
+  console.log("⚡ [3/6] HTML/JSON-LD parse...");
   try {
     const { extractTrendyolProductFromHtml } = await import("./trendyol-html-extractor");
     const htmlProduct = await extractTrendyolProductFromHtml(url);
@@ -135,17 +172,18 @@ export async function runTrendyolScrapePipeline(
         result.description = htmlProduct.description;
       }
       console.log(
-        `✅ HTML extractor (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel, fiyat=${htmlProduct.price.original}`,
+        `✅ [3/6] HTML extractor (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel, fiyat=${htmlProduct.price.original}`,
       );
     }
   } catch (err) {
-    console.log(`⚠️ [3/5] HTML parse failed: ${err instanceof Error ? err.message : err}`);
+    console.warn(`⚠️ [3/6] HTML parse failed: ${err instanceof Error ? err.message : err}`);
   }
 
-  // 4) fetchTrendyolProductImages — eksik görseller
-  const apiHasImages = filterValidProductImages(result?.images || []).length > 0;
-  if (!apiHasImages) {
-    console.log("⚡ [4/5] fetchTrendyolProductImages...");
+  // 4) fetchTrendyolProductImages
+  const hasImagesBeforeFetch = filterValidProductImages(result?.images || []).length > 0;
+  if (!hasImagesBeforeFetch) {
+    diagnostics.imageFetcherStarted = true;
+    console.log("⚡ [4/6] fetchTrendyolProductImages...");
     try {
       const { fetchTrendyolProductImages } = await import("./trendyol-image-fetcher");
       const directImages = await withStageTimeout(
@@ -155,78 +193,145 @@ export async function runTrendyolScrapePipeline(
       );
       if (directImages.length > 0) {
         result.images = directImages;
-        console.log(`✅ [4/5] Görsel: ${directImages.length} adet`);
+        diagnostics.imageFetcherSuccess = true;
+        console.log(`✅ [4/6] Görsel: ${directImages.length} adet`);
       }
     } catch (err) {
-      if (err instanceof ScrapeStageTimeoutError) throw err;
-      console.log(`⚠️ [4/5] Görsel fetch failed: ${err instanceof Error ? err.message : err}`);
+      const code: ScrapeStageErrorCode =
+        err instanceof ScrapeStageTimeoutError ? err.code : "image-proxy-error";
+      recordStageFailure(diagnostics, code, "imageFetcherError");
+      console.warn(`⚠️ [4/6] Image fetch soft-fail (${code}), devam ediliyor`);
     }
   } else {
-    console.log("⚡ [4/5] Görseller mevcut — image fetch atlandı");
+    console.log("⚡ [4/6] Görseller mevcut — image fetch atlandı");
+  }
+
+  // 5) Cache / alternatif görsel fallback
+  const stillNoImages = filterValidProductImages(result?.images || []).length === 0;
+  if (stillNoImages) {
+    diagnostics.imageFallbackStarted = true;
+    console.log("⚡ [5/6] Alternatif görsel fallback...");
+    try {
+      const { fetchTrendyolImagesFromApi } = await import("./trendyol-product-api");
+      const apiImages = await fetchTrendyolImagesFromApi(url);
+      if (apiImages.length > 0) {
+        result.images = apiImages;
+        diagnostics.imageFallbackSuccess = true;
+        console.log(`✅ [5/6] API deep scan: ${apiImages.length} görsel`);
+      } else {
+        const { scrapeTrendyolHttpFallback } = await import("./http-scraper-fallback");
+        const http = await scrapeTrendyolHttpFallback(url);
+        if (http.success && http.product?.images?.length) {
+          result.images = http.product.images;
+          diagnostics.imageFallbackSuccess = true;
+          console.log(`✅ [5/6] HTTP fallback görsel: ${http.product.images.length} adet`);
+        }
+      }
+    } catch (err) {
+      pushStageError(diagnostics, "image-fallback-error");
+      console.warn(`⚠️ [5/6] Image fallback failed: ${err instanceof Error ? err.message : err}`);
+    }
+  } else {
+    console.log("⚡ [5/6] Görsel fallback atlandı");
   }
 
   result.title = resolveProductTitle(url, result.title);
+  let fields = evaluateFields(result, url);
 
-  // 5) Scenario — yalnızca eksik veri + Puppeteer izinli
-  const scenarioNeeded = needsScenarioEnrichment(result);
+  // 6) Scenario — cloud'da yalnızca ENABLE_PUPPETEER_IN_CLOUD=true ise
+  const scenarioNeeded = needsScenarioEnrichment(result, url);
   if (!scenarioNeeded) {
     diagnostics.scenarioSkippedReason = "sufficient-data";
-    logScrapeDiagnostics(diagnostics);
-    return { result, diagnostics };
-  }
-
-  if (!puppeteerAllowed()) {
+  } else if (!puppeteerAllowed()) {
     diagnostics.scenarioSkippedReason = "puppeteer-disabled-in-cloud";
-    logScrapeDiagnostics(diagnostics);
-    console.log("☁️ Scenario atlandı: puppeteer-disabled-in-cloud");
-    return { result, diagnostics };
-  }
+    console.info("ℹ️ Scenario atlandı (cloud): puppeteer-disabled-in-cloud");
+  } else if (
+    modes.effective === "auto-fast" &&
+    hasMinimumScrapeData(fields) &&
+    hasRealTrendyolVariants(result.variants)
+  ) {
+    diagnostics.scenarioSkippedReason = "auto-fast-core-data-present";
+  } else {
+    console.log("⚡ [6/6] Scenario scrape (eksik veri)...");
+    try {
+      const scrapeResult = await withStageTimeout(
+        () => scenarioBasedScrape(url, { allowPuppeteer: true }),
+        SCENARIO_TIMEOUT_MS,
+        "scenario-timeout",
+      );
 
-  if (modes.effective === "direct-html" || modes.effective === "auto-fast") {
-    const missingOnlyVariants =
-      hasCoreProductData(result) && !hasRealTrendyolVariants(result.variants);
-    if (modes.effective === "auto-fast" && !missingOnlyVariants && hasCoreProductData(result)) {
-      diagnostics.scenarioSkippedReason = "auto-fast-core-data-present";
-      logScrapeDiagnostics(diagnostics);
-      return { result, diagnostics };
-    }
-  }
+      const scrapeHasValidTitle =
+        scrapeResult?.title &&
+        isValidTrendyolProductTitle(scrapeResult.title) &&
+        scrapeResult.title.length > 5;
+      const scrapeHasValidData =
+        scrapeHasValidTitle &&
+        (scrapeResult?.price?.original > 0 || (scrapeResult?.images?.length ?? 0) > 0);
 
-  console.log("⚡ [5/5] Scenario scrape (eksik veri)...");
-  try {
-    const scrapeResult = await withStageTimeout(
-      () => scenarioBasedScrape(url, { allowPuppeteer: true }),
-      SCENARIO_TIMEOUT_MS,
-      "scenario-timeout",
-    );
-
-    const scrapeHasValidTitle =
-      scrapeResult?.title &&
-      isValidTrendyolProductTitle(scrapeResult.title) &&
-      scrapeResult.title.length > 5;
-    const scrapeHasValidData =
-      scrapeHasValidTitle &&
-      (scrapeResult?.price?.original > 0 || (scrapeResult?.images?.length ?? 0) > 0);
-
-    if (scrapeResult && scrapeResult.success !== false && scrapeHasValidData) {
-      result = mergeApiWithScrape(result, scrapeResult);
-      console.log("✅ [5/5] Scenario scrape merged");
-    } else if (!hasCoreProductData(result)) {
-      throw new ScrapeStageTimeoutError("scenario-timeout", "Scenario scrape returned insufficient data");
-    }
-  } catch (err) {
-    if (err instanceof ScrapeStageTimeoutError) throw err;
-    if (hasCoreProductData(result)) {
-      console.log(`⚠️ [5/5] Scenario enrich skipped: ${err instanceof Error ? err.message : err}`);
+      if (scrapeResult && scrapeResult.success !== false && scrapeHasValidData) {
+        result = mergeApiWithScrape(result, scrapeResult);
+        console.log("✅ [6/6] Scenario scrape merged");
+      } else if (!hasMinimumScrapeData(fields)) {
+        pushStageError(diagnostics, "scenario-error");
+        diagnostics.scenarioSkippedReason = "scenario-insufficient-data";
+        console.warn("⚠️ [6/6] Scenario returned insufficient data");
+      }
+    } catch (err) {
+      const code: ScrapeStageErrorCode =
+        err instanceof ScrapeStageTimeoutError ? err.code : "scenario-error";
+      pushStageError(diagnostics, code);
       diagnostics.scenarioSkippedReason = "scenario-failed-keeping-partial";
-    } else if (apiProduct) {
-      result = convertApiProduct(apiProduct);
-      diagnostics.scenarioSkippedReason = "scenario-failed-api-fallback";
-    } else {
-      throw err;
+      console.warn(`⚠️ [6/6] Scenario soft-fail (${code})`);
+      if (apiProduct && !hasMinimumScrapeData(fields)) {
+        result = convertApiProduct(apiProduct);
+      }
     }
   }
+
+  result.title = resolveProductTitle(url, result.title);
+  fields = evaluateFields(result, url);
+
+  const minimum = hasMinimumScrapeData(fields);
+  const complete = isCompleteScrapeData(fields);
+  const partialSuccess = minimum && (!complete || diagnostics.stageErrors.length > 0);
+
+  if (!minimum) {
+    diagnostics.finalSuccessReason = "no-data";
+    diagnostics.partialSuccess = false;
+    logScrapeDiagnostics(diagnostics);
+    return {
+      result: {
+        ...result,
+        success: false,
+        partialSuccess: false,
+        stageErrors: diagnostics.stageErrors,
+      },
+      diagnostics,
+      success: false,
+      partialSuccess: false,
+    };
+  }
+
+  diagnostics.finalSuccessReason = complete
+    ? diagnostics.stageErrors.length > 0
+      ? "complete-with-stage-warnings"
+      : "complete"
+    : "partial-data";
+  diagnostics.partialSuccess = partialSuccess;
+
+  const finalResult = {
+    ...result,
+    success: true,
+    partialSuccess,
+    stageErrors: diagnostics.stageErrors,
+    scrapeDiagnostics: diagnostics,
+  };
 
   logScrapeDiagnostics(diagnostics);
-  return { result, diagnostics };
+  return {
+    result: finalResult,
+    diagnostics,
+    success: true,
+    partialSuccess,
+  };
 }

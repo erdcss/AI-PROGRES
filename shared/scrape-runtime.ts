@@ -2,9 +2,14 @@ import { isCloudRuntime, puppeteerAllowed } from "./deploy-runtime";
 
 export type ScrapeStageErrorCode =
   | "direct-html-timeout"
+  | "direct-html-error"
   | "puppeteer-disabled-in-cloud"
   | "scenario-timeout"
-  | "image-proxy-timeout";
+  | "scenario-error"
+  | "image-proxy-timeout"
+  | "image-proxy-error"
+  | "image-fallback-error"
+  | "extraction-failed";
 
 export type SelectedScrapeMode =
   | "auto-fast"
@@ -22,9 +27,27 @@ export type ScrapeDiagnostics = {
   effectiveScrapeMode: string;
   isCloudRuntime: boolean;
   puppeteerAllowed: boolean;
+  apiStarted: boolean;
+  apiSuccess: boolean;
   directHtmlStarted: boolean;
   directHtmlSuccess: boolean;
+  directHtmlError?: string;
+  imageFetcherStarted: boolean;
+  imageFetcherSuccess: boolean;
+  imageFetcherError?: string;
+  imageFallbackStarted: boolean;
+  imageFallbackSuccess: boolean;
   scenarioSkippedReason?: string;
+  stageErrors: ScrapeStageErrorCode[];
+  finalSuccessReason?: string;
+  partialSuccess?: boolean;
+};
+
+export type PipelineOutcome = {
+  result: Record<string, unknown> | null;
+  diagnostics: ScrapeDiagnostics;
+  success: boolean;
+  partialSuccess: boolean;
 };
 
 const BROWSER_MODES = new Set([
@@ -81,9 +104,20 @@ export function logScrapeDiagnostics(diagnostics: ScrapeDiagnostics): void {
       effectiveScrapeMode: diagnostics.effectiveScrapeMode,
       isCloudRuntime: diagnostics.isCloudRuntime,
       puppeteerAllowed: diagnostics.puppeteerAllowed,
+      apiStarted: diagnostics.apiStarted,
+      apiSuccess: diagnostics.apiSuccess,
       directHtmlStarted: diagnostics.directHtmlStarted,
       directHtmlSuccess: diagnostics.directHtmlSuccess,
+      directHtmlError: diagnostics.directHtmlError ?? null,
+      imageFetcherStarted: diagnostics.imageFetcherStarted,
+      imageFetcherSuccess: diagnostics.imageFetcherSuccess,
+      imageFetcherError: diagnostics.imageFetcherError ?? null,
+      imageFallbackStarted: diagnostics.imageFallbackStarted,
+      imageFallbackSuccess: diagnostics.imageFallbackSuccess,
       scenarioSkippedReason: diagnostics.scenarioSkippedReason ?? null,
+      stageErrors: diagnostics.stageErrors,
+      finalSuccessReason: diagnostics.finalSuccessReason ?? null,
+      partialSuccess: diagnostics.partialSuccess ?? false,
     }),
   );
 }
@@ -109,7 +143,8 @@ export function scrapeCapabilitiesPayload() {
     isCloudRuntime: cloud,
     puppeteerAllowed: puppeteerOk,
     browserUiEnabled: puppeteerOk,
-    defaultScrapeMode: cloud ? "auto-fast" : "auto-fast",
+    defaultScrapeMode: "auto-fast",
+    pipelineEndpoint: "/api/trendyol-scrape",
   };
 }
 
@@ -120,8 +155,8 @@ export function formatScrapeError(error: unknown): {
   if (error instanceof ScrapeStageTimeoutError) {
     return { message: error.code, code: error.code };
   }
-  if (error instanceof Error && error.message === "puppeteer-disabled-in-cloud") {
-    return { message: "puppeteer-disabled-in-cloud", code: "puppeteer-disabled-in-cloud" };
+  if (error instanceof Error && error.message === "extraction-failed") {
+    return { message: "extraction-failed", code: "extraction-failed" };
   }
   if (error instanceof Error && error.message === "TIMEOUT") {
     return { message: "scenario-timeout", code: "scenario-timeout" };
@@ -129,4 +164,21 @@ export function formatScrapeError(error: unknown): {
   return {
     message: error instanceof Error ? error.message : "Bilinmeyen scrape hatası",
   };
+}
+
+/** Başlık, fiyat veya görselden en az biri var mı */
+export function hasMinimumScrapeData(fields: {
+  hasTitle: boolean;
+  hasPrice: boolean;
+  hasImages: boolean;
+}): boolean {
+  return fields.hasTitle || fields.hasPrice || fields.hasImages;
+}
+
+export function isCompleteScrapeData(fields: {
+  hasTitle: boolean;
+  hasPrice: boolean;
+  hasImages: boolean;
+}): boolean {
+  return fields.hasTitle && fields.hasPrice && fields.hasImages;
 }

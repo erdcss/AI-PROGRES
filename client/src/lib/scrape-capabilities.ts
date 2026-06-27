@@ -3,6 +3,7 @@ export type ScrapeCapabilities = {
   puppeteerAllowed: boolean;
   browserUiEnabled: boolean;
   defaultScrapeMode: string;
+  pipelineEndpoint?: string;
 };
 
 let cached: ScrapeCapabilities | null = null;
