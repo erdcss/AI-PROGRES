@@ -65,19 +65,43 @@ export function extractProductImagesFromHtmlRegex(html: string): string[] {
   const found: string[] = [];
 
   for (const match of html.matchAll(
-    /https?:\/\/cdn\.dsmcdn\.com\/ty\d+\/prod\/[^\s"'<>\\]+?\.(?:jpg|jpeg|png|webp)/gi,
+    /https?:\/\/cdn\.dsmcdn\.com\/ty\d+\/prod\/QC_PREP\/[^\s"'<>\\]+?\.(?:jpg|jpeg|png|webp)/gi,
   )) {
     found.push(match[0]);
   }
 
   for (const match of html.matchAll(
-    /"(\/ty\d+\/prod\/[^"]+\.(?:jpg|jpeg|png|webp))"/gi,
+    /https?:\/\/cdn\.dsmcdn\.com\/ty\d+\/(?:prod|product|media)\/[^\s"'<>\\]+?\.(?:jpg|jpeg|png|webp)/gi,
+  )) {
+    found.push(match[0]);
+  }
+
+  for (const match of html.matchAll(
+    /"(\/ty\d+\/(?:prod|product|media)\/[^"]+\.(?:jpg|jpeg|png|webp))"/gi,
   )) {
     found.push(match[1]);
   }
 
   for (const match of html.matchAll(
-    /\\\/ty\d+\\\/prod\\\/[^"\\]+\\\.(?:jpg|jpeg|png|webp)/gi,
+    /"imageUrl"\s*:\s*"(https:\\\/\\\/cdn\.dsmcdn\.com[^"]+)"/gi,
+  )) {
+    found.push(match[1].replace(/\\\//g, '/'));
+  }
+
+  for (const match of html.matchAll(
+    /"imageUrl"\s*:\s*"(https:\/\/cdn\.dsmcdn\.com[^"]+)"/gi,
+  )) {
+    found.push(match[1]);
+  }
+
+  for (const match of html.matchAll(
+    /"(https:\/\/cdn\.dsmcdn\.com\/ty\d+[^"]+\.(?:jpg|jpeg|png|webp))"/gi,
+  )) {
+    found.push(match[1]);
+  }
+
+  for (const match of html.matchAll(
+    /\\\/ty\d+\\\/(?:prod|product|media)\\\/[^"\\]+\\\.(?:jpg|jpeg|png|webp)/gi,
   )) {
     found.push(match[0].replace(/\\/g, ''));
   }

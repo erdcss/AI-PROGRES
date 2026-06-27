@@ -3,7 +3,7 @@ import {
   normalizeTrendyolKurus,
   parseTurkishPriceText,
 } from './trendyol-price-utils';
-import { normalizeTrendyolImages } from './trendyol-image-utils';
+import { normalizeTrendyolImages, filterValidProductImages, deepExtractImagesFromJson, mergeTrendyolImageLists } from './trendyol-image-utils';
 import {
   brandFromTrendyolUrl,
   extractTrendyolProductId,
@@ -140,7 +140,7 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
       withProfit: original > 0 ? Math.round(original * 1.1 * 100) / 100 : 0,
       currency: 'TRY',
     },
-    images,
+    images: filterValidProductImages(images),
     description: String(root.description || root.content || '').trim(),
     category: String(root.category?.name || root.categoryName || root.category || '').trim(),
     variants: root.variants || root.allVariants || undefined,
@@ -178,6 +178,39 @@ const API_ENDPOINTS = (productId: string) => [
   `https://mobile-api.trendyol.com/api/v1/product/${productId}`,
   `https://public.trendyol.com/discovery-web-productgw-service/api/price/${productId}`,
 ];
+
+/** Tüm API endpoint'lerinden görsel topla — deploy'da fiyat endpoint'i görsel içerebilir */
+export async function fetchTrendyolImagesFromApi(url: string): Promise<string[]> {
+  const productId = extractTrendyolProductId(url);
+  if (!productId) return [];
+
+  const headers = API_HEADERS(productId, url);
+  const fastEndpoints = [
+    `https://apigw.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
+    `https://apigw.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`,
+    `https://api.trendyol.com/webmobileapi/v1/product/${productId}`,
+    `https://mobile-api.trendyol.com/api/v1/product/${productId}`,
+    `https://public.trendyol.com/discovery-web-productgw-service/api/price/${productId}`,
+  ];
+  const results = await Promise.allSettled(
+    fastEndpoints.map((endpoint) =>
+      axios.get(endpoint, { timeout: 5000, headers, validateStatus: () => true }),
+    ),
+  );
+
+  const collected: unknown[] = [];
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    const { status, data } = result.value;
+    if (status === 403 || status === 429 || status >= 500) continue;
+
+    const parsed = parseProductPayload(data, url);
+    if (parsed?.images?.length) collected.push(...parsed.images);
+    collected.push(...deepExtractImagesFromJson(data));
+  }
+
+  return filterValidProductImages(collected);
+}
 
 export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolApiProduct | null> {
   const productId = extractTrendyolProductId(url);

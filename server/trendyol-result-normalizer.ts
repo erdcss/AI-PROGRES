@@ -175,7 +175,9 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
 
     const { isCloudRuntime } = await import('@shared/deploy-runtime');
     const skipPuppeteerOnCloud =
-      isCloudRuntime() && !needsPrice(result.price) && normalizeImages(result.images).length > 0;
+      isCloudRuntime() &&
+      !needsPrice(result.price) &&
+      filterValidProductImages(result.images).length > 0;
 
     if ((stillMissingPrice || stillMissingImages) && !alreadyFromBrowser && !result._puppeteerEnrichAttempted && !skipPuppeteerOnCloud) {
       result._puppeteerEnrichAttempted = true;
@@ -212,6 +214,15 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
   }
 
   result.images = filterValidProductImages(result.images);
+
+  if (normalizeImages(result.images).length === 0) {
+    const { fetchTrendyolProductImages } = await import('./trendyol-image-fetcher');
+    const finalImages = await fetchTrendyolProductImages(url);
+    if (finalImages.length > 0) {
+      result.images = finalImages;
+      console.log(`🖼️ Final görsel garantisi: ${finalImages.length} adet`);
+    }
+  }
 
   const normalizedOriginal = normalizeTrendyolPriceValue(result.price);
   if (normalizedOriginal > 0) {

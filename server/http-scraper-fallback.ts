@@ -9,13 +9,13 @@ import {
   normalizeTrendyolPriceValue,
   parseTurkishPriceText,
 } from './trendyol-price-utils';
-import { normalizeTrendyolImages } from './trendyol-image-utils';
-import { extractProductImages } from './trendyol-image-extractor';
+import { normalizeTrendyolImages, filterValidProductImages } from './trendyol-image-utils';
 import { tryGoogleCache, tryWaybackMachine, tryProxyServices } from './alternative-data-sources';
 import {
   extractProductImagesFromHtmlRegex,
   isBlockedTrendyolHtml,
 } from '@shared/trendyol-bot-detection';
+import { fetchTrendyolDirectHtmlRaw } from './trendyol-direct-html';
 import {
   EMPTY_TRENDYOL_VARIANTS,
   sanitizeTrendyolVariants,
@@ -205,13 +205,15 @@ function parseHtmlProduct(html: string, url: string, $: cheerio.CheerioAPI) {
   }
   const brand = fromLd.brand || fromState.brand || fromNext.brand || brandFromTrendyolUrl(url) || 'Marka';
   const price = fromLd.price || fromState.price || fromNext.price || { original: 0, withProfit: 0, currency: 'TRY' };
-  const images = normalizeTrendyolImages([
-    ...(fromLd.images || []),
-    ...(fromState.images || []),
-    ...(fromNext.images || []),
-    ...(fromMeta.images || []),
-    ...fromExtractor,
-  ]);
+  const images = filterValidProductImages(
+    normalizeTrendyolImages([
+      ...(fromLd.images || []),
+      ...(fromState.images || []),
+      ...(fromNext.images || []),
+      ...(fromMeta.images || []),
+      ...fromExtractor,
+    ]),
+  );
 
   return {
     title,
@@ -224,15 +226,18 @@ function parseHtmlProduct(html: string, url: string, $: cheerio.CheerioAPI) {
 }
 
 function scoreProductHtml(html: string): number {
-  if (!html || isBlockedTrendyolHtml(html)) {
-    const regexImages = extractProductImagesFromHtmlRegex(html);
-    if (regexImages.length >= 2) return regexImages.length;
-    return 0;
-  }
+  if (!html || html.length < 500) return 0;
+
+  const regexImages = extractProductImagesFromHtmlRegex(html);
+  if (regexImages.length >= 1) return regexImages.length + 10;
+
+  if (isBlockedTrendyolHtml(html)) return 0;
+
   let score = 0;
   if (html.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__')) score += 50;
   if (html.includes('__NEXT_DATA__')) score += 30;
-  score += (html.match(/cdn\.dsmcdn\.com\/ty\d+\/prod\//g) || []).length;
+  score += (html.match(/cdn\.dsmcdn\.com\/ty\d+\/(?:prod|product|media)\//g) || []).length;
+  if (html.length > 50000 && html.includes('cdn.dsmcdn.com/ty')) score += 20;
   return score;
 }
 
@@ -241,6 +246,48 @@ function acceptFetchedHtml(html: string, source: string): { html: string; source
   if (scoreProductHtml(html) <= 0) return null;
   return { html, source };
 }
+
+async function tryDirectFetch(
+  url: string,
+  headers: Record<string, string>,
+): Promise<{ html: string; source: string } | null> {
+  try {
+    const response = await axios.get(url, {
+      timeout: 25000,
+      maxRedirects: 5,
+      headers: { ...headers, 'Cache-Control': 'no-cache' },
+      validateStatus: (s) => s < 500,
+    });
+    const html = String(response.data || '');
+    if (response.status === 403 || response.status === 429) return null;
+    if (html.length < 5000) return null;
+    return acceptFetchedHtml(html, 'direct');
+  } catch {
+    return null;
+  }
+}
+
+const DIRECT_FETCH_HEADERS: Record<string, string>[] = [
+  {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'tr-TR,tr;q=0.9',
+  },
+  {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+    Referer: 'https://www.google.com/',
+  },
+  {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+    Referer: 'https://www.trendyol.com/',
+  },
+];
 
 async function fetchGoogleCacheVariants(url: string): Promise<{ html: string; source: string } | null> {
   const cacheUrls = [
@@ -276,38 +323,24 @@ async function fetchGoogleCacheVariants(url: string): Promise<{ html: string; so
 }
 
 export async function fetchTrendyolHtml(url: string): Promise<{ html: string; source: string } | null> {
-  const headerSets = [
-    {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
-      Referer: 'https://www.trendyol.com/',
-    },
-    {
-      'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      Referer: 'https://www.google.com/',
-    },
-  ];
+  const directFirst = await fetchTrendyolDirectHtmlRaw(url);
+  if (directFirst) return directFirst;
 
-  for (const headers of headerSets) {
-    try {
-      const response = await axios.get(url, {
-        timeout: 20000,
-        maxRedirects: 5,
-        headers: { ...headers, 'Cache-Control': 'no-cache' },
-        validateStatus: (s) => s < 500,
-      });
+  const { isCloudRuntime } = await import('@shared/deploy-runtime');
+  if (isCloudRuntime()) {
+    // Bulutta Google Cache 429 tetikler — doğrudan fetch başarısızsa cache deneme
+    return null;
+  }
 
-      const html = String(response.data || '');
-      if (response.status !== 403 && response.status !== 429 && html.length >= 5000) {
-        const accepted = acceptFetchedHtml(html, 'direct');
-        if (accepted) return accepted;
+  const urlsToTry = [...new Set([url.split('?')[0], url])];
+
+  for (const targetUrl of urlsToTry) {
+    for (const headers of DIRECT_FETCH_HEADERS) {
+      const direct = await tryDirectFetch(targetUrl, headers);
+      if (direct) {
+        console.log(`✅ Direct HTML fetch (${direct.html.length} bytes)`);
+        return direct;
       }
-    } catch {
-      /* try next */
     }
   }
 

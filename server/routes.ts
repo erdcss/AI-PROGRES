@@ -2105,7 +2105,7 @@ setTimeout(check, 1000);
           category: apiProduct.category || 'Genel',
           description: apiProduct.description || '',
           price: apiProduct.price,
-          images: apiProduct.images,
+          images: filterValidProductImages(apiProduct.images),
           variants: sanitizeTrendyolVariants(
             apiProduct.variants?.length ? { allVariants: apiProduct.variants } : undefined,
             { productTitle: apiProduct.title },
@@ -2124,7 +2124,7 @@ setTimeout(check, 1000);
         );
         const { brandFromTrendyolUrl, isValidTrendyolProductTitle } = await import('./trendyol-title-utils');
         const { shouldPreferApiOnlyScrape, isCloudRuntime } = await import('@shared/deploy-runtime');
-        const { normalizeTrendyolImages } = await import('./trendyol-image-utils');
+        const { normalizeTrendyolImages, filterValidProductImages } = await import('./trendyol-image-utils');
         const { hasRealTrendyolVariants } = await import('@shared/trendyol-variant-utils');
 
         // ⚡ 1) Trendyol public API — hızlı ve güvenilir başlık/fiyat/görsel
@@ -2140,17 +2140,27 @@ setTimeout(check, 1000);
           result.price?.original > 0 &&
           isValidTrendyolProductTitle(result.title);
 
-        const apiHasImages = normalizeTrendyolImages(result?.images || []).length > 0;
+        const apiHasImages = filterValidProductImages(result?.images || []).length > 0;
 
         let cloudSkipScenario = false;
         if (shouldPreferApiOnlyScrape() && result) {
           console.log('☁️ Cloud: zorunlu HTML enrich (bot sayfası koruması)...');
+          const { fetchTrendyolProductImages } = await import('./trendyol-image-fetcher');
+          const directImages = await fetchTrendyolProductImages(url);
+          if (directImages.length > 0) {
+            result.images = directImages;
+            console.log(`☁️ Direct görsel: ${directImages.length} adet`);
+          }
+
           const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
           const htmlProduct = await extractTrendyolProductFromHtml(url);
           if (htmlProduct) {
             result.title = resolveProductTitle(url, htmlProduct.title || result.title);
-            if (htmlProduct.images.length > 0) {
+            if (htmlProduct.images.length > 0 && directImages.length === 0) {
               result.images = htmlProduct.images;
+            } else if (directImages.length === 0) {
+              const retryImages = await fetchTrendyolProductImages(url);
+              if (retryImages.length > 0) result.images = retryImages;
             }
             if (hasRealTrendyolVariants(htmlProduct.variants)) {
               result.variants = htmlProduct.variants;
@@ -2164,10 +2174,14 @@ setTimeout(check, 1000);
             );
           } else {
             result.title = resolveProductTitle(url, result.title);
+            if (directImages.length === 0) {
+              const retryImages = await fetchTrendyolProductImages(url);
+              if (retryImages.length > 0) result.images = retryImages;
+            }
             console.log(`☁️ HTML extractor başarısız — URL slug title: "${result.title}"`);
           }
 
-          const hasImagesNow = normalizeTrendyolImages(result?.images || []).length > 0;
+          const hasImagesNow = filterValidProductImages(result?.images || []).length > 0;
           const hasValidTitle = isValidTrendyolProductTitle(result.title);
           cloudSkipScenario = hasValidTitle && hasImagesNow && result.price?.original > 0;
           if (cloudSkipScenario) {

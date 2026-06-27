@@ -89,6 +89,37 @@ export function mergeTrendyolImageLists(...lists: unknown[]): string[] {
   return merged;
 }
 
+/** JSON ağacında gizli CDN görsel URL'lerini bulur (API kısmi yanıtlar) */
+export function deepExtractImagesFromJson(value: unknown, depth = 0): string[] {
+  if (depth > 8 || value == null) return [];
+  const found: string[] = [];
+
+  if (typeof value === 'string') {
+    if (/cdn\.dsmcdn\.com\/ty\d+/i.test(value) || /^\/ty\d+\//.test(value)) {
+      found.push(value);
+    }
+    return found;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) found.push(...deepExtractImagesFromJson(item, depth + 1));
+    return found;
+  }
+
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    for (const key of ['images', 'imageUrl', 'image', 'url', 'src', 'path', 'gallery', 'medias']) {
+      if (obj[key] != null) found.push(...deepExtractImagesFromJson(obj[key], depth + 1));
+    }
+    for (const v of Object.values(obj)) {
+      if (typeof v === 'string' && /cdn\.dsmcdn\.com|\/ty\d+\/prod\//.test(v)) {
+        found.push(v);
+      }
+    }
+  }
+  return found;
+}
+
 /** Ürün görselleri — SVG, sfint ikonları ve CSS mask URL'lerini eler */
 export function filterValidProductImages(images: unknown): string[] {
   return normalizeTrendyolImages(images).filter((img) => {
@@ -101,10 +132,11 @@ export function filterValidProductImages(images: unknown): string[] {
     ) {
       return false;
     }
-    if (!img.includes("/prod/") && !img.includes("/QC_") && !img.includes("/PIM/")) {
-      return false;
-    }
+    const isProductCdn =
+      /\/ty\d+\/(prod|product|media)\//i.test(img) ||
+      /\/QC_|\/PIM_|QC_PREP|ENRICHMENT|org_zoom|_org_/i.test(img);
+    if (!isProductCdn) return false;
     const path = img.split("?")[0];
-    return /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(path);
+    return /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(path) || /org_zoom/i.test(path);
   });
 }
