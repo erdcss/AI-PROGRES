@@ -219,7 +219,7 @@ function parseHtmlProduct(html: string, url: string, $: cheerio.CheerioAPI) {
   };
 }
 
-async function fetchTrendyolHtml(url: string): Promise<{ html: string; source: string } | null> {
+export async function fetchTrendyolHtml(url: string): Promise<{ html: string; source: string } | null> {
   try {
     const response = await axios.get(url, {
       timeout: 25000,
@@ -262,15 +262,17 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
   }
 
   const apiProduct = await fetchTrendyolProductByUrl(url);
-  const apiHasUsableData =
-    apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0);
-  if (apiHasUsableData && apiProduct) {
+  // Fiyat var ama görsel yoksa HTML parse et — deploy'da API sık sık sadece fiyat döner
+  if (apiProduct && apiProduct.price.original > 0 && apiProduct.images.length > 0) {
     return apiProductToResult(apiProduct, 'trendyol_api');
   }
 
   try {
     const fetched = await fetchTrendyolHtml(url);
     if (!fetched) {
+      if (apiProduct && apiProduct.price.original > 0) {
+        return apiProductToResult(apiProduct, 'trendyol_api_partial');
+      }
       return {
         success: false,
         error: 'Trendyol sayfası engelledi — lütfen birkaç dakika sonra tekrar deneyin',
@@ -299,7 +301,24 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
     const parsed = parseHtmlProduct(html, url, $);
     let { title, brand, price, images, description, category } = parsed;
 
+    if (apiProduct) {
+      if (apiProduct.price.original > 0 && price.original <= 0) {
+        price = apiProduct.price;
+      }
+      if ((!title || isInvalidTrendyolTitle(title)) && apiProduct.title) {
+        title = apiProduct.title;
+      }
+      if ((!brand || brand === 'Marka') && apiProduct.brand) {
+        brand = apiProduct.brand;
+      }
+      images = normalizeTrendyolImages([...(apiProduct.images || []), ...images]);
+    }
+
     if (isInvalidTrendyolTitle(title) || !title || title.length < 3) {
+      title = titleFromTrendyolUrl(url) || title || '';
+    }
+
+    if ((!title || isInvalidTrendyolTitle(title) || title.length < 3) && price.original <= 0 && images.length === 0) {
       return {
         success: false,
         error: 'Ürün bilgisi bulunamadı — sayfa yapısı tanınmadı',
@@ -309,6 +328,9 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
     }
 
     if (price.original <= 0 && images.length === 0) {
+      if (apiProduct && apiProduct.price.original > 0) {
+        return apiProductToResult(apiProduct, 'trendyol_api_partial');
+      }
       return {
         success: false,
         error: 'Görsel ve fiyat parse edilemedi',

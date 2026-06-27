@@ -54,20 +54,38 @@ function normalizeApiPrice(raw: unknown): number {
 
 function extractImages(data: any): string[] {
   const combined: unknown[] = [];
-  for (const list of [
-    data?.images,
-    data?.productImages,
-    data?.media?.images,
-    data?.galleryImages,
-  ]) {
-    if (Array.isArray(list)) combined.push(...list);
-  }
-  if (Array.isArray(data?.variants)) {
-    for (const variant of data.variants) {
-      if (Array.isArray(variant?.images)) combined.push(...variant.images);
-      if (variant?.image) combined.push(variant.image);
+  const roots = [
+    data,
+    data?.result,
+    data?.product,
+    data?.products?.[0],
+  ].filter(Boolean);
+
+  for (const root of roots) {
+    for (const list of [
+      root?.images,
+      root?.productImages,
+      root?.media?.images,
+      root?.galleryImages,
+      root?.imageUrls,
+      root?.content?.images,
+      root?.gallery,
+      root?.medias,
+    ]) {
+      if (Array.isArray(list)) combined.push(...list);
+    }
+    if (root?.imageUrl) combined.push(root.imageUrl);
+    if (root?.thumbnail) combined.push(root.thumbnail);
+    if (root?.thumbnailUrl) combined.push(root.thumbnailUrl);
+    if (Array.isArray(root?.variants)) {
+      for (const variant of root.variants) {
+        if (Array.isArray(variant?.images)) combined.push(...variant.images);
+        if (variant?.image) combined.push(variant.image);
+        if (variant?.imageUrl) combined.push(variant.imageUrl);
+      }
     }
   }
+
   return normalizeTrendyolImages(combined);
 }
 

@@ -56,7 +56,10 @@ export function extractProductImages(htmlContent: string, $: cheerio.CheerioAPI)
       // Ana ürün görselleri
       if (product.images && Array.isArray(product.images)) {
         product.images.forEach((img: any) => {
-          const url = typeof img === 'string' ? img : img.url || img.src;
+          const url =
+            typeof img === 'string'
+              ? img
+              : img.url || img.src || img.path || img.link || img.imageUrl;
           if (url) {
             const optimizedUrl = optimizeImageUrl(url);
             if (optimizedUrl && !images.includes(optimizedUrl)) {

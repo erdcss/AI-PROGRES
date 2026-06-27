@@ -2123,6 +2123,7 @@ setTimeout(check, 1000);
           './trendyol-result-normalizer'
         );
         const { shouldPreferApiOnlyScrape, isCloudRuntime } = await import('@shared/deploy-runtime');
+        const { normalizeTrendyolImages } = await import('./trendyol-image-utils');
 
         // ⚡ 1) Trendyol public API — hızlı ve güvenilir başlık/fiyat/görsel
         console.log('⚡ API PATH: Trying Trendyol product API first...');
@@ -2137,7 +2138,7 @@ setTimeout(check, 1000);
           (result.price?.original > 0 || (result.images?.length ?? 0) > 0) &&
           Boolean(result.title);
 
-        const apiHasImages = (result?.images?.length ?? 0) > 0;
+        const apiHasImages = normalizeTrendyolImages(result?.images || []).length > 0;
 
         // ☁️ Deploy: API fiyat+başlık yeterliyse Puppeteer atla — ama görsel yoksa scenario scrape çalıştır
         if (shouldPreferApiOnlyScrape() && apiHasCoreData && apiHasImages) {

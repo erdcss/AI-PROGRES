@@ -115,8 +115,21 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
     }
 
     const stillMissingPrice = needsPrice(result.price);
-    const stillMissingImages = normalizeImages(result.images).length === 0;
-    if ((stillMissingPrice || stillMissingImages) && !alreadyFromBrowser && !result._puppeteerEnrichAttempted) {
+    let stillMissingImages = normalizeImages(result.images).length === 0;
+
+    if (stillMissingImages) {
+      const { fetchTrendyolProductImages } = await import('./trendyol-image-fetcher');
+      const fetchedImages = await fetchTrendyolProductImages(url);
+      if (fetchedImages.length > 0) {
+        result.images = fetchedImages;
+        stillMissingImages = false;
+      }
+    }
+
+    const { isCloudRuntime } = await import('@shared/deploy-runtime');
+    const skipPuppeteerOnCloud = isCloudRuntime() && !stillMissingPrice && stillMissingImages;
+
+    if ((stillMissingPrice || stillMissingImages) && !alreadyFromBrowser && !result._puppeteerEnrichAttempted && !skipPuppeteerOnCloud) {
       result._puppeteerEnrichAttempted = true;
       try {
         console.log('🎭 enrich: HTTP/API yetersiz — Puppeteer scenario scrape deneniyor...');
