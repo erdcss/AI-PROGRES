@@ -2050,7 +2050,6 @@ function ScraperPage() {
                     message={scrapeError}
                     details={scrapeError}
                     meta={scrapeErrorMeta ?? undefined}
-                    testUrl={lastScrapeUrl ?? undefined}
                     onRetry={() => singleForm.handleSubmit((d) => singleScrapeMutation.mutate(d))()}
                   />
                 )}

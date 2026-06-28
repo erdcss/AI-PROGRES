@@ -83,7 +83,7 @@ import { shopifyProductsSync } from './shopify-products-sync';
 import { getShopifyConfig, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials, saveDirectAccessToken, normalizeShopDomain } from './shopify-credentials';
 import { handleShopifyProductUpload } from './shopify-upload-service';
 import { registerTrackingRoutes } from './routes/tracking-routes';
-import { registerScrapeGatewayRoutes } from './routes/scrape-gateway-routes';
+import { registerSourceAccessRoutes } from './routes/source-access-routes';
 import { getRequestId } from './request-context';
 import { shopifyCredentials } from '@shared/schema';
 
@@ -1219,9 +1219,9 @@ export function registerRoutes(app: Express): Server {
   // Create HTTP server - will be configured by main server
   const httpServer = createServer(app);
 
-  // Ürün Takip Sistemi v2 + Scrape Gateway — legacy /api/tracking/:id'den ÖNCE kayıt
+  // Ürün Takip Sistemi v2 + otomatik kaynak erişim — legacy /api/tracking/:id'den ÖNCE kayıt
   registerTrackingRoutes(app);
-  registerScrapeGatewayRoutes(app);
+  registerSourceAccessRoutes(app);
 
   // Initialize Canva OAuth on startup
   initCanvaOAuth();

@@ -19,7 +19,9 @@ export type FinalSuccessReason =
   | "gateway-no-data"
   | "gateway-not-configured"
   | "gateway-provider-failed"
-  | "gateway-settings-table-missing"
+  | "source-access-internal-provider-unavailable"
+  | "source-access-provider-failed"
+  | "source-access-no-usable-data"
   | "gateway-data-invalid";
 
 export type ScrapeQuality = {
@@ -111,20 +113,31 @@ export function evaluateScrapeQuality(
   let finalSuccessReason: FinalSuccessReason = "no-usable-data";
 
   if (
+    stageErrors.includes("source-access-internal-provider-unavailable") ||
+    opts.gatewaySkippedReason === "source-access-internal-provider-unavailable"
+  ) {
+    finalSuccessReason = "source-access-internal-provider-unavailable";
+  } else if (
+    stageErrors.includes("source-access-provider-failed") ||
+    opts.gatewayError === "source-access-provider-failed" ||
+    opts.gatewaySkippedReason === "source-access-provider-failed"
+  ) {
+    finalSuccessReason = "source-access-provider-failed";
+  } else if (
     stageErrors.includes("gateway-settings-table-missing") ||
     opts.gatewaySkippedReason === "gateway-settings-table-missing"
   ) {
-    finalSuccessReason = "gateway-settings-table-missing";
+    finalSuccessReason = "source-access-internal-provider-unavailable";
   } else if (
     stageErrors.includes("gateway-not-configured") ||
     opts.gatewaySkippedReason === "gateway-not-configured"
   ) {
-    finalSuccessReason = "gateway-not-configured";
+    finalSuccessReason = "source-access-internal-provider-unavailable";
   } else if (
     stageErrors.includes("gateway-provider-failed") ||
     opts.gatewayError === "gateway-provider-failed"
   ) {
-    finalSuccessReason = "gateway-provider-failed";
+    finalSuccessReason = "source-access-provider-failed";
   } else if (slugOnlyNoData) {
     finalSuccessReason = "title-only-slug-no-data";
   } else if (hasValidPrice && hasImages && hasRealTitle) {

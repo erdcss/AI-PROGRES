@@ -293,99 +293,74 @@ export async function runTrendyolScrapePipeline(
 
   if (isPastDeadline()) forcedGlobalTimeout = true;
 
-  // ── 2b) Scrape Gateway fallback (proxy / harici sağlayıcı) ──
+  // ── 2b) Otomatik kaynak erişim (internal provider registry) ──
   const htmlReadyBeforeGateway = Boolean(directHtml && directHtml.length >= 500);
   if (!htmlReadyBeforeGateway && !isPastDeadline() && !forcedGlobalTimeout) {
     diagnostics.gatewayStarted = true;
     const gwStart = Date.now();
     try {
-      const { tryGetScrapeGatewaySettingsRaw } = await import(
-        "./services/scrape-gateway-settings.service"
-      );
-      const { isProviderConfigured } = await import("./services/scrape-gateway-status");
-      const { ensureProductTrackingTablesReady } = await import(
-        "./migrations/run-product-tracking-migration"
-      );
-
-      await ensureProductTrackingTablesReady();
-      const gwSettings = await tryGetScrapeGatewaySettingsRaw();
-
-      if (!gwSettings) {
-        diagnostics.gatewaySkippedReason = "gateway-settings-table-missing";
-        diagnostics.gatewayError = "gateway-settings-table-missing";
-        pushStageError(diagnostics, "gateway-settings-table-missing");
-        if (isCloudRuntime()) skipHeavyStages = true;
-        console.warn("⚠️ [GW] scrape_gateway_settings tablosu hazır değil — migration çalışmalı");
-      } else {
-      diagnostics.gatewayProviderType = gwSettings.providerType;
-
-      if (!gwSettings.gatewayEnabled || !gwSettings.proxyFallbackEnabled) {
-        diagnostics.gatewaySkippedReason = "gateway-disabled";
-        if (isCloudRuntime() && !diagnostics.directHtmlSuccess) {
-          diagnostics.gatewayError = "gateway-not-configured";
-          pushStageError(diagnostics, "gateway-not-configured");
-          skipHeavyStages = true;
-        }
-        console.info("ℹ️ [GW] Gateway atlandı (program ayarı kapalı)");
-      } else if (!isProviderConfigured(gwSettings)) {
-        diagnostics.gatewaySkippedReason = "gateway-not-configured";
-        diagnostics.gatewayError = "gateway-not-configured";
-        pushStageError(diagnostics, "gateway-not-configured");
-        if (isCloudRuntime()) skipHeavyStages = true;
-        console.info("ℹ️ [GW] Gateway ayarlanmamış — proxy/scraping API gerekli");
-      } else {
-        console.log("⚡ [GW] Scrape Gateway fallback...");
-        const { runScrapeGateway } = await import("./services/scrape-gateway.service");
-        const gw = await withStageTimeout(
-          () => runScrapeGateway(url),
-          Math.min(25_000, remainingMs()),
-          "direct-html-timeout",
-        );
-        diagnostics.gatewayDurationMs = Date.now() - gwStart;
-        diagnostics.gatewayHtmlSuccess = gw.htmlSuccess;
-        diagnostics.gatewayImageSuccess = gw.imageSuccess;
-
-        if (gw.html && gw.html.length >= 500) {
-          directHtml = gw.html;
-          diagnostics.directHtmlSuccess = true;
-        }
-        if (gw.images.length > 0 && filterValidProductImages(result?.images || []).length === 0) {
-          result.images = gw.images;
-        }
-        if (gw.title && (!result.title || result.title.length < 4)) {
-          result.title = resolveProductTitle(url, gw.title);
-        }
-        if (gw.price && gw.price > 0 && (!result.price?.original || result.price.original <= 0)) {
-          result.price = { original: gw.price, withProfit: gw.price, currency: "TRY" };
-        }
-        if (gw.variants && !hasRealTrendyolVariants(result?.variants)) {
-          result.variants = gw.variants;
-        }
-
-        if (!gw.htmlSuccess && !gw.imageSuccess) {
-          const errCode =
-            gw.reason === "gateway-not-configured"
-              ? "gateway-not-configured"
-              : "gateway-provider-failed";
-          diagnostics.gatewayError = errCode;
-          pushStageError(diagnostics, errCode);
-          if (isCloudRuntime()) skipHeavyStages = true;
-          console.warn(`⚠️ [GW] Gateway başarısız: ${gw.error ?? errCode}`);
-        } else {
-          console.log(
-            `✅ [GW] Gateway (${gw.providerType}, ${diagnostics.gatewayDurationMs}ms): html=${gw.htmlSuccess}, images=${gw.images.length}`,
-          );
-        }
+      if (
+        !diagnostics.directHtmlSuccess &&
+        (diagnostics.directHtmlError === "direct-html-timeout" ||
+          diagnostics.stageErrors.includes("direct-html-timeout"))
+      ) {
+        pushStageError(diagnostics, "source-access-direct-timeout");
       }
+
+      const { tryInternalSourceAccess } = await import("./services/source-access-manager.service");
+      const access = await withStageTimeout(
+        () => tryInternalSourceAccess(url),
+        Math.min(25_000, remainingMs()),
+        "direct-html-timeout",
+      );
+
+      diagnostics.gatewayDurationMs = Date.now() - gwStart;
+      diagnostics.gatewayProviderType = access.strategy;
+      diagnostics.gatewayHtmlSuccess = access.htmlSuccess;
+      diagnostics.gatewayImageSuccess = access.imageSuccess;
+
+      if (access.html && access.html.length >= 500) {
+        directHtml = access.html;
+        diagnostics.directHtmlSuccess = true;
+      }
+      if (access.images.length > 0 && filterValidProductImages(result?.images || []).length === 0) {
+        result.images = access.images;
+      }
+      if (access.title && (!result.title || result.title.length < 4)) {
+        result.title = resolveProductTitle(url, access.title);
+      }
+      if (access.price && access.price > 0 && (!result.price?.original || result.price.original <= 0)) {
+        result.price = { original: access.price, withProfit: access.price, currency: "TRY" };
+      }
+      if (access.variants && !hasRealTrendyolVariants(result?.variants)) {
+        result.variants = access.variants;
+      }
+
+      if (!access.htmlSuccess && !access.imageSuccess) {
+        const errCode = (access.stageError ||
+          access.reason ||
+          "source-access-provider-failed") as ScrapeStageErrorCode;
+        diagnostics.gatewaySkippedReason = errCode;
+        diagnostics.gatewayError = errCode;
+        pushStageError(diagnostics, errCode);
+        if (isCloudRuntime()) skipHeavyStages = true;
+        console.warn(`⚠️ [SA] Kaynak erişim başarısız: ${access.error ?? errCode}`);
+      } else {
+        console.log(
+          `✅ [SA] Kaynak erişim (${access.strategy}, ${diagnostics.gatewayDurationMs}ms): html=${access.htmlSuccess}, images=${access.images.length}`,
+        );
       }
     } catch (err) {
       diagnostics.gatewayDurationMs = Date.now() - gwStart;
       const code: ScrapeStageErrorCode =
-        err instanceof ScrapeStageTimeoutError ? err.code : "gateway-provider-failed";
+        err instanceof ScrapeStageTimeoutError
+          ? "source-access-direct-timeout"
+          : "source-access-provider-failed";
       diagnostics.gatewayError = code;
+      diagnostics.gatewaySkippedReason = code;
       pushStageError(diagnostics, code);
       if (isCloudRuntime()) skipHeavyStages = true;
-      console.warn(`⚠️ [GW] Gateway soft-fail (${code})`);
+      console.warn(`⚠️ [SA] Kaynak erişim soft-fail (${code})`);
     }
   }
 

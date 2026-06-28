@@ -5,6 +5,7 @@ import {
 } from "../migrations/run-product-tracking-migration";
 import { ensureTrackingSettings } from "./tracking-settings.service";
 import { ensureScrapeGatewaySettings } from "./scrape-gateway-settings.service";
+import { seedInternalSourceAccessFromEnv } from "./source-access-manager.service";
 import { startTrackingScheduler, releaseStaleCheckLocks } from "./tracking.scheduler";
 import { trackingService } from "./tracking.service";
 
@@ -29,6 +30,7 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
   try {
     await ensureTrackingSettings();
     await ensureScrapeGatewaySettings();
+    await seedInternalSourceAccessFromEnv();
     releaseStaleCheckLocks();
 
     try {

@@ -170,9 +170,11 @@ function applyLocalAgentToResult(
   };
 }
 
-export async function runScrapeGateway(url: string): Promise<GatewayFetchResult> {
+export async function runScrapeGatewayWithSettings(
+  url: string,
+  settings: ScrapeGatewaySettingsDto,
+): Promise<GatewayFetchResult> {
   const start = Date.now();
-  const settings = await getScrapeGatewaySettingsRaw();
 
   if (!settings.gatewayEnabled || !settings.proxyFallbackEnabled) {
     return {
@@ -286,6 +288,11 @@ export async function runScrapeGateway(url: string): Promise<GatewayFetchResult>
     reason: ok ? undefined : "gateway-provider-failed",
     durationMs: Date.now() - start,
   };
+}
+
+export async function runScrapeGateway(url: string): Promise<GatewayFetchResult> {
+  const settings = await getScrapeGatewaySettingsRaw();
+  return runScrapeGatewayWithSettings(url, settings);
 }
 
 export async function testScrapeGateway(url: string) {

@@ -19,7 +19,11 @@ export type ScrapeStageErrorCode =
   | "scraping-provider-error"
   | "gateway-not-configured"
   | "gateway-provider-failed"
-  | "gateway-settings-table-missing";
+  | "gateway-settings-table-missing"
+  | "source-access-direct-timeout"
+  | "source-access-internal-provider-unavailable"
+  | "source-access-provider-failed"
+  | "source-access-no-usable-data";
 
 export type FinalSuccessReason =
   | "api-only"
@@ -218,60 +222,55 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
   const errors = diagnostics.stageErrors ?? [];
   const cloud = diagnostics.isCloudRuntime;
   const reason = diagnostics.finalSuccessReason ?? "no-usable-data";
-  const gatewaySkip = diagnostics.gatewaySkippedReason;
-  const gatewayErr = diagnostics.gatewayError;
 
-  if (
-    errors.includes("gateway-not-configured") ||
-    gatewaySkip === "gateway-not-configured" ||
-    reason === "gateway-not-configured"
-  ) {
-    return "Kaynak erişim sağlayıcısı ayarlanmamış. Railway IP Trendyol tarafından engelleniyorsa proxy veya scraping API girmeniz gerekir.";
-  }
+  const sourceAccessFailed =
+    errors.some((e) => e.startsWith("source-access-")) ||
+    reason.startsWith("source-access-") ||
+    diagnostics.gatewayError?.startsWith("source-access-");
 
-  if (
-    errors.includes("gateway-provider-failed") ||
-    gatewayErr === "gateway-provider-failed" ||
-    reason === "gateway-provider-failed"
-  ) {
-    return "Kaynak erişim sağlayıcısı başarısız oldu. Proxy/API ayarlarını kontrol edip /kaynak-erisim sayfasından test edin.";
+  if (sourceAccessFailed || errors.includes("gateway-provider-failed") || errors.includes("gateway-not-configured")) {
+    return cloud
+      ? "Kaynak site geçici olarak yanıt vermedi veya sunucu erişimi engellendi. Program alternatif kaynak erişim yollarını denedi ancak geçerli ürün verisi alınamadı."
+      : "Kaynak siteye erişim sağlanamadı veya ürün verisi doğrulanamadı. Program alternatif erişim yollarını denedi ancak geçerli fiyat, görsel veya başlık bulunamadı.";
   }
 
   if (errors.length === 0 && !diagnostics.apiSuccess) {
     return cloud
-      ? "Trendyol'dan ürün verisi alınamadı. Railway IP'si engellenmiş veya zaman aşımına düşmüş olabilir."
+      ? "Kaynak site geçici olarak yanıt vermedi veya sunucu erişimi engellendi."
       : "Trendyol'dan ürün verisi alınamadı.";
   }
 
   const timeoutLike = errors.some((e) =>
-    ["direct-html-timeout", "api-timeout", "image-proxy-timeout", "image-fallback-timeout", "pipeline-global-timeout"].includes(e),
+    ["direct-html-timeout", "api-timeout", "image-proxy-timeout", "image-fallback-timeout", "pipeline-global-timeout", "source-access-direct-timeout"].includes(e),
   );
   const puppeteerOff = errors.includes("puppeteer-disabled-in-cloud") || diagnostics.scenarioSkippedReason?.includes("puppeteer");
 
   const parts: string[] = [];
 
-  if (cloud && (timeoutLike || errors.length >= 2)) {
+  if (cloud && timeoutLike) {
     parts.push(
-      "Railway sunucu IP'si Trendyol tarafından engellenmiş veya istekler zaman aşımına düşmüş olabilir.",
+      "Kaynak site geçici olarak yanıt vermedi veya sunucu erişimi engellenmiş olabilir.",
     );
-    parts.push("Kaynak Erişim / Proxy ayarlarını kontrol edin (/urun-takip veya scraper ayarları).");
   }
 
   if (puppeteerOff) {
-    parts.push("Cloud ortamında tarayıcı tabanlı çekim kapalı (puppeteer-disabled-in-cloud).");
+    parts.push("Cloud ortamında tarayıcı tabanlı çekim kapalı.");
   }
 
   if (errors.includes("api-timeout") || errors.includes("api-error")) {
-    parts.push("Trendyol API yanıt vermedi.");
+    parts.push("API yanıt vermedi.");
   }
-  if (errors.includes("direct-html-timeout") || errors.includes("direct-html-error")) {
+  if (errors.includes("direct-html-timeout") || errors.includes("direct-html-error") || errors.includes("source-access-direct-timeout")) {
     parts.push("Ürün sayfası HTML'i alınamadı.");
   }
   if (errors.includes("image-proxy-timeout") || errors.includes("image-fallback-timeout")) {
     parts.push("Görseller alınamadı.");
   }
+  if (errors.includes("source-access-internal-provider-unavailable") || errors.includes("source-access-provider-failed")) {
+    parts.push("Alternatif erişim başarısız.");
+  }
 
-  if (reason === "gateway-data-invalid") {
+  if (reason === "gateway-data-invalid" || reason === "source-access-no-usable-data") {
     parts.push("Kaynak veri doğrulanamadı (fiyat, başlık veya görsel eksik).");
   } else if (reason === "no-usable-data" || reason === "title-only-slug-no-data") {
     parts.push("Geçerli fiyat, başlık veya görsel bulunamadı.");
@@ -302,6 +301,10 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "gateway-not-configured": "Gateway ayarlanmamış",
     "gateway-provider-failed": "Gateway sağlayıcı başarısız",
     "gateway-settings-table-missing": "Kaynak erişim ayar tablosu hazır değil",
+    "source-access-direct-timeout": "Kaynak HTML zaman aşımı",
+    "source-access-internal-provider-unavailable": "Alternatif erişim kullanılamıyor",
+    "source-access-provider-failed": "Alternatif erişim başarısız",
+    "source-access-no-usable-data": "Geçerli ürün verisi yok",
     "scraping-provider-error": "Harici sağlayıcı hatası",
   };
   return stageErrors.map((e) => labels[e] || e).join("; ");
