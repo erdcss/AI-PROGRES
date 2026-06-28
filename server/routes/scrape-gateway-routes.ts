@@ -9,7 +9,12 @@ export function registerScrapeGatewayRoutes(app: Express): void {
   app.get("/api/scrape-gateway/settings", async (_req, res) => {
     try {
       const settings = await getScrapeGatewaySettings();
-      return res.json({ success: true, settings });
+      return res.json({
+        success: true,
+        settings,
+        legacySystemsRemoved: true,
+        ...settings,
+      });
     } catch (err) {
       return res.status(500).json({ success: false, error: (err as Error).message });
     }
@@ -18,7 +23,7 @@ export function registerScrapeGatewayRoutes(app: Express): void {
   app.put("/api/scrape-gateway/settings", async (req, res) => {
     try {
       const settings = await updateScrapeGatewaySettings(req.body ?? {});
-      return res.json({ success: true, settings });
+      return res.json({ success: true, settings, ...settings });
     } catch (err) {
       return res.status(500).json({ success: false, error: (err as Error).message });
     }
@@ -29,7 +34,8 @@ export function registerScrapeGatewayRoutes(app: Express): void {
       const url = String(req.body?.url ?? "").trim();
       if (!url) return res.status(400).json({ success: false, error: "URL gerekli" });
       const result = await testScrapeGateway(url);
-      return res.json(result);
+      const statusCode = result.success ? 200 : result.reason === "gateway-not-configured" ? 422 : 502;
+      return res.status(statusCode).json(result);
     } catch (err) {
       return res.status(500).json({ success: false, error: (err as Error).message });
     }

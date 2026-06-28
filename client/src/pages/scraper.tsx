@@ -12,7 +12,8 @@ import { CSVPreview } from "@/components/CSVPreview";
 import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
 import * as Collapsible from "@radix-ui/react-collapsible";
 
-import { ScrapeSourceErrorAlert } from "@/components/ScrapeSourceErrorAlert";
+import { ScrapeSourceErrorAlert, type ScrapeErrorMeta } from "@/components/ScrapeSourceErrorAlert";
+import { ScrapeFetchError } from "@/lib/scrape-url-client";
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -154,6 +155,8 @@ function ScraperPage() {
   const [failedUploads, setFailedUploads] = useState<{title: string; error: string}[]>([]);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
+  const [scrapeErrorMeta, setScrapeErrorMeta] = useState<ScrapeErrorMeta | null>(null);
+  const [lastScrapeUrl, setLastScrapeUrl] = useState<string | null>(null);
   const [workflowStep, setWorkflowStep] = useState<string | null>(null);
   const [lastShopifyResult, setLastShopifyResult] = useState<{
     adminUrl?: string;
@@ -260,6 +263,7 @@ function ScraperPage() {
   const singleScrapeMutation = useMutation({
     onMutate: () => {
       setScrapeError(null);
+      setScrapeErrorMeta(null);
       setWorkflowStep('URL alındı → Ürün çekiliyor...');
       toast({
         title: "⚙️ Arka Planda Çalışıyor",
@@ -269,6 +273,7 @@ function ScraperPage() {
     },
     mutationFn: async (data: ScrapeFormData & { onlyExtractData?: boolean }) => {
       const scrapeUrl = normalizeProductUrl(data.url ?? "");
+      setLastScrapeUrl(scrapeUrl || null);
       if (!scrapeUrl) {
         throw new Error("Geçerli bir Trendyol, Arçelik veya PttAVM URL'si gerekli");
       }
@@ -414,14 +419,26 @@ function ScraperPage() {
       });
     },
     onError: (error: any) => {
-      setScrapeError(error.message || 'Bilinmeyen hata');
+      const msg = error.message || "Bilinmeyen hata";
+      setScrapeError(msg);
+      if (error instanceof ScrapeFetchError) {
+        setScrapeErrorMeta({
+          reason: error.reason,
+          userMessage: error.userMessage,
+          stageErrors: error.stageErrors,
+          stageErrorsHuman: error.stageErrorsHuman,
+          finalSuccessReason: error.finalSuccessReason,
+        });
+      } else {
+        setScrapeErrorMeta(null);
+      }
       setWorkflowStep(null);
       toast({
         title: "Hata",
-        description: error.message,
-        variant: "destructive"
+        description: msg,
+        variant: "destructive",
       });
-    }
+    },
   });
 
   // Toplu Shopify yükleme mutation'ı
@@ -2032,6 +2049,8 @@ function ScraperPage() {
                   <ScrapeSourceErrorAlert
                     message={scrapeError}
                     details={scrapeError}
+                    meta={scrapeErrorMeta ?? undefined}
+                    testUrl={lastScrapeUrl ?? undefined}
                     onRetry={() => singleForm.handleSubmit((d) => singleScrapeMutation.mutate(d))()}
                   />
                 )}

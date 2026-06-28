@@ -111,6 +111,8 @@ function finalizeOutcome(
     apiSuccess: diagnostics.apiSuccess,
     htmlParseSuccess: diagnostics.htmlParseSuccess,
     gatewayHtmlSuccess: diagnostics.gatewayHtmlSuccess,
+    gatewayError: diagnostics.gatewayError,
+    gatewaySkippedReason: diagnostics.gatewaySkippedReason,
     stageErrors: diagnostics.stageErrors,
   });
 
@@ -183,6 +185,7 @@ export async function runTrendyolScrapePipeline(
   let apiProduct: Awaited<ReturnType<typeof fetchTrendyolProductByUrl>> = null;
   let directHtml: string | null = null;
   let forcedGlobalTimeout = false;
+  let skipHeavyStages = false;
 
   const convertApiProduct = (api: NonNullable<typeof apiProduct>) => ({
     success: true,
@@ -297,12 +300,24 @@ export async function runTrendyolScrapePipeline(
     const gwStart = Date.now();
     try {
       const { getScrapeGatewaySettingsRaw } = await import("./services/scrape-gateway-settings.service");
+      const { isProviderConfigured } = await import("./services/scrape-gateway-status");
       const gwSettings = await getScrapeGatewaySettingsRaw();
       diagnostics.gatewayProviderType = gwSettings.providerType;
 
       if (!gwSettings.gatewayEnabled || !gwSettings.proxyFallbackEnabled) {
         diagnostics.gatewaySkippedReason = "gateway-disabled";
+        if (isCloudRuntime() && !diagnostics.directHtmlSuccess) {
+          diagnostics.gatewayError = "gateway-not-configured";
+          pushStageError(diagnostics, "gateway-not-configured");
+          skipHeavyStages = true;
+        }
         console.info("ℹ️ [GW] Gateway atlandı (program ayarı kapalı)");
+      } else if (!isProviderConfigured(gwSettings)) {
+        diagnostics.gatewaySkippedReason = "gateway-not-configured";
+        diagnostics.gatewayError = "gateway-not-configured";
+        pushStageError(diagnostics, "gateway-not-configured");
+        if (isCloudRuntime()) skipHeavyStages = true;
+        console.info("ℹ️ [GW] Gateway ayarlanmamış — proxy/scraping API gerekli");
       } else {
         console.log("⚡ [GW] Scrape Gateway fallback...");
         const { runScrapeGateway } = await import("./services/scrape-gateway.service");
@@ -328,11 +343,19 @@ export async function runTrendyolScrapePipeline(
         if (gw.price && gw.price > 0 && (!result.price?.original || result.price.original <= 0)) {
           result.price = { original: gw.price, withProfit: gw.price, currency: "TRY" };
         }
+        if (gw.variants && !hasRealTrendyolVariants(result?.variants)) {
+          result.variants = gw.variants;
+        }
 
         if (!gw.htmlSuccess && !gw.imageSuccess) {
-          diagnostics.gatewayError = gw.error ?? "gateway-no-data";
-          pushStageError(diagnostics, "scraping-provider-error");
-          console.warn(`⚠️ [GW] Gateway başarısız: ${diagnostics.gatewayError}`);
+          const errCode =
+            gw.reason === "gateway-not-configured"
+              ? "gateway-not-configured"
+              : "gateway-provider-failed";
+          diagnostics.gatewayError = errCode;
+          pushStageError(diagnostics, errCode);
+          if (isCloudRuntime()) skipHeavyStages = true;
+          console.warn(`⚠️ [GW] Gateway başarısız: ${gw.error ?? errCode}`);
         } else {
           console.log(
             `✅ [GW] Gateway (${gw.providerType}, ${diagnostics.gatewayDurationMs}ms): html=${gw.htmlSuccess}, images=${gw.images.length}`,
@@ -342,9 +365,10 @@ export async function runTrendyolScrapePipeline(
     } catch (err) {
       diagnostics.gatewayDurationMs = Date.now() - gwStart;
       const code: ScrapeStageErrorCode =
-        err instanceof ScrapeStageTimeoutError ? err.code : "scraping-provider-error";
+        err instanceof ScrapeStageTimeoutError ? err.code : "gateway-provider-failed";
       diagnostics.gatewayError = code;
       pushStageError(diagnostics, code);
+      if (isCloudRuntime()) skipHeavyStages = true;
       console.warn(`⚠️ [GW] Gateway soft-fail (${code})`);
     }
   }
@@ -399,7 +423,7 @@ export async function runTrendyolScrapePipeline(
 
   // ── 4) fetchTrendyolProductImages ──
   const hasImagesBeforeFetch = filterValidProductImages(result?.images || []).length > 0;
-  if (!hasImagesBeforeFetch && !isPastDeadline() && !forcedGlobalTimeout) {
+  if (!skipHeavyStages && !hasImagesBeforeFetch && !isPastDeadline() && !forcedGlobalTimeout) {
     diagnostics.imageFetcherStarted = true;
     console.log("⚡ [4/6] fetchTrendyolProductImages...");
     try {
@@ -429,7 +453,7 @@ export async function runTrendyolScrapePipeline(
 
   // ── 5) Alternatif görsel fallback ──
   const stillNoImages = filterValidProductImages(result?.images || []).length === 0;
-  if (stillNoImages && !isPastDeadline() && !forcedGlobalTimeout) {
+  if (!skipHeavyStages && stillNoImages && !isPastDeadline() && !forcedGlobalTimeout) {
     diagnostics.imageFallbackStarted = true;
     console.log("⚡ [5/6] Alternatif görsel fallback...");
     try {
@@ -476,6 +500,7 @@ export async function runTrendyolScrapePipeline(
     fieldsBeforeScenario.hasImages;
 
   const scenarioNeeded =
+    !skipHeavyStages &&
     !coreDataFromHtml &&
     !forcedGlobalTimeout &&
     !isPastDeadline() &&

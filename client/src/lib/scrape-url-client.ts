@@ -3,6 +3,29 @@ import { extractImagesFromCsv, resolveOriginalImageUrl } from "@/lib/product-ima
 import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
 import { filterValidProductImages, prioritizeProductImagesForPreview } from "@shared/trendyol-product-images";
 
+export class ScrapeFetchError extends Error {
+  reason?: string;
+  userMessage?: string;
+  stageErrors?: string[];
+  stageErrorsHuman?: string;
+  finalSuccessReason?: string;
+
+  constructor(
+    message: string,
+    meta?: {
+      reason?: string;
+      userMessage?: string;
+      stageErrors?: string[];
+      stageErrorsHuman?: string;
+      finalSuccessReason?: string;
+    },
+  ) {
+    super(message);
+    this.name = "ScrapeFetchError";
+    Object.assign(this, meta);
+  }
+}
+
 export type ScrapedUrlPayload = {
   title: string;
   brand?: string;
@@ -188,10 +211,13 @@ export async function fetchScenarioScrapeResult(
             pollData.error ||
             "Scraping başarısız",
         );
-        const detail = pollData.stageErrorsHuman
-          ? ` — ${String(pollData.stageErrorsHuman)}`
-          : "";
-        throw new Error(`${msg}${detail}`);
+        throw new ScrapeFetchError(msg, {
+          reason: pollData.finalSuccessReason || pollData.code,
+          userMessage: pollData.userMessage,
+          stageErrors: pollData.stageErrors,
+          stageErrorsHuman: pollData.stageErrorsHuman,
+          finalSuccessReason: pollData.finalSuccessReason,
+        });
       }
     }
 

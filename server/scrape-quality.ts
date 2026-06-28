@@ -16,7 +16,10 @@ export type FinalSuccessReason =
   | "partial-timeout"
   | "gateway-html-success"
   | "gateway-full-data"
-  | "gateway-no-data";
+  | "gateway-no-data"
+  | "gateway-not-configured"
+  | "gateway-provider-failed"
+  | "gateway-data-invalid";
 
 export type ScrapeQuality = {
   titleSource: TitleSource;
@@ -75,6 +78,8 @@ export function evaluateScrapeQuality(
     apiSuccess?: boolean;
     htmlParseSuccess?: boolean;
     gatewayHtmlSuccess?: boolean;
+    gatewayError?: string;
+    gatewaySkippedReason?: string;
     stageErrors?: string[];
   } = {},
 ): ScrapeQuality {
@@ -103,7 +108,18 @@ export function evaluateScrapeQuality(
   const hadTimeout = stageErrors.some((e) => e.includes("timeout"));
 
   let finalSuccessReason: FinalSuccessReason = "no-usable-data";
-  if (slugOnlyNoData) {
+
+  if (
+    stageErrors.includes("gateway-not-configured") ||
+    opts.gatewaySkippedReason === "gateway-not-configured"
+  ) {
+    finalSuccessReason = "gateway-not-configured";
+  } else if (
+    stageErrors.includes("gateway-provider-failed") ||
+    opts.gatewayError === "gateway-provider-failed"
+  ) {
+    finalSuccessReason = "gateway-provider-failed";
+  } else if (slugOnlyNoData) {
     finalSuccessReason = "title-only-slug-no-data";
   } else if (hasValidPrice && hasImages && hasRealTitle) {
     finalSuccessReason = hadTimeout

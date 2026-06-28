@@ -138,9 +138,28 @@ CREATE TABLE IF NOT EXISTS scrape_gateway_settings (
   last_test_at TIMESTAMP,
   last_test_success BOOLEAN,
   last_test_message TEXT,
+  last_test_error TEXT,
+  last_working_provider TEXT,
+  last_test_url TEXT,
+  last_test_html_size INTEGER,
+  last_test_title_found BOOLEAN,
+  last_test_price_found BOOLEAN,
+  last_test_images_found INTEGER,
+  local_agent_endpoint TEXT,
+  local_agent_token_encrypted TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_error TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_working_provider TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_url TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_html_size INTEGER;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_title_found BOOLEAN;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_price_found BOOLEAN;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_images_found INTEGER;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS local_agent_endpoint TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS local_agent_token_encrypted TEXT;
 `;
 
 export const PRODUCT_TRACKING_TABLES = [

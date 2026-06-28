@@ -1,6 +1,10 @@
 import { db } from "../db";
 import { scrapeGatewaySettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import {
+  buildGatewayConfigStatus,
+  type GatewayConfigStatus,
+} from "./scrape-gateway-status";
 
 export type ScrapeGatewaySettingsDto = {
   id: number;
@@ -19,17 +23,28 @@ export type ScrapeGatewaySettingsDto = {
   lastTestAt: Date | null;
   lastTestSuccess: boolean | null;
   lastTestMessage: string | null;
+  lastTestError: string | null;
+  lastWorkingProvider: string | null;
+  lastTestUrl: string | null;
+  lastTestHtmlSize: number | null;
+  lastTestTitleFound: boolean | null;
+  lastTestPriceFound: boolean | null;
+  lastTestImagesFound: number | null;
+  localAgentEndpoint: string | null;
+  localAgentTokenEncrypted: string | null;
 };
 
 export type ScrapeGatewaySettingsPublic = Omit<
   ScrapeGatewaySettingsDto,
-  "providerApiKeyEncrypted" | "proxyUrlEncrypted"
+  "providerApiKeyEncrypted" | "proxyUrlEncrypted" | "localAgentTokenEncrypted"
 > & {
   hasApiKey: boolean;
   apiKeyMasked: string | null;
   hasProxyUrl: boolean;
   proxyUrlMasked: string | null;
-};
+  hasLocalAgentToken: boolean;
+  localAgentTokenMasked: string | null;
+} & GatewayConfigStatus;
 
 const DEFAULTS = {
   gatewayEnabled: true,
@@ -51,13 +66,23 @@ function maskSecret(value: string | null): { has: boolean; masked: string | null
 export function toPublicSettings(row: ScrapeGatewaySettingsDto): ScrapeGatewaySettingsPublic {
   const api = maskSecret(row.providerApiKeyEncrypted);
   const proxy = maskSecret(row.proxyUrlEncrypted);
-  const { providerApiKeyEncrypted: _a, proxyUrlEncrypted: _p, ...rest } = row;
+  const agentToken = maskSecret(row.localAgentTokenEncrypted);
+  const status = buildGatewayConfigStatus(row);
+  const {
+    providerApiKeyEncrypted: _a,
+    proxyUrlEncrypted: _p,
+    localAgentTokenEncrypted: _t,
+    ...rest
+  } = row;
   return {
     ...rest,
+    ...status,
     hasApiKey: api.has,
     apiKeyMasked: api.masked,
     hasProxyUrl: proxy.has,
     proxyUrlMasked: proxy.masked,
+    hasLocalAgentToken: agentToken.has,
+    localAgentTokenMasked: agentToken.masked,
   };
 }
 
@@ -87,6 +112,8 @@ export async function updateScrapeGatewaySettings(
     providerEndpoint: string | null;
     providerApiKey: string | null;
     proxyUrl: string | null;
+    localAgentEndpoint: string | null;
+    localAgentToken: string | null;
     timeoutMs: number;
     retryCount: number;
     retryDelayMs: number;
@@ -102,6 +129,7 @@ export async function updateScrapeGatewaySettings(
   if (patch.proxyFallbackEnabled !== undefined) update.proxyFallbackEnabled = patch.proxyFallbackEnabled;
   if (patch.providerType !== undefined) update.providerType = patch.providerType;
   if (patch.providerEndpoint !== undefined) update.providerEndpoint = patch.providerEndpoint;
+  if (patch.localAgentEndpoint !== undefined) update.localAgentEndpoint = patch.localAgentEndpoint;
   if (patch.timeoutMs !== undefined) update.timeoutMs = patch.timeoutMs;
   if (patch.retryCount !== undefined) update.retryCount = patch.retryCount;
   if (patch.retryDelayMs !== undefined) update.retryDelayMs = patch.retryDelayMs;
@@ -114,6 +142,9 @@ export async function updateScrapeGatewaySettings(
   if (patch.proxyUrl !== undefined && patch.proxyUrl !== "") {
     update.proxyUrlEncrypted = patch.proxyUrl;
   }
+  if (patch.localAgentToken !== undefined && patch.localAgentToken !== "") {
+    update.localAgentTokenEncrypted = patch.localAgentToken;
+  }
 
   const [updated] = await db
     .update(scrapeGatewaySettings)
@@ -123,14 +154,33 @@ export async function updateScrapeGatewaySettings(
   return toPublicSettings(updated as ScrapeGatewaySettingsDto);
 }
 
-export async function recordGatewayTest(success: boolean, message: string) {
+export async function recordGatewayTest(input: {
+  success: boolean;
+  message: string;
+  error?: string | null;
+  url?: string;
+  htmlSize?: number;
+  titleFound?: boolean;
+  priceFound?: boolean;
+  imagesFound?: number;
+  workingProvider?: string | null;
+}) {
   const current = await ensureScrapeGatewaySettings();
   await db
     .update(scrapeGatewaySettings)
     .set({
       lastTestAt: new Date(),
-      lastTestSuccess: success,
-      lastTestMessage: message,
+      lastTestSuccess: input.success,
+      lastTestMessage: input.message,
+      lastTestError: input.success ? null : input.error ?? input.message,
+      lastWorkingProvider: input.success
+        ? input.workingProvider ?? current.providerType
+        : current.lastWorkingProvider,
+      lastTestUrl: input.url ?? current.lastTestUrl,
+      lastTestHtmlSize: input.htmlSize ?? null,
+      lastTestTitleFound: input.titleFound ?? null,
+      lastTestPriceFound: input.priceFound ?? null,
+      lastTestImagesFound: input.imagesFound ?? null,
       updatedAt: new Date(),
     })
     .where(eq(scrapeGatewaySettings.id, current.id));

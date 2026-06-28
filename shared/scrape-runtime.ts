@@ -16,7 +16,9 @@ export type ScrapeStageErrorCode =
   | "image-fallback-error"
   | "pipeline-global-timeout"
   | "extraction-failed"
-  | "scraping-provider-error";
+  | "scraping-provider-error"
+  | "gateway-not-configured"
+  | "gateway-provider-failed";
 
 export type FinalSuccessReason =
   | "api-only"
@@ -214,6 +216,25 @@ export function formatScrapeError(error: unknown): {
 export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): string {
   const errors = diagnostics.stageErrors ?? [];
   const cloud = diagnostics.isCloudRuntime;
+  const reason = diagnostics.finalSuccessReason ?? "no-usable-data";
+  const gatewaySkip = diagnostics.gatewaySkippedReason;
+  const gatewayErr = diagnostics.gatewayError;
+
+  if (
+    errors.includes("gateway-not-configured") ||
+    gatewaySkip === "gateway-not-configured" ||
+    reason === "gateway-not-configured"
+  ) {
+    return "Kaynak erişim sağlayıcısı ayarlanmamış. Railway IP Trendyol tarafından engelleniyorsa proxy veya scraping API girmeniz gerekir.";
+  }
+
+  if (
+    errors.includes("gateway-provider-failed") ||
+    gatewayErr === "gateway-provider-failed" ||
+    reason === "gateway-provider-failed"
+  ) {
+    return "Kaynak erişim sağlayıcısı başarısız oldu. Proxy/API ayarlarını kontrol edip /kaynak-erisim sayfasından test edin.";
+  }
 
   if (errors.length === 0 && !diagnostics.apiSuccess) {
     return cloud
@@ -249,8 +270,9 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
     parts.push("Görseller alınamadı.");
   }
 
-  const reason = diagnostics.finalSuccessReason ?? "no-usable-data";
-  if (reason === "no-usable-data" || reason === "title-only-slug-no-data") {
+  if (reason === "gateway-data-invalid") {
+    parts.push("Kaynak veri doğrulanamadı (fiyat, başlık veya görsel eksik).");
+  } else if (reason === "no-usable-data" || reason === "title-only-slug-no-data") {
     parts.push("Geçerli fiyat, başlık veya görsel bulunamadı.");
   }
 
@@ -276,6 +298,9 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "image-fallback-error": "Görsel yedek hatası",
     "pipeline-global-timeout": "Toplam pipeline zaman aşımı",
     "extraction-failed": "Veri çıkarma başarısız",
+    "gateway-not-configured": "Gateway ayarlanmamış",
+    "gateway-provider-failed": "Gateway sağlayıcı başarısız",
+    "scraping-provider-error": "Harici sağlayıcı hatası",
   };
   return stageErrors.map((e) => labels[e] || e).join("; ");
 }
