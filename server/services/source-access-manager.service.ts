@@ -15,16 +15,25 @@ import {
   type ScrapeGatewaySettingsDto,
 } from "./scrape-gateway-settings.service";
 import { runScrapeGatewayWithSettings, type GatewayFetchResult } from "./scrape-gateway.service";
+import {
+  callLocalScrapeAgent,
+  isLocalAgentConfigured,
+  maskLocalAgentEndpoint,
+  pingLocalAgentHealth,
+} from "./local-agent-client.service";
 
 export type SourceAccessAttemptResult = GatewayFetchResult & {
   strategy: string;
   stageError?: string;
+  finalSuccessReason?: string;
 };
 
 export type SourceAccessStatus = {
   directHtmlAvailable: boolean;
   internalGatewayAvailable: boolean;
   systemReady: boolean;
+  localAgentConfigured: boolean;
+  localAgentLastStatus: string | null;
   lastWorkingStrategy: string | null;
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
@@ -35,12 +44,19 @@ export type SourceAccessStatus = {
     enabled: boolean;
     configured: boolean;
   }>;
+  secretsMasked: {
+    proxyConfigured: boolean;
+    scrapingApiConfigured: boolean;
+    localAgentConfigured: boolean;
+    localAgentEndpointHint: string | null;
+  };
 };
 
 let cachedWorkingStrategy: string | null = null;
 let lastSuccessAt: Date | null = null;
 let lastErrorAt: Date | null = null;
 let lastError: string | null = null;
+let localAgentLastStatus: string | null = null;
 
 function buildSettingsForProvider(
   base: ScrapeGatewaySettingsDto,
@@ -62,6 +78,40 @@ function buildSettingsForProvider(
       providerType === "local_agent" ? secrets.localAgentEndpoint : base.localAgentEndpoint,
     localAgentTokenEncrypted:
       providerType === "local_agent" ? secrets.localAgentToken : base.localAgentTokenEncrypted,
+  };
+}
+
+async function runProviderAttempt(
+  url: string,
+  providerType: InternalProviderType,
+  settings: ScrapeGatewaySettingsDto,
+): Promise<SourceAccessAttemptResult> {
+  if (providerType === "local_agent") {
+    const agent = await callLocalScrapeAgent(url);
+    localAgentLastStatus = agent.agentSuccess ? "success" : "failed";
+    return {
+      html: agent.html,
+      images: agent.images,
+      title: agent.title,
+      price: agent.price,
+      variants: agent.variants,
+      providerType: "local_agent",
+      htmlSuccess: agent.htmlSuccess,
+      imageSuccess: agent.imageSuccess,
+      error: agent.error,
+      reason: agent.reason,
+      durationMs: agent.durationMs,
+      strategy: "local_agent",
+      stageError: agent.stageError,
+      finalSuccessReason: agent.finalSuccessReason,
+    };
+  }
+
+  const result = await runScrapeGatewayWithSettings(url, settings);
+  return {
+    ...result,
+    strategy: providerType,
+    stageError: result.htmlSuccess || result.imageSuccess ? undefined : "source-access-provider-failed",
   };
 }
 
@@ -88,16 +138,18 @@ export async function seedInternalSourceAccessFromEnv(): Promise<void> {
     })
     .where(eq(scrapeGatewaySettings.id, row.id));
 
-  console.log(
-    `ℹ️ Kaynak erişim internal seed: primary=${primary}, providers=${getEnabledInternalProviders()
-      .map((p) => p.type)
-      .join(", ") || "none"}`,
-  );
+  const providers = getEnabledInternalProviders().map((p) => p.type).join(", ") || "none";
+  console.log(`ℹ️ Kaynak erişim internal seed: primary=${primary}, providers=${providers}`);
+
+  if (isLocalAgentConfigured()) {
+    const healthy = await pingLocalAgentHealth().catch(() => false);
+    localAgentLastStatus = healthy ? "healthy" : "unreachable";
+    console.log(`ℹ️ Local Scrape Agent: ${healthy ? "erişilebilir" : "erişilemiyor (tunnel/agent çalışıyor mu?)"}`);
+  }
 }
 
 /**
  * Direct HTML başarısız olduğunda internal sağlayıcıları sırayla dener.
- * Kullanıcı müdahalesi gerekmez.
  */
 export async function tryInternalSourceAccess(url: string): Promise<SourceAccessAttemptResult> {
   const start = Date.now();
@@ -164,7 +216,7 @@ export async function tryInternalSourceAccess(url: string): Promise<SourceAccess
 
   for (const provider of tryOrder) {
     const settings = buildSettingsForProvider(defaults, provider.type);
-    const result = await runScrapeGatewayWithSettings(url, settings);
+    const result = await runProviderAttempt(url, provider.type, settings);
 
     if (result.htmlSuccess || result.imageSuccess) {
       cachedWorkingStrategy = provider.type;
@@ -181,14 +233,19 @@ export async function tryInternalSourceAccess(url: string): Promise<SourceAccess
         imagesFound: result.images.length,
       }).catch(() => undefined);
 
-      return { ...result, strategy: provider.type };
+      return result;
     }
+
+    const stageError =
+      provider.type === "local_agent"
+        ? result.stageError ?? "local-agent-failed"
+        : "source-access-provider-failed";
 
     lastFailure = {
       ...result,
       strategy: provider.type,
-      stageError: "source-access-provider-failed",
-      reason: "source-access-provider-failed",
+      stageError,
+      reason: stageError,
     };
   }
 
@@ -220,11 +277,14 @@ export async function tryInternalSourceAccess(url: string): Promise<SourceAccess
 export async function getSourceAccessStatus(): Promise<SourceAccessStatus> {
   const row = await tryGetScrapeGatewaySettingsRaw();
   const registry = getEnabledInternalProviders();
+  const secrets = getInternalSourceAccessSecrets();
 
   return {
     directHtmlAvailable: !isCloudRuntime(),
     internalGatewayAvailable: hasAnyInternalProvider(),
     systemReady: Boolean(row) || hasAnyInternalProvider(),
+    localAgentConfigured: isLocalAgentConfigured(),
+    localAgentLastStatus,
     lastWorkingStrategy: cachedWorkingStrategy ?? row?.lastWorkingProvider ?? null,
     lastSuccessAt: (lastSuccessAt ?? row?.lastTestAt)?.toISOString?.() ?? null,
     lastErrorAt: lastErrorAt?.toISOString() ?? null,
@@ -236,18 +296,52 @@ export async function getSourceAccessStatus(): Promise<SourceAccessStatus> {
       enabled: p.enabled,
       configured: true,
     })),
+    secretsMasked: {
+      proxyConfigured: Boolean(secrets.proxyUrl),
+      scrapingApiConfigured: Boolean(secrets.scrapingApiEndpoint && secrets.scrapingApiKey),
+      localAgentConfigured: isLocalAgentConfigured(),
+      localAgentEndpointHint: maskLocalAgentEndpoint(secrets.localAgentEndpoint),
+    },
   };
 }
 
 export async function runSourceAccessSelfTest(url: string) {
+  const secrets = getInternalSourceAccessSecrets();
+  const localConfigured = isLocalAgentConfigured();
+
+  if (localConfigured) {
+    const healthStart = Date.now();
+    const agentHealthOk = await pingLocalAgentHealth();
+    const agent = await callLocalScrapeAgent(url);
+
+    return {
+      success: agent.agentSuccess,
+      provider: "local_agent",
+      endpointConfigured: Boolean(secrets.localAgentEndpoint),
+      tokenConfigured: Boolean(secrets.localAgentToken),
+      agentHealthOk,
+      titleFound: Boolean(agent.title),
+      priceFound: Boolean(agent.price && agent.price > 0),
+      imagesFound: agent.images.length,
+      durationMs: agent.durationMs + (Date.now() - healthStart),
+      stageError: agent.stageError,
+      finalSuccessReason: agent.finalSuccessReason,
+      error: agent.error,
+    };
+  }
+
   const result = await tryInternalSourceAccess(url);
   return {
     success: result.htmlSuccess || result.imageSuccess,
-    strategy: result.strategy,
-    stageError: result.stageError,
-    htmlSuccess: result.htmlSuccess,
-    imageSuccess: result.imageSuccess,
+    provider: result.strategy,
+    endpointConfigured: false,
+    tokenConfigured: false,
+    agentHealthOk: false,
+    titleFound: Boolean(result.title),
+    priceFound: Boolean(result.price && result.price > 0),
+    imagesFound: result.images.length,
     durationMs: result.durationMs,
+    stageError: result.stageError,
     error: result.error,
   };
 }

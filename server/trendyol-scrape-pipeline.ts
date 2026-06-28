@@ -295,7 +295,14 @@ export async function runTrendyolScrapePipeline(
 
   // ── 2b) Otomatik kaynak erişim (internal provider registry) ──
   const htmlReadyBeforeGateway = Boolean(directHtml && directHtml.length >= 500);
-  if (!htmlReadyBeforeGateway && !isPastDeadline() && !forcedGlobalTimeout) {
+  const skipInternalSourceAccess = process.env.LOCAL_SCRAPE_AGENT_MODE === "true";
+
+  if (
+    !skipInternalSourceAccess &&
+    !htmlReadyBeforeGateway &&
+    !isPastDeadline() &&
+    !forcedGlobalTimeout
+  ) {
     diagnostics.gatewayStarted = true;
     const gwStart = Date.now();
     try {
@@ -308,9 +315,12 @@ export async function runTrendyolScrapePipeline(
       }
 
       const { tryInternalSourceAccess } = await import("./services/source-access-manager.service");
+      const { isLocalAgentConfigured } = await import("./services/local-agent-client.service");
+      const sourceAccessTimeout = isLocalAgentConfigured() ? 65_000 : 25_000;
+
       const access = await withStageTimeout(
         () => tryInternalSourceAccess(url),
-        Math.min(25_000, remainingMs()),
+        Math.min(sourceAccessTimeout, remainingMs()),
         "direct-html-timeout",
       );
 
@@ -334,6 +344,12 @@ export async function runTrendyolScrapePipeline(
       }
       if (access.variants && !hasRealTrendyolVariants(result?.variants)) {
         result.variants = access.variants;
+      }
+      if (access.finalSuccessReason) {
+        result.finalSuccessReason = access.finalSuccessReason;
+      }
+      if (access.strategy === "local_agent" && (access.htmlSuccess || access.imageSuccess)) {
+        diagnostics.gatewayHtmlSuccess = true;
       }
 
       if (!access.htmlSuccess && !access.imageSuccess) {

@@ -22,6 +22,9 @@ export type FinalSuccessReason =
   | "source-access-internal-provider-unavailable"
   | "source-access-provider-failed"
   | "source-access-no-usable-data"
+  | "local-agent-success"
+  | "local-agent-full-data"
+  | "local-agent-failed"
   | "gateway-data-invalid";
 
 export type ScrapeQuality = {
@@ -138,16 +141,25 @@ export function evaluateScrapeQuality(
     opts.gatewayError === "gateway-provider-failed"
   ) {
     finalSuccessReason = "source-access-provider-failed";
+  } else if (
+    stageErrors.includes("local-agent-failed") ||
+    opts.gatewayError === "local-agent-failed" ||
+    opts.gatewaySkippedReason === "local-agent-failed"
+  ) {
+    finalSuccessReason = "local-agent-failed";
   } else if (slugOnlyNoData) {
     finalSuccessReason = "title-only-slug-no-data";
   } else if (hasValidPrice && hasImages && hasRealTitle) {
+    const preset = String(result.finalSuccessReason ?? "");
     finalSuccessReason = hadTimeout
       ? "partial-timeout"
-      : gatewayHtmlSuccess
-        ? "gateway-full-data"
-        : htmlParseSuccess
-          ? "full-data"
-          : "full-data";
+      : preset === "local-agent-full-data"
+        ? "local-agent-full-data"
+        : gatewayHtmlSuccess
+          ? "gateway-full-data"
+          : htmlParseSuccess
+            ? "full-data"
+            : "full-data";
   } else if (hasValidPrice && hasRealTitle && !hasImages) {
     finalSuccessReason = hadTimeout ? "partial-timeout" : "title-price-no-images";
   } else if ((apiSuccess || hasRealTitle) && !hasValidPrice && !hasImages) {

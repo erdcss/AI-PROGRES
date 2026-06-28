@@ -15,6 +15,11 @@ export function getSourceAccessProviderRegistry(): SourceAccessProviderConfig[] 
   const secrets = getInternalSourceAccessSecrets();
   return [
     {
+      type: "local_agent",
+      enabled: envFlag(secrets.localAgentEndpoint) && envFlag(secrets.localAgentToken),
+      priority: 0,
+    },
+    {
       type: "generic_proxy",
       enabled: envFlag(secrets.proxyUrl ?? undefined),
       priority: 1,
@@ -23,11 +28,6 @@ export function getSourceAccessProviderRegistry(): SourceAccessProviderConfig[] 
       type: "scraping_api",
       enabled: envFlag(secrets.scrapingApiEndpoint) && envFlag(secrets.scrapingApiKey),
       priority: 2,
-    },
-    {
-      type: "local_agent",
-      enabled: envFlag(secrets.localAgentEndpoint) && envFlag(secrets.localAgentToken),
-      priority: 3,
     },
   ];
 }

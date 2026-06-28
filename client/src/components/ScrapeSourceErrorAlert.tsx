@@ -47,7 +47,8 @@ function buildDetailLines(meta?: ScrapeErrorMeta) {
       (e) =>
         e.startsWith("source-access-") ||
         e.includes("gateway-provider") ||
-        e.includes("gateway-not"),
+        e.includes("gateway-not") ||
+        e.includes("local-agent"),
     )
   ) {
     lines.push("Alternatif erişim başarısız");

@@ -23,7 +23,8 @@ export type ScrapeStageErrorCode =
   | "source-access-direct-timeout"
   | "source-access-internal-provider-unavailable"
   | "source-access-provider-failed"
-  | "source-access-no-usable-data";
+  | "source-access-no-usable-data"
+  | "local-agent-failed";
 
 export type FinalSuccessReason =
   | "api-only"
@@ -305,6 +306,7 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "source-access-internal-provider-unavailable": "Alternatif erişim kullanılamıyor",
     "source-access-provider-failed": "Alternatif erişim başarısız",
     "source-access-no-usable-data": "Geçerli ürün verisi yok",
+    "local-agent-failed": "Yerel agent başarısız",
     "scraping-provider-error": "Harici sağlayıcı hatası",
   };
   return stageErrors.map((e) => labels[e] || e).join("; ");

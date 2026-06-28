@@ -147,8 +147,15 @@ async function fetchWithLocalAgent(
 
   const response = await axios.post(
     endpoint,
-    { url, token: settings.localAgentTokenEncrypted },
-    { timeout: settings.timeoutMs, validateStatus: (s) => s < 500 },
+    { url },
+    {
+      timeout: settings.timeoutMs,
+      headers: {
+        "Content-Type": "application/json",
+        "x-agent-token": settings.localAgentTokenEncrypted,
+      },
+      validateStatus: (s) => s < 500,
+    },
   );
 
   if (!response.data || typeof response.data !== "object") return null;
