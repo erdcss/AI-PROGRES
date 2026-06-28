@@ -166,17 +166,32 @@ export async function fetchScenarioScrapeResult(
         const canPreview =
           result?.success === true || result?.previewOk === true;
         if (!canPreview) {
-          throw new Error(
-            String(result?.message || result?.error || "Çekim başarısız"),
+          const msg = String(
+            result?.deployUserMessage ||
+              result?.message ||
+              result?.error ||
+              "Çekim başarısız",
           );
+          const detail = result?.stageErrorsHuman
+            ? ` — ${String(result.stageErrorsHuman)}`
+            : "";
+          throw new Error(`${msg}${detail}`);
         }
         polled = { ...result, originalUrl: url };
         break;
       }
       if (pollData.status === "error") {
-        throw new Error(
-          pollData.code || pollData.error || "Scraping başarısız",
+        const msg = String(
+          pollData.userMessage ||
+            pollData.message ||
+            pollData.code ||
+            pollData.error ||
+            "Scraping başarısız",
         );
+        const detail = pollData.stageErrorsHuman
+          ? ` — ${String(pollData.stageErrorsHuman)}`
+          : "";
+        throw new Error(`${msg}${detail}`);
       }
     }
 

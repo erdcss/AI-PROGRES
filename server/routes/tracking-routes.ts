@@ -2,6 +2,10 @@ import type { Express, Request, Response } from "express";
 import { isTrackingEnabled } from "@shared/deploy-runtime";
 import { trackingService } from "../services/tracking.service";
 import { runManualProductCheck, getTrackingSchedulerStatus } from "../services/tracking.scheduler";
+import {
+  getProductTrackingMigrationStatus,
+  refreshProductTrackingTableStatus,
+} from "../migrations/run-product-tracking-migration";
 
 function trackingDisabled(res: Response) {
   return res.status(503).json({
@@ -35,7 +39,34 @@ export function registerTrackingRoutes(app: Express): void {
   });
 
   app.get("/api/tracking/scheduler-status", async (_req, res) => {
-    return res.json({ success: true, ...getTrackingSchedulerStatus() });
+    const migration = await refreshProductTrackingTableStatus().catch(() =>
+      getProductTrackingMigrationStatus(),
+    );
+    return res.json({
+      success: true,
+      ...getTrackingSchedulerStatus(),
+      trackingEnabled: isTrackingEnabled(),
+      migration: {
+        applied: migration.applied,
+        sqlSource: migration.sqlSource,
+        sqlPath: migration.sqlPath,
+        allTablesReady: migration.allTablesReady,
+        tables: migration.tables,
+        error: migration.error,
+      },
+    });
+  });
+
+  app.get("/api/tracking/health", async (_req, res) => {
+    const migration = await refreshProductTrackingTableStatus().catch(() =>
+      getProductTrackingMigrationStatus(),
+    );
+    return res.json({
+      success: migration.allTablesReady,
+      trackingEnabled: isTrackingEnabled(),
+      migration,
+      scheduler: getTrackingSchedulerStatus(),
+    });
   });
 
   app.post("/api/tracking/products/:id/check", async (req, res) => {

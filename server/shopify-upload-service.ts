@@ -211,6 +211,9 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
             price: normalized.price.original,
           })),
         });
+        console.log(`✅ tracked_products kaydı oluşturuldu: ${normalized.title}`);
+      } else {
+        console.info('ℹ️ tracked_products kaydı atlandı (TRACKING_ENABLED=false)');
       }
     } catch (trackErr) {
       console.warn('⚠️ Tracking kaydı oluşturulamadı (kritik değil):', trackErr);

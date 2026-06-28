@@ -2051,7 +2051,19 @@ setTimeout(check, 1000);
     const job = scrapeJobs.get(req.params.jobId);
     if (!job) return res.status(404).json({ status: 'not_found' });
     if (job.status === 'processing') return res.json({ status: 'processing' });
-    if (job.status === 'error') return res.json({ status: 'error', error: job.error, code: (job as any).code });
+    if (job.status === 'error') {
+      return res.json({
+        status: 'error',
+        error: job.error,
+        code: (job as any).code,
+        message: (job as any).userMessage || job.error,
+        userMessage: (job as any).userMessage,
+        finalSuccessReason: (job as any).finalSuccessReason,
+        stageErrors: (job as any).stageErrors,
+        stageErrorsHuman: (job as any).stageErrorsHuman,
+        scrapeDiagnostics: (job as any).scrapeDiagnostics,
+      });
+    }
     const result = job.result;
     scrapeJobs.delete(req.params.jobId);
     return res.json({ status: 'done', result });
@@ -2121,7 +2133,7 @@ setTimeout(check, 1000);
           (req.body.useBrowser ? "browser" : "auto-fast");
 
         const { enrichTrendyolResult, resolveProductTitle } = await import("./trendyol-result-normalizer");
-        const { formatScrapeError, logScrapeDiagnostics } = await import("@shared/scrape-runtime");
+        const { formatScrapeError, logScrapeDiagnostics, formatScrapeDeployUserMessage, formatStageErrorsForUser } = await import("@shared/scrape-runtime");
         const { runTrendyolScrapePipeline } = await import("./trendyol-scrape-pipeline");
 
         let result: any = null;
@@ -2132,8 +2144,14 @@ setTimeout(check, 1000);
           scrapeDiagnostics = pipeline.diagnostics;
           logScrapeDiagnostics(scrapeDiagnostics);
 
-          if (!pipeline.success) {
-            console.error("❌ Scrape pipeline: hiçbir veri bulunamadı", scrapeDiagnostics.stageErrors);
+          if (!pipeline.success && !pipeline.partialSuccess) {
+            const userMessage = formatScrapeDeployUserMessage(scrapeDiagnostics);
+            const stageErrorsHuman = formatStageErrorsForUser(scrapeDiagnostics.stageErrors ?? []);
+            console.error("❌ Scrape pipeline: hiçbir veri bulunamadı", {
+              stageErrors: scrapeDiagnostics.stageErrors,
+              finalSuccessReason: scrapeDiagnostics.finalSuccessReason,
+              userMessage,
+            });
             const _entry = scrapeJobs.get(jobId);
             if (_entry) {
               scrapeJobs.set(jobId, {
@@ -2141,13 +2159,18 @@ setTimeout(check, 1000);
                 status: "error",
                 error: "extraction-failed",
                 code: "extraction-failed",
+                userMessage,
+                finalSuccessReason: scrapeDiagnostics.finalSuccessReason ?? "no-usable-data",
+                stageErrors: scrapeDiagnostics.stageErrors,
+                stageErrorsHuman,
+                scrapeDiagnostics,
               });
             }
             return;
           }
 
           result = pipeline.result;
-          if (pipeline.partialSuccess) {
+          if (pipeline.partialSuccess || !pipeline.success) {
             console.warn("⚠️ Scrape pipeline kısmi veri ile tamamlandı", scrapeDiagnostics.stageErrors);
           }
         } catch (pipelineErr) {
@@ -2522,6 +2545,12 @@ setTimeout(check, 1000);
               blockedForExport: result.blockedForExport,
               previewOk: result.previewOk,
               stageErrors: result.stageErrors || scrapeDiagnostics?.stageErrors || [],
+              stageErrorsHuman: formatStageErrorsForUser(
+                (result.stageErrors || scrapeDiagnostics?.stageErrors || []) as import("@shared/scrape-runtime").ScrapeStageErrorCode[],
+              ),
+              deployUserMessage: scrapeDiagnostics
+                ? formatScrapeDeployUserMessage(scrapeDiagnostics)
+                : undefined,
               finalSuccessReason: scrapeDiagnostics?.finalSuccessReason || result.finalSuccessReason,
               extractionMethod: result.extractionMethod || 'trendyol-pipeline',
               scenario: result.scenario,

@@ -29,4 +29,22 @@ if (!fs.existsSync(indexDst)) {
   process.exit(1);
 }
 
+// Migration SQL — Railway /app/migrations ve dist/migrations için kopyala
+const migrationFile = "0001_product_tracking_system.sql";
+const migrationSrc = path.resolve("migrations", migrationFile);
+const migrationTargets = [
+  path.join(dist, "migrations", migrationFile),
+  path.join(dist, "server", "migrations", migrationFile),
+];
+
+if (fs.existsSync(migrationSrc)) {
+  for (const target of migrationTargets) {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(migrationSrc, target);
+    console.log(`✅ Migration kopyalandı: ${target}`);
+  }
+} else {
+  console.warn(`⚠️ Post-build: ${migrationSrc} bulunamadı (bundled SQL fallback kullanılacak)`);
+}
+
 console.log("✅ Post-build tamamlandı");

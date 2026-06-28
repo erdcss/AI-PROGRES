@@ -23,7 +23,7 @@ class ShopifyChangeTracker {
     if (!cached) {
       // İlk kez eklenen ürün
       this.productCache.set(shopifyProductId, currentData);
-      console.log(`📦 New product tracked: ${currentData.title}`);
+      console.log(`📦 Shopify product cached: ${currentData.title}`);
       
       // WebSocket bildirimi
       webSocketService.broadcast('shopify:new-product', {

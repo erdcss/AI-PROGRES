@@ -209,23 +209,38 @@ export async function runTrendyolScrapePipeline(
   // ── 1) Trendyol API ──
   if (!isPastDeadline()) {
     diagnostics.apiStarted = true;
-    console.log("⚡ [1/6] Trendyol API...");
+    const apiStart = Date.now();
+    console.log("⚡ [1/6] Trendyol API başlıyor...");
     try {
       apiProduct = await withStageTimeout(
         () => fetchTrendyolProductByUrl(url),
         Math.min(STAGE_TIMEOUT.api, remainingMs()),
         "api-timeout",
       );
+      diagnostics.apiDurationMs = Date.now() - apiStart;
       if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
         result = convertApiProduct(apiProduct);
         diagnostics.apiSuccess = true;
-        console.log(`✅ [1/6] Trendyol API: "${apiProduct.title}" — ${apiProduct.price.original} TL`);
+        console.log(
+          `✅ [1/6] Trendyol API başarılı (${diagnostics.apiDurationMs}ms): "${apiProduct.title}" — ${apiProduct.price.original} TL`,
+        );
+      } else {
+        diagnostics.apiSuccess = false;
+        diagnostics.apiError = apiProduct ? "api-empty-payload" : "api-null-response";
+        console.warn(
+          `⚠️ [1/6] Trendyol API boş yanıt (${diagnostics.apiDurationMs}ms): apiSuccess=false, apiError=${diagnostics.apiError}`,
+        );
       }
     } catch (err) {
+      diagnostics.apiDurationMs = Date.now() - apiStart;
       const code: ScrapeStageErrorCode =
         err instanceof ScrapeStageTimeoutError ? err.code : "api-error";
       pushStageError(diagnostics, code);
-      console.warn(`⚠️ [1/6] API soft-fail (${code})`);
+      diagnostics.apiSuccess = false;
+      diagnostics.apiError = code;
+      console.warn(
+        `⚠️ [1/6] API soft-fail (${code}, ${diagnostics.apiDurationMs}ms): apiSuccess=false`,
+      );
     }
   }
 
@@ -367,6 +382,7 @@ export async function runTrendyolScrapePipeline(
       const code: ScrapeStageErrorCode =
         err instanceof ScrapeStageTimeoutError ? err.code : "image-fallback-error";
       pushStageError(diagnostics, code);
+      diagnostics.imageFallbackError = code;
       console.warn(`⚠️ [5/6] Image fallback soft-fail (${code})`);
     }
   } else if (!stillNoImages) {
@@ -390,6 +406,7 @@ export async function runTrendyolScrapePipeline(
       : "sufficient-data";
   } else if (!puppeteerAllowed()) {
     diagnostics.scenarioSkippedReason = "puppeteer-disabled-in-cloud";
+    pushStageError(diagnostics, "puppeteer-disabled-in-cloud");
     console.info("ℹ️ [6/6] Scenario atlandı (cloud): puppeteer-disabled-in-cloud");
   } else if (
     modes.effective === "auto-fast" &&

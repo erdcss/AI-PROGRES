@@ -41,6 +41,8 @@ export type ScrapeDiagnostics = {
   puppeteerAllowed: boolean;
   apiStarted: boolean;
   apiSuccess: boolean;
+  apiError?: string;
+  apiDurationMs?: number;
   directHtmlStarted: boolean;
   directHtmlSuccess: boolean;
   directHtmlError?: string;
@@ -54,6 +56,7 @@ export type ScrapeDiagnostics = {
   imageFetcherError?: string;
   imageFallbackStarted: boolean;
   imageFallbackSuccess: boolean;
+  imageFallbackError?: string;
   scenarioSkippedReason?: string;
   stageErrors: ScrapeStageErrorCode[];
   finalSuccessReason?: FinalSuccessReason | string;
@@ -124,6 +127,8 @@ export function logScrapeDiagnostics(diagnostics: ScrapeDiagnostics): void {
       puppeteerAllowed: diagnostics.puppeteerAllowed,
       apiStarted: diagnostics.apiStarted,
       apiSuccess: diagnostics.apiSuccess,
+      apiError: diagnostics.apiError ?? null,
+      apiDurationMs: diagnostics.apiDurationMs ?? null,
       directHtmlStarted: diagnostics.directHtmlStarted,
       directHtmlSuccess: diagnostics.directHtmlSuccess,
       directHtmlError: diagnostics.directHtmlError ?? null,
@@ -137,6 +142,7 @@ export function logScrapeDiagnostics(diagnostics: ScrapeDiagnostics): void {
       imageFetcherError: diagnostics.imageFetcherError ?? null,
       imageFallbackStarted: diagnostics.imageFallbackStarted,
       imageFallbackSuccess: diagnostics.imageFallbackSuccess,
+      imageFallbackError: diagnostics.imageFallbackError ?? null,
       scenarioSkippedReason: diagnostics.scenarioSkippedReason ?? null,
       stageErrors: diagnostics.stageErrors,
       finalSuccessReason: diagnostics.finalSuccessReason ?? null,
@@ -188,6 +194,74 @@ export function formatScrapeError(error: unknown): {
   return {
     message: error instanceof Error ? error.message : "Bilinmeyen scrape hatası",
   };
+}
+
+export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): string {
+  const errors = diagnostics.stageErrors ?? [];
+  const cloud = diagnostics.isCloudRuntime;
+
+  if (errors.length === 0 && !diagnostics.apiSuccess) {
+    return cloud
+      ? "Trendyol'dan ürün verisi alınamadı. Railway IP'si engellenmiş veya zaman aşımına düşmüş olabilir."
+      : "Trendyol'dan ürün verisi alınamadı.";
+  }
+
+  const timeoutLike = errors.some((e) =>
+    ["direct-html-timeout", "api-timeout", "image-proxy-timeout", "image-fallback-timeout", "pipeline-global-timeout"].includes(e),
+  );
+  const puppeteerOff = errors.includes("puppeteer-disabled-in-cloud") || diagnostics.scenarioSkippedReason?.includes("puppeteer");
+
+  const parts: string[] = [];
+
+  if (cloud && (timeoutLike || errors.length >= 2)) {
+    parts.push(
+      "Railway sunucu IP'si Trendyol tarafından engellenmiş veya istekler zaman aşımına düşmüş olabilir.",
+    );
+  }
+
+  if (puppeteerOff) {
+    parts.push("Cloud ortamında tarayıcı tabanlı çekim kapalı (puppeteer-disabled-in-cloud).");
+  }
+
+  if (errors.includes("api-timeout") || errors.includes("api-error")) {
+    parts.push("Trendyol API yanıt vermedi.");
+  }
+  if (errors.includes("direct-html-timeout") || errors.includes("direct-html-error")) {
+    parts.push("Ürün sayfası HTML'i alınamadı.");
+  }
+  if (errors.includes("image-proxy-timeout") || errors.includes("image-fallback-timeout")) {
+    parts.push("Görseller alınamadı.");
+  }
+
+  const reason = diagnostics.finalSuccessReason ?? "no-usable-data";
+  if (reason === "no-usable-data" || reason === "title-only-slug-no-data") {
+    parts.push("Geçerli fiyat, başlık veya görsel bulunamadı.");
+  }
+
+  if (parts.length === 0) {
+    return "Ürün verisi çekilemedi. Lütfen daha sonra tekrar deneyin.";
+  }
+
+  return parts.join(" ");
+}
+
+export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): string {
+  const labels: Record<string, string> = {
+    "api-timeout": "Trendyol API zaman aşımı",
+    "api-error": "Trendyol API hatası",
+    "direct-html-timeout": "Sayfa HTML zaman aşımı",
+    "direct-html-error": "Sayfa HTML alınamadı",
+    "html-parse-timeout": "HTML ayrıştırma zaman aşımı",
+    "html-parse-error": "HTML ayrıştırma hatası",
+    "puppeteer-disabled-in-cloud": "Cloud'da Puppeteer kapalı",
+    "image-proxy-timeout": "Görsel proxy zaman aşımı",
+    "image-proxy-error": "Görsel proxy hatası",
+    "image-fallback-timeout": "Görsel yedek zaman aşımı",
+    "image-fallback-error": "Görsel yedek hatası",
+    "pipeline-global-timeout": "Toplam pipeline zaman aşımı",
+    "extraction-failed": "Veri çıkarma başarısız",
+  };
+  return stageErrors.map((e) => labels[e] || e).join("; ");
 }
 
 export function hasMinimumScrapeData(fields: {
