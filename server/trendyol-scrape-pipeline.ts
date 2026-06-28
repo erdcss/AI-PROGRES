@@ -26,14 +26,23 @@ import { filterValidProductImages } from "./trendyol-image-utils";
 import { mergeApiWithScrape, resolveProductTitle } from "./trendyol-result-normalizer";
 import { scenarioBasedScrape } from "./scenario-based-scraper";
 
-const STAGE_TIMEOUT = {
+const STAGE_TIMEOUT_BASE = {
   api: 10_000,
-  directHtml: 18_000,
+  directHtml: 22_000,
   htmlParse: 4_000,
   imageFetcher: 18_000,
   imageFallback: 12_000,
   scenario: 75_000,
 } as const;
+
+function stageTimeouts() {
+  const cloud = isCloudRuntime();
+  return {
+    ...STAGE_TIMEOUT_BASE,
+    directHtml: cloud ? 32_000 : STAGE_TIMEOUT_BASE.directHtml,
+    imageFetcher: cloud ? 22_000 : STAGE_TIMEOUT_BASE.imageFetcher,
+  };
+}
 
 const GLOBAL_TIMEOUT_MS = () => (isCloudRuntime() ? 55_000 : 90_000);
 
@@ -101,6 +110,7 @@ function finalizeOutcome(
   const quality = evaluateScrapeQuality(url, result, {
     apiSuccess: diagnostics.apiSuccess,
     htmlParseSuccess: diagnostics.htmlParseSuccess,
+    gatewayHtmlSuccess: diagnostics.gatewayHtmlSuccess,
     stageErrors: diagnostics.stageErrors,
   });
 
@@ -162,6 +172,7 @@ export async function runTrendyolScrapePipeline(
   const globalDeadline = pipelineStart + GLOBAL_TIMEOUT_MS();
   const modes = resolveEffectiveScrapeMode(selectedScrapeMode);
   const diagnostics = createDiagnostics(modes);
+  const STAGE_TIMEOUT = stageTimeouts();
 
   const isPastDeadline = () => Date.now() >= globalDeadline;
   const remainingMs = () => Math.max(500, globalDeadline - Date.now());
@@ -206,18 +217,36 @@ export async function runTrendyolScrapePipeline(
     }
   };
 
-  // ── 1) Trendyol API ──
+  // ── 1+2) Trendyol API ve Direct HTML paralel ──
   if (!isPastDeadline()) {
     diagnostics.apiStarted = true;
+    diagnostics.directHtmlStarted = true;
     const apiStart = Date.now();
-    console.log("⚡ [1/6] Trendyol API başlıyor...");
-    try {
-      apiProduct = await withStageTimeout(
+    console.log("⚡ [1-2/6] Trendyol API + Direct HTML (paralel)...");
+
+    const htmlRetries = isCloudRuntime() ? 2 : 4;
+
+    const [apiSettled, htmlSettled] = await Promise.allSettled([
+      withStageTimeout(
         () => fetchTrendyolProductByUrl(url),
         Math.min(STAGE_TIMEOUT.api, remainingMs()),
         "api-timeout",
-      );
-      diagnostics.apiDurationMs = Date.now() - apiStart;
+      ),
+      (async () => {
+        const { fetchTrendyolDirectHtmlRaw } = await import("./trendyol-direct-html");
+        const directRaw = await withStageTimeout(
+          () => fetchTrendyolDirectHtmlRaw(url, htmlRetries),
+          Math.min(STAGE_TIMEOUT.directHtml, remainingMs()),
+          "direct-html-timeout",
+        );
+        return directRaw?.html ?? null;
+      })(),
+    ]);
+
+    diagnostics.apiDurationMs = Date.now() - apiStart;
+
+    if (apiSettled.status === "fulfilled") {
+      apiProduct = apiSettled.value;
       if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
         result = convertApiProduct(apiProduct);
         diagnostics.apiSuccess = true;
@@ -231,43 +260,31 @@ export async function runTrendyolScrapePipeline(
           `⚠️ [1/6] Trendyol API boş yanıt (${diagnostics.apiDurationMs}ms): apiSuccess=false, apiError=${diagnostics.apiError}`,
         );
       }
-    } catch (err) {
-      diagnostics.apiDurationMs = Date.now() - apiStart;
+    } else {
+      const err = apiSettled.reason;
       const code: ScrapeStageErrorCode =
         err instanceof ScrapeStageTimeoutError ? err.code : "api-error";
       pushStageError(diagnostics, code);
       diagnostics.apiSuccess = false;
       diagnostics.apiError = code;
-      console.warn(
-        `⚠️ [1/6] API soft-fail (${code}, ${diagnostics.apiDurationMs}ms): apiSuccess=false`,
-      );
+      console.warn(`⚠️ [1/6] API soft-fail (${code}, ${diagnostics.apiDurationMs}ms)`);
     }
-  }
 
-  if (isPastDeadline()) forcedGlobalTimeout = true;
-
-  // ── 2) Direct HTML — Safari UA ──
-  if (!isPastDeadline() && !forcedGlobalTimeout) {
-    diagnostics.directHtmlStarted = true;
-    console.log("⚡ [2/6] Direct HTML (Safari UA)...");
-    try {
-      const { fetchTrendyolDirectHtmlRaw } = await import("./trendyol-direct-html");
-      const directRaw = await withStageTimeout(
-        () => fetchTrendyolDirectHtmlRaw(url),
-        Math.min(STAGE_TIMEOUT.directHtml, remainingMs()),
-        "direct-html-timeout",
-      );
-      directHtml = directRaw?.html ?? null;
+    if (htmlSettled.status === "fulfilled") {
+      directHtml = htmlSettled.value;
       diagnostics.directHtmlSuccess = Boolean(directHtml && directHtml.length > 5000);
       if (diagnostics.directHtmlSuccess) {
-        console.log(`✅ [2/6] Direct HTML: ${directHtml!.length} bytes`);
+        console.log(`✅ [2/6] Direct HTML: ${directHtml!.length} bytes (${diagnostics.apiDurationMs}ms)`);
+      } else {
+        console.warn("⚠️ [2/6] Direct HTML: ürün verisi içeren HTML alınamadı");
       }
-    } catch (err) {
+    } else {
+      const err = htmlSettled.reason;
       const code: ScrapeStageErrorCode =
         err instanceof ScrapeStageTimeoutError ? err.code : "direct-html-error";
       pushStageError(diagnostics, code);
       diagnostics.directHtmlError = code;
-      console.warn(`⚠️ [2/6] Direct HTML soft-fail (${code}), devam ediliyor`);
+      console.warn(`⚠️ [2/6] Direct HTML soft-fail (${code})`);
     }
   }
 
@@ -450,19 +467,27 @@ export async function runTrendyolScrapePipeline(
 
   if (isPastDeadline()) forcedGlobalTimeout = true;
 
-  // ── 6) Scenario — yalnızca Puppeteer izinliyse ──
+  // ── 6) Scenario — yalnızca eksik veri + Puppeteer izinliyse ──
   const fieldsBeforeScenario = evaluateFields(result, url);
+  const coreDataFromHtml =
+    diagnostics.htmlParseSuccess &&
+    fieldsBeforeScenario.hasTitle &&
+    fieldsBeforeScenario.hasPrice &&
+    fieldsBeforeScenario.hasImages;
+
   const scenarioNeeded =
+    !coreDataFromHtml &&
     !forcedGlobalTimeout &&
     !isPastDeadline() &&
     (!hasMinimumScrapeData(fieldsBeforeScenario) ||
-      !isCompleteScrapeData(fieldsBeforeScenario) ||
-      !hasRealTrendyolVariants(result?.variants));
+      !isCompleteScrapeData(fieldsBeforeScenario));
 
   if (!scenarioNeeded) {
-    diagnostics.scenarioSkippedReason = forcedGlobalTimeout
-      ? "global-timeout"
-      : "sufficient-data";
+    diagnostics.scenarioSkippedReason = coreDataFromHtml
+      ? "html-parse-complete"
+      : forcedGlobalTimeout
+        ? "global-timeout"
+        : "sufficient-data";
   } else if (!puppeteerAllowed()) {
     diagnostics.scenarioSkippedReason = "puppeteer-disabled-in-cloud";
     pushStageError(diagnostics, "puppeteer-disabled-in-cloud");

@@ -1,6 +1,7 @@
 import { fetchTrendyolProductByUrl } from './trendyol-product-api';
 import {
   brandFromTrendyolUrl,
+  cleanTrendyolDisplayTitle,
   isValidTrendyolProductTitle,
   titleFromTrendyolUrl,
 } from './trendyol-title-utils';
@@ -32,7 +33,7 @@ const PLACEHOLDER_TITLES = new Set([
 ]);
 
 export function resolveProductTitle(url: string, title?: string | null): string {
-  const t = String(title || '').trim();
+  const t = cleanTrendyolDisplayTitle(String(title || "").trim());
   if (t && isValidTrendyolProductTitle(t) && !PLACEHOLDER_TITLES.has(t)) {
     return t;
   }

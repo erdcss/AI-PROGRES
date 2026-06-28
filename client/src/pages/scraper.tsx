@@ -13,6 +13,7 @@ import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
 import * as Collapsible from "@radix-ui/react-collapsible";
 
 import { ScrapeSourceErrorAlert } from "@/components/ScrapeSourceErrorAlert";
+import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";

@@ -15,6 +15,7 @@ import {
 import { getTrendyolProductFromState } from './trendyol-product-state';
 import {
   brandFromTrendyolUrl,
+  cleanTrendyolDisplayTitle,
   isInvalidTrendyolTitle,
   titleFromTrendyolUrl,
 } from './trendyol-title-utils';
@@ -90,7 +91,13 @@ function parseFromProductState(html: string): {
         })
         .filter(Boolean),
     ),
-    description: String(product.description || '').trim(),
+    description: String(
+      product.description ||
+        product.contentDescription ||
+        product.productDescription ||
+        product.info ||
+        "",
+    ).trim(),
     category: String((product.category as { name?: string })?.name || product.categoryName || '').trim(),
   };
 }
@@ -164,6 +171,7 @@ export function parseTrendyolProductFromHtmlContent(
     $('meta[property="og:title"]').attr('content') ||
     $('h1').first().text().trim() ||
     '';
+  title = cleanTrendyolDisplayTitle(title);
   if (isInvalidTrendyolTitle(title) || isBlockedTrendyolTitle(title)) {
     title = titleFromTrendyolUrl(url) || title;
   }

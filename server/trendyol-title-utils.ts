@@ -62,15 +62,24 @@ export function titleFromTrendyolUrl(url: string): string | null {
   }
 }
 
+export function cleanTrendyolDisplayTitle(title: string): string {
+  return title
+    .replace(/\s*[-–|]\s*Fiyatı,?\s*Yorumları.*$/i, "")
+    .replace(/\s*[-–|]\s*Trendyol\.com.*$/i, "")
+    .replace(/\s*[-–|]\s*Trendyol\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function brandFromTrendyolUrl(url: string): string | null {
   try {
-    const parts = new URL(url).pathname.split('/').filter(Boolean);
+    const parts = new URL(url).pathname.split("/").filter(Boolean);
     if (parts.length >= 2 && /-p-\d+$/i.test(parts[parts.length - 1])) {
       return parts[0]
-        .split('-')
+        .split("-")
         .filter(Boolean)
         .map(capitalizeWord)
-        .join(' ');
+        .join(" ");
     }
     return null;
   } catch {

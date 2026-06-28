@@ -13,7 +13,10 @@ export type FinalSuccessReason =
   | "title-price-no-images"
   | "full-data"
   | "no-usable-data"
-  | "partial-timeout";
+  | "partial-timeout"
+  | "gateway-html-success"
+  | "gateway-full-data"
+  | "gateway-no-data";
 
 export type ScrapeQuality = {
   titleSource: TitleSource;
@@ -71,11 +74,13 @@ export function evaluateScrapeQuality(
   opts: {
     apiSuccess?: boolean;
     htmlParseSuccess?: boolean;
+    gatewayHtmlSuccess?: boolean;
     stageErrors?: string[];
   } = {},
 ): ScrapeQuality {
   const apiSuccess = opts.apiSuccess === true;
   const htmlParseSuccess = opts.htmlParseSuccess === true;
+  const gatewayHtmlSuccess = opts.gatewayHtmlSuccess === true;
   const stageErrors = opts.stageErrors ?? [];
 
   const title = resolveProductTitle(url, result.title as string | undefined);
@@ -101,7 +106,13 @@ export function evaluateScrapeQuality(
   if (slugOnlyNoData) {
     finalSuccessReason = "title-only-slug-no-data";
   } else if (hasValidPrice && hasImages && hasRealTitle) {
-    finalSuccessReason = hadTimeout ? "partial-timeout" : "full-data";
+    finalSuccessReason = hadTimeout
+      ? "partial-timeout"
+      : gatewayHtmlSuccess
+        ? "gateway-full-data"
+        : htmlParseSuccess
+          ? "full-data"
+          : "full-data";
   } else if (hasValidPrice && hasRealTitle && !hasImages) {
     finalSuccessReason = hadTimeout ? "partial-timeout" : "title-price-no-images";
   } else if ((apiSuccess || hasRealTitle) && !hasValidPrice && !hasImages) {
