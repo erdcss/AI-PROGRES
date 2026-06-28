@@ -1219,6 +1219,10 @@ export function registerRoutes(app: Express): Server {
   // Create HTTP server - will be configured by main server
   const httpServer = createServer(app);
 
+  // Ürün Takip Sistemi v2 + Scrape Gateway — legacy /api/tracking/:id'den ÖNCE kayıt
+  registerTrackingRoutes(app);
+  registerScrapeGatewayRoutes(app);
+
   // Initialize Canva OAuth on startup
   initCanvaOAuth();
 
@@ -8172,7 +8176,13 @@ setTimeout(check, 1000);
    */
   app.get('/api/tracking/:id', async (req, res) => {
     try {
-      const productId = parseInt(req.params.id);
+      const productId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Geçersiz ürün ID',
+        });
+      }
       
       // Get product details
       const [product] = await db
@@ -8244,7 +8254,10 @@ setTimeout(check, 1000);
    */
   app.post('/api/tracking/:id/pause', async (req, res) => {
     try {
-      const productId = parseInt(req.params.id);
+      const productId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return res.status(400).json({ success: false, error: 'Geçersiz ürün ID' });
+      }
       const { pause } = req.body; // true = pause, false = resume
       
       await db
@@ -8312,7 +8325,10 @@ setTimeout(check, 1000);
    */
   app.delete('/api/tracking/:id', async (req, res) => {
     try {
-      const productId = parseInt(req.params.id);
+      const productId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return res.status(400).json({ success: false, error: 'Geçersiz ürün ID' });
+      }
       
       // Delete will cascade to variants, price history, etc.
       await db
@@ -8340,7 +8356,10 @@ setTimeout(check, 1000);
    */
   app.post('/api/tracking/:id/check-now', async (req, res) => {
     try {
-      const productId = parseInt(req.params.id);
+      const productId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return res.status(400).json({ success: false, error: 'Geçersiz ürün ID' });
+      }
       const [product] = await db
         .select()
         .from(products)
@@ -8365,7 +8384,10 @@ setTimeout(check, 1000);
    */
   app.post('/api/tracking/:id/set-interval', async (req, res) => {
     try {
-      const productId = parseInt(req.params.id);
+      const productId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return res.status(400).json({ success: false, error: 'Geçersiz ürün ID' });
+      }
       const { intervalSeconds } = req.body;
       if (!intervalSeconds || intervalSeconds < 60) {
         return res.status(400).json({ success: false, error: 'Geçersiz aralık (min 60 saniye)' });
@@ -9087,11 +9109,6 @@ setTimeout(check, 1000);
     }
   });
 
-  // Ürün Takip Sistemi v2 + Scrape Gateway API
-  registerTrackingRoutes(app);
-  registerScrapeGatewayRoutes(app);
-
-  // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
   memoryManager.purgeAll();
   notificationGateway.clearNotificationCache();

@@ -1,4 +1,67 @@
-/** Bundled fallback — SQL dosyası deploy paketinde bulunamazsa kullanılır */
+/** Settings tabloları — eski migration dosyalarına eklenir */
+export const PRODUCT_TRACKING_SETTINGS_SQL = `
+CREATE TABLE IF NOT EXISTS tracking_settings (
+  id SERIAL PRIMARY KEY,
+  tracking_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  scheduler_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  auto_shopify_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  check_interval_minutes INTEGER NOT NULL DEFAULT 60,
+  batch_size INTEGER NOT NULL DEFAULT 5,
+  request_delay_ms INTEGER NOT NULL DEFAULT 1500,
+  max_errors_before_pause INTEGER NOT NULL DEFAULT 5,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS scrape_gateway_settings (
+  id SERIAL PRIMARY KEY,
+  gateway_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  proxy_fallback_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  provider_type TEXT NOT NULL DEFAULT 'none',
+  provider_endpoint TEXT,
+  provider_api_key_encrypted TEXT,
+  proxy_url_encrypted TEXT,
+  local_agent_endpoint TEXT,
+  local_agent_token_encrypted TEXT,
+  timeout_ms INTEGER NOT NULL DEFAULT 20000,
+  retry_count INTEGER NOT NULL DEFAULT 2,
+  retry_delay_ms INTEGER NOT NULL DEFAULT 1500,
+  use_proxy_for_html BOOLEAN NOT NULL DEFAULT TRUE,
+  use_proxy_for_images BOOLEAN NOT NULL DEFAULT TRUE,
+  use_proxy_for_api BOOLEAN NOT NULL DEFAULT FALSE,
+  last_test_status TEXT,
+  last_test_at TIMESTAMP,
+  last_test_error TEXT,
+  last_working_provider TEXT,
+  last_test_details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_test_success BOOLEAN,
+  last_test_message TEXT,
+  last_test_url TEXT,
+  last_test_html_size INTEGER,
+  last_test_title_found BOOLEAN,
+  last_test_price_found BOOLEAN,
+  last_test_images_found INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE detected_changes ADD COLUMN IF NOT EXISTS seen_at TIMESTAMP;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_error TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_working_provider TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_url TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_html_size INTEGER;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_title_found BOOLEAN;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_price_found BOOLEAN;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_images_found INTEGER;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS local_agent_endpoint TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS local_agent_token_encrypted TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_status TEXT;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_details JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_success BOOLEAN;
+ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_message TEXT;
+`;
+
+/** Bundled fallback — SQL dosyası deploy paketinde bulunamazsa veya eskiyse kullanılır */
 export const PRODUCT_TRACKING_MIGRATION_SQL = `-- Idempotent migration: Ürün Takip Sistemi v2
 CREATE TABLE IF NOT EXISTS tracked_products (
   id SERIAL PRIMARY KEY,
@@ -105,62 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_product_snapshots_product ON product_snapshots(tr
 CREATE INDEX IF NOT EXISTS idx_detected_changes_product ON detected_changes(tracked_product_id);
 CREATE INDEX IF NOT EXISTS idx_detected_changes_status ON detected_changes(status);
 CREATE INDEX IF NOT EXISTS idx_sync_logs_product ON sync_logs(tracked_product_id);
-
-ALTER TABLE detected_changes ADD COLUMN IF NOT EXISTS seen_at TIMESTAMP;
-
-CREATE TABLE IF NOT EXISTS tracking_settings (
-  id SERIAL PRIMARY KEY,
-  tracking_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  scheduler_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  auto_shopify_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-  check_interval_minutes INTEGER NOT NULL DEFAULT 60,
-  batch_size INTEGER NOT NULL DEFAULT 5,
-  request_delay_ms INTEGER NOT NULL DEFAULT 1500,
-  max_errors_before_pause INTEGER NOT NULL DEFAULT 5,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS scrape_gateway_settings (
-  id SERIAL PRIMARY KEY,
-  gateway_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  proxy_fallback_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-  provider_type TEXT NOT NULL DEFAULT 'none',
-  provider_endpoint TEXT,
-  provider_api_key_encrypted TEXT,
-  proxy_url_encrypted TEXT,
-  timeout_ms INTEGER NOT NULL DEFAULT 20000,
-  retry_count INTEGER NOT NULL DEFAULT 2,
-  retry_delay_ms INTEGER NOT NULL DEFAULT 1500,
-  use_proxy_for_html BOOLEAN NOT NULL DEFAULT TRUE,
-  use_proxy_for_images BOOLEAN NOT NULL DEFAULT TRUE,
-  use_proxy_for_api BOOLEAN NOT NULL DEFAULT FALSE,
-  last_test_at TIMESTAMP,
-  last_test_success BOOLEAN,
-  last_test_message TEXT,
-  last_test_error TEXT,
-  last_working_provider TEXT,
-  last_test_url TEXT,
-  last_test_html_size INTEGER,
-  last_test_title_found BOOLEAN,
-  last_test_price_found BOOLEAN,
-  last_test_images_found INTEGER,
-  local_agent_endpoint TEXT,
-  local_agent_token_encrypted TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_error TEXT;
-ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_working_provider TEXT;
-ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_url TEXT;
-ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_html_size INTEGER;
-ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_title_found BOOLEAN;
-ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_price_found BOOLEAN;
-ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_images_found INTEGER;
-ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS local_agent_endpoint TEXT;
-ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS local_agent_token_encrypted TEXT;
-`;
+${PRODUCT_TRACKING_SETTINGS_SQL}`;
 
 export const PRODUCT_TRACKING_TABLES = [
   "tracked_products",
@@ -172,3 +180,17 @@ export const PRODUCT_TRACKING_TABLES = [
   "tracking_settings",
   "scrape_gateway_settings",
 ] as const;
+
+export function migrationSqlIncludesSettingsTables(sql: string): boolean {
+  return sql.includes("tracking_settings") && sql.includes("scrape_gateway_settings");
+}
+
+export function augmentMigrationSql(fileSql: string): string {
+  if (migrationSqlIncludesSettingsTables(fileSql)) {
+    return fileSql;
+  }
+  console.warn(
+    "⚠️ Migration dosyası eski (settings tabloları yok) — embedded settings SQL ekleniyor",
+  );
+  return `${fileSql.trim()}\n\n-- Settings tables supplement\n${PRODUCT_TRACKING_SETTINGS_SQL}`;
+}

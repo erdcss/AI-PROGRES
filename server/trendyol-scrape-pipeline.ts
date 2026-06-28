@@ -299,9 +299,24 @@ export async function runTrendyolScrapePipeline(
     diagnostics.gatewayStarted = true;
     const gwStart = Date.now();
     try {
-      const { getScrapeGatewaySettingsRaw } = await import("./services/scrape-gateway-settings.service");
+      const { tryGetScrapeGatewaySettingsRaw } = await import(
+        "./services/scrape-gateway-settings.service"
+      );
       const { isProviderConfigured } = await import("./services/scrape-gateway-status");
-      const gwSettings = await getScrapeGatewaySettingsRaw();
+      const { ensureProductTrackingTablesReady } = await import(
+        "./migrations/run-product-tracking-migration"
+      );
+
+      await ensureProductTrackingTablesReady();
+      const gwSettings = await tryGetScrapeGatewaySettingsRaw();
+
+      if (!gwSettings) {
+        diagnostics.gatewaySkippedReason = "gateway-settings-table-missing";
+        diagnostics.gatewayError = "gateway-settings-table-missing";
+        pushStageError(diagnostics, "gateway-settings-table-missing");
+        if (isCloudRuntime()) skipHeavyStages = true;
+        console.warn("⚠️ [GW] scrape_gateway_settings tablosu hazır değil — migration çalışmalı");
+      } else {
       diagnostics.gatewayProviderType = gwSettings.providerType;
 
       if (!gwSettings.gatewayEnabled || !gwSettings.proxyFallbackEnabled) {
@@ -361,6 +376,7 @@ export async function runTrendyolScrapePipeline(
             `✅ [GW] Gateway (${gw.providerType}, ${diagnostics.gatewayDurationMs}ms): html=${gw.htmlSuccess}, images=${gw.images.length}`,
           );
         }
+      }
       }
     } catch (err) {
       diagnostics.gatewayDurationMs = Date.now() - gwStart;

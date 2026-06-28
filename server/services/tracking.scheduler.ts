@@ -1,7 +1,11 @@
 import { db } from "../db";
 import { trackedProducts, detectedChanges } from "@shared/schema";
 import { eq, and, sql, desc, isNull, count } from "drizzle-orm";
-import { getTrackingSettings } from "./tracking-settings.service";
+import {
+  getTrackingSettings,
+  isTrackingSettingsTableReady,
+} from "./tracking-settings.service";
+import { isScrapeGatewaySettingsTableReady } from "./scrape-gateway-settings.service";
 import { trackingService } from "./tracking.service";
 import { fetchSourceForTracking } from "./source-fetcher.service";
 import { compareSnapshots, persistDetectedChanges } from "./product-diff.service";
@@ -251,10 +255,51 @@ export function isTrackingSchedulerRunning(): boolean {
 }
 
 export async function getTrackingSchedulerStatus() {
-  const settings = await getTrackingSettings();
   const migration = await refreshProductTrackingTableStatus().catch(() =>
     getProductTrackingMigrationStatus(),
   );
+
+  let settings: Awaited<ReturnType<typeof getTrackingSettings>> | null = null;
+  let settingsReady = false;
+  try {
+    settingsReady = await isTrackingSettingsTableReady();
+    if (settingsReady) {
+      settings = await getTrackingSettings();
+    }
+  } catch {
+    settingsReady = false;
+  }
+
+  const scrapeGatewaySettingsReady = await isScrapeGatewaySettingsTableReady().catch(
+    () => false,
+  );
+
+  if (!settings) {
+    return {
+      trackingEnabled: false,
+      schedulerEnabled: false,
+      safeSchedulerRunning: isTrackingSchedulerRunning(),
+      autoShopifySyncEnabled: false,
+      nextRunAt: schedulerState.nextRunAt,
+      lastRunAt: schedulerState.lastRunAt,
+      lastRunStatus: schedulerState.lastRunStatus,
+      batchSize: 5,
+      intervalMinutes: 60,
+      requestDelayMs: 1500,
+      pendingChangesCount: 0,
+      manualReviewCount: 0,
+      trackedProductsCount: 0,
+      activeTrackedProductsCount: 0,
+      errorProductsCount: 0,
+      settingsReady,
+      scrapeGatewaySettingsReady,
+      migration: {
+        allTablesReady: migration.allTablesReady,
+        tables: migration.tables,
+      },
+      legacySystemsRemoved: true,
+    };
+  }
 
   const [trackedCount] = await db.select({ c: count() }).from(trackedProducts);
   const [activeCount] = await db
@@ -293,6 +338,8 @@ export async function getTrackingSchedulerStatus() {
     trackedProductsCount: Number(trackedCount?.c ?? 0),
     activeTrackedProductsCount: Number(activeCount?.c ?? 0),
     errorProductsCount: Number(errorCount?.c ?? 0),
+    settingsReady: true,
+    scrapeGatewaySettingsReady,
     migration: {
       allTablesReady: migration.allTablesReady,
       tables: migration.tables,

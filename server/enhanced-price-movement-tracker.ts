@@ -46,7 +46,7 @@ export class EnhancedPriceMovementTracker {
       this.chatId = chatId;
       console.log('📊 Enhanced Price Movement Tracker initialized');
     } else {
-      console.warn('⚠️ Telegram credentials not found for price tracking');
+      console.log('ℹ️ price tracking telegram disabled / not used');
     }
   }
 

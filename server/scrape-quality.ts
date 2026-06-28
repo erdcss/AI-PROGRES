@@ -19,6 +19,7 @@ export type FinalSuccessReason =
   | "gateway-no-data"
   | "gateway-not-configured"
   | "gateway-provider-failed"
+  | "gateway-settings-table-missing"
   | "gateway-data-invalid";
 
 export type ScrapeQuality = {
@@ -110,6 +111,11 @@ export function evaluateScrapeQuality(
   let finalSuccessReason: FinalSuccessReason = "no-usable-data";
 
   if (
+    stageErrors.includes("gateway-settings-table-missing") ||
+    opts.gatewaySkippedReason === "gateway-settings-table-missing"
+  ) {
+    finalSuccessReason = "gateway-settings-table-missing";
+  } else if (
     stageErrors.includes("gateway-not-configured") ||
     opts.gatewaySkippedReason === "gateway-not-configured"
   ) {

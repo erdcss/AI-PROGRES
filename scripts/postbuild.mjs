@@ -38,6 +38,13 @@ const migrationTargets = [
 ];
 
 if (fs.existsSync(migrationSrc)) {
+  const sql = fs.readFileSync(migrationSrc, "utf8");
+  if (!sql.includes("tracking_settings") || !sql.includes("scrape_gateway_settings")) {
+    console.error(
+      "❌ Post-build: migration SQL eski — tracking_settings / scrape_gateway_settings eksik!",
+    );
+    process.exit(1);
+  }
   for (const target of migrationTargets) {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(migrationSrc, target);

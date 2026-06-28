@@ -29,6 +29,17 @@ function resolveErrorCopy(meta?: ScrapeErrorMeta, message?: string) {
   const stages = meta?.stageErrors ?? [];
 
   if (
+    reason === "gateway-settings-table-missing" ||
+    stages.includes("gateway-settings-table-missing")
+  ) {
+    return {
+      title: "Kaynak erişim ayarları hazır değil",
+      subtitle: "Migration tamamlanmalı",
+      hint: "scrape_gateway_settings tablosu oluşturulmamış. Deploy sonrası migration çalıştırın veya uygulamayı yeniden başlatın.",
+    };
+  }
+
+  if (
     reason === "gateway-not-configured" ||
     stages.includes("gateway-not-configured") ||
     meta?.isReadyForCloudScrape === false

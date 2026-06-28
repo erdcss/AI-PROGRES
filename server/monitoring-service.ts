@@ -28,7 +28,7 @@ export class MonitoringService {
     // Initialize Shopify service
     try {
       this.shopifyService = new ShopifyApiService();
-      console.log('✅ Shopify API Service initialized for monitoring');
+    console.log('ℹ️ legacy monitoring service disabled permanently');
     } catch (error) {
       console.log('⚠️ Shopify API Service initialization failed - auto-updates disabled');
       this.shopifyService = null;
@@ -37,7 +37,7 @@ export class MonitoringService {
     // Initialize Variant Tracker
     this.variantTracker = new VariantTrackingService(telegramIntegration);
     console.log('✅ Variant Tracking Service initialized');
-    console.log('🤖 ShopifySyncManager initialized for autonomous synchronization');
+    console.log('ℹ️ autonomous sync disabled by design');
   }
 
   // Monitoring service başlat

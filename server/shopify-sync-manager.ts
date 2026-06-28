@@ -56,7 +56,7 @@ export class ShopifySyncManager {
   private logsPath = join(process.cwd(), 'logs.txt');
 
   constructor() {
-    console.log('🤖 ShopifySyncManager initialized with Shopify API integration');
+    console.log('ℹ️ autonomous sync disabled by design');
   }
 
   /**

@@ -1,6 +1,10 @@
 import { db } from "../db";
 import { trackingSettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import {
+  ensureProductTrackingTablesReady,
+  tableExists,
+} from "../migrations/run-product-tracking-migration";
 
 export type TrackingSettingsDto = {
   id: number;
@@ -24,7 +28,16 @@ const DEFAULTS = {
   maxErrorsBeforePause: 5,
 };
 
+export async function isTrackingSettingsTableReady(): Promise<boolean> {
+  return tableExists("tracking_settings");
+}
+
 export async function ensureTrackingSettings(): Promise<TrackingSettingsDto> {
+  const ready = await ensureProductTrackingTablesReady();
+  if (!ready || !(await isTrackingSettingsTableReady())) {
+    throw new Error("tracking_settings tablosu hazır değil — migration çalışmalı");
+  }
+
   const rows = await db.select().from(trackingSettings).limit(1);
   if (rows[0]) return rows[0] as TrackingSettingsDto;
 
@@ -54,6 +67,10 @@ export async function updateTrackingSettings(
 }
 
 export async function isTrackingSystemEnabled(): Promise<boolean> {
-  const s = await getTrackingSettings();
-  return s.trackingEnabled;
+  try {
+    const s = await getTrackingSettings();
+    return s.trackingEnabled;
+  } catch {
+    return false;
+  }
 }

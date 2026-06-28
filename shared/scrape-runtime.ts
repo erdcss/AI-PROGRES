@@ -18,7 +18,8 @@ export type ScrapeStageErrorCode =
   | "extraction-failed"
   | "scraping-provider-error"
   | "gateway-not-configured"
-  | "gateway-provider-failed";
+  | "gateway-provider-failed"
+  | "gateway-settings-table-missing";
 
 export type FinalSuccessReason =
   | "api-only"
@@ -300,6 +301,7 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "extraction-failed": "Veri çıkarma başarısız",
     "gateway-not-configured": "Gateway ayarlanmamış",
     "gateway-provider-failed": "Gateway sağlayıcı başarısız",
+    "gateway-settings-table-missing": "Kaynak erişim ayar tablosu hazır değil",
     "scraping-provider-error": "Harici sağlayıcı hatası",
   };
   return stageErrors.map((e) => labels[e] || e).join("; ");

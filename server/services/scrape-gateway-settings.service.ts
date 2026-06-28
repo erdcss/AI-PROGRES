@@ -5,6 +5,11 @@ import {
   buildGatewayConfigStatus,
   type GatewayConfigStatus,
 } from "./scrape-gateway-status";
+import {
+  ensureProductTrackingTablesReady,
+  tableExists,
+  isMissingRelationError,
+} from "../migrations/run-product-tracking-migration";
 
 export type ScrapeGatewaySettingsDto = {
   id: number;
@@ -86,13 +91,39 @@ export function toPublicSettings(row: ScrapeGatewaySettingsDto): ScrapeGatewaySe
   };
 }
 
-export async function ensureScrapeGatewaySettings(): Promise<ScrapeGatewaySettingsDto> {
-  const rows = await db.select().from(scrapeGatewaySettings).limit(1);
-  if (rows[0]) return rows[0] as ScrapeGatewaySettingsDto;
+export async function isScrapeGatewaySettingsTableReady(): Promise<boolean> {
+  return tableExists("scrape_gateway_settings");
+}
 
-  const [created] = await db.insert(scrapeGatewaySettings).values(DEFAULTS).returning();
-  console.log("✅ scrape_gateway_settings varsayılan kayıt oluşturuldu");
-  return created as ScrapeGatewaySettingsDto;
+export async function tryGetScrapeGatewaySettingsRaw(): Promise<ScrapeGatewaySettingsDto | null> {
+  const ready = await ensureProductTrackingTablesReady();
+  if (!ready || !(await tableExists("scrape_gateway_settings"))) {
+    return null;
+  }
+
+  try {
+    const rows = await db.select().from(scrapeGatewaySettings).limit(1);
+    if (rows[0]) return rows[0] as ScrapeGatewaySettingsDto;
+
+    const [created] = await db.insert(scrapeGatewaySettings).values(DEFAULTS).returning();
+    console.log("✅ scrape_gateway_settings varsayılan kayıt oluşturuldu");
+    return created as ScrapeGatewaySettingsDto;
+  } catch (err) {
+    if (await isMissingRelationError(err, "scrape_gateway_settings")) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function ensureScrapeGatewaySettings(): Promise<ScrapeGatewaySettingsDto> {
+  const row = await tryGetScrapeGatewaySettingsRaw();
+  if (!row) {
+    throw new Error(
+      "scrape_gateway_settings tablosu hazır değil — migration çalışmalı",
+    );
+  }
+  return row;
 }
 
 export async function getScrapeGatewaySettings(): Promise<ScrapeGatewaySettingsPublic> {
@@ -101,7 +132,13 @@ export async function getScrapeGatewaySettings(): Promise<ScrapeGatewaySettingsP
 }
 
 export async function getScrapeGatewaySettingsRaw(): Promise<ScrapeGatewaySettingsDto> {
-  return ensureScrapeGatewaySettings();
+  const row = await tryGetScrapeGatewaySettingsRaw();
+  if (!row) {
+    throw new Error(
+      "scrape_gateway_settings tablosu hazır değil — migration çalışmalı",
+    );
+  }
+  return row;
 }
 
 export async function updateScrapeGatewaySettings(
