@@ -82,7 +82,7 @@ import { aiProductStatisticsService } from './ai-product-statistics';
 import { shopifyProductsSync } from './shopify-products-sync';
 import { getShopifyConfig, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials, saveDirectAccessToken, normalizeShopDomain } from './shopify-credentials';
 import { handleShopifyProductUpload } from './shopify-upload-service';
-import { runShopifyConnectionTest } from './connection-test';
+import { registerTrackingRoutes } from './routes/tracking-routes';
 import { getRequestId } from './request-context';
 import { shopifyCredentials } from '@shared/schema';
 
@@ -9055,6 +9055,9 @@ setTimeout(check, 1000);
       return res.status(500).json({ success: false, error: error.message || 'Yorumlar çekilemedi' });
     }
   });
+
+  // Ürün Takip Sistemi v2 API
+  registerTrackingRoutes(app);
 
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');

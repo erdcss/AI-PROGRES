@@ -36,6 +36,7 @@ import TrackingDashboard from "@/pages/tracking-dashboard";
 import ProductPreview from "@/pages/product-preview";
 import TelegramNotifications from "@/pages/TelegramNotifications";
 import ProductTrackingPage from "@/pages/ProductTrackingPage";
+import UrunTakipPage from "@/pages/urun-takip";
 import TelegramManagementPage from "@/pages/TelegramManagementPage";
 import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
@@ -396,6 +397,11 @@ function Router() {
       <Route path="/product-tracking">
         <PageTransition>
           <ProductTrackingPage />
+        </PageTransition>
+      </Route>
+      <Route path="/urun-takip">
+        <PageTransition>
+          <UrunTakipPage />
         </PageTransition>
       </Route>
       <Route path="/memory-dashboard">

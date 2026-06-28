@@ -537,6 +537,116 @@ export type ShopifyCredential = typeof shopifyCredentials.$inferSelect;
 export type InsertShopifyCredential = typeof shopifyCredentials.$inferInsert;
 export const insertShopifyCredentialSchema = createInsertSchema(shopifyCredentials).omit({ id: true, createdAt: true, updatedAt: true });
 
+// ─── Ürün Takip Sistemi (v2) ───────────────────────────────────────────────
+
+export const trackedProducts = pgTable('tracked_products', {
+  id: serial('id').primaryKey(),
+  sourceUrl: text('source_url').notNull().unique(),
+  sourceSite: text('source_site').notNull().default('trendyol'),
+  sourceProductId: text('source_product_id'),
+  sourceTitle: text('source_title').notNull(),
+  shopifyProductId: text('shopify_product_id'),
+  shopifyHandle: text('shopify_handle'),
+  shopifyProductGid: text('shopify_product_gid'),
+  currentSourcePrice: decimal('current_source_price', { precision: 10, scale: 2 }),
+  currentSourceStock: integer('current_source_stock'),
+  currentStatus: text('current_status').notNull().default('pending'), // active|disabled|error|pending
+  trackingEnabled: boolean('tracking_enabled').notNull().default(true),
+  lastCheckedAt: timestamp('last_checked_at'),
+  lastSuccessAt: timestamp('last_success_at'),
+  lastErrorAt: timestamp('last_error_at'),
+  lastErrorMessage: text('last_error_message'),
+  checkIntervalMinutes: integer('check_interval_minutes').notNull().default(1440),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const trackedVariants = pgTable('tracked_variants', {
+  id: serial('id').primaryKey(),
+  trackedProductId: integer('tracked_product_id').notNull().references(() => trackedProducts.id, { onDelete: 'cascade' }),
+  sourceVariantId: text('source_variant_id'),
+  sourceVariantTitle: text('source_variant_title'),
+  sourceSku: text('source_sku'),
+  option1: text('option1'),
+  option2: text('option2'),
+  option3: text('option3'),
+  shopifyVariantId: text('shopify_variant_id'),
+  shopifyVariantGid: text('shopify_variant_gid'),
+  shopifySku: text('shopify_sku'),
+  currentSourcePrice: decimal('current_source_price', { precision: 10, scale: 2 }),
+  currentSourceStock: integer('current_source_stock'),
+  currentAvailable: boolean('current_available'),
+  matchConfidence: decimal('match_confidence', { precision: 5, scale: 2 }).notNull().default('0'),
+  matchStatus: text('match_status').notNull().default('uncertain'), // matched|uncertain|unmatched
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const productSnapshots = pgTable('product_snapshots', {
+  id: serial('id').primaryKey(),
+  trackedProductId: integer('tracked_product_id').notNull().references(() => trackedProducts.id, { onDelete: 'cascade' }),
+  snapshotType: text('snapshot_type').notNull().default('check'), // initial|check|manual
+  sourceUrl: text('source_url').notNull(),
+  title: text('title').notNull(),
+  price: decimal('price', { precision: 10, scale: 2 }),
+  currency: text('currency').notNull().default('TRY'),
+  stock: integer('stock'),
+  available: boolean('available'),
+  images: jsonb('images').notNull().default([]),
+  variants: jsonb('variants').notNull().default([]),
+  rawData: jsonb('raw_data').notNull().default({}),
+  quality: jsonb('quality').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const detectedChanges = pgTable('detected_changes', {
+  id: serial('id').primaryKey(),
+  trackedProductId: integer('tracked_product_id').notNull().references(() => trackedProducts.id, { onDelete: 'cascade' }),
+  trackedVariantId: integer('tracked_variant_id').references(() => trackedVariants.id, { onDelete: 'set null' }),
+  changeType: text('change_type').notNull(), // price|stock|variant_added|variant_removed|variant_changed|title|image|error
+  fieldName: text('field_name').notNull(),
+  oldValue: jsonb('old_value'),
+  newValue: jsonb('new_value'),
+  confidence: decimal('confidence', { precision: 5, scale: 2 }).notNull().default('0'),
+  status: text('status').notNull().default('pending'), // pending|manual_review|approved|rejected|applied|ignored
+  reason: text('reason'),
+  sourceSnapshotId: integer('source_snapshot_id').references(() => productSnapshots.id, { onDelete: 'set null' }),
+  targetSnapshotId: integer('target_snapshot_id').references(() => productSnapshots.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const syncLogs = pgTable('sync_logs', {
+  id: serial('id').primaryKey(),
+  trackedProductId: integer('tracked_product_id').references(() => trackedProducts.id, { onDelete: 'set null' }),
+  action: text('action').notNull(), // tracking_check|source_fetch|diff_detected|manual_approval|shopify_sync_skipped|error
+  status: text('status').notNull(), // success|warning|error|skipped
+  message: text('message').notNull(),
+  meta: jsonb('meta').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const priceRules = pgTable('price_rules', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // percentage|fixed
+  value: decimal('value', { precision: 10, scale: 2 }).notNull(),
+  minPrice: decimal('min_price', { precision: 10, scale: 2 }),
+  maxPrice: decimal('max_price', { precision: 10, scale: 2 }),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export type TrackedProduct = typeof trackedProducts.$inferSelect;
+export type InsertTrackedProduct = typeof trackedProducts.$inferInsert;
+export type TrackedVariant = typeof trackedVariants.$inferSelect;
+export type InsertTrackedVariant = typeof trackedVariants.$inferInsert;
+export type ProductSnapshot = typeof productSnapshots.$inferSelect;
+export type DetectedChange = typeof detectedChanges.$inferSelect;
+export type SyncLog = typeof syncLogs.$inferSelect;
+export type PriceRule = typeof priceRules.$inferSelect;
+
 // Type exports for new tables
 export type ShopifyMemoryProduct = typeof shopifyMemoryProducts.$inferSelect;
 export type InsertShopifyMemoryProduct = typeof shopifyMemoryProducts.$inferInsert;

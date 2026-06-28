@@ -242,6 +242,8 @@ app.use((req, res, next) => {
 (async () => {
   const { ensureDatabaseSchema } = await import('./db-init');
   await ensureDatabaseSchema();
+  const { runProductTrackingMigration } = await import('./migrations/run-product-tracking-migration');
+  await runProductTrackingMigration();
 
   // Eski istemciler için — artık localStorage kullanılıyor; ağır polling'i kes
   app.get("/api/history", (_req, res) => {
@@ -735,6 +737,10 @@ app.use(pendingChangesRoutes);
     
     // Initialize error detection system
     enhancedErrorDetection.startMonitoring();
+
+    import('@shared/deploy-runtime').then(({ logStartupMonitoringGuards }) => {
+      logStartupMonitoringGuards();
+    });
     
     // Initialize daily monitoring system
     import('@shared/deploy-runtime').then(({ isMonitoringEnabled }) => {
@@ -786,6 +792,7 @@ app.use(pendingChangesRoutes);
         return;
       }
       import('./shopify-monitoring-service').then(({ shopifyMonitoringService }) => {
+        shopifyMonitoringService.startMonitoring();
         console.log('📦 Shopify monitoring service başlatıldı');
       }).catch(error => {
         console.warn('⚠️ Shopify monitoring service başlatma hatası:', error);
@@ -796,6 +803,11 @@ app.use(pendingChangesRoutes);
     // This fixes disabled trackers that were created before shopifyProductId linkage was added
     setTimeout(async () => {
       try {
+        const { isTrackingEnabled } = await import('@shared/deploy-runtime');
+        if (!isTrackingEnabled()) {
+          console.info('ℹ️ Auto-reconcile atlandı (TRACKING_ENABLED=false)');
+          return;
+        }
         const { assertCoreTablesReady, refreshDbFeatureState, warnDbFeatureSkipped } = await import('./db-health');
         const ready = await assertCoreTablesReady(['url_tracking', 'shopify_transferred_products']);
         if (!ready) {
@@ -873,6 +885,11 @@ app.use(pendingChangesRoutes);
         console.error('❌ Zamanlı görevler başlatma hatası:', error);
       });
     }, 3000);
+
+    setTimeout(async () => {
+      const { startTrackingScheduler } = await import('./services/tracking.scheduler');
+      startTrackingScheduler();
+    }, 3500);
   });
 })().catch((error) => {
   console.log('========================================');

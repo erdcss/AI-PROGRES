@@ -858,20 +858,15 @@ export class UltimatePriceExtractor {
    * Create fallback price when all strategies fail
    */
   private createFallbackPrice(): ExtractedPrice {
-    console.log('❌ Creating fallback price - extraction failed');
-    
-    // Return realistic fallback that won't break CSV
-    const fallbackPrice = 100;
-    const profitPrice = Math.round(fallbackPrice * PROFIT_MARGIN * 100) / 100;
-    
+    console.log('❌ Price extraction failed — sahte fallback kaldırıldı (NO_PRICE_FOUND)');
     return {
-      original: fallbackPrice,
+      original: 0,
       currency: 'TL',
-      formatted: `${fallbackPrice} TL`,
-      withProfit: profitPrice,
-      profitFormatted: `${profitPrice} TL`,
-      method: 'EXTRACTION_FAILED',
-      raw: 'NO_PRICE_FOUND'
+      formatted: '0 TL',
+      withProfit: 0,
+      profitFormatted: '0 TL',
+      method: 'NO_PRICE_FOUND',
+      raw: 'NO_PRICE_FOUND',
     };
   }
 }

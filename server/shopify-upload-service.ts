@@ -192,6 +192,31 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
     }
   }
 
+  if (sourceUrl && productId && normalized.price.original > 0) {
+    try {
+      const { isTrackingEnabled } = await import('@shared/deploy-runtime');
+      if (isTrackingEnabled()) {
+        const { trackingService } = await import('./services/tracking.service');
+        await trackingService.registerFromShopifyUpload({
+          sourceUrl,
+          title: normalized.title,
+          price: normalized.price.original,
+          shopifyProductId: String(productId),
+          shopifyHandle: handle,
+          variants: normalized.variants.allVariants.map((v) => ({
+            color: v.color,
+            size: v.size,
+            sku: v.sku,
+            inStock: v.inStock,
+            price: normalized.price.original,
+          })),
+        });
+      }
+    } catch (trackErr) {
+      console.warn('⚠️ Tracking kaydı oluşturulamadı (kritik değil):', trackErr);
+    }
+  }
+
   return {
     success: true,
     step: 'complete',

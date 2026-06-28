@@ -29,6 +29,7 @@ import { ultimatePriceExtract } from './ultimate-price-extractor';
 import { proxyRotator } from './advanced-proxy-rotator';
 import { tryAlternativeSources } from './alternative-data-sources';
 import { normalizeTrendyolKurus } from './trendyol-price-utils';
+import { applyScrapeSafetyGate } from './scrape-validity-gate';
 import { normalizeTrendyolImages } from './trendyol-image-utils';
 import { bulletProofCheerioLoad, extractBasicDataFromDamagedHtml } from './html-parser-fix';
 import { enhancedAntiBlocking } from './enhanced-anti-blocking';
@@ -2492,38 +2493,34 @@ export async function scenarioBasedScrape(
         
         // ✅ CRITICAL FIX: If price extraction returns 0 or fails, use fallback price
         if (!price || price.original <= 0) {
-          console.log('⚠️ ULTIMATE PRICE EXTRACTOR returned 0 or invalid price, using enhanced fallback');
-          const fallbackPrice = 100;
-          const profitPrice = Math.round(fallbackPrice * 1.15 * 100) / 100;
-          
+          console.log('⚠️ ULTIMATE PRICE EXTRACTOR returned 0 or invalid price — fallback kaldırıldı');
           price = {
-            original: fallbackPrice,
+            original: 0,
             currency: 'TL',
-            formatted: `${fallbackPrice} TL`,
-            withProfit: profitPrice,
-            profitFormatted: `${profitPrice} TL`,
-            method: 'ENHANCED_FALLBACK',
-            raw: 'FALLBACK_APPLIED'
+            formatted: '0 TL',
+            withProfit: 0,
+            profitFormatted: '0 TL',
+            method: 'NO_PRICE_FOUND',
+            priceValid: false,
+            priceSource: 'NO_PRICE_FOUND',
+            raw: 'NO_PRICE_FOUND',
           };
-          console.log('🔧 Applied enhanced fallback price:', JSON.stringify(price, null, 2));
         } else {
           console.log('✅ ULTIMATE PRICE EXTRACTOR SUCCESS - Valid price extracted');
         }
       } catch (priceError: any) {
         console.log(`❌ Price extraction failed: ${priceError?.message || 'Unknown price error'}`);
-        const fallbackPrice = 100;
-        const profitPrice = Math.round(fallbackPrice * 1.15 * 100) / 100;
-        
         price = {
-          original: fallbackPrice,
+          original: 0,
           currency: 'TL',
-          formatted: `${fallbackPrice} TL`,
-          withProfit: profitPrice,
-          profitFormatted: `${profitPrice} TL`,
-          method: 'EXTRACTION_FAILED',
-          raw: 'PRICE_EXTRACTION_ERROR'
+          formatted: '0 TL',
+          withProfit: 0,
+          profitFormatted: '0 TL',
+          method: 'NO_PRICE_FOUND',
+          priceValid: false,
+          priceSource: 'NO_PRICE_FOUND',
+          raw: 'PRICE_EXTRACTION_ERROR',
         };
-        console.log('🔧 Applied error fallback price:', JSON.stringify(price, null, 2));
       }
     } catch (basicExtractionError: any) {
       console.log(`❌ CRITICAL: Basic extraction completely failed: ${basicExtractionError?.message || 'Unknown basic extraction error'}`);
@@ -3356,7 +3353,7 @@ export async function scenarioBasedScrape(
     extractionCache.set(url, { data: result, timestamp: Date.now() });
     console.log('✅ Result cached for future use:', url);
     
-    return result;
+    return applyScrapeSafetyGate(result);
     
   } catch (error: any) {
     console.error(`❌ Scenario-based scraper error: ${error.message}`);

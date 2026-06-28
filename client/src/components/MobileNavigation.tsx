@@ -44,7 +44,8 @@ const navigationItems: NavigationItem[] = [
   
   // Analiz ve Takip
   { name: 'Hafıza Dashboard', path: '/memory-dashboard', icon: Database, description: 'Gerçek zamanlı takip', category: 'tools' },
-  { name: 'Takip Dashboard', path: '/tracking-dashboard', icon: Activity, description: 'Otomatik takip', category: 'tools' },
+  { name: 'Ürün Takip', path: '/urun-takip', icon: Activity, description: 'Kaynak vs Shopify diff', category: 'tools' },
+  { name: 'Takip Dashboard', path: '/tracking-dashboard', icon: Activity, description: 'Otomatik takip (legacy)', category: 'tools' },
   { name: 'Fiyat Karşılaştırma', path: '/price-comparison', icon: BarChart3, description: 'Fiyat analizi', category: 'tools' },
   { name: 'Veri Analizi', path: '/data-analysis', icon: Database, description: 'Ürün analizi', category: 'tools' },
   

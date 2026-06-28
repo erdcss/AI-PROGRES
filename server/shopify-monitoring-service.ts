@@ -11,7 +11,7 @@ export class ShopifyMonitoringService {
   private monitoringInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.startMonitoring();
+    // Başlatma server/index.ts tarafından MONITORING_ENABLED guard ile yapılır
   }
 
   /**

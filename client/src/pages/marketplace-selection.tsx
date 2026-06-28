@@ -65,8 +65,15 @@ const MarketplaceSelection = () => {
   // Sistem Yönetimi ve Analiz
   const systemManagement = [
     {
+      name: "Ürün Takip Sistemi",
+      description: "Kaynak vs Shopify değişiklik tespiti (manuel onay)",
+      icon: <Activity className="w-8 h-8 text-white" />,
+      available: true,
+      path: "/urun-takip"
+    },
+    {
       name: "Otomatik Takip Sistemi",
-      description: "Ürün fiyat izleme ve Shopify senkronizasyonu",
+      description: "Ürün fiyat izleme ve Shopify senkronizasyonu (legacy)",
       icon: <Activity className="w-8 h-8 text-white" />,
       available: true,
       path: "/memory-tracking"

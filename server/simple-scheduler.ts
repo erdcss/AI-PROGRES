@@ -9,6 +9,10 @@ import {
   refreshDbFeatureState,
   warnDbFeatureSkipped,
 } from './db-health';
+import {
+  getPriceMonitoringSkippedReason,
+  getProductScheduleMonitoringSkippedReason,
+} from '@shared/deploy-runtime';
 
 let activeTimers: Map<string, NodeJS.Timeout> = new Map();
 
@@ -455,11 +459,19 @@ export function initializeScheduler(): void {
   scheduleTask(TASKS.DAILY_UPDATES, executeDailyUpdates);
   scheduleTask(TASKS.EVENING_REPORTS, executeEveningReports);
   
-  // Schedule hourly price monitoring
-  scheduleHourlyPriceMonitoring();
-  
-  // Schedule product schedule monitoring (every 5 minutes)
-  scheduleProductScheduleMonitoring();
+  const priceSkip = getPriceMonitoringSkippedReason();
+  if (!priceSkip) {
+    scheduleHourlyPriceMonitoring();
+  } else {
+    console.info(`ℹ️ hourly-price-monitoring atlandı: ${priceSkip}`);
+  }
+
+  const scheduleSkip = getProductScheduleMonitoringSkippedReason();
+  if (!scheduleSkip) {
+    scheduleProductScheduleMonitoring();
+  } else {
+    console.info(`ℹ️ product-schedule-monitoring atlandı: ${scheduleSkip}`);
+  }
 
   // Schedule Shopify token auto-refresh (every 23 hours)
   scheduleShopifyTokenRefresh();
