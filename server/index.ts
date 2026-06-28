@@ -738,158 +738,28 @@ app.use(pendingChangesRoutes);
     // Initialize error detection system
     enhancedErrorDetection.startMonitoring();
 
-    import('@shared/deploy-runtime').then(({ logStartupMonitoringGuards }) => {
-      logStartupMonitoringGuards();
-    });
-    
-    // Initialize daily monitoring system
-    import('@shared/deploy-runtime').then(({ isMonitoringEnabled }) => {
-      if (!isMonitoringEnabled()) {
-        console.info('ℹ️ Daily monitor atlandı (MONITORING_ENABLED=false)');
-        return;
-      }
-      import('./daily-monitor').then(({ dailyMonitor }) => {
-        dailyMonitor.start();
-      }).catch(console.error);
-    });
-
-    // Dahili tarayıcı — yalnızca Puppeteer izinli ortamlarda ön ısıt
-    setTimeout(async () => {
-      const { puppeteerAllowed } = await import('@shared/deploy-runtime');
-      if (!puppeteerAllowed()) {
-        console.info('ℹ️ Dahili tarayıcı ön ısıtma atlandı (cloud / puppeteer disabled)');
-        return;
-      }
-      import('./browser-session').then(({ prewarmBrowser }) => {
-        prewarmBrowser();
-      }).catch(() => {});
-    }, 3000);
-    
-    // Scheduler API endpoints removed - handled in routes.ts to prevent conflicts
-
-    // Initialize scheduler system
-    // Monitoring service başlat (Trendyol fiyat takibi)
-    setTimeout(async () => {
-      const { isMonitoringEnabled } = await import('@shared/deploy-runtime');
-      if (!isMonitoringEnabled()) {
-        console.info('ℹ️ Monitoring service atlandı (MONITORING_ENABLED=false)');
-        return;
-      }
-      import('./monitoring-service').then(({ MonitoringService }) => {
-        const monitoringService = new MonitoringService(300000);
-        monitoringService.start();
-        console.log('🎯 Monitoring service başlatıldı');
-      }).catch(error => {
-        console.warn('⚠️ Monitoring service başlatma hatası:', error);
-      });
-    }, 2000);
-    
-    // Shopify monitoring sistemini başlat
-    setTimeout(async () => {
-      const { isMonitoringEnabled } = await import('@shared/deploy-runtime');
-      if (!isMonitoringEnabled()) {
-        console.info('ℹ️ Shopify monitoring atlandı (MONITORING_ENABLED=false)');
-        return;
-      }
-      import('./shopify-monitoring-service').then(({ shopifyMonitoringService }) => {
-        shopifyMonitoringService.startMonitoring();
-        console.log('📦 Shopify monitoring service başlatıldı');
-      }).catch(error => {
-        console.warn('⚠️ Shopify monitoring service başlatma hatası:', error);
-      });
-    }, 2500);
-
-    // Auto-reconcile: link existing urlTracking rows to their shopifyProductId
-    // This fixes disabled trackers that were created before shopifyProductId linkage was added
+    // Ürün Takip Sistemi v2 — tek resmi başlatma
     setTimeout(async () => {
       try {
-        const { isTrackingEnabled } = await import('@shared/deploy-runtime');
-        if (!isTrackingEnabled()) {
-          console.info('ℹ️ Auto-reconcile atlandı (TRACKING_ENABLED=false)');
-          return;
-        }
-        const { assertCoreTablesReady, refreshDbFeatureState, warnDbFeatureSkipped } = await import('./db-health');
-        const ready = await assertCoreTablesReady(['url_tracking', 'shopify_transferred_products']);
-        if (!ready) {
-          const status = await refreshDbFeatureState();
-          warnDbFeatureSkipped('Auto-reconcile', status.missingTables);
-          return;
-        }
-
-        const { db } = await import('./db');
-        const { urlTracking, shopifyTransferredProducts } = await import('@shared/schema');
-        const { productEligibilityService } = await import('./product-eligibility-service');
-        const { urlTrackingService } = await import('./url-tracking-service');
-        const { sql, eq } = await import('drizzle-orm');
-
-        const trackersMissingId = await db
-          .select()
-          .from(urlTracking)
-          .where(sql`${urlTracking.shopifyProductId} IS NULL`);
-
-        if (trackersMissingId.length === 0) {
-          console.log('✅ Auto-reconcile: all trackers already have shopifyProductId');
-          return;
-        }
-
-        console.log(`🔗 Auto-reconcile: ${trackersMissingId.length} trackers missing shopifyProductId`);
-
-        const transfers = await db
-          .select({ sourceUrl: shopifyTransferredProducts.sourceUrl, shopifyProductId: shopifyTransferredProducts.shopifyProductId })
-          .from(shopifyTransferredProducts)
-          .where(sql`${shopifyTransferredProducts.shopifyProductId} IS NOT NULL`);
-
-        const transferMap = new Map<string, string>();
-        for (const t of transfers) {
-          if (t.sourceUrl && t.shopifyProductId) transferMap.set(t.sourceUrl, t.shopifyProductId);
-        }
-
-        const activeIds = await productEligibilityService.getActiveShopifyProductIds();
-        let fixed = 0;
-        const toRestart: Array<{ url: string }> = [];
-
-        for (const tracker of trackersMissingId) {
-          const shopifyId = transferMap.get(tracker.url);
-          if (!shopifyId) continue;
-          const isActive = activeIds.has(shopifyId);
-          await db.update(urlTracking)
-            .set({ shopifyProductId: shopifyId, isTracking: isActive, status: isActive ? 'active' : 'paused', updatedAt: new Date() } as any)
-            .where(eq(urlTracking.id, tracker.id));
-          fixed++;
-          if (isActive) toRestart.push({ url: tracker.url });
-        }
-
-        productEligibilityService.invalidateCache();
-
-        for (const t of toRestart) {
-          try { await urlTrackingService.startTracking(t.url, 300); } catch {}
-        }
-
-        console.log(`✅ Auto-reconcile tamamlandı: ${fixed} tracker Shopify ile bağlandı, ${toRestart.length} takip aktifleştirildi`);
+        const { bootstrapProductTrackingV2 } = await import('./services/tracking.bootstrap');
+        await bootstrapProductTrackingV2();
       } catch (err) {
-        if ((err as { code?: string })?.code === '42P01') {
-          const { refreshDbFeatureState, warnDbFeatureSkipped } = await import('./db-health');
-          const status = await refreshDbFeatureState(true);
-          warnDbFeatureSkipped('Auto-reconcile', status.missingTables);
-          return;
-        }
-        console.warn('⚠️ Auto-reconcile hatası (kritik değil):', err);
+        console.warn('⚠️ Product Tracking v2 bootstrap hatası:', err);
       }
-    }, 5000);
+    }, 2000);
 
+    setTimeout(async () => {
+      const { puppeteerAllowed } = await import('@shared/deploy-runtime');
+      if (!puppeteerAllowed()) return;
+      import('./browser-session').then(({ prewarmBrowser }) => prewarmBrowser()).catch(() => {});
+    }, 4000);
+
+    // Shopify token yenileme dışında legacy monitoring/schedule başlatılmaz
     setTimeout(() => {
       import('./simple-scheduler').then(({ initializeScheduler }) => {
         initializeScheduler();
-        console.log('✅ Zamanlı görevler sistemi başlatıldı');
-      }).catch(error => {
-        console.error('❌ Zamanlı görevler başlatma hatası:', error);
-      });
+      }).catch(console.error);
     }, 3000);
-
-    setTimeout(async () => {
-      const { startTrackingScheduler } = await import('./services/tracking.scheduler');
-      startTrackingScheduler();
-    }, 3500);
   });
 })().catch((error) => {
   console.log('========================================');

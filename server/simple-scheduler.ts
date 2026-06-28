@@ -9,10 +9,6 @@ import {
   refreshDbFeatureState,
   warnDbFeatureSkipped,
 } from './db-health';
-import {
-  getPriceMonitoringSkippedReason,
-  getProductScheduleMonitoringSkippedReason,
-} from '@shared/deploy-runtime';
 
 let activeTimers: Map<string, NodeJS.Timeout> = new Map();
 
@@ -458,20 +454,8 @@ export function initializeScheduler(): void {
   scheduleTask(TASKS.MORNING_ANALYSIS, executeMorningAnalysis);
   scheduleTask(TASKS.DAILY_UPDATES, executeDailyUpdates);
   scheduleTask(TASKS.EVENING_REPORTS, executeEveningReports);
-  
-  const priceSkip = getPriceMonitoringSkippedReason();
-  if (!priceSkip) {
-    scheduleHourlyPriceMonitoring();
-  } else {
-    console.info(`ℹ️ hourly-price-monitoring atlandı: ${priceSkip}`);
-  }
 
-  const scheduleSkip = getProductScheduleMonitoringSkippedReason();
-  if (!scheduleSkip) {
-    scheduleProductScheduleMonitoring();
-  } else {
-    console.info(`ℹ️ product-schedule-monitoring atlandı: ${scheduleSkip}`);
-  }
+  console.info('ℹ️ legacy system disabled permanently: hourly-price-monitoring, product-schedule-monitoring');
 
   // Schedule Shopify token auto-refresh (every 23 hours)
   scheduleShopifyTokenRefresh();

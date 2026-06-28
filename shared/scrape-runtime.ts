@@ -15,7 +15,8 @@ export type ScrapeStageErrorCode =
   | "image-fallback-timeout"
   | "image-fallback-error"
   | "pipeline-global-timeout"
-  | "extraction-failed";
+  | "extraction-failed"
+  | "scraping-provider-error";
 
 export type FinalSuccessReason =
   | "api-only"
@@ -57,6 +58,13 @@ export type ScrapeDiagnostics = {
   imageFallbackStarted: boolean;
   imageFallbackSuccess: boolean;
   imageFallbackError?: string;
+  gatewayStarted?: boolean;
+  gatewayProviderType?: string;
+  gatewayHtmlSuccess?: boolean;
+  gatewayImageSuccess?: boolean;
+  gatewayError?: string;
+  gatewayDurationMs?: number;
+  gatewaySkippedReason?: string;
   scenarioSkippedReason?: string;
   stageErrors: ScrapeStageErrorCode[];
   finalSuccessReason?: FinalSuccessReason | string;
@@ -143,6 +151,13 @@ export function logScrapeDiagnostics(diagnostics: ScrapeDiagnostics): void {
       imageFallbackStarted: diagnostics.imageFallbackStarted,
       imageFallbackSuccess: diagnostics.imageFallbackSuccess,
       imageFallbackError: diagnostics.imageFallbackError ?? null,
+      gatewayStarted: diagnostics.gatewayStarted ?? false,
+      gatewayProviderType: diagnostics.gatewayProviderType ?? null,
+      gatewayHtmlSuccess: diagnostics.gatewayHtmlSuccess ?? false,
+      gatewayImageSuccess: diagnostics.gatewayImageSuccess ?? false,
+      gatewayError: diagnostics.gatewayError ?? null,
+      gatewayDurationMs: diagnostics.gatewayDurationMs ?? null,
+      gatewaySkippedReason: diagnostics.gatewaySkippedReason ?? null,
       scenarioSkippedReason: diagnostics.scenarioSkippedReason ?? null,
       stageErrors: diagnostics.stageErrors,
       finalSuccessReason: diagnostics.finalSuccessReason ?? null,
@@ -217,6 +232,7 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
     parts.push(
       "Railway sunucu IP'si Trendyol tarafından engellenmiş veya istekler zaman aşımına düşmüş olabilir.",
     );
+    parts.push("Kaynak Erişim / Proxy ayarlarını kontrol edin (/urun-takip veya scraper ayarları).");
   }
 
   if (puppeteerOff) {

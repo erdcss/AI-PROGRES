@@ -96,7 +96,7 @@ export async function compareSnapshots(
 
   if (oldPrice != null && newPrice > 0 && Math.abs(oldPrice - newPrice) > 0.009) {
     changes.push({
-      changeType: "price",
+      changeType: "price_changed",
       fieldName: "price",
       oldValue: oldPrice,
       newValue: newPrice,
@@ -109,7 +109,7 @@ export async function compareSnapshots(
   const newStock = current.stock;
   if (oldStock != null && newStock != null && oldStock !== newStock) {
     changes.push({
-      changeType: "stock",
+      changeType: "stock_changed",
       fieldName: "stock",
       oldValue: oldStock,
       newValue: newStock,
@@ -120,7 +120,7 @@ export async function compareSnapshots(
 
   if (previous.available != null && current.available != null && previous.available !== current.available) {
     changes.push({
-      changeType: "stock",
+      changeType: "stock_changed",
       fieldName: "available",
       oldValue: previous.available,
       newValue: current.available,
@@ -131,7 +131,7 @@ export async function compareSnapshots(
 
   if (previous.title && current.title && previous.title.trim() !== current.title.trim()) {
     changes.push({
-      changeType: "title",
+      changeType: "title_changed",
       fieldName: "title",
       oldValue: previous.title,
       newValue: current.title,
@@ -191,7 +191,7 @@ export async function compareSnapshots(
     const newInStock = (nv as { inStock?: boolean }).inStock !== false;
     if (oldInStock !== newInStock) {
       changes.push({
-        changeType: "variant_changed",
+        changeType: "variant_stock_changed",
         fieldName: "inStock",
         oldValue: oldInStock,
         newValue: newInStock,
@@ -205,7 +205,7 @@ export async function compareSnapshots(
     const newVp = numPrice((nv as { price?: number }).price);
     if (oldVp != null && newVp != null && Math.abs(oldVp - newVp) > 0.009) {
       changes.push({
-        changeType: "price",
+        changeType: "variant_price_changed",
         fieldName: "variant_price",
         oldValue: oldVp,
         newValue: newVp,

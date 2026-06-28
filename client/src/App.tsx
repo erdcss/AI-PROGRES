@@ -37,6 +37,7 @@ import ProductPreview from "@/pages/product-preview";
 import TelegramNotifications from "@/pages/TelegramNotifications";
 import ProductTrackingPage from "@/pages/ProductTrackingPage";
 import UrunTakipPage from "@/pages/urun-takip";
+import KaynakErisimPage from "@/pages/kaynak-erisim";
 import TelegramManagementPage from "@/pages/TelegramManagementPage";
 import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
@@ -402,6 +403,11 @@ function Router() {
       <Route path="/urun-takip">
         <PageTransition>
           <UrunTakipPage />
+        </PageTransition>
+      </Route>
+      <Route path="/kaynak-erisim">
+        <PageTransition>
+          <KaynakErisimPage />
         </PageTransition>
       </Route>
       <Route path="/memory-dashboard">

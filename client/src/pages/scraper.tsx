@@ -12,7 +12,7 @@ import { CSVPreview } from "@/components/CSVPreview";
 import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
 import * as Collapsible from "@radix-ui/react-collapsible";
 
-import { toast } from "@/hooks/use-toast";
+import { ScrapeSourceErrorAlert } from "@/components/ScrapeSourceErrorAlert";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
@@ -2028,19 +2028,11 @@ function ScraperPage() {
                   <p className="text-sm text-green-400">✓ {workflowStep}</p>
                 )}
                 {scrapeError && (
-                  <div className="rounded-md bg-red-950/50 border border-red-800/50 p-3 text-sm text-red-200">
-                    <p className="font-medium">Ürün çekme hatası</p>
-                    <p className="mt-1 opacity-90">{scrapeError}</p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="mt-2"
-                      onClick={() => singleForm.handleSubmit((d) => singleScrapeMutation.mutate(d))()}
-                    >
-                      Tekrar Dene
-                    </Button>
-                  </div>
+                  <ScrapeSourceErrorAlert
+                    message={scrapeError}
+                    details={scrapeError}
+                    onRetry={() => singleForm.handleSubmit((d) => singleScrapeMutation.mutate(d))()}
+                  />
                 )}
                 {lastShopifyResult?.adminUrl && (
                   <p className="text-sm text-green-400">

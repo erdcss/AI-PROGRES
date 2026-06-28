@@ -273,6 +273,65 @@ export async function runTrendyolScrapePipeline(
 
   if (isPastDeadline()) forcedGlobalTimeout = true;
 
+  // ── 2b) Scrape Gateway fallback (proxy / harici sağlayıcı) ──
+  const htmlReadyBeforeGateway = Boolean(directHtml && directHtml.length >= 500);
+  if (!htmlReadyBeforeGateway && !isPastDeadline() && !forcedGlobalTimeout) {
+    diagnostics.gatewayStarted = true;
+    const gwStart = Date.now();
+    try {
+      const { getScrapeGatewaySettingsRaw } = await import("./services/scrape-gateway-settings.service");
+      const gwSettings = await getScrapeGatewaySettingsRaw();
+      diagnostics.gatewayProviderType = gwSettings.providerType;
+
+      if (!gwSettings.gatewayEnabled || !gwSettings.proxyFallbackEnabled) {
+        diagnostics.gatewaySkippedReason = "gateway-disabled";
+        console.info("ℹ️ [GW] Gateway atlandı (program ayarı kapalı)");
+      } else {
+        console.log("⚡ [GW] Scrape Gateway fallback...");
+        const { runScrapeGateway } = await import("./services/scrape-gateway.service");
+        const gw = await withStageTimeout(
+          () => runScrapeGateway(url),
+          Math.min(25_000, remainingMs()),
+          "direct-html-timeout",
+        );
+        diagnostics.gatewayDurationMs = Date.now() - gwStart;
+        diagnostics.gatewayHtmlSuccess = gw.htmlSuccess;
+        diagnostics.gatewayImageSuccess = gw.imageSuccess;
+
+        if (gw.html && gw.html.length >= 500) {
+          directHtml = gw.html;
+          diagnostics.directHtmlSuccess = true;
+        }
+        if (gw.images.length > 0 && filterValidProductImages(result?.images || []).length === 0) {
+          result.images = gw.images;
+        }
+        if (gw.title && (!result.title || result.title.length < 4)) {
+          result.title = resolveProductTitle(url, gw.title);
+        }
+        if (gw.price && gw.price > 0 && (!result.price?.original || result.price.original <= 0)) {
+          result.price = { original: gw.price, withProfit: gw.price, currency: "TRY" };
+        }
+
+        if (!gw.htmlSuccess && !gw.imageSuccess) {
+          diagnostics.gatewayError = gw.error ?? "gateway-no-data";
+          pushStageError(diagnostics, "scraping-provider-error");
+          console.warn(`⚠️ [GW] Gateway başarısız: ${diagnostics.gatewayError}`);
+        } else {
+          console.log(
+            `✅ [GW] Gateway (${gw.providerType}, ${diagnostics.gatewayDurationMs}ms): html=${gw.htmlSuccess}, images=${gw.images.length}`,
+          );
+        }
+      }
+    } catch (err) {
+      diagnostics.gatewayDurationMs = Date.now() - gwStart;
+      const code: ScrapeStageErrorCode =
+        err instanceof ScrapeStageTimeoutError ? err.code : "scraping-provider-error";
+      diagnostics.gatewayError = code;
+      pushStageError(diagnostics, code);
+      console.warn(`⚠️ [GW] Gateway soft-fail (${code})`);
+    }
+  }
+
   // ── 3) HTML parse — yalnızca mevcut HTML, ağ yok ──
   if (!isPastDeadline() && !forcedGlobalTimeout) {
     const htmlReady = Boolean(directHtml && directHtml.length >= 500);

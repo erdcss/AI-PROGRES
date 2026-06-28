@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { 
   Menu, 
@@ -45,6 +46,7 @@ const navigationItems: NavigationItem[] = [
   // Analiz ve Takip
   { name: 'Hafıza Dashboard', path: '/memory-dashboard', icon: Database, description: 'Gerçek zamanlı takip', category: 'tools' },
   { name: 'Ürün Takip', path: '/urun-takip', icon: Activity, description: 'Kaynak vs Shopify diff', category: 'tools' },
+  { name: 'Kaynak Erişim', path: '/kaynak-erisim', icon: Globe, description: 'Proxy / scraping API', category: 'system' },
   { name: 'Takip Dashboard', path: '/tracking-dashboard', icon: Activity, description: 'Otomatik takip (legacy)', category: 'tools' },
   { name: 'Fiyat Karşılaştırma', path: '/price-comparison', icon: BarChart3, description: 'Fiyat analizi', category: 'tools' },
   { name: 'Veri Analizi', path: '/data-analysis', icon: Database, description: 'Ürün analizi', category: 'tools' },
@@ -69,6 +71,18 @@ export function MobileNavigation() {
   const [, setLocation] = useLocation();
   const [location] = useLocation();
   const isMobile = useIsMobile();
+
+  const { data: trackingBadge } = useQuery({
+    queryKey: ['tracking-notifications'],
+    queryFn: async () => {
+      const r = await fetch('/api/tracking/notifications');
+      if (!r.ok) return { pendingChangesCount: 0 };
+      return r.json();
+    },
+    refetchInterval: 60_000,
+  });
+
+  const pendingCount = Number(trackingBadge?.pendingChangesCount ?? 0);
 
   const handleNavigate = (path: string) => {
     setLocation(path);
@@ -174,6 +188,11 @@ export function MobileNavigation() {
                             <div className="flex-1 text-left">
                               <p className={`font-bold text-sm ${isActive ? 'text-white' : 'text-slate-300'}`}>
                                 {item.name}
+                                {item.path === '/urun-takip' && pendingCount > 0 && (
+                                  <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-xs rounded-full bg-red-500 text-white">
+                                    {pendingCount}
+                                  </span>
+                                )}
                               </p>
                               <p className="text-xs text-slate-400 truncate">
                                 {item.description}

@@ -194,8 +194,9 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
 
   if (sourceUrl && productId && normalized.price.original > 0) {
     try {
-      const { isTrackingEnabled } = await import('@shared/deploy-runtime');
-      if (isTrackingEnabled()) {
+      const { getTrackingSettings } = await import('./services/tracking-settings.service');
+      const trackingSettings = await getTrackingSettings();
+      if (trackingSettings.trackingEnabled) {
         const { trackingService } = await import('./services/tracking.service');
         await trackingService.registerFromShopifyUpload({
           sourceUrl,
@@ -213,7 +214,7 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
         });
         console.log(`✅ tracked_products kaydı oluşturuldu: ${normalized.title}`);
       } else {
-        console.info('ℹ️ tracked_products kaydı atlandı (TRACKING_ENABLED=false)');
+        console.info('ℹ️ tracked_products kaydı atlandı (takip sistemi kapalı)');
       }
     } catch (trackErr) {
       console.warn('⚠️ Tracking kaydı oluşturulamadı (kritik değil):', trackErr);

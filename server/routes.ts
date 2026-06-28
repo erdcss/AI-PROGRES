@@ -83,6 +83,7 @@ import { shopifyProductsSync } from './shopify-products-sync';
 import { getShopifyConfig, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials, saveDirectAccessToken, normalizeShopDomain } from './shopify-credentials';
 import { handleShopifyProductUpload } from './shopify-upload-service';
 import { registerTrackingRoutes } from './routes/tracking-routes';
+import { registerScrapeGatewayRoutes } from './routes/scrape-gateway-routes';
 import { getRequestId } from './request-context';
 import { shopifyCredentials } from '@shared/schema';
 
@@ -94,9 +95,10 @@ async function registerProductForTracking(
   variants: any[] = [],
   shopifyVariants: any[] = []
 ) {
-  const { isTrackingEnabled } = await import('@shared/deploy-runtime');
-  if (!isTrackingEnabled()) {
-    console.info('ℹ️ Tracking atlandı (TRACKING_ENABLED=false)');
+  const { getTrackingSettings } = await import('./services/tracking-settings.service');
+  const trackingSettings = await getTrackingSettings();
+  if (!trackingSettings.trackingEnabled) {
+    console.info('ℹ️ tracked_products kaydı atlandı (takip sistemi kapalı)');
     return { success: false, skipped: true, reason: 'tracking_disabled' };
   }
 
@@ -9085,8 +9087,9 @@ setTimeout(check, 1000);
     }
   });
 
-  // Ürün Takip Sistemi v2 API
+  // Ürün Takip Sistemi v2 + Scrape Gateway API
   registerTrackingRoutes(app);
+  registerScrapeGatewayRoutes(app);
 
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');

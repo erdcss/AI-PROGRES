@@ -612,6 +612,41 @@ export const detectedChanges = pgTable('detected_changes', {
   reason: text('reason'),
   sourceSnapshotId: integer('source_snapshot_id').references(() => productSnapshots.id, { onDelete: 'set null' }),
   targetSnapshotId: integer('target_snapshot_id').references(() => productSnapshots.id, { onDelete: 'set null' }),
+  seenAt: timestamp('seen_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const trackingSettings = pgTable('tracking_settings', {
+  id: serial('id').primaryKey(),
+  trackingEnabled: boolean('tracking_enabled').notNull().default(true),
+  schedulerEnabled: boolean('scheduler_enabled').notNull().default(true),
+  autoShopifySyncEnabled: boolean('auto_shopify_sync_enabled').notNull().default(false),
+  checkIntervalMinutes: integer('check_interval_minutes').notNull().default(60),
+  batchSize: integer('batch_size').notNull().default(5),
+  requestDelayMs: integer('request_delay_ms').notNull().default(1500),
+  maxErrorsBeforePause: integer('max_errors_before_pause').notNull().default(5),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const scrapeGatewaySettings = pgTable('scrape_gateway_settings', {
+  id: serial('id').primaryKey(),
+  gatewayEnabled: boolean('gateway_enabled').notNull().default(true),
+  proxyFallbackEnabled: boolean('proxy_fallback_enabled').notNull().default(false),
+  providerType: text('provider_type').notNull().default('none'), // none|generic_proxy|scraping_api
+  providerEndpoint: text('provider_endpoint'),
+  providerApiKeyEncrypted: text('provider_api_key_encrypted'),
+  proxyUrlEncrypted: text('proxy_url_encrypted'),
+  timeoutMs: integer('timeout_ms').notNull().default(20000),
+  retryCount: integer('retry_count').notNull().default(2),
+  retryDelayMs: integer('retry_delay_ms').notNull().default(1500),
+  useProxyForHtml: boolean('use_proxy_for_html').notNull().default(true),
+  useProxyForImages: boolean('use_proxy_for_images').notNull().default(true),
+  useProxyForApi: boolean('use_proxy_for_api').notNull().default(false),
+  lastTestAt: timestamp('last_test_at'),
+  lastTestSuccess: boolean('last_test_success'),
+  lastTestMessage: text('last_test_message'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -646,6 +681,8 @@ export type ProductSnapshot = typeof productSnapshots.$inferSelect;
 export type DetectedChange = typeof detectedChanges.$inferSelect;
 export type SyncLog = typeof syncLogs.$inferSelect;
 export type PriceRule = typeof priceRules.$inferSelect;
+export type TrackingSettings = typeof trackingSettings.$inferSelect;
+export type ScrapeGatewaySettings = typeof scrapeGatewaySettings.$inferSelect;
 
 // Type exports for new tables
 export type ShopifyMemoryProduct = typeof shopifyMemoryProducts.$inferSelect;

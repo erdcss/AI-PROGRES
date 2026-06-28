@@ -11,15 +11,15 @@ import {
   type InsertTrackedVariant,
 } from "@shared/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { isTrackingEnabled } from "@shared/deploy-runtime";
-import { isTrackingEnabled } from "@shared/deploy-runtime";
+import { getTrackingSettings } from "./tracking-settings.service";
 
 export type SyncLogMeta = Record<string, unknown>;
 
 export class TrackingService {
-  assertEnabled() {
-    if (!isTrackingEnabled()) {
-      throw new Error("TRACKING_ENABLED=false — ürün takip modülü kapalı");
+  async assertEnabled() {
+    const s = await getTrackingSettings();
+    if (!s.trackingEnabled) {
+      throw new Error("Takip sistemi program ayarlarından kapalı");
     }
   }
 
@@ -40,7 +40,7 @@ export class TrackingService {
   }
 
   async listProducts() {
-    this.assertEnabled();
+    await this.assertEnabled();
     return db
       .select()
       .from(trackedProducts)
@@ -57,7 +57,7 @@ export class TrackingService {
     productId?: number;
     changeType?: string;
   }) {
-    this.assertEnabled();
+    await this.assertEnabled();
     const conditions = [];
     if (filters?.status) conditions.push(eq(detectedChanges.status, filters.status));
     if (filters?.productId) conditions.push(eq(detectedChanges.trackedProductId, filters.productId));
@@ -234,7 +234,7 @@ export class TrackingService {
   }
 
   async setTrackingEnabled(id: number, enabled: boolean) {
-    this.assertEnabled();
+    await this.assertEnabled();
     const [row] = await db
       .update(trackedProducts)
       .set({
@@ -280,8 +280,24 @@ export class TrackingService {
       .where(eq(trackedProducts.id, productId));
   }
 
+  async cleanupInvalidRecordsOnStartup() {
+    await db
+      .update(trackedProducts)
+      .set({
+        trackingEnabled: false,
+        currentStatus: "disabled",
+        lastErrorMessage: "startup-cleanup: geçersiz kaynak",
+        updatedAt: new Date(),
+      })
+      .where(
+        sql`lower(${trackedProducts.sourceTitle}) IN ('trendyol.com', 'welcome to trendyol')
+            OR (${trackedProducts.currentSourcePrice} = 100)
+            OR lower(${trackedProducts.sourceTitle}) LIKE '%access denied%'`,
+      );
+  }
+
   async cleanupInvalidRecords(adminSecret?: string) {
-    this.assertEnabled();
+    await this.assertEnabled();
     const expected = process.env.ADMIN_SECRET || "repli_t_admin_2024";
     if (adminSecret !== expected) {
       throw new Error("Unauthorized — invalid admin secret");

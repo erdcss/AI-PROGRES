@@ -20,18 +20,9 @@ export class UrlTrackingService {
 
   async initialize() {
     if (this.isInitialized) return;
-
-    const { isTrackingEnabled, isProductScheduleMonitoringEnabled } = await import('@shared/deploy-runtime');
-    if (!isTrackingEnabled() || !isProductScheduleMonitoringEnabled()) {
-      console.info(
-        'ℹ️ Legacy URL interval tracking atlandı (TRACKING_ENABLED veya PRODUCT_SCHEDULE_MONITORING_ENABLED=false)',
-      );
-      console.info('ℹ️ Yeni Ürün Takip modülü: POST /api/tracking/products/:id/check');
-      this.isInitialized = true;
-      return;
-    }
-    
-    console.log('🎯 URL Tracking Service başlatılıyor...');
+    console.info('ℹ️ legacy system disabled permanently: url-tracking-service interval timers');
+    this.isInitialized = true;
+    return;
     
     // ✅ SHOPIFY ELIGIBILITY CHECK: Sadece Shopify'da olan ürünleri al
     const eligibleTracking = await productEligibilityService.listEligibleTrackers();
