@@ -247,6 +247,12 @@ export async function runTrendyolScrapePipeline(
     if (hasRealTrendyolVariants(htmlProduct.variants)) {
       result.variants = htmlProduct.variants;
     }
+    if (htmlProduct.features?.length) {
+      result.features = htmlProduct.features;
+    }
+    if (htmlProduct.stockAnalysis) {
+      result.stockAnalysis = htmlProduct.stockAnalysis;
+    }
     if ((!result.price?.original || result.price.original <= 0) && htmlProduct.price.original > 0) {
       result.price = htmlProduct.price;
     }
@@ -606,11 +612,15 @@ export async function runTrendyolScrapePipeline(
 
   // ── 6) Scenario — yalnızca eksik veri + Puppeteer izinliyse ──
   const fieldsBeforeScenario = evaluateFields(result, url);
+  const missingVariantOrFeatureData =
+    !hasRealTrendyolVariants(result?.variants) ||
+    !(Array.isArray(result?.features) && result.features.length > 0);
   const coreDataFromHtml =
     diagnostics.htmlParseSuccess &&
     fieldsBeforeScenario.hasTitle &&
     fieldsBeforeScenario.hasPrice &&
-    fieldsBeforeScenario.hasImages;
+    fieldsBeforeScenario.hasImages &&
+    !missingVariantOrFeatureData;
 
   const scenarioNeeded =
     !skipHeavyStages &&

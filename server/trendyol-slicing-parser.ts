@@ -3,6 +3,7 @@
  */
 
 import type { CheerioAPI, Cheerio } from "cheerio";
+import { getTrendyolProductFromState } from "./trendyol-product-state";
 
 export interface SlicingOption {
   name: string;
@@ -90,22 +91,42 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
 
 export function parseSlicingAttributesFromHtml(htmlContent: string): SlicingAttributesData {
   const empty: SlicingAttributesData = { colors: [], sizes: [] };
-  const patterns = [
-    /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({[\s\S]*?});/,
-    /__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({[\s\S]*?});/,
-  ];
-  for (const pattern of patterns) {
-    const match = htmlContent.match(pattern);
-    if (!match?.[1]) continue;
-    try {
-      const state = JSON.parse(match[1]);
-      const parsed = parseSlicingAttributesFromProduct(state?.product ?? state);
-      if (parsed.colors.length > 0 || parsed.sizes.length > 0) return parsed;
-    } catch {
-      /* try next pattern */
-    }
+  const product = getTrendyolProductFromState(htmlContent);
+  if (product) {
+    const parsed = parseSlicingAttributesFromProduct(product);
+    if (parsed.colors.length > 0 || parsed.sizes.length > 0) return parsed;
   }
   return empty;
+}
+
+/** product.allVariants içinden beden + stok bilgisi */
+export function parseSizeVariantsFromProduct(product: unknown): SlicingOption[] {
+  const sizes: SlicingOption[] = [];
+  const seen = new Set<string>();
+  if (!product || typeof product !== "object") return sizes;
+
+  const allVariants = (product as { allVariants?: unknown[] }).allVariants;
+  if (!Array.isArray(allVariants)) return sizes;
+
+  for (const v of allVariants) {
+    if (!v || typeof v !== "object") continue;
+    const rec = v as Record<string, unknown>;
+    const attrName = String(rec.attributeName ?? rec.name ?? "").toLowerCase();
+    const isSize =
+      attrName === "beden" ||
+      attrName === "size" ||
+      attrName.includes("yaş") ||
+      attrName.includes("yas");
+    if (!isSize) continue;
+    const name = optionName(rec);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sizes.push({ name, inStock: itemInStock(rec) });
+  }
+
+  return sizes;
 }
 
 export function isDomElementOutOfStock($el: Cheerio<unknown>): boolean {
@@ -196,7 +217,11 @@ export function buildVariantsFromSlicing(
   $: CheerioAPI,
   htmlContent: string,
 ): SlicingVariant[] {
-  const slicing = parseSlicingAttributesFromHtml(htmlContent);
+  const product = getTrendyolProductFromState(htmlContent);
+  const slicing = product
+    ? parseSlicingAttributesFromProduct(product)
+    : parseSlicingAttributesFromHtml(htmlContent);
+  const allVariantSizes = product ? parseSizeVariantsFromProduct(product) : [];
   const domColors = extractColorsFromSlicingDom($);
   const domSizes = extractSizesWithStockFromDom($);
 
@@ -207,6 +232,7 @@ export function buildVariantsFromSlicing(
 
   const sizeStock = new Map<string, boolean>();
   for (const s of slicing.sizes) sizeStock.set(s.name, s.inStock);
+  for (const s of allVariantSizes) sizeStock.set(s.name, s.inStock);
   for (const s of domSizes) sizeStock.set(s.name, s.inStock);
 
   const puppeteerColors = $("meta[name='puppeteer-colors']").attr("content");
@@ -236,6 +262,7 @@ export function buildVariantsFromSlicing(
   const sizes = [
     ...new Set([
       ...slicing.sizes.map((s) => s.name),
+      ...allVariantSizes.map((s) => s.name),
       ...domSizes.map((s) => s.name),
       ...sizeStock.keys(),
     ]),
@@ -269,13 +296,13 @@ export function buildVariantsFromSlicing(
           : true,
       });
     }
-  } else if (sizes.length >= 2) {
+  } else if (sizes.length >= 1) {
     for (const size of sizes) {
       variants.push({
         color: "",
         colorCode: "",
         size,
-        inStock: sizeStock.has(size) ? sizeStock.get(size)! : false,
+        inStock: sizeStock.has(size) ? sizeStock.get(size)! : true,
       });
     }
   }

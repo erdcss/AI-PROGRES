@@ -321,6 +321,7 @@ function ScraperPage() {
         images: scraped.images,
         variants: scraped.variants,
         features: scraped.features || [],
+        stockAnalysis: scraped.stockAnalysis,
         tags: scraped.tags || [],
         category: scraped.category || "",
         success: scraped.success !== false,
@@ -2567,6 +2568,34 @@ function ScraperPage() {
                             })}
                           </div>
                         )}
+
+                        {/* Tek renk / sadece beden — stokta / tükendi ayrımı */}
+                        {displayVariants.colors.length === 0 &&
+                          displayVariants.sizes.length > 0 &&
+                          displayVariants.allVariants.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="text-white/60 text-xs">Bedenler ({displayVariants.sizes.length})</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {displayVariants.allVariants
+                                .filter((v) => v.size)
+                                .map((v, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${
+                                      v.inStock
+                                        ? "bg-green-900/40 border border-green-600/50 text-green-200"
+                                        : "bg-slate-700/40 border border-slate-600/50 text-slate-400 opacity-60"
+                                    }`}
+                                  >
+                                    <span className={v.inStock ? "text-green-400" : "text-slate-500"}>
+                                      {v.inStock ? "✓" : "✗"}
+                                    </span>
+                                    {v.size}
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
                         
                         {/* Genel Özet - Tüm Renkler ve Bedenler */}
                         {displayVariants.colors.length > 0 && displayVariants.sizes.length > 0 && (
@@ -2712,14 +2741,23 @@ function ScraperPage() {
                               <div className="space-y-1">
                                 <span className="text-white/60 text-xs">Bedenler ({sizes.length})</span>
                                 <div className="flex flex-wrap gap-1">
-                                  {sizes.slice(0, 4).map((size, idx) => (
+                                  {sizes.slice(0, 8).map((size, idx) => {
+                                    const inStock = displayVariants.allVariants.some(
+                                      (v) => v.size === size && v.inStock,
+                                    );
+                                    return (
                                     <span 
                                       key={idx}
-                                      className="bg-green-900/30 text-green-300 px-2 py-0.5 rounded text-xs border border-green-800/40"
+                                      className={`px-2 py-0.5 rounded text-xs border ${
+                                        inStock
+                                          ? "bg-green-900/30 text-green-300 border-green-800/40"
+                                          : "bg-slate-700/30 text-slate-400 border-slate-600/40 line-through"
+                                      }`}
                                     >
                                       {size}
                                     </span>
-                                  ))}
+                                    );
+                                  })}
                                   {sizes.length > 4 && (
                                     <span className="text-green-400 text-xs px-1">+{sizes.length - 4}</span>
                                   )}

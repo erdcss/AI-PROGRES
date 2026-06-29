@@ -50,6 +50,13 @@ export type ScrapedUrlPayload = {
     }>;
   };
   features?: Array<{ key: string; value: string }>;
+  stockAnalysis?: {
+    totalVariants: number;
+    inStockVariants: number;
+    outOfStockVariants: number;
+    availableSizes: string[];
+    unavailableSizes: string[];
+  };
   tags?: string[];
   csvContent?: string;
   csvPreview?: {
@@ -144,6 +151,7 @@ export function normalizeScrapedPayload(
       productTitle: String(raw.title || "Ürün"),
     }),
     features: (raw.features as ScrapedUrlPayload["features"]) || [],
+    stockAnalysis: raw.stockAnalysis as ScrapedUrlPayload["stockAnalysis"],
     tags: (raw.tags as string[]) || [],
     csvContent,
     csvPreview,

@@ -24,6 +24,11 @@ import {
   parseSlicingAttributesFromHtml,
 } from './trendyol-slicing-parser';
 import {
+  extractTrendyolEnrichmentFeatures,
+  buildStockAnalysisFromVariants,
+  type TrendyolStockAnalysis,
+} from './trendyol-html-enrichment';
+import {
   EMPTY_TRENDYOL_VARIANTS,
   sanitizeTrendyolVariants,
 } from '@shared/trendyol-variant-utils';
@@ -41,6 +46,8 @@ export interface HtmlExtractedProduct {
   description: string;
   category: string;
   variants: ReturnType<typeof sanitizeTrendyolVariants>;
+  features: Array<{ key: string; value: string }>;
+  stockAnalysis: TrendyolStockAnalysis | null;
   htmlSource: string;
 }
 
@@ -205,6 +212,8 @@ export function parseTrendyolProductFromHtmlContent(
   );
 
   const variants = buildVariantsFromHtml(html, $, title);
+  const features = extractTrendyolEnrichmentFeatures(html, $);
+  const stockAnalysis = buildStockAnalysisFromVariants(variants);
 
   const blockedPage = isBlockedTrendyolHtml(html);
   if (original <= 0 && images.length === 0) return null;
@@ -218,6 +227,8 @@ export function parseTrendyolProductFromHtmlContent(
     description: fromState.description || fromNext.description || '',
     category: fromState.category || fromNext.category || 'Genel',
     variants,
+    features,
+    stockAnalysis,
     htmlSource: source,
   };
 }
