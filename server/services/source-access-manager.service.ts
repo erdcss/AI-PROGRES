@@ -17,6 +17,7 @@ import {
 import { runScrapeGatewayWithSettings, type GatewayFetchResult } from "./scrape-gateway.service";
 import {
   callLocalScrapeAgent,
+  getLocalAgentHealthStatus,
   isLocalAgentConfigured,
   maskLocalAgentEndpoint,
   pingLocalAgentHealth,
@@ -142,9 +143,23 @@ export async function seedInternalSourceAccessFromEnv(): Promise<void> {
   console.log(`ℹ️ Kaynak erişim internal seed: primary=${primary}, providers=${providers}`);
 
   if (isLocalAgentConfigured()) {
-    const healthy = await pingLocalAgentHealth().catch(() => false);
-    localAgentLastStatus = healthy ? "healthy" : "unreachable";
-    console.log(`ℹ️ Local Scrape Agent: ${healthy ? "erişilebilir" : "erişilemiyor (tunnel/agent çalışıyor mu?)"}`);
+    const health = await getLocalAgentHealthStatus().catch(() => null);
+    const healthy = health?.reachable === true;
+    localAgentLastStatus = healthy ? "healthy" : health?.errorCategory ?? "unreachable";
+    if (healthy) {
+      console.log(
+        `ℹ️ Local Scrape Agent: erişilebilir (${health?.endpointHost ?? "host"}, ${health?.latencyMs ?? "?"}ms)`,
+      );
+    } else {
+      console.warn(
+        `⚠️ Local Scrape Agent: erişilemiyor — ${health?.error ?? "tunnel/agent çalışıyor mu?"}`,
+      );
+    }
+  } else {
+    const health = await getLocalAgentHealthStatus().catch(() => null);
+    if (health && (!health.endpointConfigured || !health.tokenConfigured)) {
+      console.warn(`⚠️ Local Scrape Agent yapılandırması eksik: ${health.error ?? "env kontrol edin"}`);
+    }
   }
 }
 

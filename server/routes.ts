@@ -2564,6 +2564,7 @@ setTimeout(check, 1000);
                 ? formatScrapeDeployUserMessage(scrapeDiagnostics)
                 : undefined,
               finalSuccessReason: scrapeDiagnostics?.finalSuccessReason || result.finalSuccessReason,
+              warnings: Array.isArray(result.warnings) ? result.warnings : [],
               extractionMethod: result.extractionMethod || 'trendyol-pipeline',
               scenario: result.scenario,
               confidence: result.confidence,

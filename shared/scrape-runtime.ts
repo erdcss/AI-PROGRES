@@ -73,6 +73,7 @@ export type ScrapeDiagnostics = {
   gatewayError?: string;
   gatewayDurationMs?: number;
   gatewaySkippedReason?: string;
+  localAgentSucceeded?: boolean;
   scenarioSkippedReason?: string;
   stageErrors: ScrapeStageErrorCode[];
   finalSuccessReason?: FinalSuccessReason | string;

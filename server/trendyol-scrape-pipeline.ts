@@ -141,6 +141,7 @@ function finalizeOutcome(
   diagnostics.pipelineDurationMs = Date.now() - pipelineStart;
   result.title = resolveProductTitle(url, result.title);
 
+  const policy = getScrapeEnvironmentPolicy();
   const quality = evaluateScrapeQuality(url, result, {
     apiSuccess: diagnostics.apiSuccess,
     htmlParseSuccess: diagnostics.htmlParseSuccess,
@@ -148,6 +149,12 @@ function finalizeOutcome(
     gatewayError: diagnostics.gatewayError,
     gatewaySkippedReason: diagnostics.gatewaySkippedReason,
     stageErrors: diagnostics.stageErrors,
+    preferLocalAgent: policy.preferLocalAgent,
+    localAgentSucceeded: diagnostics.localAgentSucceeded,
+    htmlUnavailable:
+      !diagnostics.htmlParseSuccess &&
+      !diagnostics.gatewayHtmlSuccess &&
+      !diagnostics.directHtmlSuccess,
   });
 
   diagnostics.finalSuccessReason = quality.finalSuccessReason;
@@ -326,9 +333,10 @@ export async function runTrendyolScrapePipeline(
     if (agentSettled.status === "fulfilled" && agentSettled.value.agentSuccess) {
       const access = agentSettled.value;
       diagnostics.gatewayDurationMs = access.durationMs;
+      diagnostics.localAgentSucceeded = true;
       applyAgentAccessToResult(result, url, access, diagnostics);
       console.log(
-        `✅ [GW] Local Agent (${access.durationMs}ms): "${result.title}" — ${result.price?.original} TL, ${access.images.length} görsel`,
+        `✅ Local Agent başarılı (${access.durationMs}ms): "${result.title}" — ${result.price?.original} TL, ${access.images.length} görsel`,
       );
 
       const fields = evaluateFields(result, url);
@@ -348,14 +356,19 @@ export async function runTrendyolScrapePipeline(
     } else if (agentSettled.status === "fulfilled") {
       const access = agentSettled.value;
       diagnostics.gatewayDurationMs = access.durationMs;
+      diagnostics.localAgentSucceeded = false;
       const errCode = (access.stageError ?? "local-agent-failed") as ScrapeStageErrorCode;
       diagnostics.gatewayError = errCode;
       pushStageError(diagnostics, errCode);
-      console.warn(`⚠️ [GW] Local Agent başarısız: ${access.error ?? errCode}`);
+      const category = access.errorCategory ?? "unknown";
+      console.warn(
+        `⚠️ Local Agent başarısız [${category}]: ${access.error ?? errCode}`,
+      );
     } else {
+      diagnostics.localAgentSucceeded = false;
       pushStageError(diagnostics, "local-agent-failed");
       diagnostics.gatewayError = "local-agent-failed";
-      console.warn("⚠️ [GW] Local Agent soft-fail");
+      console.warn("⚠️ Local Agent başarısız: istek tamamlanamadı");
     }
 
     diagnostics.directHtmlSkippedReason = "cloud-agent-mode";

@@ -1,4 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import { getLocalAgentHealthStatus } from "../services/local-agent-client.service";
 import {
   getSourceAccessStatus,
   runSourceAccessSelfTest,
@@ -16,6 +17,24 @@ function requireAdminSecret(req: Request, res: Response, next: NextFunction) {
 }
 
 export function registerSourceAccessRoutes(app: Express): void {
+  app.get("/api/local-agent/health", async (_req, res) => {
+    try {
+      const health = await getLocalAgentHealthStatus();
+      return res.json(health);
+    } catch (err) {
+      return res.status(500).json({
+        enabled: false,
+        endpointConfigured: false,
+        endpointHost: null,
+        tokenConfigured: false,
+        reachable: false,
+        latencyMs: null,
+        error: (err as Error).message,
+        errorCategory: "unknown",
+      });
+    }
+  });
+
   app.get("/api/source-access/status", async (_req, res) => {
     try {
       const status = await getSourceAccessStatus();

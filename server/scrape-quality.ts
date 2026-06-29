@@ -4,6 +4,11 @@ import {
 } from "./trendyol-title-utils";
 import { filterValidProductImages } from "./trendyol-image-utils";
 import { resolveProductTitle } from "./trendyol-result-normalizer";
+import { isClothingProduct } from "@shared/clothing-keywords";
+import {
+  hasRealTrendyolVariants,
+  sanitizeTrendyolVariants,
+} from "@shared/trendyol-variant-utils";
 
 export type TitleSource = "api" | "html" | "url-slug" | "unknown";
 
@@ -121,6 +126,56 @@ export function detectTitleSource(
   return "unknown";
 }
 
+export const LOCAL_AGENT_VARIANT_WARNING = "local_agent_unreachable";
+
+export type TrendyolVariantGapAssessment = {
+  sparseVariants: boolean;
+  missingColors: boolean;
+  missingSizes: boolean;
+  missingAllVariants: boolean;
+  missingStockAnalysis: boolean;
+  missingFeatures: boolean;
+  likelyIncomplete: boolean;
+};
+
+export function assessTrendyolVariantGaps(
+  url: string,
+  result: Record<string, unknown>,
+): TrendyolVariantGapAssessment {
+  const title = resolveProductTitle(url, result.title as string | undefined);
+  const sanitized = sanitizeTrendyolVariants(result.variants, { productTitle: title });
+  const colors = sanitized.colors ?? [];
+  const sizes = sanitized.sizes ?? [];
+  const allVariants = sanitized.allVariants ?? [];
+  const features = Array.isArray(result.features) ? result.features : [];
+  const stockAnalysis = result.stockAnalysis as Record<string, unknown> | undefined;
+
+  const missingColors = colors.length === 0;
+  const missingSizes = sizes.length === 0;
+  const missingAllVariants = allVariants.length === 0;
+  const missingStockAnalysis = !stockAnalysis || Object.keys(stockAnalysis).length === 0;
+  const missingFeatures = features.length === 0;
+  const sparseVariants =
+    colors.length <= 1 && sizes.length <= 1 && allVariants.length <= 1;
+  const clothing = isClothingProduct(title);
+
+  const likelyIncomplete =
+    !hasRealTrendyolVariants(sanitized) ||
+    missingStockAnalysis ||
+    (clothing && sparseVariants) ||
+    (clothing && (missingColors || missingSizes));
+
+  return {
+    sparseVariants,
+    missingColors,
+    missingSizes,
+    missingAllVariants,
+    missingStockAnalysis,
+    missingFeatures,
+    likelyIncomplete,
+  };
+}
+
 export function evaluateScrapeQuality(
   url: string,
   result: Record<string, unknown>,
@@ -131,6 +186,9 @@ export function evaluateScrapeQuality(
     gatewayError?: string;
     gatewaySkippedReason?: string;
     stageErrors?: string[];
+    preferLocalAgent?: boolean;
+    localAgentSucceeded?: boolean;
+    htmlUnavailable?: boolean;
   } = {},
 ): ScrapeQuality {
   const apiSuccess = opts.apiSuccess === true;
@@ -165,6 +223,30 @@ export function evaluateScrapeQuality(
   const previewOk = !slugOnlyNoData && (hasValidPrice || hasImages || hasRealTitle);
   const jobSuccess = usableForCsv || previewOk;
   const hadTimeout = stageErrors.some((e) => e.includes("timeout"));
+  const localAgentFailed =
+    stageErrors.includes("local-agent-failed") ||
+    opts.gatewayError === "local-agent-failed" ||
+    opts.gatewaySkippedReason === "local-agent-failed";
+  const localAgentExpected = opts.preferLocalAgent === true;
+  const htmlUnavailable =
+    opts.htmlUnavailable === true ||
+    (!htmlParseSuccess && !gatewayHtmlSuccess && localAgentExpected);
+  const variantGaps = assessTrendyolVariantGaps(url, result);
+
+  if (
+    localAgentExpected &&
+    (localAgentFailed || opts.localAgentSucceeded === false) &&
+    (htmlUnavailable || variantGaps.likelyIncomplete)
+  ) {
+    if (!warnings.includes(LOCAL_AGENT_VARIANT_WARNING)) {
+      warnings.push(LOCAL_AGENT_VARIANT_WARNING);
+    }
+    if (variantGaps.sparseVariants) {
+      console.warn(
+        "⚠️ Trendyol varyant sonucu eksik olabilir: Local Agent/HTML yok, API kısmi yanıt verdi.",
+      );
+    }
+  }
 
   let finalSuccessReason: FinalSuccessReason = "no-usable-data";
 
@@ -225,7 +307,15 @@ export function evaluateScrapeQuality(
     finalSuccessReason = hasValidPrice ? "title-price-no-images" : "api-title-only";
   }
 
-  const partialSuccess = previewOk && (!usableForCsv || titleSource === "url-slug");
+  const variantDrivenPartial =
+    localAgentExpected &&
+    (localAgentFailed || opts.localAgentSucceeded === false) &&
+    (htmlUnavailable || variantGaps.likelyIncomplete) &&
+    previewOk;
+
+  const partialSuccess =
+    variantDrivenPartial ||
+    (previewOk && (!usableForCsv || titleSource === "url-slug"));
 
   return {
     titleSource,

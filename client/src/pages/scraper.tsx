@@ -14,6 +14,7 @@ import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
 import * as Collapsible from "@radix-ui/react-collapsible";
 
 import { ScrapeSourceErrorAlert, type ScrapeErrorMeta } from "@/components/ScrapeSourceErrorAlert";
+import { LocalAgentWarningAlert, hasLocalAgentWarning } from "@/components/LocalAgentWarningAlert";
 import { ScrapeFetchError } from "@/lib/scrape-url-client";
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -165,6 +166,7 @@ interface Product {
   partialSuccess?: boolean;
   titleSource?: string;
   finalSuccessReason?: string;
+  warnings?: string[];
   sourceUrl?: string;
   originalUrl?: string;
 }
@@ -188,6 +190,7 @@ function ScraperPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [scrapeErrorMeta, setScrapeErrorMeta] = useState<ScrapeErrorMeta | null>(null);
+  const [localAgentWarningDetail, setLocalAgentWarningDetail] = useState<string | null>(null);
   const [lastScrapeUrl, setLastScrapeUrl] = useState<string | null>(null);
   const [workflowStep, setWorkflowStep] = useState<string | null>(null);
   const [lastShopifyResult, setLastShopifyResult] = useState<{
@@ -226,6 +229,7 @@ function ScraperPage() {
     onMutate: () => {
       setScrapeError(null);
       setScrapeErrorMeta(null);
+      setLocalAgentWarningDetail(null);
       setWorkflowStep('URL alındı → Ürün çekiliyor...');
       toast({
         title: "⚙️ Arka Planda Çalışıyor",
@@ -292,6 +296,15 @@ function ScraperPage() {
       setWorkflowStep("Ürün normalize edildi");
       setScrapeError(null);
 
+      const showLocalAgentWarning = hasLocalAgentWarning(scraped.warnings);
+      setLocalAgentWarningDetail(
+        showLocalAgentWarning
+          ? scraped.stageErrors?.find((e) => e.includes("local-agent")) ??
+              scraped.finalSuccessReason ??
+              "local_agent_unreachable"
+          : null,
+      );
+
       let csvInfo = scraped.csvInfo as Product["csvInfo"];
       try {
         const csvStatus = await fetchShopifyCsvStatus();
@@ -341,6 +354,7 @@ function ScraperPage() {
         blockedForExport: scraped.blockedForExport,
         titleSource: scraped.titleSource,
         finalSuccessReason: scraped.finalSuccessReason,
+        warnings: scraped.warnings,
         sourceUrl,
         originalUrl: scraped.originalUrl,
       };
@@ -371,9 +385,16 @@ function ScraperPage() {
       if (!scraped.price?.original || scraped.price.original <= 0) missingParts.push("fiyat yok");
       if (!scraped.images?.length) missingParts.push("görsel yok");
       if (scraped.titleSource === "url-slug") missingParts.push("başlık yalnızca URL'den");
+      if (showLocalAgentWarning) missingParts.push("Local Agent/HTML yok — renk/beden eksik olabilir");
 
       toast({
-        title: isPartial ? "Kısmi Veri" : csvReady ? "Başarılı" : "Uyarı",
+        title: showLocalAgentWarning
+          ? "Kısmi Veri (Local Agent)"
+          : isPartial
+            ? "Kısmi Veri"
+            : csvReady
+              ? "Başarılı"
+              : "Uyarı",
         description: isPartial
           ? `Ürün kısmen çekildi${missingParts.length ? ` — ${missingParts.join(", ")}` : ""}. Shopify aktarımı için fiyat zorunludur.`
           : csvReady
@@ -2195,7 +2216,10 @@ function ScraperPage() {
 
         {/* CSV Drawer Preview - Tüm CSV'ler */}
         {(csvPreviews.length > 0 || (product && hasCsvPreviewData(product))) && (
-          <div className="mt-8">
+          <div className="mt-8 space-y-4">
+            {localAgentWarningDetail && (
+              <LocalAgentWarningAlert detail={localAgentWarningDetail} />
+            )}
             <CSVDrawerPreview 
               csvPreviews={csvPreviews}
               onDownload={handleCSVDownload}
