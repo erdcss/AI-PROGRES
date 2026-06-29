@@ -1,4 +1,5 @@
 import { sanitizeTrendyolVariants } from '@shared/trendyol-variant-utils';
+import { buildShopifyBodyHtml } from './shopify-description-builder';
 
 export interface NormalizedShopifyProductInput {
   title: string;
@@ -96,11 +97,28 @@ export function normalizeTrendyolProductForShopify(productData: any): Normalized
       : [];
 
   const description = String(productData?.description || '').trim();
+  const features = Array.isArray(productData?.features)
+    ? productData.features.filter(
+        (f: unknown) =>
+          f &&
+          typeof f === 'object' &&
+          String((f as { key?: string }).key || '').trim() &&
+          String((f as { value?: string }).value || '').trim(),
+      )
+    : [];
+
+  const bodyHtml = buildShopifyBodyHtml({
+    title,
+    brand,
+    description,
+    category: String(productData?.category || productData?.product_type || '').trim(),
+    features,
+  });
 
   return {
     title,
     brand,
-    bodyHtml: description ? `<p>${safeHtml(description)}</p>` : `<p>${safeHtml(title)}</p>`,
+    bodyHtml,
     vendor: brand,
     productType: String(productData?.category || productData?.product_type || 'Genel').trim() || 'Genel',
     tags,

@@ -22,6 +22,7 @@ import {
 import {
   buildVariantsFromSlicing,
   parseSlicingAttributesFromHtml,
+  parseSkuComboVariantsFromProduct,
 } from './trendyol-slicing-parser';
 import {
   extractTrendyolEnrichmentFeatures,
@@ -135,7 +136,11 @@ function parseFromNextData(html: string): Partial<HtmlExtractedProduct> {
 
 function buildVariantsFromHtml(html: string, $: cheerio.CheerioAPI, title: string) {
   const slicing = parseSlicingAttributesFromHtml(html);
-  const built = buildVariantsFromSlicing($, html);
+  let built = buildVariantsFromSlicing($, html);
+  if (built.length === 0) {
+    const product = getTrendyolProductFromState(html);
+    if (product) built = parseSkuComboVariantsFromProduct(product);
+  }
   const hasRealOptions =
     slicing.colors.length > 0 ||
     slicing.sizes.length > 0 ||

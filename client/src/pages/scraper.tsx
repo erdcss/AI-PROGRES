@@ -83,9 +83,12 @@ function buildCsvShopifyUploadBody(
     productTitle?: string;
     sourceUrl?: string;
     brand?: string;
+    description?: string;
     price?: { original?: number; withProfit?: number };
     images?: string[];
     variants?: unknown;
+    features?: Array<{ key: string; value: string }>;
+    category?: string;
     csvInfo?: unknown;
     csvPreview?: unknown;
   },
@@ -96,10 +99,13 @@ function buildCsvShopifyUploadBody(
     productData: {
       title: preview.productTitle,
       brand: preview.brand,
+      description: preview.description,
+      category: preview.category,
       price: preview.price,
       images: preview.images,
       sourceUrl: preview.sourceUrl,
       variants: preview.variants,
+      features: preview.features || [],
       csvContent,
       csvInfo: preview.csvInfo,
       csvPreview: preview.csvPreview,
@@ -2477,6 +2483,67 @@ function ScraperPage() {
                       </div>
                     </div>
 
+                    {/* Renk / beden ön izleme */}
+                    {(resolvedPreview.colors.length > 0 || resolvedPreview.sizes.length > 0) && (
+                      <div className="rounded-lg border border-indigo-500/20 bg-indigo-900/10 p-3 space-y-2">
+                        {resolvedPreview.colors.length > 0 && (
+                          <div>
+                            <span className="text-purple-300 text-xs font-medium">Renkler ({resolvedPreview.colors.length})</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {resolvedPreview.colors.map((color, idx) => (
+                                <span key={idx} className="text-xs px-2 py-0.5 rounded bg-purple-900/40 text-purple-200 border border-purple-700/40">
+                                  {color}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {resolvedPreview.sizes.length > 0 && (
+                          <div>
+                            <span className="text-green-300 text-xs font-medium">Bedenler ({resolvedPreview.sizes.length})</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {resolvedPreview.variantOptions.length > 0
+                                ? resolvedPreview.variantOptions
+                                    .filter((v) => v.size)
+                                    .map((v, idx) => (
+                                      <span
+                                        key={idx}
+                                        className={`text-xs px-2 py-0.5 rounded border ${
+                                          v.inStock
+                                            ? "bg-green-900/40 text-green-200 border-green-700/40"
+                                            : "bg-slate-700/40 text-slate-400 border-slate-600/40 line-through"
+                                        }`}
+                                      >
+                                        {v.size}
+                                      </span>
+                                    ))
+                                : resolvedPreview.sizes.map((size, idx) => (
+                                    <span key={idx} className="text-xs px-2 py-0.5 rounded bg-green-900/40 text-green-200 border border-green-700/40">
+                                      {size}
+                                    </span>
+                                  ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Ürün özellikleri ön izleme */}
+                    {resolvedPreview.features.length > 0 && (
+                      <div className="rounded-lg border border-cyan-800/30 bg-slate-800/30 p-3">
+                        <span className="text-cyan-300 text-xs font-medium block mb-2">
+                          Özellikler ({resolvedPreview.features.length})
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {resolvedPreview.features.slice(0, 8).map((feature, idx) => (
+                            <div key={idx} className="text-xs text-slate-300">
+                              <span className="text-slate-500">{feature.key}:</span> {feature.value}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Enhanced Variant Display - Color Based Size Details */}
                     {hasRealTrendyolVariants(displayVariants) && (
                       <div className="bg-gradient-to-br from-indigo-900/30 via-purple-900/20 to-pink-900/30 rounded-xl border-2 border-indigo-500/30 p-4 space-y-4 shadow-lg">
@@ -3251,9 +3318,19 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
 
   const primaryImage = previewData.images?.[0];
   const imageUrl = resolvePreviewImageUrl(primaryImage);
+  const previewVariants = sanitizeTrendyolVariants(previewData.variants, {
+    productTitle: previewData.title,
+  });
   const detectedColor = previewData.detectedColor || previewData.extractedColor || 'Renk Tespit Edilmedi';
-  const availableSizes = previewData.variants?.availableSizes || previewData.variants?.sizes || [];
-  const outOfStockSizes = previewData.variants?.unavailableSizes || [];
+  const availableSizes =
+    previewData.stockAnalysis?.availableSizes ||
+    previewVariants.allVariants.filter((v) => v.inStock && v.size).map((v) => v.size) ||
+    previewVariants.sizes ||
+    [];
+  const outOfStockSizes =
+    previewData.stockAnalysis?.unavailableSizes ||
+    previewVariants.allVariants.filter((v) => !v.inStock && v.size).map((v) => v.size) ||
+    [];
   const features = previewData.features || [];
 
   return (
@@ -3308,8 +3385,8 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
               <span className="text-slate-300 text-xs font-medium truncate">
-                {previewData.variants?.colors?.length > 0 
-                  ? `${previewData.variants.colors.length} Renk: ${previewData.variants.colors.slice(0, 2).join(', ')}${previewData.variants.colors.length > 2 ? '...' : ''}`
+                {previewVariants.colors.length > 0 
+                  ? `${previewVariants.colors.length} Renk: ${previewVariants.colors.slice(0, 2).join(', ')}${previewVariants.colors.length > 2 ? '...' : ''}`
                   : detectedColor
                 }
               </span>

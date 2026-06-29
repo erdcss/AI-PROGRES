@@ -3,7 +3,7 @@
  */
 
 import type { CheerioAPI, Cheerio } from "cheerio";
-import { getTrendyolProductFromState } from "./trendyol-product-state";
+import { getTrendyolProductFromState, parseTrendyolProductDetailState } from "./trendyol-product-state";
 
 export interface SlicingOption {
   name: string;
@@ -89,41 +89,164 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
   return { colors, sizes };
 }
 
+function collectVariantSourceRecords(product: unknown): Record<string, unknown>[] {
+  const sources: Record<string, unknown>[] = [];
+  if (product && typeof product === "object") {
+    sources.push(product as Record<string, unknown>);
+    const ml = (product as Record<string, unknown>).merchantListing;
+    if (ml && typeof ml === "object") sources.push(ml as Record<string, unknown>);
+  }
+  return sources;
+}
+
+function collectAllVariantItems(product: unknown): Record<string, unknown>[] {
+  const items: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  const push = (raw: unknown) => {
+    if (!raw || typeof raw !== "object") return;
+    const rec = raw as Record<string, unknown>;
+    const key = JSON.stringify([
+      rec.itemNumber ?? rec.id,
+      rec.attributeName,
+      rec.attributeValue,
+      rec.attributes,
+      rec.color,
+      rec.size,
+    ]);
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push(rec);
+  };
+
+  for (const source of collectVariantSourceRecords(product)) {
+    for (const key of ["allVariants", "variants", "sizeVariants", "colorVariants"]) {
+      const list = source[key];
+      if (Array.isArray(list)) list.forEach(push);
+    }
+    const sliced = source.slicedAttributes;
+    if (Array.isArray(sliced)) {
+      for (const attr of sliced) {
+        if (!attr || typeof attr !== "object") continue;
+        const attrRec = attr as Record<string, unknown>;
+        const nested = attrRec.attributes ?? attrRec.items ?? attrRec.values;
+        if (Array.isArray(nested)) nested.forEach(push);
+      }
+    }
+  }
+
+  return items;
+}
+
 export function parseSlicingAttributesFromHtml(htmlContent: string): SlicingAttributesData {
   const empty: SlicingAttributesData = { colors: [], sizes: [] };
+  const state = parseTrendyolProductDetailState(htmlContent);
   const product = getTrendyolProductFromState(htmlContent);
-  if (product) {
-    const parsed = parseSlicingAttributesFromProduct(product);
+  const sources: unknown[] = [
+    product,
+    product && typeof product === "object"
+      ? (product as Record<string, unknown>).merchantListing
+      : null,
+    state && typeof state === "object"
+      ? (state as Record<string, unknown>).merchantListing
+      : null,
+    state,
+  ];
+
+  for (const src of sources) {
+    if (!src || typeof src !== "object") continue;
+    const parsed = parseSlicingAttributesFromProduct(src);
     if (parsed.colors.length > 0 || parsed.sizes.length > 0) return parsed;
   }
   return empty;
+}
+
+/** product.allVariants / SKU kombinasyonlarından renk×beden matrisi */
+export function parseSkuComboVariantsFromProduct(product: unknown): SlicingVariant[] {
+  const variants: SlicingVariant[] = [];
+  const seen = new Set<string>();
+
+  for (const rec of collectAllVariantItems(product)) {
+    const attrName = String(rec.attributeName ?? rec.name ?? "").toLowerCase();
+    const attrs = rec.attributes as Record<string, unknown> | undefined;
+
+    let color = "";
+    let size = "";
+
+    if (attrs && typeof attrs === "object") {
+      color = String(
+        attrs.RENK ?? attrs.Renk ?? attrs.renk ?? attrs.color ?? attrs.COLOR ?? "",
+      ).trim();
+      size = String(
+        attrs.BEDEN ?? attrs.Beden ?? attrs.beden ?? attrs.size ?? attrs.SIZE ?? "",
+      ).trim();
+    }
+
+    if (!color && !size) {
+      if (attrName === "renk" || attrName === "color") {
+        color = optionName(rec);
+      } else if (
+        attrName === "beden" ||
+        attrName === "size" ||
+        attrName.includes("yaş") ||
+        attrName.includes("yas")
+      ) {
+        size = optionName(rec);
+      } else {
+        color = String(rec.color ?? "").trim();
+        size = String(rec.size ?? rec.value ?? "").trim();
+      }
+    }
+
+    if (!color && !size) continue;
+
+    const stockCount = rec.stock ?? rec.stockCount ?? rec.quantity;
+    const inStock =
+      stockCount != null
+        ? Number(stockCount) > 0
+        : itemInStock(rec);
+
+    const key = `${color.toLowerCase()}::${size.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    variants.push({ color, colorCode: "", size, inStock });
+  }
+
+  return variants;
 }
 
 /** product.allVariants içinden beden + stok bilgisi */
 export function parseSizeVariantsFromProduct(product: unknown): SlicingOption[] {
   const sizes: SlicingOption[] = [];
   const seen = new Set<string>();
-  if (!product || typeof product !== "object") return sizes;
 
-  const allVariants = (product as { allVariants?: unknown[] }).allVariants;
-  if (!Array.isArray(allVariants)) return sizes;
-
-  for (const v of allVariants) {
-    if (!v || typeof v !== "object") continue;
-    const rec = v as Record<string, unknown>;
+  for (const rec of collectAllVariantItems(product)) {
     const attrName = String(rec.attributeName ?? rec.name ?? "").toLowerCase();
-    const isSize =
-      attrName === "beden" ||
-      attrName === "size" ||
-      attrName.includes("yaş") ||
-      attrName.includes("yas");
-    if (!isSize) continue;
-    const name = optionName(rec);
+    const attrs = rec.attributes as Record<string, unknown> | undefined;
+    let name = "";
+
+    if (attrs && typeof attrs === "object") {
+      name = String(
+        attrs.BEDEN ?? attrs.Beden ?? attrs.beden ?? attrs.size ?? attrs.SIZE ?? "",
+      ).trim();
+    }
+    if (!name) {
+      const isSize =
+        attrName === "beden" ||
+        attrName === "size" ||
+        attrName.includes("yaş") ||
+        attrName.includes("yas");
+      if (!isSize) continue;
+      name = optionName(rec);
+    }
     if (!name) continue;
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    sizes.push({ name, inStock: itemInStock(rec) });
+    const stockCount = rec.stock ?? rec.stockCount ?? rec.quantity;
+    const inStock =
+      stockCount != null ? Number(stockCount) > 0 : itemInStock(rec);
+    sizes.push({ name, inStock });
   }
 
   return sizes;
@@ -218,9 +341,7 @@ export function buildVariantsFromSlicing(
   htmlContent: string,
 ): SlicingVariant[] {
   const product = getTrendyolProductFromState(htmlContent);
-  const slicing = product
-    ? parseSlicingAttributesFromProduct(product)
-    : parseSlicingAttributesFromHtml(htmlContent);
+  const slicing = parseSlicingAttributesFromHtml(htmlContent);
   const allVariantSizes = product ? parseSizeVariantsFromProduct(product) : [];
   const domColors = extractColorsFromSlicingDom($);
   const domSizes = extractSizesWithStockFromDom($);
@@ -307,6 +428,24 @@ export function buildVariantsFromSlicing(
     }
   }
 
+  if (variants.length === 0 && product) {
+    const skuVariants = parseSkuComboVariantsFromProduct(product);
+    if (skuVariants.length > 0) return skuVariants;
+  }
+
+  if (variants.length > 0 && product) {
+    const skuVariants = parseSkuComboVariantsFromProduct(product);
+    if (skuVariants.length > 0) {
+      const stockByKey = new Map(
+        skuVariants.map((v) => [`${v.color.toLowerCase()}::${v.size.toLowerCase()}`, v.inStock]),
+      );
+      return variants.map((v) => {
+        const key = `${v.color.toLowerCase()}::${v.size.toLowerCase()}`;
+        return stockByKey.has(key) ? { ...v, inStock: stockByKey.get(key)! } : v;
+      });
+    }
+  }
+
   return variants;
 }
 
@@ -317,8 +456,12 @@ export function extractSizesWithStockFromDom($: CheerioAPI): SlicingOption[] {
   const sizeSelectors = [
     '[data-testid*="size"] button',
     '[data-testid*="size-variant"]',
+    '[data-testid="size-variant-item"]',
     '.slicing-attribute-section-value button',
     '.slicing-attribute-section-value span',
+    '.slicing-attribute-section-value a',
+    '[class*="slicing-attribute"] button',
+    '[class*="slicing-attribute"] span',
     '.pr-in-sz button',
     '[class*="size-variant"] button',
   ];

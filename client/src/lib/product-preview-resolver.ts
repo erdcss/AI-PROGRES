@@ -41,6 +41,7 @@ export type ProductLike = {
     availableSizes?: string[];
     unavailableSizes?: string[];
   };
+  features?: Array<{ key: string; value: string }>;
   csvPreview?: CsvPreviewLike["csvPreview"];
   csvContent?: string;
   sourceUrl?: string;
@@ -57,6 +58,10 @@ export type ResolvedProductPreview = {
   images: string[];
   stockSummary: string;
   variantSummary: string;
+  colors: string[];
+  sizes: string[];
+  variantOptions: Array<{ color: string; size: string; inStock: boolean }>;
+  features: Array<{ key: string; value: string }>;
   hasTitle: boolean;
   hasBrand: boolean;
   hasPrice: boolean;
@@ -304,6 +309,28 @@ function resolveVariantSummary(product?: ProductLike | null): string {
   return MISSING;
 }
 
+function resolveVariantDetails(product?: ProductLike | null) {
+  const variants = sanitizeTrendyolVariants(product?.variants, {
+    productTitle: product?.title,
+  });
+  return {
+    colors: variants.colors.filter(Boolean),
+    sizes: variants.sizes.filter(Boolean),
+    variantOptions: variants.allVariants.map((v) => ({
+      color: v.color || "",
+      size: v.size || "",
+      inStock: v.inStock !== false,
+    })),
+  };
+}
+
+function resolveFeatures(product?: ProductLike | null): Array<{ key: string; value: string }> {
+  if (!Array.isArray(product?.features)) return [];
+  return product.features.filter(
+    (f) => f?.key && f?.value && String(f.key).trim() && String(f.value).trim(),
+  );
+}
+
 export function resolveProductPreview(input: {
   product?: ProductLike | null;
   scraped?: ProductLike | null;
@@ -314,6 +341,8 @@ export function resolveProductPreview(input: {
   const { brand, hasBrand } = resolveBrand(product, csvPreview);
   const prices = resolvePrices(product, csvPreview);
   const imageResult = resolveImages(product, csvPreview);
+  const variantDetails = resolveVariantDetails(product);
+  const features = resolveFeatures(product);
 
   const displayPrice =
     prices.hasPrice && prices.original != null
@@ -333,6 +362,10 @@ export function resolveProductPreview(input: {
     images: imageResult.images,
     stockSummary: resolveStockSummary(product),
     variantSummary: resolveVariantSummary(product),
+    colors: variantDetails.colors,
+    sizes: variantDetails.sizes,
+    variantOptions: variantDetails.variantOptions,
+    features,
     hasTitle,
     hasBrand,
     hasPrice: prices.hasPrice,
