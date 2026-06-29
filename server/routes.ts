@@ -3737,13 +3737,104 @@ setTimeout(check, 1000);
       
       const { csvContent, productTitle, individualTags, productData, csvInfo } = req.body;
 
-      const priceOriginal = Number(
+      const normalizePriceNumber = (value: unknown): number => {
+        const raw = String(value ?? '').replace(/[^\d.,-]/g, '').trim();
+        if (!raw) return 0;
+
+        const lastComma = raw.lastIndexOf(',');
+        const lastDot = raw.lastIndexOf('.');
+        let normalized = raw;
+
+        if (lastComma !== -1 && lastDot !== -1) {
+          normalized = lastComma > lastDot
+            ? raw.replace(/\./g, '').replace(',', '.')
+            : raw.replace(/,/g, '');
+        } else if (lastComma !== -1) {
+          normalized = raw.replace(',', '.');
+        } else if (/^\d{1,3}(\.\d{3})+$/.test(raw)) {
+          normalized = raw.replace(/\./g, '');
+        }
+
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+
+      const parseCsvLine = (line: string): string[] => {
+        const cells: string[] = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+
+          if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            cells.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+
+        cells.push(current);
+        return cells;
+      };
+
+      const readPriceFromCsv = (csv?: string): number => {
+        if (!csv || typeof csv !== 'string') return 0;
+
+        const lines = csv.split(/\r?\n/).filter((line) => line.trim());
+        if (lines.length < 2) return 0;
+
+        const headers = parseCsvLine(lines[0]).map((header) =>
+          header.replace(/^"|"$/g, '').trim().toLowerCase(),
+        );
+
+        const preferredHeaders = [
+          'variant price',
+          'price',
+          'variant_price',
+        ];
+
+        let priceIndex = -1;
+        for (const headerName of preferredHeaders) {
+          priceIndex = headers.findIndex((header) => header === headerName);
+          if (priceIndex !== -1) break;
+        }
+
+        if (priceIndex === -1) {
+          priceIndex = headers.findIndex((header) =>
+            header.includes('price') && !header.includes('compare'),
+          );
+        }
+
+        if (priceIndex === -1) return 0;
+
+        for (const line of lines.slice(1)) {
+          const row = parseCsvLine(line);
+          const price = normalizePriceNumber(row[priceIndex]);
+          if (price > 0) return price;
+        }
+
+        return 0;
+      };
+
+      const productDataPrice = normalizePriceNumber(
         productData?.price?.original ?? productData?.price?.withProfit ?? 0,
       );
+      const csvPrice = readPriceFromCsv(csvContent);
+      const priceOriginal = productDataPrice > 0 ? productDataPrice : csvPrice;
+
       if (priceOriginal <= 0) {
         return res.status(400).json({
           success: false,
-          error: 'Fiyat alÄ±namadÄ±ÄŸÄ± iÃ§in Shopify aktarÄ±mÄ± yapÄ±lamaz.',
+          error: 'Fiyat alınamadığı için Shopify aktarımı yapılamaz.',
           step: 'price_validation',
         });
       }
