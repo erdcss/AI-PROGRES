@@ -201,6 +201,19 @@ function finalizeOutcome(
   };
 }
 
+async function finalizeTrendyolPipelineWithVariants(
+  url: string,
+  result: any,
+  diagnostics: ScrapeDiagnostics,
+  pipelineStart: number,
+  forcedGlobalTimeout: boolean,
+  variantOpts?: { html?: string | null; rawProduct?: Record<string, unknown> | null },
+): Promise<PipelineOutcome> {
+  const { ensureTrendyolVariantsOnResult } = await import("./trendyol-result-normalizer");
+  await ensureTrendyolVariantsOnResult(url, result, variantOpts);
+  return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
+}
+
 export async function runTrendyolScrapePipeline(
   url: string,
   selectedScrapeMode?: SelectedScrapeMode,
@@ -320,7 +333,17 @@ export async function runTrendyolScrapePipeline(
 
       const fields = evaluateFields(result, url);
       if (isCompleteScrapeData(fields)) {
-        return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
+        return finalizeTrendyolPipelineWithVariants(
+          url,
+          result,
+          diagnostics,
+          pipelineStart,
+          forcedGlobalTimeout,
+          {
+            html: access.html || directHtml,
+            rawProduct: apiProduct?.rawProduct ?? null,
+          },
+        );
       }
     } else if (agentSettled.status === "fulfilled") {
       const access = agentSettled.value;
@@ -689,5 +712,15 @@ export async function runTrendyolScrapePipeline(
 
   if (isPastDeadline()) forcedGlobalTimeout = true;
 
-  return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
+  return finalizeTrendyolPipelineWithVariants(
+    url,
+    result,
+    diagnostics,
+    pipelineStart,
+    forcedGlobalTimeout,
+    {
+      html: directHtml,
+      rawProduct: apiProduct?.rawProduct ?? null,
+    },
+  );
 }

@@ -10,6 +10,8 @@ import {
 } from "./trendyol-slicing-parser";
 import { getTrendyolProductFromState } from "./trendyol-product-state";
 import {
+  EMPTY_TRENDYOL_VARIANTS,
+  hasRealTrendyolVariants,
   sanitizeTrendyolVariants,
   type SanitizedVariants,
 } from "@shared/trendyol-variant-utils";
@@ -186,4 +188,29 @@ export function resolveTrendyolVariantBundle(input: {
     variants,
     stockAnalysis: buildStockAnalysisFromVariants(variants),
   };
+}
+
+/** API productDetail — yalnızca varyant için hafif çağrı */
+export async function fetchTrendyolVariantsFromApi(
+  url: string,
+  productTitle?: string,
+): Promise<SanitizedVariants> {
+  const { fetchTrendyolProductByUrl } = await import("./trendyol-product-api");
+  const api = await fetchTrendyolProductByUrl(url);
+  if (!api) return EMPTY_TRENDYOL_VARIANTS;
+
+  if (api.variants && hasRealTrendyolVariants(api.variants)) {
+    return api.variants;
+  }
+
+  if (api.rawProduct) {
+    const resolved = resolveTrendyolVariants({
+      product: api.rawProduct,
+      url,
+      productTitle: productTitle || api.title,
+    });
+    if (hasRealTrendyolVariants(resolved)) return resolved;
+  }
+
+  return resolveTrendyolVariants({ url, productTitle: productTitle || api.title });
 }

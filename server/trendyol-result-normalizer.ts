@@ -18,6 +18,7 @@ import {
 import {
   hasRealTrendyolVariants,
   sanitizeTrendyolVariants,
+  type SanitizedVariants,
 } from '@shared/trendyol-variant-utils';
 
 import { isBlockedTrendyolTitle } from '@shared/trendyol-bot-detection';
@@ -69,9 +70,15 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
 
   result.sourceUrl = result.sourceUrl || url;
 
-  // Local Agent veya pipeline'dan gelen tam veri — cloud'da tekrar direct fetch yapma
+  // Local Agent — başlık/fiyat/görsel tam olsa bile varyant eksikse tamamla
   if (result._fromLocalAgent || result._sourceAccessStrategy === "local_agent") {
     result.title = resolveProductTitle(url, result.title);
+    if (!hasRealTrendyolVariants(result.variants)) {
+      await ensureTrendyolVariantsOnResult(url, result);
+    }
+    result.variants = sanitizeTrendyolVariants(result.variants, {
+      productTitle: result.title,
+    });
     if (hasUsableTrendyolResult(result)) {
       return result;
     }
@@ -87,13 +94,18 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
   const { isCloudRuntime } = await import('@shared/deploy-runtime');
   if (isCloudRuntime()) {
     const missingImagesAfterFirstPass = normalizeImages(result.images).length === 0;
-    if (missingImagesAfterFirstPass || titleWasPlaceholder) {
+    const missingVariantsAfterFirstPass = !hasRealTrendyolVariants(result.variants);
+    if (missingImagesAfterFirstPass || titleWasPlaceholder || missingVariantsAfterFirstPass) {
       const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
       const htmlProduct = await extractTrendyolProductFromHtml(url);
       if (htmlProduct) {
         result.title = resolveProductTitle(url, htmlProduct.title || result.title);
         if (htmlProduct.images.length > 0) result.images = htmlProduct.images;
         if (hasRealTrendyolVariants(htmlProduct.variants)) result.variants = htmlProduct.variants;
+        if (htmlProduct.stockAnalysis) result.stockAnalysis = htmlProduct.stockAnalysis;
+        if (htmlProduct.features?.length && !result.features?.length) {
+          result.features = htmlProduct.features;
+        }
         if (needsPrice(result.price) && htmlProduct.price.original > 0) result.price = htmlProduct.price;
       }
     }
@@ -102,9 +114,10 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
 
   const missingPrice = needsPrice(result.price);
   const missingImages = !hasValidImages(result.images);
+  const missingVariants = !hasRealTrendyolVariants(result.variants);
   const wasBlocked = result.blocked === true;
 
-  if (missingPrice || missingImages || titleWasPlaceholder || wasBlocked) {
+  if (missingPrice || missingImages || missingVariants || titleWasPlaceholder || wasBlocked) {
     const alreadyFromBrowser =
       !wasBlocked &&
       (String(result.extractionMethod || '').includes('scenario') ||
@@ -130,6 +143,9 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
         }
         if (p.description && !result.description) result.description = p.description;
         if (p.category && !result.category) result.category = p.category;
+        if (missingVariants && hasRealTrendyolVariants(p.variants)) {
+          result.variants = p.variants;
+        }
       } else {
         const api = await fetchTrendyolProductByUrl(url);
         if (api) {
@@ -140,15 +156,18 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
           if (missingImages && api.images.length > 0) result.images = api.images;
           if (!isValidTrendyolProductTitle(result.title)) result.title = resolveProductTitle(url, api.title);
           if (api.brand && (!result.brand || result.brand === 'Bilinmiyor')) result.brand = api.brand;
+          if (missingVariants && api.variants && hasRealTrendyolVariants(api.variants)) {
+            result.variants = api.variants;
+          }
         }
       }
     }
 
     let stillMissingPrice = needsPrice(result.price);
     let stillMissingImages = !hasValidImages(result.images);
-    const missingVariants = !hasRealTrendyolVariants(result.variants);
+    const stillMissingVariants = !hasRealTrendyolVariants(result.variants);
 
-    if (stillMissingPrice || stillMissingImages || missingVariants) {
+    if (stillMissingPrice || stillMissingImages || stillMissingVariants) {
       const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
       const htmlProduct = await extractTrendyolProductFromHtml(url);
       if (htmlProduct) {
@@ -164,9 +183,10 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
           result.images = htmlProduct.images;
           stillMissingImages = false;
         }
-        if (missingVariants && hasRealTrendyolVariants(htmlProduct.variants)) {
+        if (stillMissingVariants && hasRealTrendyolVariants(htmlProduct.variants)) {
           result.variants = htmlProduct.variants;
         }
+        if (htmlProduct.stockAnalysis) result.stockAnalysis = htmlProduct.stockAnalysis;
         if (!isValidTrendyolProductTitle(result.title)) {
           result.title = resolveProductTitle(url, htmlProduct.title);
         }
@@ -199,10 +219,15 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
     const needsVariantsOnly =
       !stillMissingPrice &&
       !stillMissingImages &&
-      missingVariants &&
+      stillMissingVariants &&
       isValidTrendyolProductTitle(result.title);
 
-    if ((stillMissingPrice || stillMissingImages || needsVariantsOnly) && !alreadyFromBrowser && !result._puppeteerEnrichAttempted && !skipPuppeteerOnCloud) {
+    if (
+      (stillMissingPrice || stillMissingImages || needsVariantsOnly) &&
+      !alreadyFromBrowser &&
+      !result._puppeteerEnrichAttempted &&
+      (!skipPuppeteerOnCloud || needsVariantsOnly)
+    ) {
       result._puppeteerEnrichAttempted = true;
       try {
         console.log('🎭 enrich: HTTP/API yetersiz — Puppeteer scenario scrape deneniyor...');
@@ -229,6 +254,8 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
       }
     }
   }
+
+  await ensureTrendyolVariantsOnResult(url, result);
 
   result.title = resolveProductTitle(url, result.title);
 
@@ -273,6 +300,84 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
   });
 
   return result;
+}
+
+/** Varyant eksikse API + HTML + URL slug ile zorla tamamla */
+export async function ensureTrendyolVariantsOnResult(
+  url: string,
+  result: any,
+  opts?: { html?: string | null; rawProduct?: Record<string, unknown> | null },
+): Promise<void> {
+  if (!result) return;
+
+  if (hasRealTrendyolVariants(result.variants)) {
+    if (!result.stockAnalysis) {
+      const { buildStockAnalysisFromVariants } = await import("./trendyol-html-enrichment");
+      result.stockAnalysis =
+        buildStockAnalysisFromVariants(result.variants) ?? undefined;
+    }
+    return;
+  }
+
+  const {
+    fetchTrendyolVariantsFromApi,
+    resolveTrendyolVariants,
+  } = await import("./trendyol-variant-resolver");
+  const { buildStockAnalysisFromVariants } = await import("./trendyol-html-enrichment");
+
+  let resolved: SanitizedVariants | null = null;
+
+  if (opts?.html && opts.html.length >= 500) {
+    resolved = resolveTrendyolVariants({
+      html: opts.html,
+      url,
+      productTitle: result.title,
+      product: opts.rawProduct ?? undefined,
+    });
+  }
+
+  if (!hasRealTrendyolVariants(resolved) && opts?.rawProduct) {
+    resolved = resolveTrendyolVariants({
+      product: opts.rawProduct,
+      url,
+      productTitle: result.title,
+    });
+  }
+
+  if (!hasRealTrendyolVariants(resolved)) {
+    resolved = await fetchTrendyolVariantsFromApi(url, result.title);
+  }
+
+  if (!hasRealTrendyolVariants(resolved)) {
+    const { extractTrendyolProductFromHtml } = await import("./trendyol-html-extractor");
+    const htmlProduct = await extractTrendyolProductFromHtml(url);
+    if (htmlProduct) {
+      if (hasRealTrendyolVariants(htmlProduct.variants)) {
+        resolved = htmlProduct.variants;
+      }
+      if (htmlProduct.features?.length && !result.features?.length) {
+        result.features = htmlProduct.features;
+      }
+      if (htmlProduct.stockAnalysis) {
+        result.stockAnalysis = htmlProduct.stockAnalysis;
+      }
+    }
+  }
+
+  if (!hasRealTrendyolVariants(resolved)) {
+    resolved = resolveTrendyolVariants({ url, productTitle: result.title });
+  }
+
+  if (hasRealTrendyolVariants(resolved)) {
+    result.variants = resolved;
+    result.stockAnalysis =
+      result.stockAnalysis ??
+      buildStockAnalysisFromVariants(resolved) ??
+      undefined;
+    console.log(
+      `✅ Varyant zenginleştirme: ${resolved.colors.length} renk, ${resolved.sizes.length} beden`,
+    );
+  }
 }
 
 export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {

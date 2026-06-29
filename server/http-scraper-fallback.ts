@@ -18,8 +18,9 @@ import {
 import { fetchTrendyolDirectHtmlRaw } from './trendyol-direct-html';
 import {
   EMPTY_TRENDYOL_VARIANTS,
-  sanitizeTrendyolVariants,
+  hasRealTrendyolVariants,
 } from '@shared/trendyol-variant-utils';
+import { resolveTrendyolVariantBundle } from './trendyol-variant-resolver';
 import {
   brandFromTrendyolUrl,
   isInvalidTrendyolTitle,
@@ -185,9 +186,10 @@ function apiProductToResult(
       brand: apiProduct.brand,
       price: apiProduct.price,
       images: apiProduct.images,
-      variants: sanitizeTrendyolVariants(
-        apiProduct.variants?.length ? { allVariants: apiProduct.variants } : undefined,
-      ),
+      variants:
+        apiProduct.variants && hasRealTrendyolVariants(apiProduct.variants)
+          ? apiProduct.variants
+          : EMPTY_TRENDYOL_VARIANTS,
       features: [],
       tags: [],
       description: apiProduct.description,
@@ -470,6 +472,12 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
       price.withProfit = normalized.withProfit;
     }
 
+    const { variants } = resolveTrendyolVariantBundle({
+      html,
+      url,
+      productTitle: title,
+    });
+
     return {
       success: true,
       step: source === 'direct' ? 'http_fallback_complete' : `http_fallback_${source}`,
@@ -478,7 +486,7 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
         brand,
         price,
         images,
-        variants: EMPTY_TRENDYOL_VARIANTS,
+        variants,
         features: [],
         tags: [],
         description,
