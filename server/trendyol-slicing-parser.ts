@@ -52,39 +52,89 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
   const sizes: SlicingOption[] = [];
   if (!product || typeof product !== "object") return { colors, sizes };
 
+  const mergeOption = (list: SlicingOption[], entry: SlicingOption) => {
+    const key = entry.name.toLowerCase();
+    const existing = list.find((x) => x.name.toLowerCase() === key);
+    if (existing) {
+      existing.inStock = existing.inStock || entry.inStock;
+      return;
+    }
+    list.push(entry);
+  };
+
   const sliced = (product as { slicedAttributes?: unknown[] }).slicedAttributes;
-  if (!Array.isArray(sliced)) return { colors, sizes };
+  if (Array.isArray(sliced)) {
+    for (const attr of sliced) {
+      if (!attr || typeof attr !== "object") continue;
+      const record = attr as Record<string, unknown>;
+      const attrName = String(record.attributeName ?? record.name ?? "").toLowerCase();
+      const attrType = String(record.attributeType ?? record.type ?? "").toLowerCase();
+      const isColor =
+        attrName === "renk" ||
+        attrName === "color" ||
+        attrType === "color" ||
+        attrType === "colour" ||
+        attrType === "1";
+      const isSize =
+        attrName === "beden" ||
+        attrName === "size" ||
+        attrName.includes("yaş") ||
+        attrName.includes("yas") ||
+        attrType === "size" ||
+        attrType === "2";
 
-  for (const attr of sliced) {
-    if (!attr || typeof attr !== "object") continue;
-    const record = attr as Record<string, unknown>;
-    const attrName = String(record.attributeName ?? record.name ?? "").toLowerCase();
-    const attrType = String(record.attributeType ?? "").toLowerCase();
-    const isColor =
-      attrName === "renk" ||
-      attrName === "color" ||
-      attrType === "color" ||
-      attrType === "colour";
-    const isSize =
-      attrName === "beden" ||
-      attrName === "size" ||
-      attrName.includes("yaş") ||
-      attrName.includes("yas") ||
-      attrType === "size";
+      const items = record.attributes ?? record.items ?? record.values;
+      if (!Array.isArray(items)) continue;
 
-    const items = record.attributes ?? record.items ?? record.values;
-    if (!Array.isArray(items)) continue;
-
-    for (const item of items) {
-      if (!item || typeof item !== "object") continue;
-      const rec = item as Record<string, unknown>;
-      const name = optionName(rec);
-      if (!name || name.length > 40) continue;
-      const entry = { name, inStock: itemInStock(rec) };
-      if (isColor) colors.push(entry);
-      else if (isSize) sizes.push(entry);
+      for (const item of items) {
+        if (!item || typeof item !== "object") continue;
+        const rec = item as Record<string, unknown>;
+        const name = optionName(rec);
+        if (!name || name.length > 40) continue;
+        const entry = { name, inStock: itemInStock(rec) };
+        if (isColor) mergeOption(colors, entry);
+        else if (isSize) mergeOption(sizes, entry);
+      }
     }
   }
+
+  const flatVariants = (product as { variants?: unknown[] }).variants;
+  if (Array.isArray(flatVariants)) {
+    for (const item of flatVariants) {
+      if (!item || typeof item !== "object") continue;
+      const rec = item as Record<string, unknown>;
+      const attrType = rec.attributeType;
+      const name = optionName(rec);
+      if (!name) continue;
+      const entry = { name, inStock: itemInStock(rec) };
+      if (attrType === 1 || attrType === "1") mergeOption(colors, entry);
+      else if (attrType === 2 || attrType === "2") mergeOption(sizes, entry);
+      else {
+        const attrName = String(rec.attributeName ?? "").toLowerCase();
+        if (attrName === "renk" || attrName === "color") mergeOption(colors, entry);
+        else if (attrName === "beden" || attrName === "size") mergeOption(sizes, entry);
+      }
+    }
+  }
+
+  const otherMerchants = (product as { otherMerchants?: unknown[] }).otherMerchants;
+  if (Array.isArray(otherMerchants)) {
+    for (const merchant of otherMerchants) {
+      if (!merchant || typeof merchant !== "object") continue;
+      const rec = merchant as Record<string, unknown>;
+      for (const key of ["color", "renk", "variantName", "name", "title"]) {
+        const val = String(rec[key] ?? "").trim();
+        if (val && val.length < 40) mergeOption(colors, { name: val, inStock: true });
+      }
+    }
+  }
+
+  const directColor = String(
+    (product as Record<string, unknown>).color ??
+      (product as Record<string, unknown>).renk ??
+      "",
+  ).trim();
+  if (directColor) mergeOption(colors, { name: directColor, inStock: true });
 
   return { colors, sizes };
 }

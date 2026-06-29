@@ -17,6 +17,7 @@ import {
 } from "@shared/scrape-runtime";
 import { evaluateScrapeQuality } from "./scrape-quality";
 import { hasRealTrendyolVariants } from "@shared/trendyol-variant-utils";
+import { buildStockAnalysisFromVariants } from "./trendyol-html-enrichment";
 import { fetchTrendyolProductByUrl } from "./trendyol-product-api";
 import {
   brandFromTrendyolUrl,
@@ -231,6 +232,9 @@ export async function runTrendyolScrapePipeline(
     price: api.price,
     images: filterValidProductImages(api.images),
     variants: api.variants,
+    stockAnalysis: api.variants
+      ? buildStockAnalysisFromVariants(api.variants) ?? undefined
+      : undefined,
     features: [],
     tags: [],
     extractionMethod: "trendyol-api",

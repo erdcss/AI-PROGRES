@@ -12,6 +12,11 @@ import {
   titleFromTrendyolUrl,
 } from './trendyol-title-utils';
 import { isBlockedTrendyolTitle } from '@shared/trendyol-bot-detection';
+import {
+  resolveTrendyolVariants,
+  unwrapTrendyolApiProductRoot,
+} from './trendyol-variant-resolver';
+import type { SanitizedVariants } from '@shared/trendyol-variant-utils';
 
 export interface TrendyolApiProduct {
   title: string;
@@ -20,7 +25,8 @@ export interface TrendyolApiProduct {
   images: string[];
   description: string;
   category: string;
-  variants?: any[];
+  variants?: SanitizedVariants;
+  rawProduct?: Record<string, unknown>;
 }
 
 const API_HEADERS = (productId: string, url: string) => ({
@@ -91,8 +97,8 @@ function extractImages(data: any): string[] {
 }
 
 function parseProductPayload(data: any, url: string): TrendyolApiProduct | null {
-  const root = data?.result || data?.product || data?.products?.[0] || data;
-  if (!root || typeof root !== 'object') return null;
+  const root = unwrapTrendyolApiProductRoot(data);
+  if (!root) return null;
 
   let title = String(root.name || root.title || root.productName || '').trim();
   if (isBlockedTrendyolTitle(title) || !isValidTrendyolProductTitle(title)) {
@@ -121,6 +127,12 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
     return null;
   }
 
+  const resolvedVariants = resolveTrendyolVariants({
+    product: root,
+    url,
+    productTitle: title,
+  });
+
   return {
     title,
     brand,
@@ -132,7 +144,8 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
     images: filterValidProductImages(images),
     description: String(root.description || root.content || '').trim(),
     category: String(root.category?.name || root.categoryName || root.category || '').trim(),
-    variants: root.variants || root.allVariants || undefined,
+    variants: resolvedVariants,
+    rawProduct: root,
   };
 }
 

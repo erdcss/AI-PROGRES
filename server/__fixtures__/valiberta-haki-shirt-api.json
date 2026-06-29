@@ -1,0 +1,39 @@
+{
+  "result": {
+    "id": 853652997,
+    "name": "Nefes Alabilir Yarım Oversize Muslin Kumaş Uzun Kol Yakalı Erkek Gömlek Açık Haki",
+    "brand": { "name": "Valiberta" },
+    "slicedAttributes": [
+      {
+        "attributeName": "Renk",
+        "attributeType": "Color",
+        "attributes": [
+          { "attributeValue": "Açık Haki", "stockState": "InStock", "inStock": true },
+          { "attributeValue": "Kahve", "stockState": "InStock", "inStock": true },
+          { "attributeValue": "Siyah", "stockState": "InStock", "inStock": true }
+        ]
+      },
+      {
+        "attributeName": "Beden",
+        "attributeType": "Size",
+        "attributes": [
+          { "attributeValue": "S", "stockState": "InStock", "inStock": true },
+          { "attributeValue": "M", "stockState": "OutOfStock", "inStock": false },
+          { "attributeValue": "L", "stockState": "InStock", "inStock": true },
+          { "attributeValue": "XL", "stockState": "InStock", "inStock": true },
+          { "attributeValue": "2XL", "stockState": "OutOfStock", "inStock": false }
+        ]
+      }
+    ],
+    "variants": [
+      { "attributeType": 1, "attributeValue": "Açık Haki", "inStock": true },
+      { "attributeType": 1, "attributeValue": "Kahve", "inStock": true },
+      { "attributeType": 1, "attributeValue": "Siyah", "inStock": true },
+      { "attributeType": 2, "attributeValue": "S", "stockState": "InStock", "inStock": true },
+      { "attributeType": 2, "attributeValue": "M", "stockState": "OutOfStock", "inStock": false },
+      { "attributeType": 2, "attributeValue": "L", "stockState": "InStock", "inStock": true },
+      { "attributeType": 2, "attributeValue": "XL", "stockState": "InStock", "inStock": true },
+      { "attributeType": 2, "attributeValue": "2XL", "stockState": "OutOfStock", "inStock": false }
+    ]
+  }
+}

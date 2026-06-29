@@ -20,19 +20,14 @@ import {
   titleFromTrendyolUrl,
 } from './trendyol-title-utils';
 import {
-  buildVariantsFromSlicing,
-  parseSlicingAttributesFromHtml,
-  parseSkuComboVariantsFromProduct,
-} from './trendyol-slicing-parser';
+  resolveTrendyolVariantBundle,
+} from './trendyol-variant-resolver';
 import {
   extractTrendyolEnrichmentFeatures,
   buildStockAnalysisFromVariants,
   type TrendyolStockAnalysis,
 } from './trendyol-html-enrichment';
-import {
-  EMPTY_TRENDYOL_VARIANTS,
-  sanitizeTrendyolVariants,
-} from '@shared/trendyol-variant-utils';
+import type { SanitizedVariants } from '@shared/trendyol-variant-utils';
 import {
   extractProductImagesFromHtmlRegex,
   isBlockedTrendyolHtml,
@@ -46,7 +41,7 @@ export interface HtmlExtractedProduct {
   images: string[];
   description: string;
   category: string;
-  variants: ReturnType<typeof sanitizeTrendyolVariants>;
+  variants: SanitizedVariants;
   features: Array<{ key: string; value: string }>;
   stockAnalysis: TrendyolStockAnalysis | null;
   htmlSource: string;
@@ -134,33 +129,13 @@ function parseFromNextData(html: string): Partial<HtmlExtractedProduct> {
   }
 }
 
-function buildVariantsFromHtml(html: string, $: cheerio.CheerioAPI, title: string) {
-  const slicing = parseSlicingAttributesFromHtml(html);
-  let built = buildVariantsFromSlicing($, html);
-  if (built.length === 0) {
-    const product = getTrendyolProductFromState(html);
-    if (product) built = parseSkuComboVariantsFromProduct(product);
-  }
-  const hasRealOptions =
-    slicing.colors.length > 0 ||
-    slicing.sizes.length > 0 ||
-    built.length > 0;
-
-  if (!hasRealOptions) {
-    return EMPTY_TRENDYOL_VARIANTS;
-  }
-
-  return sanitizeTrendyolVariants(
-    {
-      allVariants: built.map((v) => ({
-        color: v.color,
-        colorCode: v.colorCode,
-        size: v.size,
-        inStock: v.inStock,
-      })),
-    },
-    { productTitle: title },
-  );
+function buildVariantsFromHtml(html: string, $: cheerio.CheerioAPI, title: string, url: string) {
+  const { variants, stockAnalysis } = resolveTrendyolVariantBundle({
+    html,
+    url,
+    productTitle: title,
+  });
+  return { variants, stockAnalysis };
 }
 
 /** Mevcut HTML string'inden parse — ağ isteği yapmaz */
@@ -216,9 +191,9 @@ export function parseTrendyolProductFromHtmlContent(
     mergeTrendyolImageLists(ogImage ? [ogImage] : [], fromState.images, fromNext.images, fromExtractor, regexImages),
   );
 
-  const variants = buildVariantsFromHtml(html, $, title);
+  const { variants, stockAnalysis: variantStock } = buildVariantsFromHtml(html, $, title, url);
   const features = extractTrendyolEnrichmentFeatures(html, $);
-  const stockAnalysis = buildStockAnalysisFromVariants(variants);
+  const stockAnalysis = variantStock ?? buildStockAnalysisFromVariants(variants);
 
   const blockedPage = isBlockedTrendyolHtml(html);
   if (original <= 0 && images.length === 0) return null;
