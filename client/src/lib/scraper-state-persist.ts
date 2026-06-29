@@ -154,6 +154,25 @@ export function clearScraperState(): void {
   }
 }
 
+/** Scraper sayfası geçici state — refresh / tümünü sil sonrası temizlenir */
+export function clearScraperUiStorage(): void {
+  clearScraperState();
+  const extraKeys = [
+    "turmarkt_scraper_queue",
+    "turmarkt_scraper_previews",
+    "turmarkt_last_scraped_product",
+    "turmarkt_scraper_last_url",
+  ];
+  for (const key of extraKeys) {
+    try {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 /** URL kuyruğunu anında kaydet (sayfa yenilenince kaybolmasın) */
 export function savePendingUrls(
   urls: Array<string | { url: string; status?: string; error?: string }>,

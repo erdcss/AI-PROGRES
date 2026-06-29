@@ -21,20 +21,27 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
 import MiniBrowser from "@/components/MiniBrowser";
 import { UrlHistory } from "@/components/UrlHistory";
-import { addRecentUrl } from "@/lib/url-history-client";
+import { addRecentUrl, clearRecentUrls } from "@/lib/url-history-client";
 import { fetchShopifyCsvStatus } from "@/lib/shopify-csv-download";
-import {
-  clearScraperState,
-  loadScraperState,
-  savePendingUrls,
-  saveScraperState,
-} from "@/lib/scraper-state-persist";
+import { clearScraperUiStorage } from "@/lib/scraper-state-persist";
 import { resolvePreviewImageUrl, resolvePreviewImageUrls, resolvePreviewProxyUrl } from "@/lib/product-image-url";
+import { resolveProductPreview } from "@/lib/product-preview-resolver";
+import {
+  buildIngestFingerprint,
+  dedupeNormalizedUrls,
+  extractDroppedUrls,
+  mergeUrlsIntoQueue,
+  normalizeProductUrl,
+  parseUrlsFromText,
+  shouldSkipDuplicateIngest,
+  type UrlIngestSource,
+  type UrlQueueItem,
+  type UrlQueueStatus,
+} from "@/lib/scraper-url-utils";
 import {
   buildCsvPreviewEntry,
   fetchScenarioScrapeResult,
   hasCsvPreviewData,
-  normalizeStoredCsvPreview,
   type ScrapedUrlPayload,
 } from "@/lib/scrape-url-client";
 import {
@@ -64,14 +71,6 @@ type MultiUrlFormData = z.infer<typeof multiUrlSchema>;
 
 type ScrapingMode = 'single' | 'multi-url';
 
-type UrlQueueStatus = 'pending' | 'processing' | 'success' | 'error';
-
-interface UrlQueueItem {
-  url: string;
-  status: UrlQueueStatus;
-  error?: string;
-}
-
 const URL_STATUS_LABEL: Record<UrlQueueStatus, string> = {
   pending: 'Bekliyor',
   processing: 'İşleniyor',
@@ -79,66 +78,40 @@ const URL_STATUS_LABEL: Record<UrlQueueStatus, string> = {
   error: 'Hata',
 };
 
-function isSupportedProductUrl(raw: string): boolean {
-  const url = raw.trim().toLowerCase();
-  return (
-    url.includes("trendyol.com") ||
-    url.includes("ty.gl/") ||
-    url.includes("arcelik.com.tr") ||
-    url.includes("pttavm.com")
-  );
+function buildCsvShopifyUploadBody(
+  preview: {
+    productTitle?: string;
+    sourceUrl?: string;
+    brand?: string;
+    price?: { original?: number; withProfit?: number };
+    images?: string[];
+    variants?: unknown;
+    csvInfo?: unknown;
+    csvPreview?: unknown;
+  },
+  csvContent: string,
+  individualTags: string[],
+) {
+  return {
+    productData: {
+      title: preview.productTitle,
+      brand: preview.brand,
+      price: preview.price,
+      images: preview.images,
+      sourceUrl: preview.sourceUrl,
+      variants: preview.variants,
+      csvContent,
+      csvInfo: preview.csvInfo,
+      csvPreview: preview.csvPreview,
+    },
+    csvContent,
+    csvInfo: preview.csvInfo,
+    productTitle: preview.productTitle,
+    sourceUrl: preview.sourceUrl,
+    individualTags,
+  };
 }
 
-function normalizeProductUrl(raw: string): string | null {
-  const trimmed = raw.trim().replace(/[),.;]+$/g, "");
-  if (!trimmed) return null;
-
-  try {
-    const href = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
-    const parsed = new URL(href);
-    parsed.hash = "";
-    const normalized = parsed.toString();
-    return isSupportedProductUrl(normalized) ? normalized : null;
-  } catch {
-    return null;
-  }
-}
-
-function parseUrlsFromText(text: string): string[] {
-  const urlPattern = /https?:\/\/[^\s<>"']+/gi;
-  const candidates = [
-    ...text.split(/\r?\n/),
-    ...(text.match(urlPattern) ?? []),
-  ];
-  return [...new Set(candidates.map((u) => u.trim()).filter(Boolean))]
-    .map(normalizeProductUrl)
-    .filter((url): url is string => Boolean(url));
-}
-
-function readInitialUrlQueue(): UrlQueueItem[] {
-  const saved = loadScraperState();
-  if (!Array.isArray(saved?.pendingUrls)) return [];
-  return saved.pendingUrls
-    .map((entry) => {
-      if (typeof entry === "string") {
-        return isSupportedProductUrl(entry)
-          ? { url: entry, status: "pending" as const }
-          : null;
-      }
-      if (entry && typeof entry === "object" && typeof (entry as UrlQueueItem).url === "string") {
-        const item = entry as { url: string; status?: string; error?: string };
-        const status: UrlQueueStatus =
-          item.status === "processing" || item.status === "success" || item.status === "error"
-            ? item.status
-            : "pending";
-        return isSupportedProductUrl(item.url)
-          ? { url: item.url, status, error: item.error }
-          : null;
-      }
-      return null;
-    })
-    .filter((item): item is UrlQueueItem => Boolean(item));
-}
 interface Product {
   id?: string;
   title: string;
@@ -196,7 +169,7 @@ function ScraperPage() {
   const [scrapingMode, setScrapingMode] = useState<ScrapingMode>('single');
   const [allImages, setAllImages] = useState<any[]>([]);
   const [productFeatures, setProductFeatures] = useState<any[]>([]);
-  const [urlQueue, setUrlQueue] = useState<UrlQueueItem[]>(readInitialUrlQueue);
+  const [urlQueue, setUrlQueue] = useState<UrlQueueItem[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
   const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
@@ -219,8 +192,9 @@ function ScraperPage() {
   const [scrapedOriginalTitle, setScrapedOriginalTitle] = useState<string | null>(null);
   const [titleApproved, setTitleApproved] = useState(false);
   const isMobile = useIsMobile();
-  const restoredScraperState = useRef(false);
-  const persistReadyRef = useRef(false);
+  const urlQueueRef = useRef<UrlQueueItem[]>([]);
+  const lastUrlIngestRef = useRef<{ fingerprint: string; at: number } | null>(null);
+  urlQueueRef.current = urlQueue;
   
   const singleForm = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
@@ -237,101 +211,9 @@ function ScraperPage() {
   });
 
   useEffect(() => {
-    if (restoredScraperState.current) return;
-    restoredScraperState.current = true;
-
-    const saved = loadScraperState();
-    if (saved) {
-      startTransition(() => {
-        if (saved.product) {
-          setProduct(saved.product as Product);
-        }
-        if (Array.isArray(saved.csvPreviews) && saved.csvPreviews.length > 0) {
-          setCsvPreviews(saved.csvPreviews.map((p) => normalizeStoredCsvPreview(p as Record<string, unknown>)));
-        }
-        if (saved.url) {
-          singleForm.setValue("url", saved.url);
-        }
-        if (saved.scrapingMode) {
-          setScrapingMode(saved.scrapingMode);
-        }
-        if (saved.workflowStep) {
-          setWorkflowStep(saved.workflowStep);
-        }
-        if (Array.isArray(saved.pendingUrls) && saved.pendingUrls.length > 0) {
-          const restored = saved.pendingUrls
-            .map((entry) => {
-              if (typeof entry === "string") {
-                return isSupportedProductUrl(entry)
-                  ? { url: entry, status: "pending" as const }
-                  : null;
-              }
-              if (entry && typeof entry === "object" && typeof (entry as UrlQueueItem).url === "string") {
-                const item = entry as UrlQueueItem;
-                return isSupportedProductUrl(item.url) ? item : null;
-              }
-              return null;
-            })
-            .filter((item): item is UrlQueueItem => Boolean(item));
-          if (restored.length > 0) {
-            setUrlQueue(restored);
-          }
-        }
-      });
-    }
-
-    const readyTimer = window.setTimeout(() => {
-      persistReadyRef.current = true;
-    }, 1800);
-
-    return () => window.clearTimeout(readyTimer);
-  }, [singleForm]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (!persistReadyRef.current) return;
-      if (!product && csvPreviews.length === 0 && !workflowStep && urlQueue.length === 0) {
-        return;
-      }
-
-      const existing = loadScraperState();
-      const existingHasData =
-        Boolean(existing?.product) ||
-        (Array.isArray(existing?.csvPreviews) && existing.csvPreviews.length > 0);
-      const currentEmpty = !product && csvPreviews.length === 0;
-
-      if (currentEmpty && existingHasData) {
-        return;
-      }
-
-      saveScraperState({
-        product,
-        csvPreviews,
-        url: singleForm.getValues("url") ?? "",
-        pendingUrls: urlQueue,
-        scrapingMode,
-        workflowStep,
-      });
-    }, 1200);
-
-    return () => window.clearTimeout(timer);
-  }, [product, csvPreviews, urlQueue, scrapingMode, workflowStep, singleForm]);
-
-  useEffect(() => {
-    const flush = () => {
-      saveScraperState({
-        product,
-        csvPreviews,
-        url: singleForm.getValues("url") ?? "",
-        pendingUrls: urlQueue,
-        scrapingMode,
-        workflowStep,
-      });
-    };
-
-    window.addEventListener("beforeunload", flush);
-    return () => window.removeEventListener("beforeunload", flush);
-  }, [product, csvPreviews, urlQueue, scrapingMode, workflowStep, singleForm]);
+    clearScraperUiStorage();
+    clearRecentUrls();
+  }, []);
 
 
   const singleScrapeMutation = useMutation({
@@ -634,12 +516,9 @@ function ScraperPage() {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               signal: controller.signal,
-              body: JSON.stringify({
-                csvContent: csvToUpload,
-                productTitle: preview.productTitle,
-                sourceUrl: preview.sourceUrl,
-                individualTags: allTags
-              }),
+              body: JSON.stringify(
+                buildCsvShopifyUploadBody(preview, csvToUpload, allTags),
+              ),
             });
           } finally {
             clearTimeout(timeoutId);
@@ -719,7 +598,14 @@ function ScraperPage() {
           body: JSON.stringify({
             productData: product,
             csvContent: product.csvContent,
-            sourceUrl: (product as any).sourceUrl || (product as any).originalUrl,
+            csvInfo: product.csvInfo,
+            productTitle: product.title,
+            sourceUrl: product.sourceUrl || product.originalUrl,
+            individualTags: product.tags,
+            approvedForShopify: titleApproved || titleEdited,
+            titleEdited,
+            titleSource: product.titleSource,
+            scrapedTitle: scrapedOriginalTitle,
             dryRun: opts?.dryRun,
           }),
         }
@@ -907,37 +793,40 @@ function ScraperPage() {
         const next = prev.map((item) =>
           item.url === targetUrl ? { ...item, ...patch } : item,
         );
-        savePendingUrls(next);
+        urlQueueRef.current = next;
         return next;
       });
     },
     [],
   );
 
-  const appendPendingUrls = useCallback((rawUrls: string[]) => {
-    const normalized = rawUrls
-      .map(normalizeProductUrl)
-      .filter((url): url is string => Boolean(url));
-
+  const appendPendingUrls = useCallback((rawUrls: string[]): number => {
+    const normalized = dedupeNormalizedUrls(rawUrls);
     if (normalized.length === 0) return 0;
 
-    let added = 0;
-    setUrlQueue((prev) => {
-      const next = [...prev];
-      for (const url of normalized) {
-        if (!next.some((item) => item.url === url)) {
-          next.push({ url, status: "pending" });
-          added += 1;
-        }
-      }
-      if (added > 0) {
-        savePendingUrls(next);
-        return next;
-      }
-      return prev;
-    });
+    const { next, added } = mergeUrlsIntoQueue(urlQueueRef.current, normalized);
+    if (added === 0) return 0;
+
+    urlQueueRef.current = next;
+    setUrlQueue(next);
     return added;
   }, []);
+
+  const ingestUrls = useCallback(
+    (source: UrlIngestSource, rawUrls: string[]): number => {
+      const normalized = dedupeNormalizedUrls(rawUrls);
+      if (normalized.length === 0) return 0;
+
+      const fingerprint = buildIngestFingerprint(source, normalized);
+      if (shouldSkipDuplicateIngest(lastUrlIngestRef.current, fingerprint)) {
+        return 0;
+      }
+      lastUrlIngestRef.current = { fingerprint, at: Date.now() };
+
+      return appendPendingUrls(normalized);
+    },
+    [appendPendingUrls],
+  );
 
   const processAllUrls = async (items: UrlQueueItem[]) => {
     const queue = items
@@ -1015,8 +904,8 @@ function ScraperPage() {
 
     if (inputUrl && !queue.some((item) => item.url === inputUrl)) {
       queue = [...queue, { url: inputUrl, status: "pending" as const }];
+      urlQueueRef.current = queue;
       setUrlQueue(queue);
-      savePendingUrls(queue);
       singleForm.setValue("url", "");
     }
 
@@ -1217,41 +1106,6 @@ function ScraperPage() {
 
 
   // Sürükle-bırak fonksiyonları
-  const extractDroppedUrls = (e: React.DragEvent): string[] => {
-    const candidates: string[] = [];
-
-    const plain = e.dataTransfer.getData("text/plain");
-    if (plain) candidates.push(...plain.split(/\r?\n/));
-
-    const uriList = e.dataTransfer.getData("text/uri-list");
-    if (uriList) {
-      candidates.push(
-        ...uriList
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter((line) => line && !line.startsWith("#")),
-      );
-    }
-
-    const html = e.dataTransfer.getData("text/html");
-    if (html) {
-      for (const match of html.matchAll(/href=["']([^"']+)["']/gi)) {
-        candidates.push(match[1]);
-      }
-    }
-
-    const urlPattern = /https?:\/\/[^\s<>"']+/gi;
-    if (plain) {
-      for (const match of plain.matchAll(urlPattern)) {
-        candidates.push(match[0]);
-      }
-    }
-
-    return [...new Set(candidates.map((u) => u.trim()).filter(Boolean))]
-      .map(normalizeProductUrl)
-      .filter((url): url is string => Boolean(url));
-  };
-
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1281,7 +1135,7 @@ function ScraperPage() {
     const urls = extractDroppedUrls(e);
 
     if (urls.length > 0) {
-      const added = appendPendingUrls(urls);
+      const added = ingestUrls("drop", urls);
       if (added > 0) {
         toast({
           title: "URL'ler Eklendi",
@@ -1290,7 +1144,7 @@ function ScraperPage() {
       } else {
         toast({
           title: "Zaten Ekli",
-          description: "Bu URL'ler zaten listede",
+          description: urls.length === 1 ? "Bu URL zaten listede" : "Bu URL'ler zaten listede",
         });
       }
       return;
@@ -1308,11 +1162,16 @@ function ScraperPage() {
     const urls = parseUrlsFromText(pasted);
     if (urls.length === 0) return;
     e.preventDefault();
-    const added = appendPendingUrls(urls);
+    const added = ingestUrls("paste", urls);
     if (added > 0) {
       toast({
         title: "URL'ler Eklendi",
         description: `${added} URL yapıştırılarak eklendi`,
+      });
+    } else {
+      toast({
+        title: "Zaten Ekli",
+        description: "Bu URL zaten listede",
       });
     }
   };
@@ -1333,7 +1192,7 @@ function ScraperPage() {
       return;
     }
 
-    const added = appendPendingUrls([normalized]);
+    const added = ingestUrls("manual", [normalized]);
     if (added > 0) {
       singleForm.setValue("url", "");
       toast({
@@ -1351,46 +1210,47 @@ function ScraperPage() {
   const removeUrl = (indexToRemove: number) => {
     setUrlQueue((prev) => {
       const next = prev.filter((_, index) => index !== indexToRemove);
-      savePendingUrls(next);
+      urlQueueRef.current = next;
       return next;
     });
   };
 
-  const clearAllUrls = () => {
-    savePendingUrls([]);
-    setUrlQueue([]);
-    setCsvPreviews([]);
-    toast({
-      title: "Temizlendi",
-      description: "Tüm URL'ler ve CSV önizlemeleri silindi"
-    });
-  };
+  const clearScraperWorkspace = useCallback(() => {
+    singleForm.reset({ url: "" });
+    multiForm.setValue("urls", [{ url: "" }]);
 
-  // Comprehensive clear all function to reset the entire page
-  const clearAllData = () => {
-    // Reset all forms
-    singleForm.reset();
-    multiForm.setValue('urls', [{ url: '' }]);
-    
-    // Clear all state
     setProduct(null);
     setCsvPreviews([]);
     setAllImages([]);
     setProductFeatures([]);
     setUrlQueue([]);
+    urlQueueRef.current = [];
     setScrapedOriginalTitle(null);
     setTitleApproved(false);
     setWorkflowStep(null);
-    clearScraperState();
-    
-    // Reset mode to single
-    setScrapingMode('single');
-    
+    setLastScrapeUrl(null);
+    setLastShopifyResult(null);
+    setScrapeError(null);
+    setScrapeErrorMeta(null);
+    setIsBulkProcessing(false);
+    setBulkProgress(null);
+    setUploadProgress(null);
+    setFailedUploads([]);
+    setUploadingId(null);
+    setIndividualTags({});
+    setScrapingMode("single");
+    lastUrlIngestRef.current = null;
+
+    clearScraperUiStorage();
+    clearRecentUrls();
+
     toast({
-      title: "Sayfa Temizlendi",
-      description: "Tüm veriler ve formlar sıfırlandı"
+      title: "Temizlendi",
+      description: "Tüm URL'ler ve geçici ön izleme verileri temizlendi.",
     });
-  };
+  }, [singleForm, multiForm]);
+
+  const clearAllUrls = clearScraperWorkspace;
 
   // CSV tag uygulama yardımcısı — hem tekil hem toplu yüklemede kullanılır
   const applyTagsToCSV = useCallback((csvContent: string, tags: string[]): string => {
@@ -1448,7 +1308,9 @@ function ScraperPage() {
       try {
         const tags = individualTags[preview.id] || [];
         const csvToUpload = applyTagsToCSV(preview.csvContent, tags);
-        const body = JSON.stringify({ csvContent: csvToUpload, productTitle: preview.productTitle, sourceUrl: preview.sourceUrl, individualTags: tags });
+        const body = JSON.stringify(
+          buildCsvShopifyUploadBody(preview, csvToUpload, tags),
+        );
 
         // Retry up to 3 attempts total for 502/503/504 gateway errors
         const MAX_ATTEMPTS = 3;
@@ -1766,12 +1628,9 @@ function ScraperPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
-          body: JSON.stringify({
-            csvContent: csvToUpload,
-            productTitle: preview.productTitle,
-            sourceUrl: preview.sourceUrl,
-            individualTags: individualTags || []
-          }),
+          body: JSON.stringify(
+            buildCsvShopifyUploadBody(preview, csvToUpload, individualTags || []),
+          ),
         });
       } finally { clearTimeout(tid); }
 
@@ -1821,17 +1680,20 @@ function ScraperPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          productData: {
-            title: productTitle || 'Multi-Color Product',
-            brand: preview?.brand,
-            price: preview?.price,
-            images: preview?.images,
-            sourceUrl: preview?.sourceUrl,
-            approvedForShopify: true,
-          },
-          csvContent,
-          productTitle: productTitle || 'Multi-Color Product',
-          sourceUrl: preview?.sourceUrl,
+          ...buildCsvShopifyUploadBody(
+            {
+              productTitle,
+              sourceUrl: preview?.sourceUrl || product?.sourceUrl,
+              brand: preview?.brand || product?.brand,
+              price: preview?.price || (product?.price as { original?: number; withProfit?: number }),
+              images: preview?.images || resolvePreviewImageUrls(product?.images ?? []),
+              variants: product?.variants,
+              csvInfo: product?.csvInfo,
+              csvPreview: product?.csvPreview,
+            },
+            csvContent,
+            product?.tags || [],
+          ),
           approvedForShopify: true,
         }),
       });
@@ -1859,15 +1721,29 @@ function ScraperPage() {
     }
   };
 
-  const productPreviewImages = useMemo(
-    () => resolvePreviewImageUrls(product?.images ?? []),
-    [product?.images],
+  const primaryCsvPreview = csvPreviews[0] ?? null;
+
+  const resolvedPreview = useMemo(
+    () =>
+      resolveProductPreview({
+        product,
+        csvPreview: primaryCsvPreview,
+      }),
+    [product, primaryCsvPreview],
   );
 
-  const displayPrice = useMemo(
-    () => (product?.price ? normalizeTrendyolDisplayPrice(product.price, 0.10) : null),
-    [product?.price],
-  );
+  const productPreviewImages = resolvedPreview.images;
+
+  const displayPrice = useMemo(() => {
+    if (!resolvedPreview.hasPrice || resolvedPreview.priceOriginal == null) return null;
+    return normalizeTrendyolDisplayPrice(
+      {
+        original: resolvedPreview.priceOriginal,
+        withProfit: resolvedPreview.priceWithProfit ?? resolvedPreview.priceOriginal,
+      },
+      0.1,
+    );
+  }, [resolvedPreview]);
 
   const displayVariants = useMemo(
     () =>
@@ -1904,7 +1780,7 @@ function ScraperPage() {
               </Button>
               <ShopifySettingsDialog />
               <Button
-                onClick={clearAllData}
+                onClick={clearScraperWorkspace}
                 variant="outline"
                 className="bg-red-600/10 border-red-600/30 text-red-400 hover:bg-red-600/20 hover:border-red-600/50 px-4 py-2"
                 disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
@@ -2073,7 +1949,7 @@ function ScraperPage() {
                           <div className="max-h-44 overflow-y-auto space-y-2 rounded-lg border border-cyan-800/30 bg-slate-800/40 p-3">
                             {urlQueue.map((item, index) => (
                               <div
-                                key={`${item.url}-${index}`}
+                                key={item.url}
                                 className="flex items-center gap-2 rounded-md bg-slate-700/50 px-3 py-2"
                               >
                                 <span className="text-cyan-400 text-xs font-mono">#{index + 1}</span>
@@ -2118,7 +1994,7 @@ function ScraperPage() {
                     {/* Dahili Mini Tarayıcı */}
                     <MiniBrowser
                       onExtract={(url) => {
-                        const added = appendPendingUrls([url]);
+                        const added = ingestUrls("browser", [url]);
                         if (added > 0) {
                           toast({ title: "URL Eklendi", description: "Tarayıcıdan URL listeye eklendi" });
                         } else {
@@ -2324,7 +2200,7 @@ function ScraperPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Sol Taraf - Görseller */}
                   <div className="space-y-4">
-                    {productPreviewImages.length > 0 && (
+                    {productPreviewImages.length > 0 ? (
                       <>
                         {/* Ana Büyük Görsel */}
                         <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-cyan-800/40 bg-slate-900/50">
@@ -2507,19 +2383,29 @@ function ScraperPage() {
                           </Collapsible.Root>
                         )}
                       </>
+                    ) : (
+                      <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-dashed border-slate-600/50 bg-slate-900/50 flex items-center justify-center">
+                        <div className="text-center">
+                          <Image className="w-16 h-16 mx-auto text-slate-600 mb-2" />
+                          <p className="text-slate-400 text-sm">Bilgi yok</p>
+                        </div>
+                      </div>
                     )}
                   </div>
                   
                   {/* Sağ Taraf - Bilgiler */}
                   <div className="space-y-4">
                     {/* Marka */}
-                    {product.brand && (
-                      <div>
-                        <span className="text-blue-400 text-sm font-semibold uppercase">
-                          {product.brand}
-                        </span>
-                      </div>
-                    )}
+                    <div>
+                      <span className="text-slate-400 text-xs block mb-1">Marka</span>
+                      <span
+                        className={`text-sm font-semibold uppercase ${
+                          resolvedPreview.hasBrand ? "text-blue-400" : "text-slate-500"
+                        }`}
+                      >
+                        {resolvedPreview.brand}
+                      </span>
+                    </div>
                     
                     {/* Başlık */}
                     <div className="space-y-2">
@@ -2550,22 +2436,45 @@ function ScraperPage() {
                     </div>
                     
                     {/* Fiyatlar - Hem Orijinal Hem Karlı */}
-                    {displayPrice && displayPrice.original > 0 && (
-                      <div className="space-y-2 border-t border-b border-cyan-800/30 py-4">
+                    <div className="space-y-2 border-t border-b border-cyan-800/30 py-4">
+                      {displayPrice && displayPrice.original > 0 ? (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-white/70 text-sm">Orijinal Fiyat:</span>
+                            <span className="text-white/50 text-lg line-through" data-testid="text-original-price">
+                              {formatOriginalPrice(displayPrice)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-white/70 text-sm">Karlı Fiyat:</span>
+                            <span className="text-yellow-400 text-2xl font-bold" data-testid="text-profit-price">
+                              {formatSalePrice(displayPrice)}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
                         <div className="flex items-center justify-between">
-                          <span className="text-white/70 text-sm">Orijinal Fiyat:</span>
-                          <span className="text-white/50 text-lg line-through" data-testid="text-original-price">
-                            {formatOriginalPrice(displayPrice)}
-                          </span>
+                          <span className="text-white/70 text-sm">Fiyat:</span>
+                          <span className="text-slate-500 text-sm">Bilgi yok</span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-white/70 text-sm">Karlı Fiyat:</span>
-                          <span className="text-yellow-400 text-2xl font-bold" data-testid="text-profit-price">
-                            {formatSalePrice(displayPrice)}
-                          </span>
-                        </div>
+                      )}
+                    </div>
+
+                    {/* Stok / varyant özeti */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3">
+                        <span className="text-slate-400 text-xs block mb-1">Stok</span>
+                        <span className={resolvedPreview.stockSummary === "Bilgi yok" ? "text-slate-500" : "text-green-300"}>
+                          {resolvedPreview.stockSummary}
+                        </span>
                       </div>
-                    )}
+                      <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3">
+                        <span className="text-slate-400 text-xs block mb-1">Varyant</span>
+                        <span className={resolvedPreview.variantSummary === "Bilgi yok" ? "text-slate-500" : "text-cyan-300"}>
+                          {resolvedPreview.variantSummary}
+                        </span>
+                      </div>
+                    </div>
 
                     {/* Enhanced Variant Display - Color Based Size Details */}
                     {hasRealTrendyolVariants(displayVariants) && (

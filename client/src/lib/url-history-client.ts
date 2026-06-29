@@ -35,6 +35,11 @@ export function addRecentUrl(url: string): void {
   writeRaw(next);
 }
 
+/** Scraper sayfası geçmişi — global URL takibini etkilemez */
+export function clearRecentUrls(): void {
+  writeRaw([]);
+}
+
 export function subscribeRecentUrls(listener: () => void): () => void {
   const onStorage = (event: StorageEvent) => {
     if (event.key === STORAGE_KEY) listener();
