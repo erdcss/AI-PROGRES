@@ -1,11 +1,13 @@
 import { generateMultiVariantShopifyCSV } from './multi-variant-csv-generator';
 import { uploadProductToShopify } from './shopify-api-uploader';
-import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { runShopifyConnectionTest } from './connection-test';
 import {
   normalizeTrendyolProductForShopify,
   validateShopifyPayload,
 } from './shopify-payload-validator';
+import { evaluateShopifyExportGate } from './shopify-export-gate';
+import { createShopifyProductFromNormalized } from './shopify-product-create';
+import { resolveShopifyConfig } from './shopify-credentials';
 import { logStep } from './request-context';
 import { db } from './db';
 import { shopifyTransferredProducts } from '@shared/schema';
@@ -19,13 +21,36 @@ export interface ShopifyUploadRequest {
   customTags?: string[];
   dryRun?: boolean;
   requestId?: string;
+  approvedForShopify?: boolean;
+  titleEdited?: boolean;
+  titleSource?: string;
+  scrapedTitle?: string;
 }
 
-export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Promise<Record<string, unknown>> {
+function mapHttpStatus(step: string, httpStatus?: number): number {
+  if (httpStatus === 401 || httpStatus === 403) return httpStatus;
+  if (httpStatus === 422) return 422;
+  if (step === 'connection_check') return 400;
+  return httpStatus && httpStatus >= 400 ? httpStatus : 400;
+}
+
+export async function handleShopifyProductUpload(
+  req: ShopifyUploadRequest,
+): Promise<Record<string, unknown>> {
   const rid = req.requestId || 'upload';
   const dryRun = req.dryRun === true;
 
   logStep(rid, 'shopify_upload', dryRun ? 'Dry-run başlatıldı' : 'Upload başlatıldı');
+
+  const config = await resolveShopifyConfig();
+  if (!config.ok) {
+    return {
+      success: false,
+      error: config.error || 'Shopify yapılandırması eksik',
+      step: 'connection_check',
+      httpStatus: 401,
+    };
+  }
 
   const conn = await runShopifyConnectionTest(rid);
   if (!conn.connected) {
@@ -34,27 +59,13 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
       error: conn.message,
       step: 'connection_check',
       connection: conn,
+      httpStatus: 401,
     };
   }
 
   const normalized = normalizeTrendyolProductForShopify(req.productData || {});
-  const validation = validateShopifyPayload(normalized);
-
-  if (normalized.price.original <= 0 || normalized.price.withProfit <= 0) {
-    return {
-      success: false,
-      error: 'Fiyat alınamadığı için Shopify aktarımı yapılamaz.',
-      step: 'price_validation',
-    };
-  }
-
-  if (!req.csvContent && !validation.valid) {
-    return {
-      success: false,
-      error: 'Payload doğrulama hatası',
-      step: 'payload_validation',
-      details: validation.errors,
-    };
+  if (req.productTitle?.trim()) {
+    normalized.title = req.productTitle.trim();
   }
 
   const sourceUrl =
@@ -63,6 +74,39 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
     req.productData?.originalUrl ||
     req.productData?.url ||
     '';
+
+  const exportGate = evaluateShopifyExportGate({
+    title: normalized.title,
+    scrapedTitle: req.scrapedTitle || req.productData?.scrapedTitle,
+    priceOriginal: normalized.price.original,
+    images: normalized.images,
+    sourceUrl,
+    titleSource: req.titleSource || req.productData?.titleSource,
+    approvedForShopify: req.approvedForShopify === true,
+    titleEdited: req.titleEdited === true,
+  });
+
+  if (!exportGate.allowed) {
+    return {
+      success: false,
+      error: exportGate.reason,
+      step: exportGate.needsTitleApproval ? 'title_approval_required' : 'export_gate',
+      warning: exportGate.warning,
+      needsTitleApproval: exportGate.needsTitleApproval === true,
+      httpStatus: 400,
+    };
+  }
+
+  const validation = validateShopifyPayload(normalized);
+  if (!validation.valid) {
+    return {
+      success: false,
+      error: 'Payload doğrulama hatası',
+      step: 'payload_validation',
+      details: validation.errors,
+      httpStatus: 422,
+    };
+  }
 
   if (sourceUrl) {
     try {
@@ -82,6 +126,7 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
             ? `https://${conn.shopDomain}/admin/products/${existing[0].shopifyProductId}`
             : undefined,
           hint: 'Güncelleme için Shopify panelinden düzenleyin veya farklı URL deneyin',
+          httpStatus: 409,
         };
       }
     } catch (dbErr) {
@@ -89,40 +134,17 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
     }
   }
 
-  let csvContent = req.csvContent;
-  if (!csvContent) {
-    try {
-      csvContent = await generateMultiVariantShopifyCSV({
-        id: `product-${Date.now()}`,
-        title: normalized.title,
-        brand: normalized.brand,
-        price: normalized.price,
-        description: normalized.bodyHtml.replace(/<[^>]+>/g, ''),
-        category: normalized.productType,
-        images: normalized.images,
-        variants: normalized.variants,
-        features: req.productData?.features || [],
-        tags: normalized.tags,
-      });
-    } catch (csvErr: any) {
-      return {
-        success: false,
-        error: 'CSV oluşturulamadı',
-        step: 'csv_generation',
-        details: csvErr.message,
-      };
-    }
-  }
-
   const payloadPreview = {
     title: normalized.title,
     vendor: normalized.vendor,
     productType: normalized.productType,
-    variantCount: normalized.variants.allVariants.length,
+    variantCount: normalized.variants.allVariants.length || 1,
     imageCount: normalized.images.length,
     price: normalized.price.withProfit.toFixed(2),
     tags: normalized.tags,
     sourceUrl,
+    status: 'draft',
+    warning: exportGate.warning,
   };
 
   if (dryRun) {
@@ -131,7 +153,6 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
       dryRun: true,
       step: 'dry_run_complete',
       payload: payloadPreview,
-      csvPreview: csvContent?.substring(0, 500),
       connection: {
         shopDomain: conn.shopDomain,
         shopName: conn.shopName,
@@ -142,21 +163,33 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
 
   logStep(rid, 'shopify_upload', 'Shopify API çağrısı', { title: normalized.title });
 
-  let uploadResult;
-  if (csvContent && csvContent.length > 50) {
-    uploadResult = await uploadProductToShopify(csvContent, normalized.title);
-  } else {
-    uploadResult = await uploadMultiUrlProductToShopify(
-      {
-        title: normalized.title,
-        brand: normalized.brand,
-        price: normalized.price,
-        images: normalized.images,
-        variants: normalized.variants,
-      },
-      normalized.title,
-      req.customTags || normalized.tags
-    );
+  let uploadResult = await createShopifyProductFromNormalized(normalized, {
+    customTags: req.customTags || normalized.tags,
+    status: 'draft',
+    tokenSource: conn.tokenSource,
+  });
+
+  if (!uploadResult.success && req.csvContent && req.csvContent.length > 50) {
+    const csvResult = await uploadProductToShopify(req.csvContent, normalized.title);
+    if (csvResult.success) {
+      uploadResult = {
+        success: true,
+        productId: csvResult.productId,
+        handle: csvResult.handle,
+        status: 'draft',
+        message: csvResult.message,
+        adminUrl:
+          conn.shopDomain && csvResult.productId
+            ? `https://${conn.shopDomain}/admin/products/${csvResult.productId}`
+            : undefined,
+      };
+    } else {
+      uploadResult = {
+        success: false,
+        message: csvResult.message,
+        httpStatus: 422,
+      };
+    }
   }
 
   if (!uploadResult.success) {
@@ -164,13 +197,15 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
       success: false,
       error: uploadResult.message,
       step: 'shopify_api',
+      shopifyErrors: uploadResult.shopifyErrors,
+      httpStatus: mapHttpStatus('shopify_api', uploadResult.httpStatus),
     };
   }
 
-  const productId = uploadResult.productId || (uploadResult as any).shopifyProductId;
-  const handle = (uploadResult as any).handle;
+  const productId = uploadResult.productId;
+  const handle = uploadResult.handle;
   const adminUrl =
-    (uploadResult as any).adminUrl ||
+    uploadResult.adminUrl ||
     (conn.shopDomain && productId
       ? `https://${conn.shopDomain}/admin/products/${productId}`
       : undefined);
@@ -184,7 +219,7 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
         brand: normalized.brand,
         shopifyPrice: String(normalized.price.withProfit),
         originalPrice: String(normalized.price.original),
-        variantCount: normalized.variants.allVariants.length,
+        variantCount: normalized.variants.allVariants.length || 1,
         imageCount: normalized.images.length,
       });
     } catch {
@@ -207,14 +242,11 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
           variants: normalized.variants.allVariants.map((v) => ({
             color: v.color,
             size: v.size,
-            sku: v.sku,
+            sku: (v as { sku?: string }).sku,
             inStock: v.inStock,
             price: normalized.price.original,
           })),
         });
-        console.log(`✅ tracked_products kaydı oluşturuldu: ${normalized.title}`);
-      } else {
-        console.info('ℹ️ tracked_products kaydı atlandı (takip sistemi kapalı)');
       }
     } catch (trackErr) {
       console.warn('⚠️ Tracking kaydı oluşturulamadı (kritik değil):', trackErr);
@@ -227,10 +259,12 @@ export async function handleShopifyProductUpload(req: ShopifyUploadRequest): Pro
     shopifyId: productId,
     shopifyProductId: productId,
     handle,
+    status: uploadResult.status || 'draft',
     adminUrl,
     storeUrl: handle && conn.shopDomain ? `https://${conn.shopDomain}/products/${handle}` : undefined,
     sourceUrl,
     transferredAt: new Date().toISOString(),
     message: uploadResult.message,
+    warning: exportGate.warning,
   };
 }

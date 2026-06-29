@@ -25,6 +25,7 @@ import {
 import { filterValidProductImages } from "./trendyol-image-utils";
 import { mergeApiWithScrape, resolveProductTitle } from "./trendyol-result-normalizer";
 import { scenarioBasedScrape } from "./scenario-based-scraper";
+import { getScrapeEnvironmentPolicy } from "./services/scrape-environment.service";
 
 const STAGE_TIMEOUT_BASE = {
   api: 10_000,
@@ -35,16 +36,48 @@ const STAGE_TIMEOUT_BASE = {
   scenario: 75_000,
 } as const;
 
-function stageTimeouts() {
-  const cloud = isCloudRuntime();
+function stageTimeouts(policy = getScrapeEnvironmentPolicy()) {
   return {
     ...STAGE_TIMEOUT_BASE,
-    directHtml: cloud ? 32_000 : STAGE_TIMEOUT_BASE.directHtml,
-    imageFetcher: cloud ? 22_000 : STAGE_TIMEOUT_BASE.imageFetcher,
+    api: policy.apiTimeoutMs,
+    directHtml: policy.directHtmlTimeoutMs,
+    imageFetcher: policy.isCloud ? 22_000 : STAGE_TIMEOUT_BASE.imageFetcher,
   };
 }
 
-const GLOBAL_TIMEOUT_MS = () => (isCloudRuntime() ? 55_000 : 90_000);
+function applyAgentAccessToResult(
+  result: any,
+  url: string,
+  access: {
+    title?: string;
+    price?: number;
+    images: string[];
+    variants?: unknown;
+    finalSuccessReason?: string;
+    htmlSuccess: boolean;
+    imageSuccess: boolean;
+  },
+  diagnostics: ScrapeDiagnostics,
+) {
+  if (access.title) result.title = resolveProductTitle(url, access.title);
+  if (access.price && access.price > 0) {
+    result.price = { original: access.price, withProfit: access.price, currency: "TRY" };
+  }
+  if (access.images.length > 0) {
+    result.images = access.images;
+  }
+  if (access.variants) {
+    result.variants = access.variants;
+  }
+  result._fromLocalAgent = true;
+  result._sourceAccessStrategy = "local_agent";
+  if (access.finalSuccessReason) {
+    result.finalSuccessReason = access.finalSuccessReason;
+  }
+  diagnostics.gatewayHtmlSuccess = access.htmlSuccess;
+  diagnostics.gatewayImageSuccess = access.imageSuccess;
+  diagnostics.gatewayProviderType = "local_agent";
+}
 
 function evaluateFields(result: any, url: string) {
   const title = resolveProductTitle(url, result?.title);
@@ -128,6 +161,7 @@ function finalizeOutcome(
     usableForShopify: quality.usableForShopify,
     blockedForExport: quality.blockedForExport,
     previewOk: quality.previewOk,
+    warnings: quality.warnings,
     stageErrors: diagnostics.stageErrors,
     scrapeDiagnostics: diagnostics,
   };
@@ -170,11 +204,12 @@ export async function runTrendyolScrapePipeline(
   url: string,
   selectedScrapeMode?: SelectedScrapeMode,
 ): Promise<PipelineOutcome> {
+  const policy = getScrapeEnvironmentPolicy();
   const pipelineStart = Date.now();
-  const globalDeadline = pipelineStart + GLOBAL_TIMEOUT_MS();
+  const globalDeadline = pipelineStart + policy.globalTimeoutMs;
   const modes = resolveEffectiveScrapeMode(selectedScrapeMode);
   const diagnostics = createDiagnostics(modes);
-  const STAGE_TIMEOUT = stageTimeouts();
+  const STAGE_TIMEOUT = stageTimeouts(policy);
 
   const isPastDeadline = () => Date.now() >= globalDeadline;
   const remainingMs = () => Math.max(500, globalDeadline - Date.now());
@@ -220,14 +255,84 @@ export async function runTrendyolScrapePipeline(
     }
   };
 
-  // ── 1+2) Trendyol API ve Direct HTML paralel ──
-  if (!isPastDeadline()) {
+  // ── Cloud + Local Agent: API ve agent paralel (direct HTML atlanır) ──
+  const skipInternalSourceAccess = process.env.LOCAL_SCRAPE_AGENT_MODE === "true";
+
+  if (policy.preferLocalAgent && !skipInternalSourceAccess && !isPastDeadline()) {
+    diagnostics.apiStarted = true;
+    diagnostics.gatewayStarted = true;
+    const parallelStart = Date.now();
+    console.log("⚡ [1/6] Cloud+Agent: Trendyol API + Local Scrape Agent (paralel)...");
+
+    const [apiSettled, agentSettled] = await Promise.allSettled([
+      withStageTimeout(
+        () => fetchTrendyolProductByUrl(url),
+        Math.min(policy.apiTimeoutMs, remainingMs()),
+        "api-timeout",
+      ),
+      withStageTimeout(
+        async () => {
+          const { callLocalScrapeAgent } = await import("./services/local-agent-client.service");
+          return callLocalScrapeAgent(url);
+        },
+        Math.min(policy.sourceAccessTimeoutMs, remainingMs()),
+        "direct-html-timeout",
+      ),
+    ]);
+
+    diagnostics.apiDurationMs = Date.now() - parallelStart;
+
+    if (apiSettled.status === "fulfilled") {
+      apiProduct = apiSettled.value;
+      if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
+        result = convertApiProduct(apiProduct);
+        diagnostics.apiSuccess = true;
+        console.log(`✅ [1/6] Trendyol API (${diagnostics.apiDurationMs}ms)`);
+      } else {
+        diagnostics.apiSuccess = false;
+        diagnostics.apiError = apiProduct ? "api-empty-payload" : "api-null-response";
+      }
+    } else {
+      const err = apiSettled.reason;
+      const code: ScrapeStageErrorCode =
+        err instanceof ScrapeStageTimeoutError ? err.code : "api-error";
+      pushStageError(diagnostics, code);
+      diagnostics.apiError = code;
+    }
+
+    if (agentSettled.status === "fulfilled" && agentSettled.value.agentSuccess) {
+      const access = agentSettled.value;
+      diagnostics.gatewayDurationMs = access.durationMs;
+      applyAgentAccessToResult(result, url, access, diagnostics);
+      console.log(
+        `✅ [GW] Local Agent (${access.durationMs}ms): "${result.title}" — ${result.price?.original} TL, ${access.images.length} görsel`,
+      );
+
+      const fields = evaluateFields(result, url);
+      if (isCompleteScrapeData(fields)) {
+        return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
+      }
+    } else if (agentSettled.status === "fulfilled") {
+      const access = agentSettled.value;
+      diagnostics.gatewayDurationMs = access.durationMs;
+      const errCode = (access.stageError ?? "local-agent-failed") as ScrapeStageErrorCode;
+      diagnostics.gatewayError = errCode;
+      pushStageError(diagnostics, errCode);
+      console.warn(`⚠️ [GW] Local Agent başarısız: ${access.error ?? errCode}`);
+    } else {
+      pushStageError(diagnostics, "local-agent-failed");
+      diagnostics.gatewayError = "local-agent-failed";
+      console.warn("⚠️ [GW] Local Agent soft-fail");
+    }
+
+    diagnostics.directHtmlSkippedReason = "cloud-agent-mode";
+  } else if (!isPastDeadline()) {
     diagnostics.apiStarted = true;
     diagnostics.directHtmlStarted = true;
     const apiStart = Date.now();
     console.log("⚡ [1-2/6] Trendyol API + Direct HTML (paralel)...");
 
-    const htmlRetries = isCloudRuntime() ? 2 : 4;
+    const htmlRetries = policy.directHtmlRetries;
 
     const [apiSettled, htmlSettled] = await Promise.allSettled([
       withStageTimeout(
@@ -295,10 +400,10 @@ export async function runTrendyolScrapePipeline(
 
   // ── 2b) Otomatik kaynak erişim (internal provider registry) ──
   const htmlReadyBeforeGateway = Boolean(directHtml && directHtml.length >= 500);
-  const skipInternalSourceAccess = process.env.LOCAL_SCRAPE_AGENT_MODE === "true";
 
   if (
     !skipInternalSourceAccess &&
+    !policy.preferLocalAgent &&
     !htmlReadyBeforeGateway &&
     !isPastDeadline() &&
     !forcedGlobalTimeout
@@ -315,8 +420,7 @@ export async function runTrendyolScrapePipeline(
       }
 
       const { tryInternalSourceAccess } = await import("./services/source-access-manager.service");
-      const { isLocalAgentConfigured } = await import("./services/local-agent-client.service");
-      const sourceAccessTimeout = isLocalAgentConfigured() ? 65_000 : 25_000;
+      const sourceAccessTimeout = policy.sourceAccessTimeoutMs;
 
       const access = await withStageTimeout(
         () => tryInternalSourceAccess(url),
@@ -350,6 +454,8 @@ export async function runTrendyolScrapePipeline(
       }
       if (access.strategy === "local_agent" && (access.htmlSuccess || access.imageSuccess)) {
         diagnostics.gatewayHtmlSuccess = true;
+        result._fromLocalAgent = true;
+        result._sourceAccessStrategy = "local_agent";
       }
 
       if (!access.htmlSuccess && !access.imageSuccess) {

@@ -46,15 +46,23 @@ function extractPrice(raw: unknown): { original: number; withProfit: number } {
   return { original: 0, withProfit: 0 };
 }
 
-function normalizeImages(images: unknown): string[] {
+export function normalizeImages(images: unknown): string[] {
   if (!Array.isArray(images)) return [];
   return images
     .map((img) => {
-      if (typeof img === 'string') return img.trim();
-      if (img && typeof img === 'object' && 'url' in img) return String((img as { url: string }).url).trim();
+      if (typeof img === 'string') {
+        const raw = img.trim();
+        const url = raw.startsWith('//') ? `https:${raw}` : raw;
+        return url.startsWith('http') ? url : '';
+      }
+      if (img && typeof img === 'object' && 'url' in img) {
+        const raw = String((img as { url: string }).url).trim();
+        const url = raw.startsWith('//') ? `https:${raw}` : raw;
+        return url.startsWith('http') ? url : '';
+      }
       return '';
     })
-    .filter((u) => u.startsWith('http'));
+    .filter(Boolean);
 }
 
 function safeHtml(text: string): string {
@@ -142,4 +150,103 @@ export function formatShopifyApiError(status: number, body: unknown): string {
     return `Shopify ürün payload hatası: ${detail}`;
   }
   return `Shopify API hatası (${status}): ${typeof errors === 'string' ? errors : JSON.stringify(errors || data || '')}`;
+}
+
+export interface ShopifyRestProductPayload {
+  product: {
+    title: string;
+    body_html: string;
+    vendor: string;
+    product_type: string;
+    tags: string;
+    handle?: string;
+    status: 'draft' | 'active';
+    published: boolean;
+    variants: Array<Record<string, unknown>>;
+    images: Array<{ src: string; alt?: string; position?: number }>;
+    options?: Array<{ name: string; values: string[] }>;
+  };
+}
+
+function slugifyHandle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120) || `product-${Date.now()}`;
+}
+
+/** Shopify REST API product create payload — draft varsayılan */
+export function buildShopifyProductApiPayload(
+  input: NormalizedShopifyProductInput,
+  opts: { customTags?: string[]; status?: 'draft' | 'active' } = {},
+): ShopifyRestProductPayload {
+  const status = opts.status ?? 'draft';
+  const priceStr = toDecimalString(input.price.withProfit);
+  const compareAt =
+    input.price.original > 0 ? toDecimalString(input.price.original) : priceStr;
+
+  const allVariants = input.variants.allVariants.length
+    ? input.variants.allVariants
+    : [{ color: 'Default', size: 'Tek Beden', inStock: true }];
+
+  const variants = allVariants.map((variant) => {
+    const row: Record<string, unknown> = {
+      price: priceStr,
+      compare_at_price: compareAt,
+      inventory_quantity: 0,
+      inventory_policy: 'continue',
+      requires_shipping: true,
+      taxable: true,
+      fulfillment_service: 'manual',
+    };
+
+    const color = String(variant.color || '').trim();
+    const size = String(variant.size || '').trim();
+    if (color) row.option1 = color;
+    if (size) row.option2 = size;
+    if (!color && !size) row.option1 = 'Default';
+
+    return row;
+  });
+
+  const colors = [...new Set(allVariants.map((v) => v.color).filter(Boolean))];
+  const sizes = [...new Set(allVariants.map((v) => v.size).filter(Boolean))];
+  const hasOptions = colors.length > 0 || sizes.length > 0;
+
+  const automaticTags = ['trendyol-import'];
+  const allTags = [...automaticTags, ...(opts.customTags ?? []), ...input.tags]
+    .map((tag) => String(tag).trim())
+    .filter(Boolean);
+  const tagsString = [...new Set(allTags)].join(', ');
+
+  const images = input.images.map((src, index) => ({
+    src,
+    alt: `${input.title} - ${index + 1}`,
+    position: index + 1,
+  }));
+
+  const payload: ShopifyRestProductPayload = {
+    product: {
+      title: input.title,
+      body_html: input.bodyHtml,
+      vendor: input.vendor || input.brand || 'Marka',
+      product_type: input.productType || 'Genel',
+      tags: tagsString,
+      handle: slugifyHandle(input.title),
+      status,
+      published: status === 'active',
+      variants,
+      images,
+    },
+  };
+
+  if (hasOptions) {
+    payload.product.options = [
+      ...(colors.length ? [{ name: 'Renk', values: colors }] : []),
+      ...(sizes.length ? [{ name: 'Beden', values: sizes }] : [{ name: 'Beden', values: ['Tek Beden'] }]),
+    ];
+  }
+
+  return payload;
 }

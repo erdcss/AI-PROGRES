@@ -3,6 +3,7 @@ import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
 import {
   SHOPIFY_CSV_FILENAME,
   getCsvDownloadInfo,
+  parseCSVRow,
   saveShopifyCsv,
 } from "./csv-paths";
 
@@ -33,6 +34,30 @@ export interface ScrapeCsvInfo {
   downloadUrl: string;
   ready: boolean;
   productCount: number;
+}
+
+export interface ScrapeCsvPreview {
+  headers: string[];
+  rows: string[][];
+  rowCount: number;
+}
+
+function buildCsvPreviewFromContent(csvContent: string): ScrapeCsvPreview | null {
+  const lines = csvContent
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+
+  if (lines.length < 2) return null;
+
+  const headers = parseCSVRow(lines[0]);
+  const rows = lines.slice(1, 6).map(parseCSVRow);
+
+  return {
+    headers,
+    rows,
+    rowCount: Math.max(0, lines.length - 1),
+  };
 }
 
 function parseNumericPrice(value: unknown): number | null {
@@ -263,11 +288,18 @@ export async function attachCsvToScrapeResult<T extends Record<string, unknown>>
   result: T,
   sourceUrl?: string,
   endpoint = "unknown",
-): Promise<T & { csvContent?: string; csvInfo: ScrapeCsvInfo }> {
-  if (result.usableForCsv === false || result.blockedForExport === true) {
+): Promise<
+  T & { csvContent?: string; csvInfo: ScrapeCsvInfo; csvPreview?: ScrapeCsvPreview }
+> {
+  const blocked =
+    result.usableForCsv === false ||
+    (result.blockedForExport === true && result.usableForCsv !== true);
+
+  if (blocked) {
     console.log("[CSV] attach skipped — usableForCsv=false", {
       title: result.title,
       titleSource: result.titleSource,
+      previewOk: result.previewOk,
       endpoint,
     });
     return { ...result, csvInfo: emptyScrapeCsvInfo() };
@@ -275,8 +307,22 @@ export async function attachCsvToScrapeResult<T extends Record<string, unknown>>
 
   const { csvContent, csvInfo } = await buildCsvFromScrapeResult(result, sourceUrl, endpoint);
   if (csvContent) {
-    return { ...result, csvContent, csvInfo };
+    const csvPreview = buildCsvPreviewFromContent(csvContent);
+    console.log("[CSV] attached — usableForCsv=true", {
+      previewOk: result.previewOk === true,
+      endpoint,
+      csvPreview: csvPreview
+        ? `rows=${csvPreview.rowCount}`
+        : "rows=0",
+      csvInfo: `filename=${csvInfo.filename}`,
+    });
+    return { ...result, csvContent, csvInfo, csvPreview: csvPreview ?? undefined };
   }
+
+  console.log("[CSV] attach failed — CSV content empty", {
+    title: result.title,
+    endpoint,
+  });
   return { ...result, csvInfo };
 }
 

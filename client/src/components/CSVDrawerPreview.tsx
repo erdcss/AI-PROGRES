@@ -126,13 +126,20 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
     setBulkTagInput('');
   };
 
-  const parseCSVContent = (csvContent: string) => {
+  const parseCSVContent = (csvContent: string, csvPreview?: { headers?: string[]; rows?: string[][] }) => {
+    if (csvPreview?.headers?.length) {
+      return {
+        headers: csvPreview.headers,
+        rows: (csvPreview.rows ?? []).slice(0, 5),
+      };
+    }
+
     const lines = csvContent.split('\n').filter(line => line.trim());
     if (lines.length < 2) return { headers: [], rows: [] };
     
     const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-    const rows = lines.slice(1, 5).map(line => 
-      line.split(',').map(cell => cell.replace(/"/g, '').trim())
+    const rows = lines.slice(1, 6).map(line => 
+      line.split(',').map((cell: string) => cell.replace(/"/g, '').trim())
     );
     
     return { headers, rows };
@@ -289,7 +296,8 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
 
         {csvPreviews.map((preview) => {
           const isExpanded = expandedItems.has(preview.id);
-          const { headers, rows } = parseCSVContent(preview.csvContent);
+          const { headers, rows } = parseCSVContent(preview.csvContent, (preview as { csvPreview?: { headers?: string[]; rows?: string[][] } }).csvPreview);
+          const hasCsvTable = headers.length > 0 && rows.length > 0;
           // ✅ FIXED: Calculate variant count from allVariants array
           const variants = sanitizeTrendyolVariants(preview.variants, {
             productTitle: preview.productTitle,
@@ -408,7 +416,8 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
               {isExpanded && (
                   <CardContent className="px-6 pb-6">
                       <div className="space-y-4">
-                        {/* CSV Table Preview */}
+                        {hasCsvTable ? (
+                        <>
                         <div className="overflow-x-auto bg-slate-800/30 rounded-lg border border-cyan-800/20">
                           <table className="w-full text-sm">
                             <thead>
@@ -523,7 +532,15 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                             );
                           })()}
                         </div>
-
+                        </>
+                        ) : (
+                          <div className="py-6 text-center space-y-2 rounded-lg border border-slate-700/40 bg-slate-900/30">
+                            <p className="text-slate-300 text-sm font-medium">CSV henüz oluşturulmadı</p>
+                            <p className="text-slate-500 text-xs">
+                              Ürün verisi çekildi ancak CSV export bekliyor
+                            </p>
+                          </div>
+                        )}
 
                       </div>
                     </CardContent>

@@ -1,4 +1,5 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 import {
   sanitizeShopifyCsvHeaders,
@@ -11,8 +12,44 @@ export const SHOPIFY_CSV_FILENAME = "shopify-urunler.csv";
 
 const CSV_BOM = "\uFEFF";
 
+let cachedCsvOutputDir: string | null = null;
+
+function isWritableDirectory(dir: string): boolean {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, ".write-probe");
+    fs.writeFileSync(probe, "ok", "utf8");
+    fs.unlinkSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Single CSV output directory for local dev, Railway, and /tmp fallback */
+export function resolveCsvOutputDirectory(): string {
+  if (cachedCsvOutputDir) return cachedCsvOutputDir;
+
+  const candidates = [
+    path.join(process.cwd(), "temp"),
+    path.join(os.tmpdir(), "turmarkt-csv"),
+    "/tmp/turmarkt-csv",
+  ];
+
+  for (const dir of candidates) {
+    if (isWritableDirectory(dir)) {
+      cachedCsvOutputDir = dir;
+      return dir;
+    }
+  }
+
+  cachedCsvOutputDir = path.join(process.cwd(), "temp");
+  fs.mkdirSync(cachedCsvOutputDir, { recursive: true });
+  return cachedCsvOutputDir;
+}
+
 export function getShopifyCsvPath(): string {
-  return path.join(process.cwd(), "temp", SHOPIFY_CSV_FILENAME);
+  return path.join(resolveCsvOutputDirectory(), SHOPIFY_CSV_FILENAME);
 }
 
 export function resolveShopifyCsvPath(): string | null {

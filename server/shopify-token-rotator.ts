@@ -77,7 +77,7 @@ export async function fetchAccessTokenViaClientCredentials(): Promise<string | n
   const domain = normalizeShopDomain(creds.shopDomain);
   const result = await tryClientCredentialsExchange(domain);
   if (result.success && result.newToken) {
-    await persistToken(domain, result.newToken);
+    await persistToken(domain, result.newToken, result.expiresInSeconds);
     return result.newToken;
   }
   console.warn('client_credentials başarısız:', result.error);
@@ -121,7 +121,7 @@ export async function rotateShopifyToken(): Promise<{
     // ── Yöntem 1: client_credentials (Postman akışı) ─────────────────────────
     const clientCred = await tryClientCredentialsExchange(shopDomain);
     if (clientCred.success && clientCred.newToken) {
-      await persistToken(shopDomain, clientCred.newToken);
+      await persistToken(shopDomain, clientCred.newToken, clientCred.expiresInSeconds);
       console.log('✅ SHOPIFY TOKEN: client_credentials ile alındı');
       return { success: true, newToken: clientCred.newToken, method: 'client_credentials' };
     }
@@ -183,7 +183,22 @@ export function getTokenStatus(): {
 // PRIVATE
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function persistToken(shopDomain: string, accessToken: string): Promise<void> {
+async function persistToken(
+  shopDomain: string,
+  accessToken: string,
+  expiresInSeconds?: number,
+): Promise<void> {
+  try {
+    const { setShopifyTokenCache } = await import('./shopify-token-manager');
+    setShopifyTokenCache({
+      accessToken,
+      shopDomain,
+      source: 'client_credentials',
+      expiresInSeconds,
+    });
+  } catch {
+    /* optional */
+  }
   process.env.SHOPIFY_ACCESS_TOKEN = accessToken;
   process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = accessToken;
   lastRefreshTime = Date.now();
@@ -206,7 +221,7 @@ async function persistToken(shopDomain: string, accessToken: string): Promise<vo
  */
 async function tryClientCredentialsExchange(
   shopDomain: string
-): Promise<{ success: boolean; newToken?: string; error?: string }> {
+): Promise<{ success: boolean; newToken?: string; expiresInSeconds?: number; error?: string }> {
   const creds = getShopifyClientCredentials();
   if (!creds) {
     return {
@@ -236,17 +251,27 @@ async function tryClientCredentialsExchange(
       body: body.toString(),
     });
 
-    const data = (await res.json().catch(() => ({}))) as Record<string, string>;
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
 
     if (!res.ok) {
       return {
         success: false,
-        error: data.error_description || data.error || `HTTP ${res.status}`,
+        error: String(data.error_description || data.error || `HTTP ${res.status}`),
       };
     }
 
-    if (data.access_token) {
-      return { success: true, newToken: data.access_token };
+    if (typeof data.access_token === 'string') {
+      const expiresInSeconds =
+        typeof data.expires_in === 'number'
+          ? data.expires_in
+          : typeof data.expires_in === 'string'
+            ? Number.parseInt(data.expires_in, 10)
+            : undefined;
+      return {
+        success: true,
+        newToken: data.access_token,
+        expiresInSeconds: Number.isFinite(expiresInSeconds) ? expiresInSeconds : undefined,
+      };
     }
 
     return { success: false, error: 'access_token yanıtta dönmedi' };

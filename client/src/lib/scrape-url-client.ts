@@ -52,6 +52,12 @@ export type ScrapedUrlPayload = {
   features?: Array<{ key: string; value: string }>;
   tags?: string[];
   csvContent?: string;
+  csvPreview?: {
+    headers: string[];
+    rows: string[][];
+    rowCount?: number;
+  };
+  csvData?: string[][];
   csvInfo?: {
     filename: string;
     downloadUrl: string;
@@ -66,6 +72,7 @@ export type ScrapedUrlPayload = {
   usableForCsv?: boolean;
   usableForShopify?: boolean;
   blockedForExport?: boolean;
+  warnings?: string[];
   finalSuccessReason?: string;
   stageErrors?: string[];
   originalUrl: string;
@@ -74,6 +81,31 @@ export type ScrapedUrlPayload = {
 
 function normalizeImageList(images: unknown): string[] {
   return filterValidProductImages(images);
+}
+
+function extractCsvContent(raw: Record<string, unknown>): string | undefined {
+  if (typeof raw.csvContent === "string" && raw.csvContent.length > 50) {
+    return raw.csvContent;
+  }
+  if (typeof raw.csvData === "string" && raw.csvData.length > 50) {
+    return raw.csvData;
+  }
+  return undefined;
+}
+
+function extractCsvPreview(raw: Record<string, unknown>) {
+  const preview = raw.csvPreview;
+  if (preview && typeof preview === "object") {
+    const record = preview as Record<string, unknown>;
+    if (Array.isArray(record.headers) && Array.isArray(record.rows)) {
+      return {
+        headers: record.headers as string[],
+        rows: record.rows as string[][],
+        rowCount: typeof record.rowCount === "number" ? record.rowCount : undefined,
+      };
+    }
+  }
+  return undefined;
 }
 
 export function normalizeScrapedPayload(
@@ -87,18 +119,13 @@ export function normalizeScrapedPayload(
   const blockedForExport = raw.blockedForExport === true;
   const hasValidPrice = displayPrice.original > 0;
 
-  let csvContent =
-    typeof raw.csvContent === "string" && raw.csvContent.length > 50
-      ? raw.csvContent
-      : undefined;
-
-  if (!csvContent && usableForCsv && hasValidPrice && !blockedForExport) {
-    // Sunucu CSV üretemediyse istemci tarafında fallback oluşturma — kolon uyumsuzluğuna yol açar
-    csvContent = undefined;
-  }
-
-  const csvInfo = raw.csvInfo as ScrapedUrlPayload["csvInfo"];
-  const csvReady = csvInfo?.ready === true && Boolean(csvContent);
+  const csvContent = extractCsvContent(raw);
+  const csvPreview = extractCsvPreview(raw);
+  const csvInfoRaw = raw.csvInfo as ScrapedUrlPayload["csvInfo"];
+  const csvReady =
+    csvInfoRaw?.ready === true ||
+    Boolean(csvContent) ||
+    Boolean(csvPreview?.rows?.length);
 
   return {
     title: String(raw.title || "Ürün"),
@@ -118,10 +145,16 @@ export function normalizeScrapedPayload(
     }),
     features: (raw.features as ScrapedUrlPayload["features"]) || [],
     tags: (raw.tags as string[]) || [],
-    csvContent: csvReady ? csvContent : undefined,
-    csvInfo: csvInfo
-      ? { ...csvInfo, ready: csvReady }
-      : { filename: "", downloadUrl: "", ready: false, productCount: 0 },
+    csvContent,
+    csvPreview,
+    csvInfo: csvInfoRaw
+      ? { ...csvInfoRaw, ready: csvReady && !blockedForExport }
+      : {
+          filename: "shopify-urunler.csv",
+          downloadUrl: "/api/download/shopify-urunler.csv",
+          ready: csvReady && usableForCsv && hasValidPrice && !blockedForExport,
+          productCount: 0,
+        },
     extractionMethod: raw.extractionMethod
       ? String(raw.extractionMethod)
       : undefined,
@@ -132,6 +165,7 @@ export function normalizeScrapedPayload(
     usableForCsv,
     usableForShopify: raw.usableForShopify === true,
     blockedForExport,
+    warnings: Array.isArray(raw.warnings) ? (raw.warnings as string[]) : undefined,
     finalSuccessReason: raw.finalSuccessReason
       ? String(raw.finalSuccessReason)
       : undefined,
@@ -244,7 +278,10 @@ export function buildCsvPreviewEntry(
     id: `${idPrefix}-${urlSlug}-${Date.now()}`,
     productTitle: data.title,
     csvContent: data.csvContent || "",
+    csvPreview: data.csvPreview,
     sourceUrl: url,
+    usableForCsv: data.usableForCsv,
+    csvInfo: data.csvInfo,
     variants: {
       colors: data.variants?.colors || [],
       sizes: data.variants?.sizes || [],
@@ -290,4 +327,15 @@ export function normalizeStoredCsvPreview(preview: Record<string, unknown>) {
   );
 
   return { ...preview, price, images };
+}
+
+export function hasCsvPreviewData(input: {
+  csvContent?: string;
+  csvPreview?: { headers?: string[]; rows?: string[][] };
+  csvInfo?: { ready?: boolean };
+}): boolean {
+  if (input.csvContent && input.csvContent.trim().length > 50) return true;
+  if (input.csvPreview?.rows?.length) return true;
+  if (input.csvInfo?.ready) return true;
+  return false;
 }

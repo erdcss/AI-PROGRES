@@ -69,6 +69,14 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
 
   result.sourceUrl = result.sourceUrl || url;
 
+  // Local Agent veya pipeline'dan gelen tam veri — cloud'da tekrar direct fetch yapma
+  if (result._fromLocalAgent || result._sourceAccessStrategy === "local_agent") {
+    result.title = resolveProductTitle(url, result.title);
+    if (hasUsableTrendyolResult(result)) {
+      return result;
+    }
+  }
+
   const titleWasPlaceholder =
     PLACEHOLDER_TITLES.has(String(result.title || '').trim()) ||
     isBlockedTrendyolTitle(result.title) ||

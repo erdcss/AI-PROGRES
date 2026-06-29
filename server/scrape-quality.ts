@@ -39,6 +39,7 @@ export type ScrapeQuality = {
   jobSuccess: boolean;
   partialSuccess: boolean;
   finalSuccessReason: FinalSuccessReason;
+  warnings: string[];
 };
 
 function parsePrice(original: unknown): number {
@@ -49,6 +50,49 @@ function parsePrice(original: unknown): number {
     if (typeof p.withProfit === "number" && p.withProfit > 0) return p.withProfit;
   }
   return 0;
+}
+
+function isValidSourceUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** CSV export eligibility — titleSource url-slug alone must not block export */
+export function isCsvExportable(
+  url: string,
+  result: Record<string, unknown>,
+  opts: {
+    title?: string;
+    titleSource?: TitleSource;
+    hasValidPrice?: boolean;
+    hasImages?: boolean;
+  } = {},
+): { exportable: boolean; warnings: string[] } {
+  const title = String(opts.title ?? result.title ?? "").trim();
+  const titleSource =
+    opts.titleSource ??
+    detectTitleSource(url, title, false, false);
+  const hasValidPrice = opts.hasValidPrice ?? parsePrice(result.price) > 0;
+  const hasImages =
+    opts.hasImages ?? filterValidProductImages(result.images).length > 0;
+  const sourceUrl = String(result.sourceUrl ?? result.url ?? url).trim();
+
+  const warnings: string[] = [];
+  if (titleSource === "url-slug") {
+    warnings.push("title_from_url_slug_review_recommended");
+  }
+
+  const exportable =
+    title.length >= 8 &&
+    hasValidPrice &&
+    hasImages &&
+    isValidSourceUrl(sourceUrl || url);
+
+  return { exportable, warnings };
 }
 
 export function detectTitleSource(
@@ -101,8 +145,17 @@ export function evaluateScrapeQuality(
   const hasRealTitle =
     titleSource !== "url-slug" && isValidTrendyolProductTitle(title);
 
-  const usableForCsv = hasValidPrice && titleSource !== "url-slug" && isValidTrendyolProductTitle(title);
-  const usableForShopify = hasValidPrice && titleSource !== "url-slug" && isValidTrendyolProductTitle(title);
+  const csvCheck = isCsvExportable(url, result, {
+    title,
+    titleSource,
+    hasValidPrice,
+    hasImages,
+  });
+  const usableForCsv = csvCheck.exportable;
+  const warnings = csvCheck.warnings;
+
+  const usableForShopify =
+    hasValidPrice && titleSource !== "url-slug" && isValidTrendyolProductTitle(title);
 
   const blockedForExport = !usableForCsv;
 
@@ -110,7 +163,7 @@ export function evaluateScrapeQuality(
     titleSource === "url-slug" && !hasValidPrice && !hasImages;
 
   const previewOk = !slugOnlyNoData && (hasValidPrice || hasImages || hasRealTitle);
-  const jobSuccess = usableForCsv;
+  const jobSuccess = usableForCsv || previewOk;
   const hadTimeout = stageErrors.some((e) => e.includes("timeout"));
 
   let finalSuccessReason: FinalSuccessReason = "no-usable-data";
@@ -160,17 +213,19 @@ export function evaluateScrapeQuality(
           : htmlParseSuccess
             ? "full-data"
             : "full-data";
+  } else if (hasValidPrice && hasImages && titleSource === "url-slug") {
+    finalSuccessReason = hadTimeout ? "partial-timeout" : "full-data";
   } else if (hasValidPrice && hasRealTitle && !hasImages) {
     finalSuccessReason = hadTimeout ? "partial-timeout" : "title-price-no-images";
   } else if ((apiSuccess || hasRealTitle) && !hasValidPrice && !hasImages) {
     finalSuccessReason = "api-title-only";
-  } else if (jobSuccess && hadTimeout) {
+  } else if (usableForCsv && hadTimeout) {
     finalSuccessReason = "partial-timeout";
-  } else if (jobSuccess) {
+  } else if (usableForCsv) {
     finalSuccessReason = hasValidPrice ? "title-price-no-images" : "api-title-only";
   }
 
-  const partialSuccess = previewOk && !usableForCsv;
+  const partialSuccess = previewOk && (!usableForCsv || titleSource === "url-slug");
 
   return {
     titleSource,
@@ -184,5 +239,6 @@ export function evaluateScrapeQuality(
     jobSuccess,
     partialSuccess,
     finalSuccessReason,
+    warnings,
   };
 }

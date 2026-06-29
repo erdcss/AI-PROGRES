@@ -741,6 +741,10 @@ app.use(pendingChangesRoutes);
     // Ürün Takip Sistemi v2 — tek resmi başlatma
     setTimeout(async () => {
       try {
+        const { logScrapeEnvironmentPolicy } = await import('./services/scrape-environment.service');
+        const { seedInternalSourceAccessFromEnv } = await import('./services/source-access-manager.service');
+        logScrapeEnvironmentPolicy();
+        await seedInternalSourceAccessFromEnv().catch(() => undefined);
         const { bootstrapProductTrackingV2 } = await import('./services/tracking.bootstrap');
         await bootstrapProductTrackingV2();
       } catch (err) {

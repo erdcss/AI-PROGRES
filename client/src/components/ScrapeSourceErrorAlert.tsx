@@ -51,7 +51,7 @@ function buildDetailLines(meta?: ScrapeErrorMeta) {
         e.includes("local-agent"),
     )
   ) {
-    lines.push("Alternatif erişim başarısız");
+    lines.push("Alternatif erişim denendi (başarısız)");
   }
 
   if (meta?.stageErrorsHuman) {

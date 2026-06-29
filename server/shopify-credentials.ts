@@ -24,27 +24,135 @@ export class ShopifyCredentialsError extends Error {
   }
 }
 
-/** Strip protocol/trailing slash; prefer myshopify.com when SHOPIFY_SHOP_DOMAIN is set. */
+/** Strip protocol/trailing slash; prefer *.myshopify.com domain. */
 export function normalizeShopDomain(domain: string): string {
   if (!domain) return '';
   let d = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+  d = d.split('/')[0];
 
-  const preferredMyshopify =
-    process.env.SHOPIFY_SHOP_DOMAIN?.replace(/^https?:\/\//, '').replace(/\/$/, '') || '';
-  if (preferredMyshopify.includes('.myshopify.com') && !d.includes('.myshopify.com')) {
+  const envCandidates = [
+    process.env.SHOPIFY_SHOP_DOMAIN,
+    process.env.SHOPIFY_STORE_URL,
+    process.env.SHOPIFY_STORE_DOMAIN,
+  ]
+    .filter(Boolean)
+    .map((value) => value!.replace(/^https?:\/\//, '').replace(/\/$/, '').trim().split('/')[0]);
+
+  const preferredMyshopify = envCandidates.find((value) => value.includes('.myshopify.com'));
+  if (preferredMyshopify && !d.includes('.myshopify.com')) {
     d = preferredMyshopify;
   }
 
   return d;
 }
 
+export type ShopifyHealthTokenSource = 'env' | 'db_oauth' | 'client_credentials' | 'cache' | 'missing';
+
+export interface ResolvedShopifyConfig {
+  ok: boolean;
+  shopDomain: string;
+  accessToken?: string;
+  hasAccessToken: boolean;
+  hasClientCredentials: boolean;
+  tokenSource: ShopifyHealthTokenSource;
+  apiKey?: string;
+  apiSecret?: string;
+  scopesOk?: boolean;
+  error?: string;
+}
+
+function mapCredentialSource(source: ShopifyCredentialSource): ShopifyHealthTokenSource {
+  if (source === 'db') return 'db_oauth';
+  if (source === 'client_credentials') return 'client_credentials';
+  return 'env';
+}
+
+/** Tek merkezden Shopify config — token resolver dahil */
+export async function resolveShopifyConfig(): Promise<ResolvedShopifyConfig> {
+  const hasClientCredentials = Boolean(getShopifyClientCredentials());
+  const shopDomain = envShopDomain();
+
+  try {
+    const { getValidShopifyAccessToken } = await import('./shopify-token-manager');
+    const token = await getValidShopifyAccessToken();
+    const clientCreds = getShopifyClientCredentials();
+
+    const mappedSource: ShopifyHealthTokenSource =
+      token.source === 'db'
+        ? 'db_oauth'
+        : token.source === 'cache'
+          ? 'cache'
+          : token.source === 'client_credentials'
+            ? 'client_credentials'
+            : token.source === 'env'
+              ? 'env'
+              : 'missing';
+
+    return {
+      ok: true,
+      shopDomain: token.shopDomain,
+      accessToken: token.accessToken,
+      hasAccessToken: true,
+      hasClientCredentials,
+      tokenSource: mappedSource,
+      apiKey: clientCreds?.clientId,
+      apiSecret: clientCreds?.clientSecret,
+    };
+  } catch (err) {
+    const message =
+      err instanceof ShopifyCredentialsError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : 'Shopify yapılandırması bulunamadı';
+
+    return {
+      ok: false,
+      shopDomain: shopDomain,
+      hasAccessToken: false,
+      hasClientCredentials,
+      tokenSource: 'missing',
+      error: message,
+    };
+  }
+}
+
+/** Health endpoint — token asla dönmez */
+export async function getShopifyHealthSnapshot() {
+  const { getShopifyHealthResponse } = await import('./shopify-token-manager');
+  return getShopifyHealthResponse();
+}
+
 function envShopDomain(): string {
   return normalizeShopDomain(
     process.env.SHOPIFY_SHOP_DOMAIN ||
-      process.env.SHOPIFY_STORE_URL ||
       process.env.SHOPIFY_STORE_DOMAIN ||
+      process.env.SHOPIFY_STORE_URL ||
       ''
   );
+}
+
+export { envShopDomain };
+
+export function resolveClientIdSource():
+  | 'SHOPIFY_CLIENT_ID'
+  | 'SHOPIFY_API_KEY'
+  | 'missing' {
+  if (process.env.SHOPIFY_CLIENT_ID?.trim()) return 'SHOPIFY_CLIENT_ID';
+  if (process.env.SHOPIFY_client_id?.trim()) return 'SHOPIFY_CLIENT_ID';
+  if (process.env.SHOPIFY_API_KEY?.trim()) return 'SHOPIFY_API_KEY';
+  return 'missing';
+}
+
+export function resolveClientSecretSource():
+  | 'SHOPIFY_CLIENT_SECRET'
+  | 'SHOPIFY_APP_SHARED_SECRET'
+  | 'missing' {
+  if (process.env.SHOPIFY_CLIENT_SECRET?.trim()) return 'SHOPIFY_CLIENT_SECRET';
+  if (process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim()) return 'SHOPIFY_CLIENT_SECRET';
+  if (process.env.secret_key?.trim()) return 'SHOPIFY_APP_SHARED_SECRET';
+  if (process.env.SHOPIFY_APP_SHARED_SECRET?.trim()) return 'SHOPIFY_APP_SHARED_SECRET';
+  return 'missing';
 }
 
 /** ENV'den Shopify Client Credentials (Postman: client_id + client_secret + grant_type) */
@@ -75,80 +183,29 @@ function isDeprecatedToken(token: string): boolean {
 }
 
 /**
- * Tek credential resolver — tüm Shopify API çağrıları bunu kullanmalı.
- * Öncelik: DB aktif token → SHOPIFY_ADMIN_ACCESS_TOKEN → SHOPIFY_ACCESS_TOKEN → SHOPIFY_APP_SECRET_NEW
+ * Geriye dönük uyumluluk — getValidShopifyAccessToken() üzerinden çalışır.
  */
 export async function resolveShopifyCredentials(): Promise<ResolvedShopifyCredentials> {
-  // 1. DB — aktif OAuth / Admin token
-  try {
-    const rows = await db
-      .select()
-      .from(shopifyCredentials)
-      .where(eq(shopifyCredentials.isActive, true))
-      .orderBy(desc(shopifyCredentials.updatedAt))
-      .limit(1);
-
-    const cred = rows[0];
-    if (cred?.shopDomain && cred.accessToken && !isDeprecatedToken(cred.accessToken)) {
-      return {
-        shopDomain: normalizeShopDomain(cred.shopDomain),
-        accessToken: cred.accessToken,
-        apiKey: cred.apiKey,
-        apiSecret: cred.apiSecret,
-        source: 'db',
-      };
-    }
-  } catch (err: any) {
-    if (err?.code === '42P01') {
-      console.warn('resolveShopifyCredentials: shopify_credentials tablosu yok — ENV/client_credentials kullanılacak');
-    } else {
-      console.error('resolveShopifyCredentials DB error:', err);
-    }
-  }
-
-  const shopDomain = envShopDomain();
-  const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
-  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-  const legacyToken = process.env.SHOPIFY_APP_SECRET_NEW;
-
-  if (shopDomain && adminToken && !isDeprecatedToken(adminToken)) {
-    return { shopDomain, accessToken: adminToken, source: 'env_admin' };
-  }
-  if (shopDomain && accessToken && !isDeprecatedToken(accessToken)) {
-    return { shopDomain, accessToken, source: 'env_access' };
-  }
-  if (shopDomain && legacyToken && !isDeprecatedToken(legacyToken)) {
-    return { shopDomain, accessToken: legacyToken, source: 'env_legacy' };
-  }
-
-  // client_id + secret ile otomatik token al (Postman client_credentials akışı)
+  const { getValidShopifyAccessToken } = await import('./shopify-token-manager');
+  const token = await getValidShopifyAccessToken();
   const clientCreds = getShopifyClientCredentials();
-  if (clientCreds) {
-    try {
-      const { fetchAccessTokenViaClientCredentials } = await import('./shopify-token-rotator');
-      const accessToken = await fetchAccessTokenViaClientCredentials();
-      if (accessToken) {
-        try {
-          const { invalidateShopifyCredentialCache } = await import('./shopify-api-service');
-          invalidateShopifyCredentialCache();
-        } catch {
-          /* optional */
-        }
-        return {
-          shopDomain: normalizeShopDomain(clientCreds.shopDomain),
-          accessToken,
-          apiKey: clientCreds.clientId,
-          apiSecret: clientCreds.clientSecret,
-          source: 'client_credentials',
-        };
-      }
-      console.warn('Shopify client_credentials token alınamadı');
-    } catch (rotateErr) {
-      console.error('Shopify client_credentials error:', rotateErr);
-    }
-  }
 
-  throw new ShopifyCredentialsError();
+  const source: ShopifyCredentialSource =
+    token.source === 'db'
+      ? 'db'
+      : token.source === 'client_credentials' || token.source === 'cache'
+        ? 'client_credentials'
+        : token.source === 'env'
+          ? 'env_access'
+          : 'client_credentials';
+
+  return {
+    shopDomain: token.shopDomain,
+    accessToken: token.accessToken,
+    apiKey: clientCreds?.clientId,
+    apiSecret: clientCreds?.clientSecret,
+    source,
+  };
 }
 
 /**

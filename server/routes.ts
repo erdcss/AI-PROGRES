@@ -80,8 +80,9 @@ import { productStatisticsService } from './product-statistics-service';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 import { aiProductStatisticsService } from './ai-product-statistics';
 import { shopifyProductsSync } from './shopify-products-sync';
-import { getShopifyConfig, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials, saveDirectAccessToken, normalizeShopDomain } from './shopify-credentials';
+import { getShopifyConfig, getShopifyHealthSnapshot, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials, saveDirectAccessToken, normalizeShopDomain } from './shopify-credentials';
 import { handleShopifyProductUpload } from './shopify-upload-service';
+import { handleShopifyProductsRoute } from './shopify-route-handler';
 import { registerTrackingRoutes } from './routes/tracking-routes';
 import { registerSourceAccessRoutes } from './routes/source-access-routes';
 import { getRequestId } from './request-context';
@@ -2115,7 +2116,9 @@ setTimeout(check, 1000);
         const jobId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
         scrapeJobs.set(jobId, { status: 'processing' as const, startedAt: Date.now() });
         const jobStartedAt = Date.now();
-        const JOB_MAX_MS = 65_000;
+        const { getScrapeEnvironmentPolicy } = await import("./services/scrape-environment.service");
+        const scrapePolicy = getScrapeEnvironmentPolicy();
+        const JOB_MAX_MS = scrapePolicy.scrapeJobMaxMs;
         const jobWatchdog = setTimeout(() => {
           const entry = scrapeJobs.get(jobId);
           if (!entry || entry.status !== 'processing') return;
@@ -2355,10 +2358,11 @@ setTimeout(check, 1000);
           }
         }
         
-        if (result && result.success !== false) {
-          const attached = await attachCsvToScrapeResult(result, url, "/api/scenario-scrape");
+        if (result && (result.usableForCsv === true || result.previewOk === true)) {
+          const attached = await attachCsvToScrapeResult(result, url, "/api/trendyol-scrape");
           result.csvContent = attached.csvContent;
           result.csvInfo = attached.csvInfo;
+          result.csvPreview = attached.csvPreview;
         } else if (result) {
           result.csvInfo = emptyScrapeCsvInfo();
         }
@@ -2537,6 +2541,7 @@ setTimeout(check, 1000);
             csvInfo = attached.csvInfo;
             result.csvContent = csvContent;
             result.csvInfo = csvInfo;
+            result.csvPreview = attached.csvPreview;
           }
           
           scrapeJobs.set(jobId, {
@@ -2570,6 +2575,7 @@ setTimeout(check, 1000);
               tags: result.tags,
               csvContent: csvContent,
               csvInfo,
+              csvPreview: result.csvPreview,
               trackingActive: false,
               extractionDetails: result.extractionDetails,
               scrapeDiagnostics,
@@ -3658,39 +3664,20 @@ setTimeout(check, 1000);
         });
       }
 
-      const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
-      const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-      
-      if (!shopifyStore || !accessToken) {
-        return res.status(500).json({
-          success: false,
-          message: 'Shopify credentials bulunamadı'
-        });
+      const { shopifyAdminFetch } = await import('./shopify-token-manager');
+      const { envShopDomain } = await import('./shopify-credentials');
+
+      const productResponse = await shopifyAdminFetch(`/products/${shopifyProductId}.json`);
+      if (!productResponse.response.ok) {
+        throw new Error(`Shopify product fetch failed: ${productResponse.response.statusText}`);
       }
 
-      // Fetch product variants to update prices
-      const productResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/products/${shopifyProductId}.json`, {
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json'
-        }
-      });
+      const productData = await productResponse.response.json();
+      const variants = productData.product?.variants || [];
 
-      if (!productResponse.ok) {
-        throw new Error(`Shopify product fetch failed: ${productResponse.statusText}`);
-      }
-
-      const productData = await productResponse.json();
-      const variants = productData.product.variants;
-
-      // Update all variant prices
       for (const variant of variants) {
-        const updateResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/variants/${variant.id}.json`, {
+        const updateResponse = await shopifyAdminFetch(`/variants/${variant.id}.json`, {
           method: 'PUT',
-          headers: {
-            'X-Shopify-Access-Token': accessToken,
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
             variant: {
               id: variant.id,
@@ -3699,12 +3686,11 @@ setTimeout(check, 1000);
           })
         });
 
-        if (!updateResponse.ok) {
-          throw new Error(`Variant update failed: ${updateResponse.statusText}`);
+        if (!updateResponse.response.ok) {
+          throw new Error(`Variant update failed: ${updateResponse.response.statusText}`);
         }
       }
 
-      // Update database
       await db.update(shopifyMemoryProducts)
         .set({ 
           price: newPrice.toString(),
@@ -3715,7 +3701,8 @@ setTimeout(check, 1000);
       res.json({
         success: true,
         message: `Fiyat güncellendi: ${newPrice} TL`,
-        updatedVariants: variants.length
+        updatedVariants: variants.length,
+        shopDomain: envShopDomain(),
       });
     } catch (error: any) {
       res.status(500).json({
@@ -3725,270 +3712,8 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify upload endpoint
-  app.post('/api/shopify-upload', async (req, res) => {
-    try {
-      const dryRun = req.query.dryRun === 'true' || req.body?.dryRun === true;
-      const requestId = getRequestId(req);
-
-      if (dryRun && req.body.productData) {
-        const result = await handleShopifyProductUpload({
-          productData: req.body.productData,
-          csvContent: req.body.csvContent,
-          productTitle: req.body.productTitle,
-          sourceUrl: req.body.sourceUrl || req.body.trendyolUrl,
-          customTags: req.body.customTags,
-          dryRun: true,
-          requestId,
-        });
-        return res.json(result);
-      }
-
-      const { csvContent, productTitle, productData, customTags } = req.body;
-      
-      console.log('📥 Shopify upload request received');
-      console.log('Request body keys:', Object.keys(req.body));
-      console.log('CSV Content exists:', !!csvContent);
-      console.log('CSV Content preview:', csvContent ? csvContent.substring(0, 200) + '...' : 'null');
-      console.log('Product Data exists:', !!productData);
-      console.log('Product Title:', productTitle);
-      console.log('🏷️ Custom Tags:', customTags);
-      
-      // Multi-URL product data yükleme - daha basit condition
-      console.log('🧪 Route condition check:');
-      console.log('   productData exists:', !!productData);
-      console.log('   productData type:', typeof productData);
-      console.log('   productData keys:', productData ? Object.keys(productData).slice(0, 5) : 'none');
-      
-      // CSV upload'u öncelik ver - multi-URL da CSV generate ediyor
-      if (csvContent) {
-        console.log(`🛒 Uploading CSV to Shopify: ${productTitle}`);
-        const uploadResult = await uploadProductToShopify(csvContent, productTitle);
-        
-        if (uploadResult.success) {
-          // Register product for automated tracking
-          let trackingResult = null;
-          try {
-            // Extract source URL from request if available
-            const sourceUrl = req.body.sourceUrl || req.body.trendyolUrl || '';
-            if (sourceUrl) {
-              trackingResult = await registerProductForTracking(
-                uploadResult.productId,
-                sourceUrl,
-                req.body.productData || { title: productTitle },
-                req.body.variants || [],
-                uploadResult.variants || []
-              );
-              console.log('🎯 Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
-              
-              // ✅ START TRACKING after successful registration
-              if (trackingResult.success && trackingResult.sourceUrl) {
-                try {
-                  const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl, uploadResult.productId);
-                  console.log('🎯 Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
-                } catch (enableError) {
-                  console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
-                }
-                
-                // ✅ SYNC TO MEMORY with retry - Runs regardless of tracking enable result
-                setTimeout(async () => {
-                  try {
-                    await syncProductToMemoryWithRetry(uploadResult.productId, sourceUrl);
-                  } catch (syncError) {
-                    console.error('⚠️ Memory sync retry failed:', syncError);
-                  }
-                }, 0);
-              }
-            }
-          } catch (trackingError) {
-            console.warn('⚠️ Tracking registration failed (non-critical):', trackingError);
-          }
-          
-          // Send product images to Telegram (non-blocking — fire and forget)
-          setImmediate(async () => {
-            try {
-              const chatId = process.env.TELEGRAM_CHAT_ID || '1219880063';
-              let images: any[] = [];
-
-              // Priority 1: productData.images
-              if (req.body.productData?.images && Array.isArray(req.body.productData.images)) {
-                req.body.productData.images.forEach((img: any, index: number) => {
-                  const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
-                  if (imageUrl) images.push({ url: imageUrl, position: index + 1 });
-                });
-              }
-
-              // Priority 2: parse CSV properly
-              if (images.length === 0 && csvContent) {
-                images = ImageTelegramService.extractImagesFromCSV(csvContent);
-              }
-
-              if (images.length > 0) {
-                console.log(`📸 [CSV Upload] Sending ${images.length} images to Telegram for: ${productTitle}`);
-                await ImageTelegramService.sendProductImages(
-                  productTitle,
-                  req.body.sourceUrl || req.body.trendyolUrl || '',
-                  images,
-                  chatId,
-                  uploadResult.productId
-                );
-                if (CanvaService.isEnabled()) {
-                  CanvaService.sendProductImages(productTitle, images).catch((e: any) =>
-                    console.warn('⚠️ [Canva] CSV Upload send failed (non-critical):', e.message)
-                  );
-                }
-              } else {
-                console.log(`📸 [CSV Upload] No images found to send for: ${productTitle}`);
-              }
-            } catch (imageError: any) {
-              console.warn('⚠️ Image sending failed (non-critical):', imageError.message);
-            }
-          });
-
-          return res.json({
-            success: true,
-            productId: uploadResult.productId,
-            message: uploadResult.message,
-            tracking: trackingResult
-          });
-        } else {
-          return res.status(400).json({
-            success: false,
-            error: uploadResult.message,
-            message: uploadResult.message
-          });
-        }
-      }
-      
-      // Eğer sadece productData varsa direkt upload kullan
-      if (productData && !csvContent) {
-        console.log('🔄 ✅ Multi-URL product data detected - Using direct uploader');
-        console.log('🎨 ROUTE DEBUG - Colors in productData:', productData.variants?.colors);
-        console.log('📋 ROUTE DEBUG - AllVariants:', productData.variants?.allVariants);
-        
-        // Direkt multi-URL uploader kullan (manuel tag'lerle birlikte)
-        const uploadResult = await uploadMultiUrlProductToShopify(
-          productData, 
-          productTitle || productData.title,
-          customTags || []
-        );
-        
-        // Register product for automated tracking if upload successful
-        if (uploadResult.success && uploadResult.productId) {
-          let trackingResult = null;
-          try {
-            const sourceUrl = productData.sourceUrl || productData.trendyolUrl || '';
-            if (sourceUrl) {
-              trackingResult = await registerProductForTracking(
-                uploadResult.productId,
-                sourceUrl,
-                productData,
-                productData.variants?.allVariants || [],
-                uploadResult.variants || []
-              );
-              console.log('🎯 Multi-URL Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
-              
-              // ✅ START TRACKING after successful registration
-              if (trackingResult.success && trackingResult.sourceUrl) {
-                try {
-                  const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl, uploadResult.productId);
-                  console.log('🎯 Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
-                } catch (enableError) {
-                  console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
-                }
-                
-                // ✅ SYNC TO MEMORY with retry - Runs regardless of tracking enable result
-                setTimeout(async () => {
-                  try {
-                    await syncProductToMemoryWithRetry(uploadResult.productId, sourceUrl);
-                  } catch (syncError) {
-                    console.error('⚠️ Multi-URL: Memory sync retry failed:', syncError);
-                  }
-                }, 0);
-              }
-            }
-          } catch (trackingError) {
-            console.warn('⚠️ Multi-URL Tracking registration failed (non-critical):', trackingError);
-          }
-          
-          // Send product images to Telegram (non-blocking — fire and forget)
-          setImmediate(async () => {
-            try {
-              const chatId = process.env.TELEGRAM_CHAT_ID || '1219880063';
-              const images: any[] = [];
-              const seenUrls = new Set<string>();
-
-              // Extract from productData.images
-              if (productData?.images && Array.isArray(productData.images)) {
-                productData.images.forEach((img: any, index: number) => {
-                  const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
-                  if (imageUrl && !seenUrls.has(imageUrl)) {
-                    seenUrls.add(imageUrl);
-                    images.push({ url: imageUrl, position: index + 1 });
-                  }
-                });
-              }
-
-              // Also collect variant-specific images with color info
-              if (productData?.variants?.allVariants && Array.isArray(productData.variants.allVariants)) {
-                productData.variants.allVariants.forEach((variant: any) => {
-                  if (variant.image) {
-                    const imageUrl = typeof variant.image === 'string' ? variant.image : variant.image.src;
-                    if (imageUrl && !seenUrls.has(imageUrl)) {
-                      seenUrls.add(imageUrl);
-                      images.push({ url: imageUrl, color: variant.color || variant.option1 });
-                    }
-                  }
-                });
-              }
-
-              if (images.length > 0) {
-                console.log(`📸 [Multi-URL] Sending ${images.length} images to Telegram for: ${productData?.title || productTitle}`);
-                await ImageTelegramService.sendProductImages(
-                  productData?.title || productTitle || 'Unknown Product',
-                  productData?.sourceUrl || productData?.trendyolUrl || '',
-                  images,
-                  chatId,
-                  uploadResult.productId
-                );
-                if (CanvaService.isEnabled()) {
-                  CanvaService.sendProductImages(productData?.title || productTitle || 'Unknown Product', images).catch((e: any) =>
-                    console.warn('⚠️ [Canva] Multi-URL send failed (non-critical):', e.message)
-                  );
-                }
-              } else {
-                console.log(`📸 [Multi-URL] No images found to send for: ${productTitle}`);
-              }
-            } catch (imageError: any) {
-              console.warn('⚠️ Multi-URL image sending failed (non-critical):', imageError.message);
-            }
-          });
-          
-          return res.json({
-            ...uploadResult,
-            tracking: trackingResult
-          });
-        }
-        
-        return res.json(uploadResult);
-      }
-
-      
-      console.log('❌ Neither CSV content nor product data provided');
-      return res.status(400).json({
-        success: false,
-        message: 'CSV content veya product data gerekli'
-      });
-      
-    } catch (error) {
-      console.error('❌ Shopify upload endpoint error:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Shopify upload failed',
-        message: error instanceof Error ? error.message : 'Shopify upload failed'
-      });
-    }
-  });
+  // Shopify upload — standart handler (legacy alias)
+  app.post('/api/shopify-upload', handleShopifyProductsRoute);
 
   // CSV-specific Shopify upload endpoint
   app.post('/api/shopify/upload-csv-product', async (req, res) => {
@@ -4466,6 +4191,28 @@ setTimeout(check, 1000);
     }
   });
 
+  // Shopify health — token değeri asla dönmez
+  app.get('/api/shopify/health', async (_req, res) => {
+    try {
+      const snapshot = await getShopifyHealthSnapshot();
+      return res.json(snapshot);
+    } catch (err: any) {
+      const { resolveClientIdSource, resolveClientSecretSource, envShopDomain } = await import('./shopify-credentials');
+      const { hasEnvAccessToken, hasClientCredentialsConfigured } = await import('./shopify-token-manager');
+      return res.status(500).json({
+        ok: false,
+        shopDomain: envShopDomain(),
+        hasEnvAccessToken: hasEnvAccessToken(),
+        hasClientCredentials: hasClientCredentialsConfigured(),
+        clientIdSource: resolveClientIdSource(),
+        clientSecretSource: resolveClientSecretSource(),
+        tokenSource: 'missing',
+        canCreateProducts: false,
+        error: err?.message || 'Shopify health check failed',
+      });
+    }
+  });
+
   // Shopify bağlantı testi — shop bilgisi, domain, token source (token loglanmaz)
   app.post('/api/shopify/connection-test', async (req, res) => {
     const requestId = getRequestId(req);
@@ -4473,48 +4220,11 @@ setTimeout(check, 1000);
     return res.status(result.connected ? 200 : 400).json(result);
   });
 
-  // Ürün yükleme — dryRun destekli (?dryRun=true veya body.dryRun)
-  app.post('/api/shopify/upload-product', async (req, res) => {
-    const requestId = getRequestId(req);
-    const dryRun = req.query.dryRun === 'true' || req.body?.dryRun === true;
-    try {
-      const productData = req.body?.productData || req.body;
-      const priceOriginal = Number(
-        productData?.price?.original ?? productData?.price?.withProfit ?? 0,
-      );
-      if (priceOriginal <= 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'Fiyat alınamadığı için Shopify aktarımı yapılamaz.',
-          step: 'price_validation',
-          requestId,
-        });
-      }
+  // Standart Shopify ürün oluşturma endpoint'i
+  app.post('/api/shopify/products', handleShopifyProductsRoute);
 
-      const csvInfo = req.body?.csvInfo ?? productData?.csvInfo;
-      if (csvInfo?.ready === false || (csvInfo?.productCount === 0 && req.body?.csvContent)) {
-        return res.status(400).json({
-          success: false,
-          error: 'CSV hazır değil — önce geçerli fiyatlı ürün verisi çekin.',
-          step: 'csv_not_ready',
-          requestId,
-        });
-      }
-
-      const result = await handleShopifyProductUpload({
-        productData,
-        csvContent: req.body?.csvContent,
-        productTitle: req.body?.productTitle,
-        sourceUrl: req.body?.sourceUrl,
-        customTags: req.body?.customTags,
-        dryRun,
-        requestId,
-      });
-      return res.status(result.success ? 200 : 400).json({ ...result, requestId });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message, step: 'server_error', requestId });
-    }
-  });
+  // Geriye dönük uyumluluk
+  app.post('/api/shopify/upload-product', handleShopifyProductsRoute);
 
   // Doğrudan Admin API token kaydet (OAuth olmadan)
   app.post('/api/shopify/direct-token', async (req, res) => {
@@ -5288,101 +4998,8 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify Add Product Endpoint (already exists but ensuring consistency)
-  app.post('/api/shopify/add-product', async (req, res) => {
-    try {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.setHeader('Cache-Control', 'no-cache');
-      
-      const productData = req.body.productData || req.body;
-      
-      // Ürün verisi kontrolü - title ve temel alanlar
-      if (!productData || (!productData.title && !productData.brand)) {
-        console.log('❌ Missing required product data:', productData);
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Geçerli product data gerekli - title veya brand eksik' 
-        });
-      }
-
-      console.log('🛒 Shopify API product creation initiated:', productData.title);
-      
-      // ✅ SHOPIFY UPLOAD: Brand sanitizer uygula
-      const { sanitizeProduct } = await import('./brand-sanitizer');
-      const sanitizedData = sanitizeProduct(productData);
-      console.log(`🧹 SHOPIFY: Marka sanitize edildi: "${productData.brand}" → "${sanitizedData.brand}"`);
-      
-      const shopifyProduct = {
-        title: sanitizedData.title || 'Test Ürün',
-        body_html: `<p><strong>Marka:</strong> ${sanitizedData.brand || 'Bilinmiyor'}</p><p>${sanitizedData.title}</p>`,
-        vendor: sanitizedData.brand || 'Genel',
-        product_type: "Genel Ürün",
-        status: "active",
-        published: true,
-        tags: productData.tags ? productData.tags.join(', ') : "",
-        variants: [{
-          title: "Varsayılan Başlık",
-          price: (productData.price?.withProfit || 100).toString(),
-          inventory_quantity: 10,
-          weight: 0,
-          weight_unit: "kg",
-          requires_shipping: true
-        }],
-        images: (productData.images || []).slice(0, 10).map((url: string | any) => ({
-          src: typeof url === 'string' ? url : url.url || url,
-          alt: `${productData.title} - Product Image`
-        }))
-      };
-
-      console.log('Creating Shopify product:', shopifyProduct.title);
-      
-      const response = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/products.json`, {
-        method: 'POST',
-        headers: {
-          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN!,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ product: shopifyProduct })
-      });
-
-      console.log('Shopify API response status:', response.status);
-      
-      if (response.ok) {
-        const result = await response.json();
-        const productId = result?.product?.id;
-        
-        if (!productId) {
-          console.error('❌ No product ID in Shopify response');
-          return res.status(500).json({
-            success: false,
-            error: 'Shopify API yanıtında product ID bulunamadı'
-          });
-        }
-        
-        console.log('✅ Shopify product created successfully:', productId);
-        
-        res.json({
-          success: true,
-          message: 'Ürün başarıyla Shopify\'a yüklendi',
-          productId: productId,
-          productUrl: `https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/products/${productId}`
-        });
-      } else {
-        const errorData = await response.text();
-        console.error('❌ Shopify API error:', response.status, errorData);
-        res.status(response.status).json({
-          success: false,
-          error: `Shopify API hatası: ${response.status}`
-        });
-      }
-    } catch (error: any) {
-      console.error('❌ Shopify product creation error:', error.message);
-      res.status(500).json({
-        success: false,
-        error: `Ürün oluşturma hatası: ${error.message}`
-      });
-    }
-  });
+  // Shopify Add Product Endpoint — standart upload handler
+  app.post('/api/shopify/add-product', handleShopifyProductsRoute);
 
   // Shopify ürünleri hafızaya kaydetme endpoint'i
   app.post('/api/shopify/save-to-memory', async (req, res) => {

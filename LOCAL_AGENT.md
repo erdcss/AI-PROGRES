@@ -54,9 +54,12 @@ Railway proje değişkenleri:
 Deploy sonrası logda şunu görmelisiniz:
 
 ```txt
+🔧 Scrape ortam politikası: { preferLocalAgent: true, globalTimeoutMs: 95000, ... }
 ℹ️ Kaynak erişim internal seed: primary=local_agent, providers=local_agent
 ℹ️ Local Scrape Agent: erişilebilir
 ```
+
+Cloud + agent modunda Railway **direct HTML denemez**; API ve Local Agent **paralel** çalışır — yereldeki direct HTML sonucuyla aynı kalite hedeflenir.
 
 ## Endpoint'ler
 

@@ -7,7 +7,7 @@ export type ScraperPersistedState = {
   product: unknown | null;
   csvPreviews: unknown[];
   url: string;
-  pendingUrls?: string[];
+  pendingUrls?: Array<string | { url: string; status?: string; error?: string }>;
   scrapingMode: "single" | "multi-url";
   workflowStep: string | null;
   savedAt: number;
@@ -155,7 +155,9 @@ export function clearScraperState(): void {
 }
 
 /** URL kuyruğunu anında kaydet (sayfa yenilenince kaybolmasın) */
-export function savePendingUrls(urls: string[]): void {
+export function savePendingUrls(
+  urls: Array<string | { url: string; status?: string; error?: string }>,
+): void {
   const existing = loadScraperState();
   saveScraperState({
     product: existing?.product ?? null,
