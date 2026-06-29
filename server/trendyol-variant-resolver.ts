@@ -12,6 +12,7 @@ import { getTrendyolProductFromState } from "./trendyol-product-state";
 import {
   EMPTY_TRENDYOL_VARIANTS,
   hasRealTrendyolVariants,
+  pickRicherTrendyolVariants,
   sanitizeTrendyolVariants,
   type SanitizedVariants,
 } from "@shared/trendyol-variant-utils";
@@ -199,18 +200,24 @@ export async function fetchTrendyolVariantsFromApi(
   const api = await fetchTrendyolProductByUrl(url);
   if (!api) return EMPTY_TRENDYOL_VARIANTS;
 
-  if (api.variants && hasRealTrendyolVariants(api.variants)) {
-    return api.variants;
-  }
+  const title = productTitle || api.title;
+  const candidates: SanitizedVariants[] = [];
 
   if (api.rawProduct) {
-    const resolved = resolveTrendyolVariants({
-      product: api.rawProduct,
-      url,
-      productTitle: productTitle || api.title,
-    });
-    if (hasRealTrendyolVariants(resolved)) return resolved;
+    candidates.push(
+      resolveTrendyolVariants({
+        product: api.rawProduct,
+        url,
+        productTitle: title,
+      }),
+    );
   }
 
-  return resolveTrendyolVariants({ url, productTitle: productTitle || api.title });
+  if (api.variants && hasRealTrendyolVariants(api.variants)) {
+    candidates.push(api.variants);
+  }
+
+  candidates.push(resolveTrendyolVariants({ url, productTitle: title }));
+
+  return pickRicherTrendyolVariants(...candidates);
 }

@@ -17,6 +17,7 @@ import {
 } from './trendyol-image-utils';
 import {
   hasRealTrendyolVariants,
+  pickRicherTrendyolVariants,
   sanitizeTrendyolVariants,
   type SanitizedVariants,
 } from '@shared/trendyol-variant-utils';
@@ -310,63 +311,60 @@ export async function ensureTrendyolVariantsOnResult(
 ): Promise<void> {
   if (!result) return;
 
-  if (hasRealTrendyolVariants(result.variants)) {
-    if (!result.stockAnalysis) {
-      const { buildStockAnalysisFromVariants } = await import("./trendyol-html-enrichment");
-      result.stockAnalysis =
-        buildStockAnalysisFromVariants(result.variants) ?? undefined;
-    }
-    return;
-  }
-
   const {
     fetchTrendyolVariantsFromApi,
     resolveTrendyolVariants,
   } = await import("./trendyol-variant-resolver");
   const { buildStockAnalysisFromVariants } = await import("./trendyol-html-enrichment");
 
-  let resolved: SanitizedVariants | null = null;
+  const productTitle = result.title;
+  const candidates: SanitizedVariants[] = [];
+
+  const existing = sanitizeTrendyolVariants(result.variants, { productTitle });
+  if (hasRealTrendyolVariants(existing)) {
+    candidates.push(existing);
+  }
 
   if (opts?.html && opts.html.length >= 500) {
-    resolved = resolveTrendyolVariants({
-      html: opts.html,
-      url,
-      productTitle: result.title,
-      product: opts.rawProduct ?? undefined,
-    });
+    candidates.push(
+      resolveTrendyolVariants({
+        html: opts.html,
+        url,
+        productTitle,
+        product: opts.rawProduct ?? undefined,
+      }),
+    );
   }
 
-  if (!hasRealTrendyolVariants(resolved) && opts?.rawProduct) {
-    resolved = resolveTrendyolVariants({
-      product: opts.rawProduct,
-      url,
-      productTitle: result.title,
-    });
+  if (opts?.rawProduct) {
+    candidates.push(
+      resolveTrendyolVariants({
+        product: opts.rawProduct,
+        url,
+        productTitle,
+      }),
+    );
   }
 
-  if (!hasRealTrendyolVariants(resolved)) {
-    resolved = await fetchTrendyolVariantsFromApi(url, result.title);
-  }
+  candidates.push(await fetchTrendyolVariantsFromApi(url, productTitle));
 
-  if (!hasRealTrendyolVariants(resolved)) {
-    const { extractTrendyolProductFromHtml } = await import("./trendyol-html-extractor");
-    const htmlProduct = await extractTrendyolProductFromHtml(url);
-    if (htmlProduct) {
-      if (hasRealTrendyolVariants(htmlProduct.variants)) {
-        resolved = htmlProduct.variants;
-      }
-      if (htmlProduct.features?.length && !result.features?.length) {
-        result.features = htmlProduct.features;
-      }
-      if (htmlProduct.stockAnalysis) {
-        result.stockAnalysis = htmlProduct.stockAnalysis;
-      }
+  const { extractTrendyolProductFromHtml } = await import("./trendyol-html-extractor");
+  const htmlProduct = await extractTrendyolProductFromHtml(url);
+  if (htmlProduct) {
+    if (hasRealTrendyolVariants(htmlProduct.variants)) {
+      candidates.push(htmlProduct.variants);
+    }
+    if (htmlProduct.features?.length && !result.features?.length) {
+      result.features = htmlProduct.features;
+    }
+    if (htmlProduct.stockAnalysis && !result.stockAnalysis) {
+      result.stockAnalysis = htmlProduct.stockAnalysis;
     }
   }
 
-  if (!hasRealTrendyolVariants(resolved)) {
-    resolved = resolveTrendyolVariants({ url, productTitle: result.title });
-  }
+  candidates.push(resolveTrendyolVariants({ url, productTitle }));
+
+  const resolved = pickRicherTrendyolVariants(...candidates);
 
   if (hasRealTrendyolVariants(resolved)) {
     result.variants = resolved;
@@ -375,7 +373,7 @@ export async function ensureTrendyolVariantsOnResult(
       buildStockAnalysisFromVariants(resolved) ??
       undefined;
     console.log(
-      `✅ Varyant zenginleştirme: ${resolved.colors.length} renk, ${resolved.sizes.length} beden`,
+      `✅ Varyant zenginleştirme: ${resolved.colors.length} renk, ${resolved.sizes.length} beden, ${resolved.allVariants.length} kombinasyon`,
     );
   }
 }

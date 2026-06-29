@@ -359,9 +359,8 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   const distinctColorSet = new Set(
     inStockVariants.map(v => v.color).filter(c => c && c.trim() !== '' && c !== 'Tek Renk' && c !== 'Standart')
   );
-  const hasMultipleColors = distinctColorSet.size >= 2;
-  if (distinctColorSet.size === 1) {
-    console.log(`🚫 CSV SINGLE-COLOR GUARD: Only 1 color "${[...distinctColorSet][0]}" found → Renk option suppressed (no real choice)`);
+  if (distinctColorSet.size > 0) {
+    console.log(`🎨 CSV colors: ${[...distinctColorSet].join(', ')} (${distinctColorSet.size} renk)`);
   }
 
   inStockVariants.forEach((variant, index) => {
@@ -390,8 +389,8 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row[COL.STATUS] = 'active';
     }
 
-    // Options — color is only an option when there are genuinely multiple colors to choose from
-    const hasColor = hasMultipleColors &&
+    // Options — geçerli renk/beden değerleri CSV ve Shopify'a yazılır
+    const hasColor =
       variant.color && variant.color.trim() !== '' && variant.color !== 'Tek Renk' && variant.color !== 'Standart';
     const hasSize = variant.size && variant.size.trim() !== '' && variant.size !== 'Tek Beden' && variant.size !== 'Standart';
 

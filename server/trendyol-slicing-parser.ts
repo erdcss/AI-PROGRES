@@ -136,6 +136,21 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
   ).trim();
   if (directColor) mergeOption(colors, { name: directColor, inStock: true });
 
+  const colorOptions = (product as { colorOptions?: unknown[] }).colorOptions;
+  if (Array.isArray(colorOptions)) {
+    for (const opt of colorOptions) {
+      if (typeof opt === "string") {
+        const name = opt.trim();
+        if (name) mergeOption(colors, { name, inStock: true });
+        continue;
+      }
+      if (!opt || typeof opt !== "object") continue;
+      const rec = opt as Record<string, unknown>;
+      const name = optionName(rec) || String(rec.text ?? rec.label ?? "").trim();
+      if (name) mergeOption(colors, { name, inStock: itemInStock(rec) });
+    }
+  }
+
   return { colors, sizes };
 }
 
@@ -189,7 +204,19 @@ function collectAllVariantItems(product: unknown): Record<string, unknown>[] {
 }
 
 export function parseSlicingAttributesFromHtml(htmlContent: string): SlicingAttributesData {
-  const empty: SlicingAttributesData = { colors: [], sizes: [] };
+  const colors: SlicingOption[] = [];
+  const sizes: SlicingOption[] = [];
+
+  const mergeOption = (list: SlicingOption[], entry: SlicingOption) => {
+    const key = entry.name.toLowerCase();
+    const existing = list.find((x) => x.name.toLowerCase() === key);
+    if (existing) {
+      existing.inStock = existing.inStock || entry.inStock;
+      return;
+    }
+    list.push(entry);
+  };
+
   const state = parseTrendyolProductDetailState(htmlContent);
   const product = getTrendyolProductFromState(htmlContent);
   const sources: unknown[] = [
@@ -206,9 +233,11 @@ export function parseSlicingAttributesFromHtml(htmlContent: string): SlicingAttr
   for (const src of sources) {
     if (!src || typeof src !== "object") continue;
     const parsed = parseSlicingAttributesFromProduct(src);
-    if (parsed.colors.length > 0 || parsed.sizes.length > 0) return parsed;
+    for (const c of parsed.colors) mergeOption(colors, c);
+    for (const s of parsed.sizes) mergeOption(sizes, s);
   }
-  return empty;
+
+  return { colors, sizes };
 }
 
 /** product.allVariants / SKU kombinasyonlarından renk×beden matrisi */

@@ -188,6 +188,35 @@ export function hasRealTrendyolVariants(variants: SanitizedVariants | null | und
   return variants.colors.length > 0 || variants.sizes.length > 0;
 }
 
+/** Daha zengin varyant setini seç (renk × beden matrisi öncelikli) */
+export function variantRichnessScore(variants: SanitizedVariants | null | undefined): number {
+  if (!variants) return 0;
+  const colorCount = variants.colors?.length ?? 0;
+  const sizeCount = variants.sizes?.length ?? 0;
+  const matrixCount = variants.allVariants?.length ?? 0;
+  return matrixCount * 100 + colorCount * 10 + sizeCount;
+}
+
+export function pickRicherTrendyolVariants(
+  ...candidates: Array<SanitizedVariants | null | undefined>
+): SanitizedVariants {
+  let best = EMPTY_TRENDYOL_VARIANTS;
+  let bestScore = 0;
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const sanitized = sanitizeTrendyolVariants(candidate);
+    if (!hasRealTrendyolVariants(sanitized)) continue;
+    const score = variantRichnessScore(sanitized);
+    if (score > bestScore) {
+      bestScore = score;
+      best = sanitized;
+    }
+  }
+
+  return best;
+}
+
 /** CSV/Shopify export — yalnızca stokta olan varyantlar */
 export function filterInStockVariantsForCsv(
   variants: SanitizedVariants,
