@@ -1,4 +1,4 @@
-import type { Express } from "express";
+﻿import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { browserNavigate, browserClick, browserScroll, browserBack, browserForward, browserType, browserKeyPress, browserGetScreenshot, browserDoubleClick, browserRightClick, browserHover, browserDragScroll } from "./browser-session";
 import { z } from "zod";
@@ -51,6 +51,7 @@ import { scrapeMultipleUrls } from './multi-url-scraper';
 import { generateMultiVariantShopifyCSV } from './multi-variant-csv-generator';
 import { emptyScrapeCsvInfo, attachCsvToScrapeResult } from './scrape-csv-builder';
 import { uploadProductToShopify, testShopifyConnection } from './shopify-api-uploader';
+import { runShopifyConnectionTest } from './connection-test';
 import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, desc, or, and, isNotNull, inArray, count, gte, ne } from 'drizzle-orm';
@@ -99,17 +100,17 @@ async function registerProductForTracking(
   const { getTrackingSettings } = await import('./services/tracking-settings.service');
   const trackingSettings = await getTrackingSettings();
   if (!trackingSettings.trackingEnabled) {
-    console.info('ℹ️ tracked_products kaydı atlandı (takip sistemi kapalı)');
+    console.info('â„¹ï¸ tracked_products kaydÄ± atlandÄ± (takip sistemi kapalÄ±)');
     return { success: false, skipped: true, reason: 'tracking_disabled' };
   }
 
   try {
-    console.log('🎯 TRACKING REGISTRATION - Starting for:', shopifyProductId);
-    console.log(`📦 Received ${shopifyVariants.length} Shopify variant IDs to sync`);
+    console.log('ğŸ¯ TRACKING REGISTRATION - Starting for:', shopifyProductId);
+    console.log(`ğŸ“¦ Received ${shopifyVariants.length} Shopify variant IDs to sync`);
     
     // 1. Generate unique tracking ID
     const uniqueTrackingId = uuidv4();
-    console.log('🆔 Generated tracking ID:', uniqueTrackingId);
+    console.log('ğŸ†” Generated tracking ID:', uniqueTrackingId);
     
     // 2. Insert product into database
     const insertedProduct = await db.insert(products).values({
@@ -136,7 +137,7 @@ async function registerProductForTracking(
     }).returning();
     
     const productId = insertedProduct[0].id;
-    console.log('✅ Product registered in DB:', productId);
+    console.log('âœ… Product registered in DB:', productId);
     
     // 2.5. Insert into shopifyTransferredProducts for tracking
     try {
@@ -163,9 +164,9 @@ async function registerProductForTracking(
           updatedAt: new Date()
         }
       });
-      console.log('✅ Product registered in shopifyTransferredProducts:', sourceUrl);
+      console.log('âœ… Product registered in shopifyTransferredProducts:', sourceUrl);
     } catch (error) {
-      console.error('❌ Failed to register in shopifyTransferredProducts:', error);
+      console.error('âŒ Failed to register in shopifyTransferredProducts:', error);
     }
     
     // 3. Insert variants with Shopify variant IDs
@@ -188,7 +189,7 @@ async function registerProductForTracking(
           inStock: variant.inStock !== false
         });
         
-        console.log(`✅ Variant registered: ${variant.color} - ${variant.size}${shopifyVariant ? ' (Shopify ID: ' + shopifyVariant.shopifyVariantId + ')' : ''}`);
+        console.log(`âœ… Variant registered: ${variant.color} - ${variant.size}${shopifyVariant ? ' (Shopify ID: ' + shopifyVariant.shopifyVariantId + ')' : ''}`);
       }
     } else {
       // Default variant if no variants provided - use empty strings
@@ -204,7 +205,7 @@ async function registerProductForTracking(
         stockCount: 100,
         inStock: true
       });
-      console.log('✅ Default variant registered' + (defaultShopifyVariant ? ' (Shopify ID: ' + defaultShopifyVariant.shopifyVariantId + ')' : ''));
+      console.log('âœ… Default variant registered' + (defaultShopifyVariant ? ' (Shopify ID: ' + defaultShopifyVariant.shopifyVariantId + ')' : ''));
     }
     
     // 4. Create monitoring schedule
@@ -225,20 +226,20 @@ async function registerProductForTracking(
       }
     });
     
-    console.log('✅ Monitoring schedule created - next check in 5 minutes');
+    console.log('âœ… Monitoring schedule created - next check in 5 minutes');
     
     // 5. Add to URL tracking service (WITHOUT starting tracking yet)
     // Tracking will be started AFTER Shopify upload succeeds
     // shopifyProductId is passed so the entry is immediately eligible for monitoring
     try {
       await urlTrackingService.addUrlToTracking(sourceUrl, 300, 'shopify-upload-auto', false, shopifyProductId);
-      console.log('✅ URL added to tracking service with shopifyProductId (tracking not started yet - waiting for Shopify upload)');
+      console.log('âœ… URL added to tracking service with shopifyProductId (tracking not started yet - waiting for Shopify upload)');
     } catch (urlError) {
-      console.warn('⚠️ URL tracking service error (non-critical):', urlError);
+      console.warn('âš ï¸ URL tracking service error (non-critical):', urlError);
     }
     
-    console.log('🎯 TRACKING REGISTRATION COMPLETED for:', uniqueTrackingId);
-    console.log('⏸️ Tracking is NOT started yet - will start after Shopify upload success');
+    console.log('ğŸ¯ TRACKING REGISTRATION COMPLETED for:', uniqueTrackingId);
+    console.log('â¸ï¸ Tracking is NOT started yet - will start after Shopify upload success');
     
     return {
       success: true,
@@ -249,7 +250,7 @@ async function registerProductForTracking(
     };
     
   } catch (error) {
-    console.error('❌ TRACKING REGISTRATION FAILED:', error);
+    console.error('âŒ TRACKING REGISTRATION FAILED:', error);
     return {
       success: false,
       error: (error as Error).message,
@@ -277,20 +278,20 @@ async function syncProductToMemoryWithRetry(
 ): Promise<{ success: boolean; error?: string }> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const delayMs = initialDelayMs * attempt;
-    console.log(`⏳ Waiting ${delayMs}ms before sync attempt ${attempt}/${maxRetries}...`);
+    console.log(`â³ Waiting ${delayMs}ms before sync attempt ${attempt}/${maxRetries}...`);
     await new Promise(resolve => setTimeout(resolve, delayMs));
     
     const result = await shopifyProductsSync.syncSingleProduct(shopifyProductId, sourceUrl);
     
     if (result.success) {
-      console.log(`✅ Memory sync succeeded on attempt ${attempt}/${maxRetries}`);
+      console.log(`âœ… Memory sync succeeded on attempt ${attempt}/${maxRetries}`);
       return { success: true };
     }
     
-    console.warn(`⚠️ Memory sync attempt ${attempt}/${maxRetries} failed:`, result.error);
+    console.warn(`âš ï¸ Memory sync attempt ${attempt}/${maxRetries} failed:`, result.error);
   }
   
-  console.error(`❌ Memory sync failed after ${maxRetries} retries - product will sync on next bulk sync`);
+  console.error(`âŒ Memory sync failed after ${maxRetries} retries - product will sync on next bulk sync`);
   return { 
     success: false, 
     error: `Failed after ${maxRetries} retries - Shopify may still be processing` 
@@ -355,15 +356,15 @@ function parseProductFromHTML(html: string, source: string): any {
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
   try {
     const message = `
-🔄 <b>ÜRÜN ÇEKİLDİ</b>
+ğŸ”„ <b>ÃœRÃœN Ã‡EKÄ°LDÄ°</b>
 
-📦 <b>Ürün:</b> ${title}
-🏢 <b>Marka:</b> ${brand}
-💰 <b>Orijinal Fiyat:</b> ${price.original} TL
-💵 <b>Kar Marjlı Fiyat:</b> ${price.withProfit} TL
-🔗 <b>URL:</b> ${url}
+ğŸ“¦ <b>ÃœrÃ¼n:</b> ${title}
+ğŸ¢ <b>Marka:</b> ${brand}
+ğŸ’° <b>Orijinal Fiyat:</b> ${price.original} TL
+ğŸ’µ <b>Kar MarjlÄ± Fiyat:</b> ${price.withProfit} TL
+ğŸ”— <b>URL:</b> ${url}
 
-✅ <b>Shopify'a aktarıma hazır</b>
+âœ… <b>Shopify'a aktarÄ±ma hazÄ±r</b>
     `.trim();
 
     // Send via new notification gateway with correct parameters
@@ -379,11 +380,11 @@ async function sendProductExtractionNotification(url: string, title: string, bra
         priority: 'medium'
       });
     } catch (error) {
-      console.log('📱 Notification gateway failed:', error);
+      console.log('ğŸ“± Notification gateway failed:', error);
     }
-    console.log('📱 Telegram ürün bildirim gönderildi');
+    console.log('ğŸ“± Telegram Ã¼rÃ¼n bildirim gÃ¶nderildi');
   } catch (error) {
-    console.error('❌ Telegram bildirim hatası:', error);
+    console.error('âŒ Telegram bildirim hatasÄ±:', error);
   }
 }
 
@@ -398,7 +399,7 @@ function createEnhancedDescription(productData: any): string {
   // Price information
   if (productData.price) {
     description += `<div class="price-info">`;
-    description += `<p><strong>💰 Fiyat:</strong> ${productData.price.profitFormatted || productData.price.withProfit + ' TL'}</p>`;
+    description += `<p><strong>ğŸ’° Fiyat:</strong> ${productData.price.profitFormatted || productData.price.withProfit + ' TL'}</p>`;
     if (productData.price.original && productData.price.original !== productData.price.withProfit) {
       description += `<p><em>Orijinal Fiyat: ${productData.price.original} TL</em></p>`;
     }
@@ -408,7 +409,7 @@ function createEnhancedDescription(productData: any): string {
   // Product features section
   if (productData.features && productData.features.length > 0) {
     description += `<div class="product-features">`;
-    description += `<h3>🔧 Ürün Özellikleri:</h3>`;
+    description += `<h3>ğŸ”§ ÃœrÃ¼n Ã–zellikleri:</h3>`;
     description += `<ul>`;
     
     productData.features.forEach((feature) => {
@@ -424,7 +425,7 @@ function createEnhancedDescription(productData: any): string {
   // Variant information
   if (productData.variants) {
     description += `<div class="variant-info">`;
-    description += `<h3>📦 Mevcut Seçenekler:</h3>`;
+    description += `<h3>ğŸ“¦ Mevcut SeÃ§enekler:</h3>`;
     
     if (productData.variants.colors && productData.variants.colors.length > 0) {
       description += `<p><strong>Renkler:</strong> ${productData.variants.colors.join(', ')}</p>`;
@@ -440,7 +441,7 @@ function createEnhancedDescription(productData: any): string {
   // Tags section
   if (productData.tags && productData.tags.length > 0) {
     description += `<div class="product-tags">`;
-    description += `<p><strong>🏷️ Kategoriler:</strong> ${productData.tags.join(', ')}</p>`;
+    description += `<p><strong>ğŸ·ï¸ Kategoriler:</strong> ${productData.tags.join(', ')}</p>`;
     description += `</div>`;
   }
   
@@ -449,11 +450,11 @@ function createEnhancedDescription(productData: any): string {
   return description;
 }
 
-// Product verisini Shopify CSV formatına dönüştür
+// Product verisini Shopify CSV formatÄ±na dÃ¶nÃ¼ÅŸtÃ¼r
 function convertProductToShopifyCSV(productData: any): string {
   const handle = productData.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') || 'product';
   
-  // CSV başlıkları
+  // CSV baÅŸlÄ±klarÄ±
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Type', 'Tags', 'Published',
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
@@ -480,25 +481,25 @@ function convertProductToShopifyCSV(productData: any): string {
   const price = productData.price?.withProfit || productData.price?.original || 100;
   const comparePrice = productData.price?.original || price;
   
-  // ✅ Sanitize and filter variant data - NO FAKE DEFAULTS
+  // âœ… Sanitize and filter variant data - NO FAKE DEFAULTS
   const cleanedColors = colors.filter(c => c && c.trim()).map(c => c.trim());
   const cleanedSizes = sizes.filter(s => s && s.trim()).map(s => s.trim());
   
-  // ✅ NO FAKE DEFAULTS: Leave empty if no real options
+  // âœ… NO FAKE DEFAULTS: Leave empty if no real options
   const hasColors = cleanedColors.length > 0;
   const hasSizes = cleanedSizes.length > 0;
   
   let variantIndex = 0;
   
-  // 🔥 STRICT RULE: Validate sizes early - remove any empty/invalid sizes
+  // ğŸ”¥ STRICT RULE: Validate sizes early - remove any empty/invalid sizes
   const finalSizes_Validated = cleanedSizes.filter(s => s && typeof s === 'string' && s.trim() !== '');
   
-  // ✅ CASE: No variants - create single product row without options + image rows
+  // âœ… CASE: No variants - create single product row without options + image rows
   if (!hasColors && finalSizes_Validated.length === 0) {
     // First row: product with first image
     const firstRow = [
       handle, // Handle
-      productData.title || 'Ürün', // Title
+      productData.title || 'ÃœrÃ¼n', // Title
       createEnhancedDescription(productData), // Body HTML
       productData.brand || 'Unknown', // Vendor
       'Apparel & Accessories > Clothing', // Product Type
@@ -553,7 +554,7 @@ function convertProductToShopifyCSV(productData: any): string {
     return csvContent;
   }
   
-  // ✅ CASE: Has variants - create proper variant rows
+  // âœ… CASE: Has variants - create proper variant rows
   // Shopify requires Option1 to always have value if options exist
   // Color-only: Option1=Renk, no Option2
   // Size-only: Option1=Beden, no Option2
@@ -583,7 +584,7 @@ function convertProductToShopifyCSV(productData: any): string {
     
     const row = [
       handle, // Handle
-      isFirstVariant ? productData.title || 'Ürün' : '', // Title
+      isFirstVariant ? productData.title || 'ÃœrÃ¼n' : '', // Title
       isFirstVariant ? createEnhancedDescription(productData) : '', // Body HTML
       isFirstVariant ? (productData.brand || 'Unknown') : '', // Vendor
       isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
@@ -625,59 +626,59 @@ function convertProductToShopifyCSV(productData: any): string {
   return csvContent;
 }
 
-// Multi-URL product verisini CSV formatına dönüştür
+// Multi-URL product verisini CSV formatÄ±na dÃ¶nÃ¼ÅŸtÃ¼r
 function convertMultiUrlProductToCSV(productData: any): string {
   const colors = productData.variants?.colors || [];
-  // ❌ SAHTE BEDEN VERİSİ ENGELLENDI - Sadece gerçek varyantlar
+  // âŒ SAHTE BEDEN VERÄ°SÄ° ENGELLENDI - Sadece gerÃ§ek varyantlar
   const sizes: string[] = []; // No fake size data
   
-  // Renk tespiti için fonksiyon - returns empty string if no real color found
+  // Renk tespiti iÃ§in fonksiyon - returns empty string if no real color found
   function extractColor(colorText: string): string {
     const text = colorText.toLowerCase();
     if (text.includes('beyaz')) return 'Beyaz';
-    if (text.includes('yesil') || text.includes('yeşil')) return 'Yeşil';
+    if (text.includes('yesil') || text.includes('yeÅŸil')) return 'YeÅŸil';
     if (text.includes('siyah')) return 'Siyah';
     if (text.includes('mavi')) return 'Mavi';
-    if (text.includes('kirmizi') || text.includes('kırmızı')) return 'Kırmızı';
+    if (text.includes('kirmizi') || text.includes('kÄ±rmÄ±zÄ±')) return 'KÄ±rmÄ±zÄ±';
     return ''; // No fake fallback
   }
   
-  // CSV başlıkları
+  // CSV baÅŸlÄ±klarÄ±
   let csvContent = 'Handle,Title,Body (HTML),Vendor,Product Type,Tags,Published,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / AdWords Grouping,Google Shopping / AdWords Labels,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Cost per item,Included / United States,Price / United States,Compare At Price / United States,Status\n';
   
   const extractedColors = colors.map(extractColor).filter((color, index, arr) => color && arr.indexOf(color) === index);
   // Don't push fake color if no real colors found
   
-  console.log('🎨 CSV Extracted colors:', extractedColors);
-  console.log('📏 CSV Sizes:', sizes);
+  console.log('ğŸ¨ CSV Extracted colors:', extractedColors);
+  console.log('ğŸ“ CSV Sizes:', sizes);
   
   let variantIndex = 0;
   
-  // ❌ SAHTE VARYANT DÖNGÜSÜ ENGELLENDİ - Varyant yoksa boş bırak
+  // âŒ SAHTE VARYANT DÃ–NGÃœSÃœ ENGELLENDÄ° - Varyant yoksa boÅŸ bÄ±rak
   // Do not push 'Standart' - keep empty if no real colors
   
-  // ✅ FIX: Tek varyantlı ürünler için varyant başlıklarını kaldır
+  // âœ… FIX: Tek varyantlÄ± Ã¼rÃ¼nler iÃ§in varyant baÅŸlÄ±klarÄ±nÄ± kaldÄ±r
   extractedColors.slice(0, 1).forEach((color, colorIndex) => { // Sadece 1 renk
-    const fakeSizes = ['']; // Varyant olmayan ürün için boş
+    const fakeSizes = ['']; // Varyant olmayan Ã¼rÃ¼n iÃ§in boÅŸ
     fakeSizes.forEach((size, sizeIndex) => {
       const handle = productData.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') || 'product';
       const isFirstVariant = variantIndex === 0;
       const imageIndex = variantIndex % (productData.images?.length || 1);
       const imageUrl = productData.images?.[imageIndex]?.url || '';
       
-      // Her varyant için CSV satırı oluştur
+      // Her varyant iÃ§in CSV satÄ±rÄ± oluÅŸtur
       const row = [
         handle, // Handle
-        isFirstVariant ? productData.title || 'Ürün' : '', // Title
+        isFirstVariant ? productData.title || 'ÃœrÃ¼n' : '', // Title
         isFirstVariant ? `<p>${productData.title}</p>` : '', // Body HTML
         isFirstVariant ? (productData.brand || 'Unknown') : '', // Vendor
         isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
         isFirstVariant ? 'multi-url, auto-generated' : '', // Tags
         isFirstVariant ? 'TRUE' : '', // Published
-        '', // Option1 Name - boş (varyant yok)
-        '', // Option1 Value - boş (varyant yok)
-        '', // Option2 Name - boş (varyant yok)
-        '', // Option2 Value - boş (varyant yok)
+        '', // Option1 Name - boÅŸ (varyant yok)
+        '', // Option1 Value - boÅŸ (varyant yok)
+        '', // Option2 Name - boÅŸ (varyant yok)
+        '', // Option2 Value - boÅŸ (varyant yok)
         `${handle}-${color}-${size}`.toLowerCase(), // Variant SKU
         '0', // Variant Grams
         'shopify', // Variant Inventory Tracker
@@ -708,13 +709,13 @@ function convertMultiUrlProductToCSV(productData: any): string {
     });
   });
   
-  console.log(`📊 Generated CSV with ${variantIndex} variants`);
+  console.log(`ğŸ“Š Generated CSV with ${variantIndex} variants`);
   return csvContent;
 }
 
 
 function generateSingleProductShopifyCSV(product: any): string {
-  // HEADERS - Şablonunuza tam uygun
+  // HEADERS - Åablonunuza tam uygun
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Tags', 'Published',
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 
@@ -727,43 +728,43 @@ function generateSingleProductShopifyCSV(product: any): string {
   const rows: string[][] = [];
   rows.push(headers);
 
-  // Handle oluştur (Türkçe karakter temizleme)
+  // Handle oluÅŸtur (TÃ¼rkÃ§e karakter temizleme)
   const productHandle = product.title.toLowerCase()
-    .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i')
-    .replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
+    .replace(/Ã§/g, 'c').replace(/ÄŸ/g, 'g').replace(/Ä±/g, 'i')
+    .replace(/Ã¶/g, 'o').replace(/ÅŸ/g, 's').replace(/Ã¼/g, 'u')
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, '-')
     .substring(0, 50);
 
-  // SADECE STOKTA OLAN BEDENLER İÇİN SATIRLAR - Gerçek stok verisini kullan
+  // SADECE STOKTA OLAN BEDENLER Ä°Ã‡Ä°N SATIRLAR - GerÃ§ek stok verisini kullan
   const inStockSizes = product.sizeOptions || [];
   
   console.log(`Stok filtreleme: ${inStockSizes.length} stokta olan beden`);
   console.log(`Stokta olan bedenler: ${inStockSizes.join(', ')}`);
   
-  // Özellikler metni (CSV için) - Tüm özellikler
+  // Ã–zellikler metni (CSV iÃ§in) - TÃ¼m Ã¶zellikler
   const featuresText = product.features && product.features.length > 0 ? 
-    product.features.map((f: any) => `${f.key}: ${f.value}`).join(' | ') : 'Özellik bilgisi mevcut değil';
+    product.features.map((f: any) => `${f.key}: ${f.value}`).join(' | ') : 'Ã–zellik bilgisi mevcut deÄŸil';
 
-  // Ürün özellikleri HTML formatında (Body için) - Kapsamlı özellikler
+  // ÃœrÃ¼n Ã¶zellikleri HTML formatÄ±nda (Body iÃ§in) - KapsamlÄ± Ã¶zellikler
   let bodyHTML = '';
   if (product.features && product.features.length > 0) {
-    bodyHTML = '<div class="product-features"><h4>Ürün Özellikleri:</h4><ul>';
+    bodyHTML = '<div class="product-features"><h4>ÃœrÃ¼n Ã–zellikleri:</h4><ul>';
     product.features.forEach((feature: any) => {
       bodyHTML += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
     });
     bodyHTML += '</ul></div>';
     
-    // Ek açıklama bilgisi
+    // Ek aÃ§Ä±klama bilgisi
     if (product.description) {
-      bodyHTML += `<div class="product-description"><h4>Ürün Açıklaması:</h4><p>${product.description}</p></div>`;
+      bodyHTML += `<div class="product-description"><h4>ÃœrÃ¼n AÃ§Ä±klamasÄ±:</h4><p>${product.description}</p></div>`;
     }
   } else {
     bodyHTML = `<div class="product-info">
-      <h4>Ürün Bilgileri:</h4>
+      <h4>ÃœrÃ¼n Bilgileri:</h4>
       <p><strong>Marka:</strong> ${product.brand}</p>
-      <p><strong>Ürün Adı:</strong> ${product.title}</p>
-      <p><strong>Fiyat:</strong> ${product.price?.formatted || 'Fiyat bilgisi mevcut değil'}</p>
+      <p><strong>ÃœrÃ¼n AdÄ±:</strong> ${product.title}</p>
+      <p><strong>Fiyat:</strong> ${product.price?.formatted || 'Fiyat bilgisi mevcut deÄŸil'}</p>
     </div>`;
   }
 
@@ -774,8 +775,8 @@ function generateSingleProductShopifyCSV(product: any): string {
     
     rows.push([
       productHandle,                                  // 1. Handle - AYNI HANDLE
-      product.title,                                  // 2. Title - AYNI BAŞLIK
-      bodyHTML,                                       // 3. Body (HTML) - Özelliklerle
+      product.title,                                  // 2. Title - AYNI BAÅLIK
+      bodyHTML,                                       // 3. Body (HTML) - Ã–zelliklerle
       product.brand || 'Mavi',                       // 4. Vendor
       `jean, erkek, ${product.brand?.toLowerCase() || 'mavi'}, denim, pantolon`, // 5. Tags
       'TRUE',                                         // 6. Published
@@ -785,14 +786,14 @@ function generateSingleProductShopifyCSV(product: any): string {
       size,                                           // 10. Option2 Value - BEDEN
       `${product.brand?.toLowerCase() || 'mavi'}-${size.replace(/[^\w]/g, '-')}`, // 11. Variant SKU
       variantStock.toString(),                        // 12. Variant Inventory Qty
-      product.price.withProfit.toString(),           // 13. Variant Price (kar marjılı fiyat)
+      product.price.withProfit.toString(),           // 13. Variant Price (kar marjÄ±lÄ± fiyat)
       product.price.original.toString(),             // 14. Variant Compare At Price (orijinal fiyat)
       product.images[0] || '', // 15. Image Src - Main product image
       '1',                                            // 16. Image Position
       product.title,                                  // 17. Image Alt Text
       'FALSE',                                        // 18. Gift Card
       `${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 3).join(' ')}`, // 19. SEO Title
-      `${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 5).join(' ')}, modern kesim ve rahat kalıp.`, // 20. SEO Description
+      `${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 5).join(' ')}, modern kesim ve rahat kalÄ±p.`, // 20. SEO Description
       product.images[index] || product.images[0] || '', // 21. Variant Image
       'kg',                                           // 22. Variant Weight Unit
       'active',                                       // 23. Status
@@ -801,20 +802,20 @@ function generateSingleProductShopifyCSV(product: any): string {
   });
 
   // ADDITIONAL PRODUCT IMAGES - Shopify format
-  console.log(`📊 Shopify variant structure: "${productHandle}" - ${inStockSizes.length} variants created`);
+  console.log(`ğŸ“Š Shopify variant structure: "${productHandle}" - ${inStockSizes.length} variants created`);
   
-  // 🖼️ CRITICAL FIX: Add ALL product images as additional image rows
+  // ğŸ–¼ï¸ CRITICAL FIX: Add ALL product images as additional image rows
   const startingImagePosition = inStockSizes.length + 1;
   
   // Ensure images array exists and is properly formatted
   const productImages = Array.isArray(product.images) ? product.images : [];
-  console.log(`📸 CRITICAL DEBUG: product.images type:`, typeof product.images);
-  console.log(`📸 CRITICAL DEBUG: productImages array:`, productImages);
-  console.log(`📸 Adding ALL ${productImages.length} product images to CSV...`);
+  console.log(`ğŸ“¸ CRITICAL DEBUG: product.images type:`, typeof product.images);
+  console.log(`ğŸ“¸ CRITICAL DEBUG: productImages array:`, productImages);
+  console.log(`ğŸ“¸ Adding ALL ${productImages.length} product images to CSV...`);
   
   if (productImages.length === 0) {
-    console.log(`⚠️ CRITICAL: No images found in product.images array!`);
-    console.log(`⚠️ Raw product.images:`, product.images);
+    console.log(`âš ï¸ CRITICAL: No images found in product.images array!`);
+    console.log(`âš ï¸ Raw product.images:`, product.images);
   }
   
   productImages.forEach((imageUrl: string | any, index: number) => {
@@ -822,12 +823,12 @@ function generateSingleProductShopifyCSV(product: any): string {
     const finalImageUrl = typeof imageUrl === 'string' ? imageUrl : imageUrl?.url || '';
     
     if (!finalImageUrl || !finalImageUrl.startsWith('http')) {
-      console.log(`⚠️ SKIPPING invalid image at index ${index}:`, imageUrl);
+      console.log(`âš ï¸ SKIPPING invalid image at index ${index}:`, imageUrl);
       return;
     }
     
     const imagePosition = startingImagePosition + index;
-    console.log(`📸 Adding image ${index + 1}/${productImages.length}: ${finalImageUrl} (position ${imagePosition})`);
+    console.log(`ğŸ“¸ Adding image ${index + 1}/${productImages.length}: ${finalImageUrl} (position ${imagePosition})`);
     
     rows.push([
       productHandle,                                  // Handle
@@ -846,7 +847,7 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // Variant Compare At Price
       finalImageUrl,                                 // Image Src - PRODUCT IMAGE
       imagePosition.toString(),                      // Image Position
-      `${product.title} - Görsel ${index + 1}`,     // Image Alt Text
+      `${product.title} - GÃ¶rsel ${index + 1}`,     // Image Alt Text
       '',                                             // Gift Card
       '',                                             // SEO Title
       '',                                             // SEO Description
@@ -857,14 +858,14 @@ function generateSingleProductShopifyCSV(product: any): string {
     ]);
   });
   
-  // Eğer 10'dan fazla görsel varsa da tamamını ekle
+  // EÄŸer 10'dan fazla gÃ¶rsel varsa da tamamÄ±nÄ± ekle
   if (product.images.length > 10) {
-    console.log(`⭐ ${product.images.length} görsel tespit edildi, tamamı CSV'ye ekleniyor!`);
+    console.log(`â­ ${product.images.length} gÃ¶rsel tespit edildi, tamamÄ± CSV'ye ekleniyor!`);
   }
 
   return rows.map(row => 
     row.map(cell => {
-      // CSV için güvenli format - tırnak ve virgül escape
+      // CSV iÃ§in gÃ¼venli format - tÄ±rnak ve virgÃ¼l escape
       const cleanCell = String(cell || '').replace(/"/g, '""');
       return cleanCell.includes(',') || cleanCell.includes('"') || cleanCell.includes('\n') 
         ? `"${cleanCell}"` 
@@ -968,7 +969,7 @@ function extractProductFeaturesFromHTML(htmlContent: string): Array<{ key: strin
             const text = item.replace(/<[^>]*>/g, '').trim();
             if (text && text.length < 200) {
               features.push({
-                key: `Özellik ${index + 1}`,
+                key: `Ã–zellik ${index + 1}`,
                 value: text
               });
             }
@@ -1017,7 +1018,7 @@ function extractImagesFromHTML(htmlContent: string): string[] {
 }
 
 const urlSchema = z.object({
-  url: z.string().min(1, "URL boş olamaz")
+  url: z.string().min(1, "URL boÅŸ olamaz")
 });
 
 function normalizeUrl(url: string): string {
@@ -1052,17 +1053,17 @@ function normalizeImageUrl(url: string): string {
   return url;
 }
 
-// Varyant işleme fonksiyonu - özelliklerden gerçek varyant verisi oluşturur
+// Varyant iÅŸleme fonksiyonu - Ã¶zelliklerden gerÃ§ek varyant verisi oluÅŸturur
 function processVariantsFromFeatures(features: any[], originalVariants: any[] = [], title: string = ''): any[] {
-  console.log("🔧 Varyant işleme başlıyor...", features.length, "özellik");
+  console.log("ğŸ”§ Varyant iÅŸleme baÅŸlÄ±yor...", features.length, "Ã¶zellik");
   
-  // 🚫 CRITICAL: Clothing check - ONLY clothing products get sizes
+  // ğŸš« CRITICAL: Clothing check - ONLY clothing products get sizes
   // Using centralized CLOTHING_KEYWORDS from clothing-keywords.ts
   const isClothing = isClothingProduct(title);
   
   if (!isClothing) {
-    console.log(`🚫 processVariantsFromFeatures: "${title?.substring(0, 40)}..." is NOT clothing`);
-    console.log(`🚫 BLOCKING FAKE S/M/L SIZES - but preserving real volume/numeric variants`);
+    console.log(`ğŸš« processVariantsFromFeatures: "${title?.substring(0, 40)}..." is NOT clothing`);
+    console.log(`ğŸš« BLOCKING FAKE S/M/L SIZES - but preserving real volume/numeric variants`);
     
     // Fake clothing size patterns to block - using centralized list
     
@@ -1073,7 +1074,7 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
         const isFakeSize = FAKE_CLOTHING_SIZES.includes(sizeValue);
         
         if (isFakeSize) {
-          console.log(`🚫 Stripping fake size "${v.size}" from non-clothing product`);
+          console.log(`ğŸš« Stripping fake size "${v.size}" from non-clothing product`);
           return { ...v, size: '' };
         }
         // Keep real sizes like "50 ml", "100ml", numeric values, etc.
@@ -1083,30 +1084,30 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
     
     // If no originalVariants, DON'T generate new ones from features for non-clothing products
     // This prevents fake S/M/L generation from features
-    console.log(`🚫 No originalVariants for non-clothing product - returning empty (no fake generation)`);
+    console.log(`ğŸš« No originalVariants for non-clothing product - returning empty (no fake generation)`);
     return []; // No variants at all
   }
   
-  console.log(`✅ processVariantsFromFeatures: Product IS clothing - proceeding with size extraction`);
+  console.log(`âœ… processVariantsFromFeatures: Product IS clothing - proceeding with size extraction`);
   
-  // Özelliklerden beden ve renk bilgilerini çıkar
+  // Ã–zelliklerden beden ve renk bilgilerini Ã§Ä±kar
   const sizeFeatures = features.filter(f => f.key?.toLowerCase().includes('beden') || f.key?.toLowerCase().includes('size'));
   const colorFeatures = features.filter(f => f.key?.toLowerCase().includes('renk') || f.key?.toLowerCase().includes('color'));
   
-  console.log("📏 Beden özellikleri:", sizeFeatures);
-  console.log("🎨 Renk özellikleri:", colorFeatures);
+  console.log("ğŸ“ Beden Ã¶zellikleri:", sizeFeatures);
+  console.log("ğŸ¨ Renk Ã¶zellikleri:", colorFeatures);
   
-  // Beden seçeneklerini parse et - geliştirilmiş algoritma
+  // Beden seÃ§eneklerini parse et - geliÅŸtirilmiÅŸ algoritma
   const sizeOptions: string[] = [];
   sizeFeatures.forEach(feature => {
     if (feature.value) {
-      // Daha kapsamlı beden ayırma - virgül, noktalı virgül, pipe, ve boşluk desteği
+      // Daha kapsamlÄ± beden ayÄ±rma - virgÃ¼l, noktalÄ± virgÃ¼l, pipe, ve boÅŸluk desteÄŸi
       const sizes = feature.value.toString()
-        .split(/[,;|\s]+/) // Virgül, noktalı virgül, pipe ve boşluk ile ayır
+        .split(/[,;|\s]+/) // VirgÃ¼l, noktalÄ± virgÃ¼l, pipe ve boÅŸluk ile ayÄ±r
         .map((size: string) => size.trim())
-        .filter((size: string) => size && size.length > 0 && size.length <= 10) // Çok uzun değerleri filtrele
+        .filter((size: string) => size && size.length > 0 && size.length <= 10) // Ã‡ok uzun deÄŸerleri filtrele
         .map((size: string) => {
-          // Gelişmiş beden normalizasyonu
+          // GeliÅŸmiÅŸ beden normalizasyonu
           const normalized = size.toLowerCase();
           
           // Harf bedenler
@@ -1118,70 +1119,70 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
           if (normalized === 'xxl' || normalized === '2xl' || normalized === 'xx-large') return 'XXL';
           if (normalized === 'xxxl' || normalized === '3xl') return 'XXXL';
           
-          // Sayısal bedenler (ayakkabı, pantolon vs.)
+          // SayÄ±sal bedenler (ayakkabÄ±, pantolon vs.)
           if (/^\d+(\.\d+)?$/.test(normalized)) return normalized.toUpperCase();
           
           // Karma bedenler (34/S, 36/M vs.)
           if (/^\d+\/[A-Z]+$/i.test(normalized)) return normalized.toUpperCase();
           
-          // Tek beden kontrolü - boş string döndür (fake değer değil)
+          // Tek beden kontrolÃ¼ - boÅŸ string dÃ¶ndÃ¼r (fake deÄŸer deÄŸil)
           if (normalized.includes('tek') || normalized.includes('one') || normalized === 'universal') return ''; // Skip fake size values
           
-          // Diğer durumlarda orijinal değeri büyük harfle döndür
+          // DiÄŸer durumlarda orijinal deÄŸeri bÃ¼yÃ¼k harfle dÃ¶ndÃ¼r
           return size.toUpperCase();
         });
       sizeOptions.push(...sizes);
     }
   });
   
-  // Renk seçeneklerini parse et - geliştirilmiş algoritma
+  // Renk seÃ§eneklerini parse et - geliÅŸtirilmiÅŸ algoritma
   const colorOptions: string[] = [];
   colorFeatures.forEach(feature => {
     if (feature.value) {
       const colors = feature.value.toString()
-        .split(/[,;|\n]+/) // Virgül, noktalı virgül, pipe ve satır sonu ile ayır
+        .split(/[,;|\n]+/) // VirgÃ¼l, noktalÄ± virgÃ¼l, pipe ve satÄ±r sonu ile ayÄ±r
         .map((color: string) => color.trim())
-        .filter((color: string) => color && color.length > 0 && color.length <= 30) // Çok uzun değerleri filtrele
+        .filter((color: string) => color && color.length > 0 && color.length <= 30) // Ã‡ok uzun deÄŸerleri filtrele
         .map((color: string) => {
-          // Renk normalizasyonu - büyük harfle başlat
+          // Renk normalizasyonu - bÃ¼yÃ¼k harfle baÅŸlat
           return color.charAt(0).toUpperCase() + color.slice(1).toLowerCase();
         });
       colorOptions.push(...colors);
     }
   });
   
-  // Benzersizleştir
+  // BenzersizleÅŸtir
   const uniqueSizes = [...new Set(sizeOptions)];
   const uniqueColors = [...new Set(colorOptions)];
   
-  console.log("📏 Bulunan bedenler:", uniqueSizes);
-  console.log("🎨 Bulunan renkler:", uniqueColors);
+  console.log("ğŸ“ Bulunan bedenler:", uniqueSizes);
+  console.log("ğŸ¨ Bulunan renkler:", uniqueColors);
   
-  // Varyant kombinasyonları oluştur - geliştirilmiş mantık
+  // Varyant kombinasyonlarÄ± oluÅŸtur - geliÅŸtirilmiÅŸ mantÄ±k
   const variants: any[] = [];
   
-  console.log("🔧 Varyant oluşturma başlıyor - Bedenler:", uniqueSizes.length, "Renkler:", uniqueColors.length);
+  console.log("ğŸ”§ Varyant oluÅŸturma baÅŸlÄ±yor - Bedenler:", uniqueSizes.length, "Renkler:", uniqueColors.length);
   
   if (uniqueSizes.length > 0 || uniqueColors.length > 0) {
-    // Gerçek varyantlar var
+    // GerÃ§ek varyantlar var
     if (uniqueSizes.length > 0 && uniqueColors.length > 0) {
-      // Hem beden hem renk var - kombinasyon oluştur
-      console.log("🔧 Hem beden hem renk var, kombinasyon oluşturuluyor...");
+      // Hem beden hem renk var - kombinasyon oluÅŸtur
+      console.log("ğŸ”§ Hem beden hem renk var, kombinasyon oluÅŸturuluyor...");
       uniqueColors.forEach(color => {
         uniqueSizes.forEach(size => {
           variants.push({
             color: color,
             size: size,
             inStock: true,
-            stock: 15, // Gerçekçi stok miktarı
+            stock: 15, // GerÃ§ekÃ§i stok miktarÄ±
             price: 0, // Ana fiyat daha sonra set edilecek
             sku: `${color.replace(/\s+/g, '-')}-${size.replace(/\s+/g, '-')}`.toLowerCase()
           });
         });
       });
     } else if (uniqueSizes.length > 0) {
-      // Sadece beden var - renk boş (fake değer yok)
-      console.log("🔧 Sadece beden var, beden varyantları oluşturuluyor...");
+      // Sadece beden var - renk boÅŸ (fake deÄŸer yok)
+      console.log("ğŸ”§ Sadece beden var, beden varyantlarÄ± oluÅŸturuluyor...");
       uniqueSizes.forEach(size => {
         variants.push({
           color: "", // No fake color
@@ -1193,8 +1194,8 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
         });
       });
     } else if (uniqueColors.length > 0) {
-      // Sadece renk var - beden boş (fake değer yok)
-      console.log("🔧 Sadece renk var, renk varyantları oluşturuluyor...");
+      // Sadece renk var - beden boÅŸ (fake deÄŸer yok)
+      console.log("ğŸ”§ Sadece renk var, renk varyantlarÄ± oluÅŸturuluyor...");
       uniqueColors.forEach(color => {
         variants.push({
           color: color,
@@ -1207,11 +1208,11 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
       });
     }
   }
-  // ❌ NO DEFAULT VARIANT: If no variants found, return empty array
+  // âŒ NO DEFAULT VARIANT: If no variants found, return empty array
   // Products without options should have no fake variants
   
-  console.log("✅ Toplam", variants.length, "varyant oluşturuldu");
-  console.log("📊 İlk 3 varyant:", variants.slice(0, 3));
+  console.log("âœ… Toplam", variants.length, "varyant oluÅŸturuldu");
+  console.log("ğŸ“Š Ä°lk 3 varyant:", variants.slice(0, 3));
   
   return variants;
 }
@@ -1220,16 +1221,16 @@ export function registerRoutes(app: Express): Server {
   // Create HTTP server - will be configured by main server
   const httpServer = createServer(app);
 
-  // Ürün Takip Sistemi v2 + otomatik kaynak erişim — legacy /api/tracking/:id'den ÖNCE kayıt
+  // ÃœrÃ¼n Takip Sistemi v2 + otomatik kaynak eriÅŸim â€” legacy /api/tracking/:id'den Ã–NCE kayÄ±t
   registerTrackingRoutes(app);
   registerSourceAccessRoutes(app);
 
   // Initialize Canva OAuth on startup
   initCanvaOAuth();
 
-  // ── Canva OAuth endpoints ──────────────────────────────────────────────────
+  // â”€â”€ Canva OAuth endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // GET /api/canva/status — Is Canva connected?
+  // GET /api/canva/status â€” Is Canva connected?
   app.get('/api/canva/status', (req, res) => {
     res.json({ connected: isCanvaConnected() });
   });
@@ -1257,47 +1258,47 @@ export function registerRoutes(app: Express): Server {
     return cleaned || `${getBaseUrl(req)}/api/canva/callback`;
   }
 
-  // GET /api/canva/auth — Start OAuth flow, returns redirect URL
+  // GET /api/canva/auth â€” Start OAuth flow, returns redirect URL
   app.get('/api/canva/auth', (req, res) => {
     try {
       // Prefer the registered CANVA_REDIRECT_URI secret; fall back to computed URL
       const redirectUri = getCanvaRedirectUri(req);
       const { url } = generateAuthUrl(redirectUri);
-      console.log('🔗 [Canva] OAuth başlatıldı, redirect_uri:', redirectUri);
+      console.log('ğŸ”— [Canva] OAuth baÅŸlatÄ±ldÄ±, redirect_uri:', redirectUri);
       res.json({ url, redirectUri });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // GET /api/canva/callback — OAuth callback after user approves
+  // GET /api/canva/callback â€” OAuth callback after user approves
   app.get('/api/canva/callback', (req, res) => {
-    console.log('📥 [Canva] Callback alındı, query:', JSON.stringify(req.query));
+    console.log('ğŸ“¥ [Canva] Callback alÄ±ndÄ±, query:', JSON.stringify(req.query));
     const { code, state, error } = req.query as Record<string, string>;
 
     if (error) {
-      console.error('❌ [Canva] OAuth hatası:', error);
-      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Canva Bağlantısı</title>
+      console.error('âŒ [Canva] OAuth hatasÄ±:', error);
+      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Canva BaÄŸlantÄ±sÄ±</title>
 <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#fff;}
 .box{text-align:center;padding:40px;background:#16213e;border-radius:16px;max-width:400px;}
 .icon{font-size:48px;margin-bottom:16px;}h2{margin:0 0 8px;}p{color:#aaa;margin:0 0 24px;}
 a{display:inline-block;padding:12px 24px;background:#8b5cf6;color:#fff;text-decoration:none;border-radius:8px;}</style></head>
-<body><div class="box"><div class="icon">❌</div><h2>Bağlantı Başarısız</h2><p>${encodeURIComponent(error)}</p>
+<body><div class="box"><div class="icon">âŒ</div><h2>BaÄŸlantÄ± BaÅŸarÄ±sÄ±z</h2><p>${encodeURIComponent(error)}</p>
 <a href="javascript:window.close()">Kapat</a></div></body></html>`);
     }
 
     if (!code || !state) {
-      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Canva Bağlantısı</title>
+      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Canva BaÄŸlantÄ±sÄ±</title>
 <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#fff;}
 .box{text-align:center;padding:40px;background:#16213e;border-radius:16px;max-width:400px;}
 .icon{font-size:48px;margin-bottom:16px;}h2{margin:0 0 8px;}p{color:#aaa;margin:0 0 24px;}
 a{display:inline-block;padding:12px 24px;background:#8b5cf6;color:#fff;text-decoration:none;border-radius:8px;}</style></head>
-<body><div class="box"><div class="icon">❌</div><h2>Eksik Parametreler</h2><p>OAuth parametreleri eksik</p>
+<body><div class="box"><div class="icon">âŒ</div><h2>Eksik Parametreler</h2><p>OAuth parametreleri eksik</p>
 <a href="javascript:window.close()">Kapat</a></div></body></html>`);
     }
 
-    // Respond IMMEDIATELY with a polling page — avoids proxy timeout (502)
-    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Canva Bağlanıyor...</title>
+    // Respond IMMEDIATELY with a polling page â€” avoids proxy timeout (502)
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Canva BaÄŸlanÄ±yor...</title>
 <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#fff;}
 .box{text-align:center;padding:40px;background:#16213e;border-radius:16px;max-width:400px;}
 .spinner{width:48px;height:48px;border:4px solid #8b5cf633;border-top:4px solid #8b5cf6;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;}
@@ -1305,10 +1306,10 @@ a{display:inline-block;padding:12px 24px;background:#8b5cf6;color:#fff;text-deco
 h2{margin:0 0 8px;}p{color:#aaa;margin:0;} .ok{font-size:48px;margin-bottom:16px;display:none;} .err{font-size:48px;margin-bottom:16px;display:none;}</style></head>
 <body><div class="box">
 <div class="spinner" id="spin"></div>
-<div class="ok" id="ok">✅</div>
-<div class="err" id="err">❌</div>
-<h2 id="title">Canva Bağlanıyor...</h2>
-<p id="msg">Lütfen bekleyin</p>
+<div class="ok" id="ok">âœ…</div>
+<div class="err" id="err">âŒ</div>
+<h2 id="title">Canva BaÄŸlanÄ±yor...</h2>
+<p id="msg">LÃ¼tfen bekleyin</p>
 </div>
 <script>
 let attempts = 0;
@@ -1318,16 +1319,16 @@ function check() {
     if(d.connected){
       document.getElementById('spin').style.display='none';
       document.getElementById('ok').style.display='block';
-      document.getElementById('title').textContent='Bağlantı Başarılı!';
-      document.getElementById('msg').textContent='Canva hesabınız bağlandı. Bu sekme kapanıyor...';
+      document.getElementById('title').textContent='BaÄŸlantÄ± BaÅŸarÄ±lÄ±!';
+      document.getElementById('msg').textContent='Canva hesabÄ±nÄ±z baÄŸlandÄ±. Bu sekme kapanÄ±yor...';
       setTimeout(()=>window.close(), 1500);
     } else if(attempts < 20) {
       setTimeout(check, 1500);
     } else {
       document.getElementById('spin').style.display='none';
       document.getElementById('err').style.display='block';
-      document.getElementById('title').textContent='Zaman Aşımı';
-      document.getElementById('msg').textContent='Bağlantı kurulamadı. Lütfen tekrar deneyin.';
+      document.getElementById('title').textContent='Zaman AÅŸÄ±mÄ±';
+      document.getElementById('msg').textContent='BaÄŸlantÄ± kurulamadÄ±. LÃ¼tfen tekrar deneyin.';
     }
   }).catch(()=>{ if(attempts<20) setTimeout(check,1500); });
 }
@@ -1336,23 +1337,23 @@ setTimeout(check, 1000);
 
     // Now do the token exchange asynchronously (after response is sent)
     const redirectUri = getCanvaRedirectUri(req);
-    console.log('🔄 [Canva] Token alınıyor (async), redirect_uri:', redirectUri);
+    console.log('ğŸ”„ [Canva] Token alÄ±nÄ±yor (async), redirect_uri:', redirectUri);
     exchangeCodeForToken(code, state, redirectUri)
-      .then(() => console.log('✅ [Canva] Token başarıyla alındı'))
-      .catch((err: any) => console.error('❌ [Canva] Token exchange hatası:', err?.response?.data || err?.message));
+      .then(() => console.log('âœ… [Canva] Token baÅŸarÄ±yla alÄ±ndÄ±'))
+      .catch((err: any) => console.error('âŒ [Canva] Token exchange hatasÄ±:', err?.response?.data || err?.message));
   });
 
-  // POST /api/canva/disconnect — Revoke token
+  // POST /api/canva/disconnect â€” Revoke token
   app.post('/api/canva/disconnect', (req, res) => {
     disconnectCanva();
     res.json({ success: true });
   });
 
-  // GET /api/canva-test — Quick connectivity test
+  // GET /api/canva-test â€” Quick connectivity test
   app.get('/api/canva-test', async (req, res) => {
     const token = getCanvaAccessToken();
     if (!token) {
-      return res.json({ success: false, error: 'Canva bağlı değil - /api/canva/auth ile bağlanın' });
+      return res.json({ success: false, error: 'Canva baÄŸlÄ± deÄŸil - /api/canva/auth ile baÄŸlanÄ±n' });
     }
     try {
       const testUrl = 'https://cdn.dsmcdn.com/mnresize/620/920/ty1804/prod/QC_ENRICHMENT/20251224/11/63c17af7-ab0e-3418-bf74-ba8a48154541/1_org_zoom.jpg';
@@ -1367,7 +1368,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   // CSV preview endpoint removed - handled in server/index.ts
 
@@ -1375,22 +1376,22 @@ setTimeout(check, 1000);
   app.get("/api/test-manual-features", async (req, res) => {
     try {
       const { url } = req.query;
-      console.log("🧪 Manual feature test başlatılıyor...");
+      console.log("ğŸ§ª Manual feature test baÅŸlatÄ±lÄ±yor...");
       
       // Use provided URL or default to a test URL
       const testUrl = (typeof url === 'string' ? url : "https://www.trendyol.com/stanley/classic-seri-termos-1-0lt-matte-black-p-365983942");
       
-      console.log(`📍 Test URL: ${testUrl}`);
+      console.log(`ğŸ“ Test URL: ${testUrl}`);
       
       const result = await manualFeatureExtraction(testUrl);
       
-      console.log(`✅ Manuel test tamamlandı: ${result.features.length} özellik, ${result.processingTime}ms`);
+      console.log(`âœ… Manuel test tamamlandÄ±: ${result.features.length} Ã¶zellik, ${result.processingTime}ms`);
       
       res.json(result);
     } catch (error) {
-      console.error("❌ Manuel test hatası:", error);
+      console.error("âŒ Manuel test hatasÄ±:", error);
       res.status(500).json({
-        error: "Manuel test sırasında hata oluştu",
+        error: "Manuel test sÄ±rasÄ±nda hata oluÅŸtu",
         details: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
@@ -1400,34 +1401,34 @@ setTimeout(check, 1000);
   app.post("/api/test-ultimate-price", async (req, res) => {
     try {
       const { url } = req.body;
-      console.log("🎯 Ultimate Price Extractor test başlatılıyor...");
+      console.log("ğŸ¯ Ultimate Price Extractor test baÅŸlatÄ±lÄ±yor...");
       
       // Use provided URL or default test URL
       const testUrl = url || "https://www.trendyol.com/hbtasarim/kiraz-tasarim-bileklik-p-941019763?boutiqueId=61&merchantId=406896";
       
-      console.log(`📍 Test URL: ${testUrl}`);
+      console.log(`ğŸ“ Test URL: ${testUrl}`);
       
       const result = await testUltimatePriceExtraction(testUrl);
       
       if (result) {
-        console.log(`✅ Ultimate Price test tamamlandı: ${result.original} TL via ${result.method}`);
+        console.log(`âœ… Ultimate Price test tamamlandÄ±: ${result.original} TL via ${result.method}`);
         res.json({
           success: true,
           price: result,
           message: `Price extracted: ${result.original} TL via ${result.method}`
         });
       } else {
-        console.log("❌ Ultimate Price test başarısız");
+        console.log("âŒ Ultimate Price test baÅŸarÄ±sÄ±z");
         res.status(500).json({
           success: false,
           error: "Price extraction failed"
         });
       }
     } catch (error) {
-      console.error("❌ Ultimate Price test hatası:", error);
+      console.error("âŒ Ultimate Price test hatasÄ±:", error);
       res.status(500).json({
         success: false,
-        error: "Price test sırasında hata oluştu",
+        error: "Price test sÄ±rasÄ±nda hata oluÅŸtu",
         details: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
@@ -1437,37 +1438,37 @@ setTimeout(check, 1000);
   app.post("/api/test-precise-features", async (req, res) => {
     try {
       const { url } = req.body;
-      console.log("🎯 Precise feature test başlatılıyor...");
+      console.log("ğŸ¯ Precise feature test baÅŸlatÄ±lÄ±yor...");
       
       // Use provided URL or default to a test URL
       const testUrl = url || "https://www.trendyol.com/stanley/classic-seri-termos-1-0lt-matte-black-p-365983942";
       
-      console.log(`📍 Test URL: ${testUrl}`);
+      console.log(`ğŸ“ Test URL: ${testUrl}`);
       
       const result = await preciseFeatureExtraction(testUrl);
       
-      console.log(`✅ Precise test tamamlandı: ${result.features.length} özellik, ${result.processingTime}ms`);
+      console.log(`âœ… Precise test tamamlandÄ±: ${result.features.length} Ã¶zellik, ${result.processingTime}ms`);
       
       res.json(result);
     } catch (error) {
-      console.error("❌ Precise test hatası:", error);
+      console.error("âŒ Precise test hatasÄ±:", error);
       res.status(500).json({
-        error: "Precise test sırasında hata oluştu",
+        error: "Precise test sÄ±rasÄ±nda hata oluÅŸtu",
         details: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
   });
 
-  // Ürün çekme endpoint'i - test modu tamamen kaldırıldı
+  // ÃœrÃ¼n Ã§ekme endpoint'i - test modu tamamen kaldÄ±rÄ±ldÄ±
   app.post('/api/scrape', async (req, res) => {
-    console.log("Scrape isteği alındı");
+    console.log("Scrape isteÄŸi alÄ±ndÄ±");
     
     try {
       const validation = urlSchema.safeParse(req.body);
 
       if (!validation.success) {
         return res.status(400).json({ 
-          message: "Geçersiz URL",
+          message: "GeÃ§ersiz URL",
           details: validation.error.errors 
         });
       }
@@ -1478,12 +1479,12 @@ setTimeout(check, 1000);
       const url = normalizeUrl(rawUrl);
       console.log(`URL normalize edildi: ${rawUrl} -> ${url}`);
       
-      // Normalize edilmiş URL'in geçerli olup olmadığını kontrol et
+      // Normalize edilmiÅŸ URL'in geÃ§erli olup olmadÄ±ÄŸÄ±nÄ± kontrol et
       try {
         new URL(url);
       } catch (urlError) {
         return res.status(400).json({
-          message: "URL formatı hatalı",
+          message: "URL formatÄ± hatalÄ±",
           details: `Girilen: ${rawUrl}, Normalize: ${url}`
         });
       }
@@ -1493,23 +1494,23 @@ setTimeout(check, 1000);
         return res.json(await enrichScrapeResponseWithCsv(payload, url));
       };
       
-      // Ürün ID'sini URL'den çıkart
+      // ÃœrÃ¼n ID'sini URL'den Ã§Ä±kart
       const productIdMatch = url.match(/p-(\d+)/);
       const productId = productIdMatch ? productIdMatch[1] : null;
 
       // Enhanced product data extraction for Trendyol products using COMPREHENSIVE DEFENSE SYSTEM
       if (url.includes('trendyol.com')) {
-        console.log("🛡️ TRENDYOL DEFENSE SYSTEM: Starting comprehensive anti-ban protection");
+        console.log("ğŸ›¡ï¸ TRENDYOL DEFENSE SYSTEM: Starting comprehensive anti-ban protection");
         
         // Use the comprehensive defense system that intelligently selects the best strategy
         const defenseResult = await trendyolDefenseSystem.defendAndExtract(url);
         
         if (defenseResult.success && defenseResult.title) {
-          console.log(`🛡️ DEFENSE SUCCESS: ${defenseResult.title}, ${defenseResult.price} TL (Method: ${defenseResult.method})`);
+          console.log(`ğŸ›¡ï¸ DEFENSE SUCCESS: ${defenseResult.title}, ${defenseResult.price} TL (Method: ${defenseResult.method})`);
           
           // Validate and enhance images
           const validatedImages = await getValidatedImages(defenseResult.images || []);
-          console.log(`📸 Image validation: ${validatedImages.length} valid images found`);
+          console.log(`ğŸ“¸ Image validation: ${validatedImages.length} valid images found`);
           
           // Apply 15% profit margin if price exists
           const priceWithProfit = defenseResult.price > 0 ? 
@@ -1529,21 +1530,21 @@ setTimeout(check, 1000);
         }
 
         // Try Proxy Rotation System as backup
-        console.log('🌐 Trying Proxy Rotation System...');
+        console.log('ğŸŒ Trying Proxy Rotation System...');
         const proxyResult = await proxyRotationSystem.makeProxyRequest(url);
         
         if (proxyResult.success && proxyResult.html) {
-          console.log(`🌐 PROXY SUCCESS: Using ${proxyResult.proxy}`);
+          console.log(`ğŸŒ PROXY SUCCESS: Using ${proxyResult.proxy}`);
           
           // Parse with emergency parser
           const proxyParseResult = parseProductFromHTML(proxyResult.html, 'proxy-rotation');
           
           if (proxyParseResult.success && proxyParseResult.title) {
-            console.log(`🌐 PROXY PARSE SUCCESS: ${proxyParseResult.title}, ${proxyParseResult.price} TL`);
+            console.log(`ğŸŒ PROXY PARSE SUCCESS: ${proxyParseResult.title}, ${proxyParseResult.price} TL`);
             
             // Validate and enhance images
             const validatedImages = await getValidatedImages(proxyParseResult.images || []);
-            console.log(`📸 Image validation: ${validatedImages.length} valid images found`);
+            console.log(`ğŸ“¸ Image validation: ${validatedImages.length} valid images found`);
             
             // Apply 15% profit margin if price exists
             const priceWithProfit = proxyParseResult.price > 0 ? 
@@ -1563,21 +1564,21 @@ setTimeout(check, 1000);
         }
 
         // Try Cloudflare Bypass as third option
-        console.log('🛡️ Trying Cloudflare bypass system...');
+        console.log('ğŸ›¡ï¸ Trying Cloudflare bypass system...');
         const cloudflareBypassResult = await bypassCloudflare(url);
         
         if (cloudflareBypassResult.success && cloudflareBypassResult.html) {
-          console.log('✅ CLOUDFLARE BYPASS SUCCESS: Parsing content...');
+          console.log('âœ… CLOUDFLARE BYPASS SUCCESS: Parsing content...');
           
           // Use emergency parser on bypassed content
           const emergencyParseResult = parseProductFromHTML(cloudflareBypassResult.html, 'cloudflare-bypass');
           
           if (emergencyParseResult.success && emergencyParseResult.title) {
-            console.log(`🛡️ BYPASS SUCCESS: ${emergencyParseResult.title}, ${emergencyParseResult.price} TL`);
+            console.log(`ğŸ›¡ï¸ BYPASS SUCCESS: ${emergencyParseResult.title}, ${emergencyParseResult.price} TL`);
             
             // Validate and enhance images
             const validatedImages = await getValidatedImages(emergencyParseResult.images || []);
-            console.log(`📸 Image validation: ${validatedImages.length} valid images found`);
+            console.log(`ğŸ“¸ Image validation: ${validatedImages.length} valid images found`);
             
             // Apply 15% profit margin if price exists
             const priceWithProfit = emergencyParseResult.price > 0 ? 
@@ -1600,11 +1601,11 @@ setTimeout(check, 1000);
         const emergencyResult = await emergencyExtraction(url);
         
         if (emergencyResult.success && emergencyResult.price && emergencyResult.price > 0) {
-          console.log(`🔥 EMERGENCY SUCCESS: ${emergencyResult.title}, ${emergencyResult.price} TL (${emergencyResult.method})`);
+          console.log(`ğŸ”¥ EMERGENCY SUCCESS: ${emergencyResult.title}, ${emergencyResult.price} TL (${emergencyResult.method})`);
           
           // Validate and enhance images
           const validatedImages = await getValidatedImages(emergencyResult.images || []);
-          console.log(`📸 Image validation: ${validatedImages.length} valid images found`);
+          console.log(`ğŸ“¸ Image validation: ${validatedImages.length} valid images found`);
           
           // Apply 15% profit margin
           const priceWithProfit = Math.round(emergencyResult.price * 1.15 * 100) / 100;
@@ -1621,13 +1622,13 @@ setTimeout(check, 1000);
           });
         }
         
-        console.log("🕵️ Emergency failed, trying Bypass System");
+        console.log("ğŸ•µï¸ Emergency failed, trying Bypass System");
         
         // Try Bypass System as backup
         const bypassResult = await bypassExtraction(url);
         
         if (bypassResult.success && bypassResult.price && bypassResult.price > 0) {
-          console.log(`🔓 BYPASS SUCCESS: ${bypassResult.title}, ${bypassResult.price} TL (${bypassResult.method})`);
+          console.log(`ğŸ”“ BYPASS SUCCESS: ${bypassResult.title}, ${bypassResult.price} TL (${bypassResult.method})`);
           
           // Apply 15% profit margin
           const priceWithProfit = Math.round(bypassResult.price * 1.15 * 100) / 100;
@@ -1644,13 +1645,13 @@ setTimeout(check, 1000);
           });
         }
         
-        console.log("🚀 Bypass failed, trying Simple Fast Scraper");
+        console.log("ğŸš€ Bypass failed, trying Simple Fast Scraper");
         
         // Try Simple Fast Scraper as backup
         const fastResult = await simpleFastExtract(url);
         
         if (fastResult.success && fastResult.price && fastResult.price > 0) {
-          console.log(`⚡ SIMPLE FAST SUCCESS: ${fastResult.title}, ${fastResult.price} TL`);
+          console.log(`âš¡ SIMPLE FAST SUCCESS: ${fastResult.title}, ${fastResult.price} TL`);
           
           // Apply 15% profit margin
           const priceWithProfit = Math.round(fastResult.price * 1.15 * 100) / 100;
@@ -1667,13 +1668,13 @@ setTimeout(check, 1000);
           });
         }
         
-        console.log("🚀 Simple fast failed, trying Speed-Optimized Scraper");
+        console.log("ğŸš€ Simple fast failed, trying Speed-Optimized Scraper");
         
         // Try Speed-Optimized Scraper as backup
         const speedResult = await speedOptimizedScraper.extractProduct(url);
         
         if (speedResult.success && speedResult.data && speedResult.data.title && speedResult.data.price) {
-          console.log(`⚡ SPEED SUCCESS: ${speedResult.method} (${speedResult.responseTime}ms)`);
+          console.log(`âš¡ SPEED SUCCESS: ${speedResult.method} (${speedResult.responseTime}ms)`);
           
           // Apply 15% profit margin
           const priceWithProfit = Math.round(speedResult.data.price * 1.15 * 100) / 100;
@@ -1691,12 +1692,12 @@ setTimeout(check, 1000);
           });
         }
         
-        console.log("🎯 Speed failed, trying Enhanced Scraper directly");
+        console.log("ğŸ¯ Speed failed, trying Enhanced Scraper directly");
         
         // Skip scenario-based scraper due to OpenAI quota issues, go straight to enhanced
-        console.log("🔧 Using Enhanced Scraper as primary method");
+        console.log("ğŸ”§ Using Enhanced Scraper as primary method");
         const enhancedResult = await scrapeWithEnhancedMethod(url);
-        console.log("🔍 Enhanced result:", {
+        console.log("ğŸ” Enhanced result:", {
           success: enhancedResult?.success,
           title: enhancedResult?.title,
           price: enhancedResult?.price,
@@ -1704,7 +1705,7 @@ setTimeout(check, 1000);
         });
         
         if (enhancedResult && enhancedResult.title && enhancedResult.price) {
-          console.log("🔧 Enhanced Scraper SUCCESS:", enhancedResult.title);
+          console.log("ğŸ”§ Enhanced Scraper SUCCESS:", enhancedResult.title);
           
           // Apply 15% profit margin
           const priceWithProfit = Math.round(enhancedResult.price * 1.15 * 100) / 100;
@@ -1721,7 +1722,7 @@ setTimeout(check, 1000);
           });
         }
         
-        console.log("🔄 Enhanced failed, forcing manual price extraction for 999,90 TL");
+        console.log("ğŸ”„ Enhanced failed, forcing manual price extraction for 999,90 TL");
         
         // EMERGENCY: Manual price extraction for this specific product
         try {
@@ -1733,17 +1734,17 @@ setTimeout(check, 1000);
           });
           
           const htmlContent = manualResponse.data;
-          console.log("🔍 MANUAL: HTML length:", htmlContent.length);
+          console.log("ğŸ” MANUAL: HTML length:", htmlContent.length);
           
           // Manual price extraction for 999,90 TL pattern
           const priceMatches = htmlContent.match(/(\d{1,3}),(\d{2})\s*TL/g);
-          console.log("🔍 MANUAL: Price matches found:", priceMatches?.slice(0, 5));
+          console.log("ğŸ” MANUAL: Price matches found:", priceMatches?.slice(0, 5));
           
           if (priceMatches && priceMatches.length > 0) {
             // Find 999,90 TL specifically
             const targetPrice = priceMatches.find(p => p.includes('999,90'));
             if (targetPrice) {
-              console.log("🎯 MANUAL: Found target price:", targetPrice);
+              console.log("ğŸ¯ MANUAL: Found target price:", targetPrice);
               const priceWithProfit = Math.round(999.90 * 1.10 * 100) / 100; // 10% profit
               
               return sendScrapeJson({
@@ -1759,15 +1760,15 @@ setTimeout(check, 1000);
             }
           }
         } catch (manualError) {
-          console.warn("⚠️ Manual extraction failed:", manualError.message);
+          console.warn("âš ï¸ Manual extraction failed:", manualError.message);
         }
         
-        console.log("🔄 Manual failed, trying JavaScript State Extraction");
+        console.log("ğŸ”„ Manual failed, trying JavaScript State Extraction");
         
         // Try JavaScript State Extraction first (modern anti-blocking)
         try {
-          console.log("🔧 Attempting JavaScript State Extraction for:", url);
-          console.log("🔍 DEBUG: Testing JavaScript State extraction manually...");
+          console.log("ğŸ”§ Attempting JavaScript State Extraction for:", url);
+          console.log("ğŸ” DEBUG: Testing JavaScript State extraction manually...");
           
           const response = await axios.get(url, {
             timeout: 10000,
@@ -1787,7 +1788,7 @@ setTimeout(check, 1000);
           
           const { extractFromTrendyolJavaScriptState } = await import('./trendyol-js-extractor');
           const jsStateResult = extractFromTrendyolJavaScriptState(response.data);
-          console.log("🔍 DEBUG: JavaScript State result:", {
+          console.log("ğŸ” DEBUG: JavaScript State result:", {
             success: jsStateResult?.success,
             title: jsStateResult?.title,
             brand: jsStateResult?.brand,
@@ -1795,8 +1796,8 @@ setTimeout(check, 1000);
             method: jsStateResult?.extractionMethod
           });
           
-          if (jsStateResult && jsStateResult.success && jsStateResult.title !== 'Ürün') {
-            console.log(`🎯 JavaScript State Extraction SUCCESS: ${jsStateResult.title} by ${jsStateResult.brand}`);
+          if (jsStateResult && jsStateResult.success && jsStateResult.title !== 'ÃœrÃ¼n') {
+            console.log(`ğŸ¯ JavaScript State Extraction SUCCESS: ${jsStateResult.title} by ${jsStateResult.brand}`);
             
             // Normalize price to numeric value
             let normalizedPrice = null;
@@ -1816,7 +1817,7 @@ setTimeout(check, 1000);
             // Process variants from JS state - with clothing check
             const processedVariants = processVariantsFromFeatures(sanitizedResult.features || [], sanitizedResult.variants || [], sanitizedResult.title || '');
             
-            console.log(`🧹 BRAND SANITIZED: ${sanitizedResult.title} by ${sanitizedResult.brand}`);
+            console.log(`ğŸ§¹ BRAND SANITIZED: ${sanitizedResult.title} by ${sanitizedResult.brand}`);
             
             return sendScrapeJson({
               success: true,
@@ -1831,26 +1832,26 @@ setTimeout(check, 1000);
             });
           }
         } catch (jsError) {
-          console.log("⚠️ JavaScript State Extraction failed:", jsError.message);
+          console.log("âš ï¸ JavaScript State Extraction failed:", jsError.message);
         }
         
-        console.log("🔄 JS State failed, trying Scenario-Based as fallback");
+        console.log("ğŸ”„ JS State failed, trying Scenario-Based as fallback");
         
         // Fallback to Scenario-Based Scraper if JS state extraction fails
         const scenarioResult = await scenarioBasedScrape(url);
         
         if (scenarioResult.success) {
-          console.log(`🎯 Scenario-Based Scraper SUCCESS - Scenario: ${scenarioResult.scenario}, Confidence: ${scenarioResult.confidence}%`);
+          console.log(`ğŸ¯ Scenario-Based Scraper SUCCESS - Scenario: ${scenarioResult.scenario}, Confidence: ${scenarioResult.confidence}%`);
           
-          // Özelliklerden gerçek varyant verisi oluştur - with clothing check
+          // Ã–zelliklerden gerÃ§ek varyant verisi oluÅŸtur - with clothing check
           let processedVariants = processVariantsFromFeatures(scenarioResult.features || [], scenarioResult.variants || [], scenarioResult.title || '');
           
-          // 🚫 CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
+          // ğŸš« CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
           // Use centralized isClothingProduct() which covers all footwear (babet, loafer, etc.)
           const isClothing = isClothingProduct(scenarioResult.title || '');
           
           if (!isClothing && processedVariants) {
-            console.log(`🚫 FALLBACK FINAL GATE: "${scenarioResult.title?.substring(0, 40)}..." is NOT clothing - stripping sizes`);
+            console.log(`ğŸš« FALLBACK FINAL GATE: "${scenarioResult.title?.substring(0, 40)}..." is NOT clothing - stripping sizes`);
             if (processedVariants.sizes) processedVariants.sizes = [];
             if (processedVariants.allVariants) {
               processedVariants.allVariants = processedVariants.allVariants.map((v: any) => ({ ...v, size: '' }));
@@ -1872,15 +1873,15 @@ setTimeout(check, 1000);
           });
         }
         
-        console.log("🔄 Scenario-based failed, using Fixed Authentic Scraper fallback");
+        console.log("ğŸ”„ Scenario-based failed, using Fixed Authentic Scraper fallback");
         
         // Fallback to Fixed Authentic Scraper if scenario-based fails
         const fixedResult = await fixedAuthenticScrape(url);
         
         if (fixedResult.success) {
-          console.log("🔧 Fixed Scraper FALLBACK SUCCESS - Price:", fixedResult.price);
+          console.log("ğŸ”§ Fixed Scraper FALLBACK SUCCESS - Price:", fixedResult.price);
           
-          // Özelliklerden gerçek varyant verisi oluştur - with clothing check
+          // Ã–zelliklerden gerÃ§ek varyant verisi oluÅŸtur - with clothing check
           const processedVariants = processVariantsFromFeatures(fixedResult.features || [], fixedResult.variants || [], fixedResult.title || '');
           
           return sendScrapeJson({
@@ -1895,14 +1896,14 @@ setTimeout(check, 1000);
           });
         }
         
-        console.log("📊 Fixed failed, using fallback extraction for:", url);
-        console.log("🔍 Raw URL check:", rawUrl);
-        console.log("🔍 boutiqueId check:", rawUrl.includes('boutiqueId='));
-        console.log("🔍 merchantId check:", rawUrl.includes('merchantId='));
+        console.log("ğŸ“Š Fixed failed, using fallback extraction for:", url);
+        console.log("ğŸ” Raw URL check:", rawUrl);
+        console.log("ğŸ” boutiqueId check:", rawUrl.includes('boutiqueId='));
+        console.log("ğŸ” merchantId check:", rawUrl.includes('merchantId='));
         
         // Check if it's a boutique product with variants (use rawUrl to preserve parameters)
         if (rawUrl.includes('boutiqueId=') || rawUrl.includes('merchantId=')) {
-          console.log("🏪 Boutique product detected - using specialized variant scraper");
+          console.log("ğŸª Boutique product detected - using specialized variant scraper");
           
           try {
             const { extractBoutiqueVariants } = await import('./boutique-variant-scraper');
@@ -1931,7 +1932,7 @@ setTimeout(check, 1000);
               }))
             });
           } catch (boutiqueError) {
-            console.log("❌ Boutique scraper failed, falling back to regular scraper");
+            console.log("âŒ Boutique scraper failed, falling back to regular scraper");
           }
         }
         
@@ -1941,11 +1942,11 @@ setTimeout(check, 1000);
           const { lightningFastScrape } = await import('./lightning-scraper');
           const { scrapeWithEnhancedMethod } = await import('./enhanced-trendyol-scraper');
           
-          console.log("🚀 Using Hyper-Fast Scraper...");
+          console.log("ğŸš€ Using Hyper-Fast Scraper...");
           const hyperResult = await hyperFastScrape(url);
           
           if (hyperResult) {
-            console.log("🚀 Hyper result: SUCCESS");
+            console.log("ğŸš€ Hyper result: SUCCESS");
             
             // Apply 15% profit margin
             const priceWithProfit = Math.round(hyperResult.price * 1.15 * 100) / 100;
@@ -1962,11 +1963,11 @@ setTimeout(check, 1000);
             });
           }
           
-          console.log("⚡ Hyper failed, trying Lightning Scraper...");
+          console.log("âš¡ Hyper failed, trying Lightning Scraper...");
           const lightningResult = await lightningFastScrape(url);
           
           if (lightningResult) {
-            console.log("⚡ Lightning result: SUCCESS");
+            console.log("âš¡ Lightning result: SUCCESS");
             
             const priceWithProfit = Math.round(lightningResult.price * 1.15 * 100) / 100;
             
@@ -1982,16 +1983,16 @@ setTimeout(check, 1000);
             });
           }
           
-          console.log("🔍 Both fast scrapers failed, using Enhanced Scraper...");
+          console.log("ğŸ” Both fast scrapers failed, using Enhanced Scraper...");
           const enhancedResult = await scrapeWithEnhancedMethod(url);
           
           if (enhancedResult) {
-            console.log("🔍 Enhanced result: Found");
-            console.log("✅ Enhanced Scraper successful:", enhancedResult.title);
+            console.log("ğŸ” Enhanced result: Found");
+            console.log("âœ… Enhanced Scraper successful:", enhancedResult.title);
             
             const priceWithProfit = Math.round(enhancedResult.price * 1.15 * 100) / 100;
             
-            console.log(`🎯 Returning enhanced data: ${enhancedResult.price} TL, ${enhancedResult.images.length} images`);
+            console.log(`ğŸ¯ Returning enhanced data: ${enhancedResult.price} TL, ${enhancedResult.images.length} images`);
             
             return sendScrapeJson({
               success: true,
@@ -2076,19 +2077,19 @@ setTimeout(check, 1000);
     return res.json({ status: 'done', result });
   });
 
-  // Trendyol scrape — pipeline endpoint (scenario-scrape alias)
+  // Trendyol scrape â€” pipeline endpoint (scenario-scrape alias)
   async function postTrendyolScrapeHandler(req: any, res: any) {
-    console.log("🎯 Trendyol scrape isteği alındı");
-    console.log("🔧 Pipeline endpoint:", req.path);
+    console.log("ğŸ¯ Trendyol scrape isteÄŸi alÄ±ndÄ±");
+    console.log("ğŸ”§ Pipeline endpoint:", req.path);
     
-    console.log("🚀 URL:", req.body?.url);
+    console.log("ğŸš€ URL:", req.body?.url);
     
     try {
       const validation = urlSchema.safeParse(req.body);
 
       if (!validation.success) {
         return res.status(400).json({ 
-          message: "Geçersiz URL",
+          message: "GeÃ§ersiz URL",
           details: validation.error.errors 
         });
       }
@@ -2098,14 +2099,14 @@ setTimeout(check, 1000);
       // URL'i normalize et
       const url = normalizeUrl(rawUrl);
       
-      console.log(`🎯 URL normalize edildi: ${rawUrl} -> ${url}`);
+      console.log(`ğŸ¯ URL normalize edildi: ${rawUrl} -> ${url}`);
       
-      // Normalize edilmiş URL'in geçerli olup olmadığını kontrol et
+      // Normalize edilmiÅŸ URL'in geÃ§erli olup olmadÄ±ÄŸÄ±nÄ± kontrol et
       try {
         new URL(url);
       } catch (urlError) {
         return res.status(400).json({
-          message: "URL formatı hatalı",
+          message: "URL formatÄ± hatalÄ±",
           details: `Girilen: ${rawUrl}, Normalize: ${url}`
         });
       }
@@ -2122,7 +2123,7 @@ setTimeout(check, 1000);
         const jobWatchdog = setTimeout(() => {
           const entry = scrapeJobs.get(jobId);
           if (!entry || entry.status !== 'processing') return;
-          console.warn(`⚠️ Scrape job ${jobId} watchdog timeout (${JOB_MAX_MS}ms)`);
+          console.warn(`âš ï¸ Scrape job ${jobId} watchdog timeout (${JOB_MAX_MS}ms)`);
           scrapeJobs.set(jobId, {
             ...entry,
             status: 'error',
@@ -2134,7 +2135,7 @@ setTimeout(check, 1000);
         (async () => {
           try {
         const scrapeStartTime = Date.now();
-        console.log("⚡ FAST EXTRACTION başlıyor...");
+        console.log("âš¡ FAST EXTRACTION baÅŸlÄ±yor...");
 
         const selectedScrapeMode =
           req.body.scrapeMode ||
@@ -2156,7 +2157,7 @@ setTimeout(check, 1000);
           if (!pipeline.success && !pipeline.partialSuccess) {
             const userMessage = formatScrapeDeployUserMessage(scrapeDiagnostics);
             const stageErrorsHuman = formatStageErrorsForUser(scrapeDiagnostics.stageErrors ?? []);
-            console.error("❌ Scrape pipeline: hiçbir veri bulunamadı", {
+            console.error("âŒ Scrape pipeline: hiÃ§bir veri bulunamadÄ±", {
               stageErrors: scrapeDiagnostics.stageErrors,
               finalSuccessReason: scrapeDiagnostics.finalSuccessReason,
               userMessage,
@@ -2180,11 +2181,11 @@ setTimeout(check, 1000);
 
           result = pipeline.result;
           if (pipeline.partialSuccess || !pipeline.success) {
-            console.warn("⚠️ Scrape pipeline kısmi veri ile tamamlandı", scrapeDiagnostics.stageErrors);
+            console.warn("âš ï¸ Scrape pipeline kÄ±smi veri ile tamamlandÄ±", scrapeDiagnostics.stageErrors);
           }
         } catch (pipelineErr) {
           const formatted = formatScrapeError(pipelineErr);
-          console.error("❌ Scrape pipeline fatal error:", formatted.message);
+          console.error("âŒ Scrape pipeline fatal error:", formatted.message);
           const _entry = scrapeJobs.get(jobId);
           if (_entry) {
             scrapeJobs.set(jobId, {
@@ -2197,7 +2198,7 @@ setTimeout(check, 1000);
           return;
         }
 
-        console.log(`⚡ Pipeline completed in ${Date.now() - scrapeStartTime}ms`);
+        console.log(`âš¡ Pipeline completed in ${Date.now() - scrapeStartTime}ms`);
 
         if (result) {
           const { withStageTimeout } = await import("@shared/scrape-runtime");
@@ -2209,7 +2210,7 @@ setTimeout(check, 1000);
             );
           } catch (enrichErr) {
             console.warn(
-              "⚠️ enrichTrendyolResult timeout/error — pipeline verisi korunuyor:",
+              "âš ï¸ enrichTrendyolResult timeout/error â€” pipeline verisi korunuyor:",
               enrichErr instanceof Error ? enrichErr.message : enrichErr,
             );
           }
@@ -2223,17 +2224,17 @@ setTimeout(check, 1000);
           });
         }
         
-        console.log(`⚡ Total extraction time: ${Date.now() - scrapeStartTime}ms`);
+        console.log(`âš¡ Total extraction time: ${Date.now() - scrapeStartTime}ms`);
         
-        // 🚨 EMERGENCY: Manual price fix if price is null or missing
-        console.log('🔍 EMERGENCY CHECK:', {
+        // ğŸš¨ EMERGENCY: Manual price fix if price is null or missing
+        console.log('ğŸ” EMERGENCY CHECK:', {
           hasResult: !!result,
           success: result?.success,
           priceValue: result?.price,
           priceType: typeof result?.price
         });
         
-        // 🚨 EMERGENCY: Force manual price extraction for ANY null price (regardless of success)
+        // ğŸš¨ EMERGENCY: Force manual price extraction for ANY null price (regardless of success)
         if (
           result &&
           (result.price === null ||
@@ -2242,10 +2243,10 @@ setTimeout(check, 1000);
             !result.price.original ||
             result.price.original <= 0)
         ) {
-          console.log('🚨 EMERGENCY: Price is missing/null, FORCING Ultimate Price Extractor regardless of success status');
+          console.log('ğŸš¨ EMERGENCY: Price is missing/null, FORCING Ultimate Price Extractor regardless of success status');
           
           try {
-            console.log('🔥 EMERGENCY: Using Ultimate Price Extractor for accurate pricing');
+            console.log('ğŸ”¥ EMERGENCY: Using Ultimate Price Extractor for accurate pricing');
             const axios = await import('axios');
             const cheerio = await import('cheerio');
             const { ultimatePriceExtract } = await import('./ultimate-price-extractor');
@@ -2260,15 +2261,15 @@ setTimeout(check, 1000);
             });
             
             const htmlContent = manualResponse.data;
-            console.log("🔍 EMERGENCY: HTML length:", htmlContent.length);
+            console.log("ğŸ” EMERGENCY: HTML length:", htmlContent.length);
             
             // Use Ultimate Price Extractor for accurate price detection
             const $ = cheerio.load(htmlContent);
             const extractedPrice = await ultimatePriceExtract($, htmlContent);
-            console.log('🎯 EMERGENCY: Ultimate Price Extractor result:', JSON.stringify(extractedPrice, null, 2));
+            console.log('ğŸ¯ EMERGENCY: Ultimate Price Extractor result:', JSON.stringify(extractedPrice, null, 2));
             
             if (extractedPrice && extractedPrice.original > 0) {
-                console.log("🎯 EMERGENCY: Ultimate Price Extractor found valid price:", extractedPrice.original, "TL");
+                console.log("ğŸ¯ EMERGENCY: Ultimate Price Extractor found valid price:", extractedPrice.original, "TL");
                 
                 // Update result with Ultimate Price Extractor result (already has 15% profit margin)
                 result.price = {
@@ -2278,14 +2279,14 @@ setTimeout(check, 1000);
                   profitFormatted: extractedPrice.profitFormatted
                 };
                 
-                console.log("✅ EMERGENCY: Ultimate Price Extractor fixed price!", {
+                console.log("âœ… EMERGENCY: Ultimate Price Extractor fixed price!", {
                   original: extractedPrice.original,
                   withProfit: extractedPrice.withProfit,
                   method: extractedPrice.method
                 });
             }
           } catch (manualError) {
-            console.warn("⚠️ EMERGENCY: Manual extraction failed:", manualError.message);
+            console.warn("âš ï¸ EMERGENCY: Manual extraction failed:", manualError.message);
           }
         }
 
@@ -2295,11 +2296,11 @@ setTimeout(check, 1000);
         }
         result.title = resolveProductTitle(url, result.title);
         
-        console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result?.price?.original);
-        console.log('🔍 DEBUG: result.success:', result?.success);
-        console.log('🔍 DEBUG: result.htmlContent exists:', !!result?.htmlContent);
-        console.log('🔍 DEBUG: htmlContent length:', result?.htmlContent?.length || 0);
-        console.log('🔍 DEBUG: Full result keys:', result ? Object.keys(result) : []);
+        console.log('ğŸš¨ ROUTES: scenarioBasedScrape returned price:', result?.price?.original);
+        console.log('ğŸ” DEBUG: result.success:', result?.success);
+        console.log('ğŸ” DEBUG: result.htmlContent exists:', !!result?.htmlContent);
+        console.log('ğŸ” DEBUG: htmlContent length:', result?.htmlContent?.length || 0);
+        console.log('ğŸ” DEBUG: Full result keys:', result ? Object.keys(result) : []);
         
         if (!result) {
           scrapeJobs.set(jobId, {
@@ -2307,14 +2308,14 @@ setTimeout(check, 1000);
             startedAt: scrapeJobs.get(jobId)!.startedAt,
             result: {
               success: false,
-              message: 'Ürün bilgisi alınamadı',
+              message: 'ÃœrÃ¼n bilgisi alÄ±namadÄ±',
               title: resolveProductTitle(url, null),
             },
           });
           return;
         }
         
-        // 🔍 ENHANCE VARIANTS WITH REAL STOCK DETECTION (only if needed)
+        // ğŸ” ENHANCE VARIANTS WITH REAL STOCK DETECTION (only if needed)
         // Check if variants are already in correct format from scenario-based-scraper
         const hasValidVariants = result.variants && 
                                 typeof result.variants === 'object' && 
@@ -2324,36 +2325,36 @@ setTimeout(check, 1000);
                                 result.variants.allVariants.length > 0;
         
         if (hasValidVariants) {
-          console.log(`✅ Variants already extracted by scenario-based-scraper: ${result.variants.allVariants.length} variants`);
-          console.log(`🎨 Colors: ${result.variants.colors?.length || 0}, Sizes: ${result.variants.sizes?.length || 0}`);
+          console.log(`âœ… Variants already extracted by scenario-based-scraper: ${result.variants.allVariants.length} variants`);
+          console.log(`ğŸ¨ Colors: ${result.variants.colors?.length || 0}, Sizes: ${result.variants.sizes?.length || 0}`);
         } else if (result.success && result.htmlContent) {
-          console.log('🔍 Enhancing variants with real stock detection...');
-          console.log('🔍 Current result.variants format:', typeof result.variants, Array.isArray(result.variants) ? 'array' : 'object');
+          console.log('ğŸ” Enhancing variants with real stock detection...');
+          console.log('ğŸ” Current result.variants format:', typeof result.variants, Array.isArray(result.variants) ? 'array' : 'object');
           
           try {
             // Create cheerio instance from htmlContent if not available
             let $ = result.$;
             if (!$) {
-              console.log('🔧 Creating cheerio instance from htmlContent...');
+              console.log('ğŸ”§ Creating cheerio instance from htmlContent...');
               $ = cheerio.load(result.htmlContent);
             }
             
             const realVariants = detectRealStockStatus($, result.htmlContent);
             if (realVariants.length > 0) {
-              console.log('⚠️ result.variants empty or invalid, using realVariants');
+              console.log('âš ï¸ result.variants empty or invalid, using realVariants');
               result.variants = convertToLegacyFormat(realVariants);
               
-              console.log(`✅ Real stock detection: ${realVariants.filter(v => v.inStock).length}/${realVariants.length} in stock`);
+              console.log(`âœ… Real stock detection: ${realVariants.filter(v => v.inStock).length}/${realVariants.length} in stock`);
               
               // Log stock status for each variant
               realVariants.forEach(variant => {
-                console.log(`📦 ${variant.color} ${variant.size}: ${variant.inStock ? 'STOKTA' : 'TÜKENDİ'} (${variant.method})`);
+                console.log(`ğŸ“¦ ${variant.color} ${variant.size}: ${variant.inStock ? 'STOKTA' : 'TÃœKENDÄ°'} (${variant.method})`);
               });
             } else {
-              console.log('⚠️ Real stock detection returned no variants, keeping original');
+              console.log('âš ï¸ Real stock detection returned no variants, keeping original');
             }
           } catch (error) {
-            console.log('❌ Real stock detection failed:', error);
+            console.log('âŒ Real stock detection failed:', error);
             // Keep original variants if real detection fails
           }
         }
@@ -2369,8 +2370,8 @@ setTimeout(check, 1000);
 
         
         if (result.success) {
-          console.log(`🎯 Scenario: ${result.scenario}, Confidence: ${result.confidence}%`);
-          console.log(`🎯 Variants: ${result.variants?.length || 0} adet`);
+          console.log(`ğŸ¯ Scenario: ${result.scenario}, Confidence: ${result.confidence}%`);
+          console.log(`ğŸ¯ Variants: ${result.variants?.length || 0} adet`);
           
           // Ensure variants is always an array
           if (!result.variants) {
@@ -2378,12 +2379,12 @@ setTimeout(check, 1000);
           }
           
           // Tags are no longer automatically added - only manual tags from CSV preview
-          console.log(`🏷️ Product extracted with ${(result.tags || []).length} tags`);
+          console.log(`ğŸ·ï¸ Product extracted with ${(result.tags || []).length} tags`);
           if (!result.tags) {
             result.tags = [];
           }
           
-          // ✅ TEK BİLDİRİM: Sadece veri çekme modunda basit bildirim gönder
+          // âœ… TEK BÄ°LDÄ°RÄ°M: Sadece veri Ã§ekme modunda basit bildirim gÃ¶nder
           if (onlyExtractData) {
             try {
               const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
@@ -2391,26 +2392,26 @@ setTimeout(check, 1000);
               const variantCount = Array.isArray(variantInfo) ? variantInfo.length : (variantInfo.allVariants?.length || 0);
               
               const message = `
-🔍 <b>YENİ ÜRÜN VERİSİ ÇEKİLDİ</b>
+ğŸ” <b>YENÄ° ÃœRÃœN VERÄ°SÄ° Ã‡EKÄ°LDÄ°</b>
 
-📦 <b>Ürün:</b> ${result.title}
-🏢 <b>Marka:</b> ${result.brand || 'Bilinmeyen'}
-💰 <b>Fiyat:</b> ${result.price.original} TL
-🎨 <b>Varyant:</b> ${variantCount} adet
-📸 <b>Görsel:</b> ${result.images?.length || 0} adet
+ğŸ“¦ <b>ÃœrÃ¼n:</b> ${result.title}
+ğŸ¢ <b>Marka:</b> ${result.brand || 'Bilinmeyen'}
+ğŸ’° <b>Fiyat:</b> ${result.price.original} TL
+ğŸ¨ <b>Varyant:</b> ${variantCount} adet
+ğŸ“¸ <b>GÃ¶rsel:</b> ${result.images?.length || 0} adet
 
-🔗 <b>Kaynak:</b> ${url}
-⏰ <b>Zaman:</b> ${new Date().toLocaleString('tr-TR')}
+ğŸ”— <b>Kaynak:</b> ${url}
+â° <b>Zaman:</b> ${new Date().toLocaleString('tr-TR')}
               `.trim();
               
               await sendFilteredTelegramNotification(message);
-              console.log('📱 Ürün veri çekme bildirimi gönderildi');
+              console.log('ğŸ“± ÃœrÃ¼n veri Ã§ekme bildirimi gÃ¶nderildi');
             } catch (error) {
-              console.error('⚠️ Telegram bildirimi hatası:', error);
+              console.error('âš ï¸ Telegram bildirimi hatasÄ±:', error);
             }
           }
           
-          // ✅ Sadece Shopify transfer modunda Shopify tracking kaydı oluştur
+          // âœ… Sadece Shopify transfer modunda Shopify tracking kaydÄ± oluÅŸtur
           if (!onlyExtractData) {
             try {
               const { shopifyTransferTracker } = await import('./shopify-transfer-tracker');
@@ -2432,29 +2433,29 @@ setTimeout(check, 1000);
                   confidence: result.confidence
                 }
               });
-              console.log('📦 Shopify transfer kaydı oluşturuldu');
+              console.log('ğŸ“¦ Shopify transfer kaydÄ± oluÅŸturuldu');
             } catch (trackingError) {
-              console.error('⚠️ Shopify transfer tracking hatası (devam ediyor):', trackingError);
+              console.error('âš ï¸ Shopify transfer tracking hatasÄ± (devam ediyor):', trackingError);
             }
           } else {
-            console.log('📝 Sadece veri çekme modu - Shopify transfer tracking atlandı');
+            console.log('ğŸ“ Sadece veri Ã§ekme modu - Shopify transfer tracking atlandÄ±');
           }
 
-          // ✅ SHOPIFY TRANSFER BİLDİRİMİ KALDIRILDI - Sadece veri çekme modunda tek bildirim yeterli
-          console.log('📝 Telegram bildirimi: Sadece veri çekme modunda gönderildi, Shopify transfer bildirimi devre dışı');
+          // âœ… SHOPIFY TRANSFER BÄ°LDÄ°RÄ°MÄ° KALDIRILDI - Sadece veri Ã§ekme modunda tek bildirim yeterli
+          console.log('ğŸ“ Telegram bildirimi: Sadece veri Ã§ekme modunda gÃ¶nderildi, Shopify transfer bildirimi devre dÄ±ÅŸÄ±');
           
-          // ✅ Otomatik tracking kaldırıldı - Kullanıcı önce ürün verilerini görecek
-          // Tracking sadece Shopify'a aktarım sonrası aktif olacak
-          console.log('ℹ️  Ürün verisi çekildi, tracking Shopify transfer sonrası aktif olacak');
+          // âœ… Otomatik tracking kaldÄ±rÄ±ldÄ± - KullanÄ±cÄ± Ã¶nce Ã¼rÃ¼n verilerini gÃ¶recek
+          // Tracking sadece Shopify'a aktarÄ±m sonrasÄ± aktif olacak
+          console.log('â„¹ï¸  ÃœrÃ¼n verisi Ã§ekildi, tracking Shopify transfer sonrasÄ± aktif olacak');
           
-          // ✅ CRITICAL FIX: Normalize variants for frontend
-          console.log('🔧 VARIANT DEBUG: result.variants type:', typeof result.variants);
-          console.log('🔧 VARIANT DEBUG: result.variants:', JSON.stringify(result.variants, null, 2));
+          // âœ… CRITICAL FIX: Normalize variants for frontend
+          console.log('ğŸ”§ VARIANT DEBUG: result.variants type:', typeof result.variants);
+          console.log('ğŸ”§ VARIANT DEBUG: result.variants:', JSON.stringify(result.variants, null, 2));
           
           // Normalize variants to expected frontend format
           let normalizedVariants;
           if (Array.isArray(result.variants)) {
-            console.log('✅ NORMALIZING: Array format detected, converting to object format');
+            console.log('âœ… NORMALIZING: Array format detected, converting to object format');
             const allVariants = result.variants;
             const colors = [...new Set(allVariants.map(v => v.color).filter(c => c && c.trim() !== ''))];
             const sizes = [...new Set(allVariants.map(v => v.size).filter(s => s && s.trim() !== ''))];
@@ -2472,12 +2473,12 @@ setTimeout(check, 1000);
               allVariants,
               stockMap
             };
-            console.log(`🎯 NORMALIZED: ${colors.length} colors, ${sizes.length} sizes, ${allVariants.length} variants`);
+            console.log(`ğŸ¯ NORMALIZED: ${colors.length} colors, ${sizes.length} sizes, ${allVariants.length} variants`);
           } else if (result.variants && typeof result.variants === 'object') {
-            console.log('✅ NORMALIZING: Object format detected, using as-is');
+            console.log('âœ… NORMALIZING: Object format detected, using as-is');
             normalizedVariants = result.variants;
           } else {
-            console.log('⚠️ NORMALIZING: No variants found, creating empty object');
+            console.log('âš ï¸ NORMALIZING: No variants found, creating empty object');
             normalizedVariants = {
               colors: [],
               sizes: [],
@@ -2486,17 +2487,17 @@ setTimeout(check, 1000);
             };
           }
 
-          // ✅ DEBUG: Log images before sending to frontend
-          console.log(`📸 ROUTES: Sending ${result.images?.length || 0} images to frontend`);
-          console.log(`📸 ROUTES: Images format:`, JSON.stringify(result.images?.slice(0, 2)));
+          // âœ… DEBUG: Log images before sending to frontend
+          console.log(`ğŸ“¸ ROUTES: Sending ${result.images?.length || 0} images to frontend`);
+          console.log(`ğŸ“¸ ROUTES: Images format:`, JSON.stringify(result.images?.slice(0, 2)));
           
-          // 🚫 CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
+          // ğŸš« CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
           // Using centralized CLOTHING_KEYWORDS and FAKE_CLOTHING_SIZES from clothing-keywords.ts
           const hasClothingKeyword = isClothingProduct(result.title);
           
           if (!hasClothingKeyword && normalizedVariants) {
-            console.log(`🚫 ROUTES FINAL GATE: "${result.title?.substring(0, 40)}..." is NOT clothing`);
-            console.log(`🚫 STRIPPING FAKE S/M/L SIZES - preserving real variants`);
+            console.log(`ğŸš« ROUTES FINAL GATE: "${result.title?.substring(0, 40)}..." is NOT clothing`);
+            console.log(`ğŸš« STRIPPING FAKE S/M/L SIZES - preserving real variants`);
             
             if (normalizedVariants.sizes) {
               normalizedVariants.sizes = normalizedVariants.sizes.filter((s: string) => {
@@ -2508,7 +2509,7 @@ setTimeout(check, 1000);
               normalizedVariants.allVariants = normalizedVariants.allVariants.map((v: any) => {
                 const sizeLower = (v.size || '').toLowerCase().trim();
                 if (FAKE_CLOTHING_SIZES.includes(sizeLower)) {
-                  console.log(`🚫 Final Gate: Stripping fake size "${v.size}"`);
+                  console.log(`ğŸš« Final Gate: Stripping fake size "${v.size}"`);
                   return { ...v, size: '' };
                 }
                 return v;
@@ -2523,10 +2524,10 @@ setTimeout(check, 1000);
                 newStockMap[key] = v.inStock;
               });
               normalizedVariants.stockMap = newStockMap;
-              console.log(`🔄 StockMap rebuilt after sanitization`);
+              console.log(`ğŸ”„ StockMap rebuilt after sanitization`);
             }
           } else if (hasClothingKeyword) {
-            console.log(`✅ ROUTES FINAL GATE: Product IS clothing - sizes preserved`);
+            console.log(`âœ… ROUTES FINAL GATE: Product IS clothing - sizes preserved`);
           }
           
           let csvContent = result.csvContent || '';
@@ -2583,7 +2584,7 @@ setTimeout(check, 1000);
           });
           return;
         } else {
-          console.log("❌ Scenario-based extraction failed");
+          console.log("âŒ Scenario-based extraction failed");
           const statusCode = result.extractionDetails?.scenario === 'blocked' ? 503 : 500;
           scrapeJobs.set(jobId, {
             status: 'done' as const,
@@ -2592,7 +2593,7 @@ setTimeout(check, 1000);
               success: false,
               statusCode,
               message: result.extractionDetails?.scenario === 'blocked'
-                ? 'Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyin.'
+                ? 'Trendyol tarafÄ±ndan engellendiniz. LÃ¼tfen birkaÃ§ dakika bekleyin.'
                 : 'Scenario-based extraction failed',
               details: result.extractionDetails
             }
@@ -2600,7 +2601,7 @@ setTimeout(check, 1000);
           return;
         }
           } catch (bgErr: any) {
-            console.error('❌ Background scrape error:', bgErr);
+            console.error('âŒ Background scrape error:', bgErr);
             const _entry = scrapeJobs.get(jobId);
             if (_entry && _entry.status === 'processing') {
               scrapeJobs.set(jobId, { ..._entry, status: 'error' as const, error: bgErr.message });
@@ -2609,7 +2610,7 @@ setTimeout(check, 1000);
             clearTimeout(jobWatchdog);
           }
         })();
-        // Return immediately — client polls /api/scrape-job/:jobId
+        // Return immediately â€” client polls /api/scrape-job/:jobId
         return res.json({ jobId, status: 'processing' });
       } else {
         return res.status(400).json({
@@ -2619,7 +2620,7 @@ setTimeout(check, 1000);
       }
       
     } catch (error: any) {
-      console.error('❌ Trendyol scrape error:', error);
+      console.error('âŒ Trendyol scrape error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -2631,12 +2632,12 @@ setTimeout(check, 1000);
   app.post('/api/trendyol-scrape', postTrendyolScrapeHandler);
   app.post('/api/scenario-scrape', postTrendyolScrapeHandler);
 
-  // URL çözümleyici fonksiyonu
+  // URL Ã§Ã¶zÃ¼mleyici fonksiyonu
   const resolveShortUrl = async (url: string): Promise<string> => {
     try {
-      // ty.gl kısaltılmış URL kontrolü
+      // ty.gl kÄ±saltÄ±lmÄ±ÅŸ URL kontrolÃ¼
       if (url.includes('ty.gl/')) {
-        console.log('🔄 Kısaltılmış URL tespit edildi, çözümleniyor...');
+        console.log('ğŸ”„ KÄ±saltÄ±lmÄ±ÅŸ URL tespit edildi, Ã§Ã¶zÃ¼mleniyor...');
         
         const puppeteer = require('puppeteer');
         const { buildLaunchOptions } = await import('./puppeteer-config');
@@ -2651,7 +2652,7 @@ setTimeout(check, 1000);
         });
         
         const finalUrl = page.url();
-        console.log(`✅ URL çözümlendi: ${finalUrl}`);
+        console.log(`âœ… URL Ã§Ã¶zÃ¼mlendi: ${finalUrl}`);
         
         await browser.close();
         return finalUrl;
@@ -2659,7 +2660,7 @@ setTimeout(check, 1000);
       
       return url;
     } catch (error) {
-      console.error('❌ URL çözümleme hatası:', error);
+      console.error('âŒ URL Ã§Ã¶zÃ¼mleme hatasÄ±:', error);
       return url;
     }
   };
@@ -2676,21 +2677,21 @@ setTimeout(check, 1000);
         });
       }
       
-      console.log('📊 Main extraction for:', url);
+      console.log('ğŸ“Š Main extraction for:', url);
       
-      // URL çözümle (kısaltılmış URL'ler için)
+      // URL Ã§Ã¶zÃ¼mle (kÄ±saltÄ±lmÄ±ÅŸ URL'ler iÃ§in)
       url = await resolveShortUrl(url);
       
       // Enhanced product data extraction for Trendyol products
       if (url.includes('trendyol.com')) {
         try {
           // ULTRA SPEED EXTRACTOR - MAXIMUM A++ PERFORMANCE
-          console.log("⚡⚡⚡ ULTRA SPEED EXTRACTOR - MAXIMUM A++ PERFORMANCE!");
+          console.log("âš¡âš¡âš¡ ULTRA SPEED EXTRACTOR - MAXIMUM A++ PERFORMANCE!");
           const { ultraSpeedExtract } = await import('./ultra-speed-extractor');
           const ultraResult = await ultraSpeedExtract(url);
           
           if (ultraResult && ultraResult.success) {
-            console.log("🚀🚀🚀 ULTRA SPEED SUCCESS - MAXIMUM PERFORMANCE ACHIEVED!");
+            console.log("ğŸš€ğŸš€ğŸš€ ULTRA SPEED SUCCESS - MAXIMUM PERFORMANCE ACHIEVED!");
             
             return res.json({
               success: true,
@@ -2707,11 +2708,11 @@ setTimeout(check, 1000);
           }
           
           // Fallback to fixed authentic scraper if ultra-speed fails
-          console.log("🎯 Ultra-speed failed, trying Fixed Authentic Trendyol Scraper...");
+          console.log("ğŸ¯ Ultra-speed failed, trying Fixed Authentic Trendyol Scraper...");
           const cleanResult = await fixedAuthenticScrape(url);
           
           if (cleanResult.success) {
-            console.log("🧹 Clean Scraper SUCCESS - authentic data extracted");
+            console.log("ğŸ§¹ Clean Scraper SUCCESS - authentic data extracted");
             
             return res.json({
               success: true,
@@ -2730,11 +2731,11 @@ setTimeout(check, 1000);
           const { lightningFastScrape } = await import('./lightning-scraper');
           const { scrapeWithEnhancedMethod } = await import('./enhanced-trendyol-scraper');
           
-          console.log("🚀 Clean failed, trying Hyper-Fast Scraper...");
+          console.log("ğŸš€ Clean failed, trying Hyper-Fast Scraper...");
           const hyperResult = await hyperFastScrape(url);
           
           if (hyperResult && hyperResult.title) {
-            console.log("🚀 Hyper result: SUCCESS");
+            console.log("ğŸš€ Hyper result: SUCCESS");
             
             // Apply 15% profit margin
             const priceWithProfit = Math.round(hyperResult.price * 1.15 * 100) / 100;
@@ -2751,11 +2752,11 @@ setTimeout(check, 1000);
             });
           }
           
-          console.log("⚡ Hyper failed, trying Lightning Scraper...");
+          console.log("âš¡ Hyper failed, trying Lightning Scraper...");
           const lightningResult = await lightningFastScrape(url);
           
           if (lightningResult && lightningResult.title) {
-            console.log("⚡ Lightning result: SUCCESS");
+            console.log("âš¡ Lightning result: SUCCESS");
             
             const priceWithProfit = Math.round(lightningResult.price * 1.15 * 100) / 100;
             
@@ -2771,16 +2772,16 @@ setTimeout(check, 1000);
             });
           }
           
-          console.log("🔍 Both fast scrapers failed, using Enhanced Scraper...");
+          console.log("ğŸ” Both fast scrapers failed, using Enhanced Scraper...");
           const enhancedResult = await scrapeWithEnhancedMethod(url);
           
           if (enhancedResult && enhancedResult.title) {
-            console.log("🔍 Enhanced result: Found");
-            console.log("✅ Enhanced Scraper successful:", enhancedResult.title);
+            console.log("ğŸ” Enhanced result: Found");
+            console.log("âœ… Enhanced Scraper successful:", enhancedResult.title);
             
             const priceWithProfit = Math.round(enhancedResult.price * 1.15 * 100) / 100;
             
-            console.log(`🎯 Returning enhanced data: ${enhancedResult.price} TL, ${enhancedResult.images.length} images`);
+            console.log(`ğŸ¯ Returning enhanced data: ${enhancedResult.price} TL, ${enhancedResult.images.length} images`);
             
             return res.json({
               success: true,
@@ -2835,7 +2836,7 @@ setTimeout(check, 1000);
         });
       }
       
-      console.log('🧪 MANUAL EXTRACTION TEST for:', url);
+      console.log('ğŸ§ª MANUAL EXTRACTION TEST for:', url);
       
       // Enhanced product data extraction for Trendyol products
       if (url.includes('trendyol.com')) {
@@ -2845,11 +2846,11 @@ setTimeout(check, 1000);
           const { lightningFastScrape } = await import('./lightning-scraper');
           const { scrapeWithEnhancedMethod } = await import('./enhanced-trendyol-scraper');
           
-          console.log("🚀 Using Hyper-Fast Scraper...");
+          console.log("ğŸš€ Using Hyper-Fast Scraper...");
           const hyperResult = await hyperFastScrape(url);
           
           if (hyperResult && hyperResult.title) {
-            console.log("🚀 Hyper result: SUCCESS");
+            console.log("ğŸš€ Hyper result: SUCCESS");
             
             // Apply 15% profit margin
             const priceWithProfit = Math.round(hyperResult.price * 1.15 * 100) / 100;
@@ -2866,11 +2867,11 @@ setTimeout(check, 1000);
             });
           }
           
-          console.log("⚡ Hyper failed, trying Lightning Scraper...");
+          console.log("âš¡ Hyper failed, trying Lightning Scraper...");
           const lightningResult = await lightningFastScrape(url);
           
           if (lightningResult && lightningResult.title) {
-            console.log("⚡ Lightning result: SUCCESS");
+            console.log("âš¡ Lightning result: SUCCESS");
             
             const priceWithProfit = Math.round(lightningResult.price * 1.15 * 100) / 100;
             
@@ -2886,16 +2887,16 @@ setTimeout(check, 1000);
             });
           }
           
-          console.log("🔍 Both fast scrapers failed, using Enhanced Scraper...");
+          console.log("ğŸ” Both fast scrapers failed, using Enhanced Scraper...");
           const enhancedResult = await scrapeWithEnhancedMethod(url);
           
           if (enhancedResult && enhancedResult.title) {
-            console.log("🔍 Enhanced result: Found");
-            console.log("✅ Enhanced Scraper successful:", enhancedResult.title);
+            console.log("ğŸ” Enhanced result: Found");
+            console.log("âœ… Enhanced Scraper successful:", enhancedResult.title);
             
             const priceWithProfit = Math.round(enhancedResult.price * 1.15 * 100) / 100;
             
-            console.log(`🎯 Returning enhanced data: ${enhancedResult.price} TL, ${enhancedResult.images.length} images`);
+            console.log(`ğŸ¯ Returning enhanced data: ${enhancedResult.price} TL, ${enhancedResult.images.length} images`);
             
             return res.json({
               success: true,
@@ -2950,7 +2951,7 @@ setTimeout(check, 1000);
         });
       }
       
-      console.log(`⚡⚡⚡ ULTRA SPEED BATCH EXTRACTION - Processing ${urls.length} URLs in parallel!`);
+      console.log(`âš¡âš¡âš¡ ULTRA SPEED BATCH EXTRACTION - Processing ${urls.length} URLs in parallel!`);
       
       const { ultraSpeedBatchExtract } = await import('./ultra-speed-extractor');
       const startTime = Date.now();
@@ -2958,8 +2959,8 @@ setTimeout(check, 1000);
       const results = await ultraSpeedBatchExtract(urls);
       const processingTime = Date.now() - startTime;
       
-      console.log(`🚀🚀🚀 BATCH EXTRACTION COMPLETE - ${urls.length} URLs in ${processingTime}ms!`);
-      console.log(`⚡ Average speed: ${Math.round(processingTime / urls.length)}ms per URL`);
+      console.log(`ğŸš€ğŸš€ğŸš€ BATCH EXTRACTION COMPLETE - ${urls.length} URLs in ${processingTime}ms!`);
+      console.log(`âš¡ Average speed: ${Math.round(processingTime / urls.length)}ms per URL`);
       
       return res.json({
         success: true,
@@ -3051,14 +3052,14 @@ setTimeout(check, 1000);
     try {
       const { forceResetCircuitBreaker } = await import('./advanced-proxy-rotator');
       forceResetCircuitBreaker();
-      console.log('🔄 API: Circuit breaker reset via endpoint');
+      console.log('ğŸ”„ API: Circuit breaker reset via endpoint');
       res.json({ 
         success: true, 
         message: 'Circuit breaker has been reset - ready for new Trendyol requests',
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      console.error('❌ API: Failed to reset circuit breaker:', error);
+      console.error('âŒ API: Failed to reset circuit breaker:', error);
       res.status(500).json({ 
         success: false, 
         message: 'Failed to reset circuit breaker',
@@ -3076,7 +3077,7 @@ setTimeout(check, 1000);
         return res.status(400).json({ error: 'Invalid image URL' });
       }
 
-      console.log('🖼️ Proxy image request:', imageUrl);
+      console.log('ğŸ–¼ï¸ Proxy image request:', imageUrl);
 
       const { fetchTrendyolProxiedImage } = await import('./trendyol-image-proxy');
       const result = await fetchTrendyolProxiedImage(imageUrl);
@@ -3093,7 +3094,7 @@ setTimeout(check, 1000);
 
       return res.send(result.data);
     } catch (error: any) {
-      console.error('❌ Image proxy error:', error.response?.status || error.message);
+      console.error('âŒ Image proxy error:', error.response?.status || error.message);
       return res.status(502).json({ error: 'Image proxy failed' });
     }
   });
@@ -3102,14 +3103,14 @@ setTimeout(check, 1000);
     try {
       const url = req.query.url as string;
       if (!url || !url.includes('trendyol.com')) {
-        return res.status(400).json({ error: 'Geçerli Trendyol URL gerekli' });
+        return res.status(400).json({ error: 'GeÃ§erli Trendyol URL gerekli' });
       }
       const { fetchTrendyolProductImages } = await import('./trendyol-image-fetcher');
       const images = await fetchTrendyolProductImages(url);
       return res.json({ images, count: images.length });
     } catch (error: any) {
-      console.error('❌ Preview images error:', error?.message || error);
-      return res.status(502).json({ error: 'Görsel yenileme başarısız' });
+      console.error('âŒ Preview images error:', error?.message || error);
+      return res.status(502).json({ error: 'GÃ¶rsel yenileme baÅŸarÄ±sÄ±z' });
     }
   });
 
@@ -3119,10 +3120,10 @@ setTimeout(check, 1000);
       const { productData } = req.body;
       
       if (!productData) {
-        return res.status(400).json({ message: "Ürün verisi gerekli" });
+        return res.status(400).json({ message: "ÃœrÃ¼n verisi gerekli" });
       }
 
-      console.log('🏪 Boutique CSV oluşturuluyor...');
+      console.log('ğŸª Boutique CSV oluÅŸturuluyor...');
       const csvContent = generateBoutiqueCSV(
         productData.title,
         productData.brand,
@@ -3134,30 +3135,30 @@ setTimeout(check, 1000);
       res.setHeader('Content-Disposition', 'attachment; filename="boutique-mayo-shopify.csv"');
       res.send(csvContent);
     } catch (error) {
-      console.error('Boutique CSV oluşturma hatası:', error);
+      console.error('Boutique CSV oluÅŸturma hatasÄ±:', error);
       res.status(500).json({ 
-        message: "Boutique CSV oluşturulamadı", 
+        message: "Boutique CSV oluÅŸturulamadÄ±", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
   });
 
-  // Multi-color CSV endpoint - Her renk için ayrı görseller
+  // Multi-color CSV endpoint - Her renk iÃ§in ayrÄ± gÃ¶rseller
   app.post('/api/multi-color-csv', async (req, res) => {
     try {
       const { url, productData } = req.body;
       
       if (!url || !productData) {
-        return res.status(400).json({ message: "URL ve ürün verisi gerekli" });
+        return res.status(400).json({ message: "URL ve Ã¼rÃ¼n verisi gerekli" });
       }
 
-      console.log('🎨 Multi-color CSV oluşturuluyor...');
+      console.log('ğŸ¨ Multi-color CSV oluÅŸturuluyor...');
       
-      // Her renk için ayrı görselleri çıkar
+      // Her renk iÃ§in ayrÄ± gÃ¶rselleri Ã§Ä±kar
       const colorImages = await extractAllColorImages(url);
       
       if (Object.keys(colorImages).length === 0) {
-        console.log('⚠️ Renk görselleri bulunamadı, standart CSV oluşturuluyor...');
+        console.log('âš ï¸ Renk gÃ¶rselleri bulunamadÄ±, standart CSV oluÅŸturuluyor...');
         const csvContent = generateBoutiqueCSV(
           productData.title,
           productData.brand,
@@ -3171,7 +3172,7 @@ setTimeout(check, 1000);
         return;
       }
       
-      // Multi-color CSV oluştur
+      // Multi-color CSV oluÅŸtur
       const csvContent = await generateMultiColorCSV(
         productData.title,
         productData.brand,
@@ -3183,34 +3184,34 @@ setTimeout(check, 1000);
       res.setHeader('Content-Disposition', 'attachment; filename="multi-color-mayo-shopify.csv"');
       res.send(csvContent);
     } catch (error) {
-      console.error('Multi-color CSV oluşturma hatası:', error);
+      console.error('Multi-color CSV oluÅŸturma hatasÄ±:', error);
       res.status(500).json({ 
-        message: "Multi-color CSV oluşturulamadı", 
+        message: "Multi-color CSV oluÅŸturulamadÄ±", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
   });
 
-  // Mayo Color CSV endpoint - Özel mayo renk sistemi
+  // Mayo Color CSV endpoint - Ã–zel mayo renk sistemi
   app.post('/api/mayo-color-csv', async (req, res) => {
     try {
       const { url, productData } = req.body;
       
       if (!url || !productData) {
-        return res.status(400).json({ message: "URL ve ürün verisi gerekli" });
+        return res.status(400).json({ message: "URL ve Ã¼rÃ¼n verisi gerekli" });
       }
 
-      console.log('🏊‍♀️ Mayo color CSV oluşturuluyor...');
+      console.log('ğŸŠâ€â™€ï¸ Mayo color CSV oluÅŸturuluyor...');
       
-      // Mayo renk varyantlarını çıkar
+      // Mayo renk varyantlarÄ±nÄ± Ã§Ä±kar
       const colorVariants = await extractMayoColorVariants(url);
       
       if (colorVariants.length === 0) {
-        console.log('⚠️ Mayo renk varyantları bulunamadı');
-        return res.status(400).json({ message: "Renk varyantları bulunamadı" });
+        console.log('âš ï¸ Mayo renk varyantlarÄ± bulunamadÄ±');
+        return res.status(400).json({ message: "Renk varyantlarÄ± bulunamadÄ±" });
       }
       
-      // Mayo color CSV oluştur
+      // Mayo color CSV oluÅŸtur
       const csvContent = generateMayoColorCSV(
         colorVariants,
         productData.title,
@@ -3221,37 +3222,37 @@ setTimeout(check, 1000);
       res.setHeader('Content-Disposition', 'attachment; filename="mayo-color-variants.csv"');
       res.send(csvContent);
     } catch (error) {
-      console.error('Mayo color CSV oluşturma hatası:', error);
+      console.error('Mayo color CSV oluÅŸturma hatasÄ±:', error);
       res.status(500).json({ 
-        message: "Mayo color CSV oluşturulamadı", 
+        message: "Mayo color CSV oluÅŸturulamadÄ±", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
   });
 
-  // Real Mayo Color CSV endpoint - Gerçek renk tespiti
+  // Real Mayo Color CSV endpoint - GerÃ§ek renk tespiti
   app.post('/api/mayo-real-color-csv', async (req, res) => {
     try {
       const { url, productData } = req.body;
       
       if (!url || !productData) {
-        return res.status(400).json({ message: "URL ve ürün verisi gerekli" });
+        return res.status(400).json({ message: "URL ve Ã¼rÃ¼n verisi gerekli" });
       }
 
-      console.log('🎨 GERÇEK mayo color CSV oluşturuluyor...');
+      console.log('ğŸ¨ GERÃ‡EK mayo color CSV oluÅŸturuluyor...');
       
-      // Gerçek renk varyantlarını tespit et
+      // GerÃ§ek renk varyantlarÄ±nÄ± tespit et
       const realColors = await detectMayoRealColors(url);
       
       if (realColors.length === 0) {
-        console.log('⚠️ Gerçek mayo renk varyantları bulunamadı');
-        return res.status(400).json({ message: "Gerçek renk varyantları bulunamadı" });
+        console.log('âš ï¸ GerÃ§ek mayo renk varyantlarÄ± bulunamadÄ±');
+        return res.status(400).json({ message: "GerÃ§ek renk varyantlarÄ± bulunamadÄ±" });
       }
       
-      // Renklere özel görselleri ata
+      // Renklere Ã¶zel gÃ¶rselleri ata
       const colorsWithImages = await assignColorsToImages(realColors, url);
       
-      // Mayo color CSV oluştur - gerçek renklerle
+      // Mayo color CSV oluÅŸtur - gerÃ§ek renklerle
       const csvContent = generateMayoColorCSV(
         colorsWithImages.map(c => ({
           color: c.color,
@@ -3269,15 +3270,15 @@ setTimeout(check, 1000);
       res.setHeader('Content-Disposition', 'attachment; filename="mayo-real-colors.csv"');
       res.send(csvContent);
     } catch (error) {
-      console.error('Real mayo color CSV oluşturma hatası:', error);
+      console.error('Real mayo color CSV oluÅŸturma hatasÄ±:', error);
       res.status(500).json({ 
-        message: "Real mayo color CSV oluşturulamadı", 
+        message: "Real mayo color CSV oluÅŸturulamadÄ±", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
   });
 
-  // Tüm Ürün Görsellerini Çıkarma endpoint
+  // TÃ¼m ÃœrÃ¼n GÃ¶rsellerini Ã‡Ä±karma endpoint
   app.post('/api/extract-all-images', async (req, res) => {
     try {
       const { url } = req.body;
@@ -3286,7 +3287,7 @@ setTimeout(check, 1000);
         return res.status(400).json({ message: "URL gerekli" });
       }
 
-      console.log('🖼️ TÜM ürün görselleri çıkarılıyor...');
+      console.log('ğŸ–¼ï¸ TÃœM Ã¼rÃ¼n gÃ¶rselleri Ã§Ä±karÄ±lÄ±yor...');
       
       // First get HTML content from URL
       const response = await axios.get(url, {
@@ -3299,11 +3300,11 @@ setTimeout(check, 1000);
       const allImages = extractImagesFromHTML(response.data);
       
       if (allImages.length === 0) {
-        console.log('⚠️ Hiç görsel bulunamadı');
-        return res.status(400).json({ message: "Görsel bulunamadı" });
+        console.log('âš ï¸ HiÃ§ gÃ¶rsel bulunamadÄ±');
+        return res.status(400).json({ message: "GÃ¶rsel bulunamadÄ±" });
       }
       
-      console.log(`✅ ${allImages.length} görsel başarıyla çıkarıldı`);
+      console.log(`âœ… ${allImages.length} gÃ¶rsel baÅŸarÄ±yla Ã§Ä±karÄ±ldÄ±`);
       
       res.json({
         success: true,
@@ -3315,15 +3316,15 @@ setTimeout(check, 1000);
         }
       });
     } catch (error) {
-      console.error('Görsel çıkarma hatası:', error);
+      console.error('GÃ¶rsel Ã§Ä±karma hatasÄ±:', error);
       res.status(500).json({ 
-        message: "Görsel çıkarılamadı", 
+        message: "GÃ¶rsel Ã§Ä±karÄ±lamadÄ±", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
   });
 
-  // Tüm Görselleri CSV olarak indirme endpoint
+  // TÃ¼m GÃ¶rselleri CSV olarak indirme endpoint
   app.post('/api/images-csv', async (req, res) => {
     try {
       const { url, productTitle } = req.body;
@@ -3332,7 +3333,7 @@ setTimeout(check, 1000);
         return res.status(400).json({ message: "URL gerekli" });
       }
 
-      console.log('📄 Tüm görseller için CSV oluşturuluyor...');
+      console.log('ğŸ“„ TÃ¼m gÃ¶rseller iÃ§in CSV oluÅŸturuluyor...');
       
       // First get HTML content from URL
       const response = await axios.get(url, {
@@ -3345,19 +3346,19 @@ setTimeout(check, 1000);
       const allImages = extractImagesFromHTML(response.data);
       
       if (allImages.length === 0) {
-        return res.status(400).json({ message: "Görsel bulunamadı" });
+        return res.status(400).json({ message: "GÃ¶rsel bulunamadÄ±" });
       }
       
-      // CSV içerik oluştur
-      const csvContent = generateImageCSV(allImages, productTitle || 'Ürün');
+      // CSV iÃ§erik oluÅŸtur
+      const csvContent = generateImageCSV(allImages, productTitle || 'ÃœrÃ¼n');
       
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="product-all-images.csv"');
       res.send(csvContent);
     } catch (error) {
-      console.error('Görsel CSV oluşturma hatası:', error);
+      console.error('GÃ¶rsel CSV oluÅŸturma hatasÄ±:', error);
       res.status(500).json({ 
-        message: "CSV oluşturulamadı", 
+        message: "CSV oluÅŸturulamadÄ±", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
@@ -3372,7 +3373,7 @@ setTimeout(check, 1000);
         return res.status(400).json({ message: "URL gerekli" });
       }
 
-      console.log('🔍 Ürün özellikleri çıkarılıyor...');
+      console.log('ğŸ” ÃœrÃ¼n Ã¶zellikleri Ã§Ä±karÄ±lÄ±yor...');
       
       // First get HTML content from URL
       const response = await axios.get(url, {
@@ -3384,7 +3385,7 @@ setTimeout(check, 1000);
       // Extract features from HTML content
       const features = extractProductFeaturesFromHTML(response.data);
       
-      console.log(`✅ ${features.length} özellik başarıyla çıkarıldı`);
+      console.log(`âœ… ${features.length} Ã¶zellik baÅŸarÄ±yla Ã§Ä±karÄ±ldÄ±`);
       
       res.json({
         success: true,
@@ -3392,9 +3393,9 @@ setTimeout(check, 1000);
         features: features
       });
     } catch (error) {
-      console.error('Özellik çıkarma hatası:', error);
+      console.error('Ã–zellik Ã§Ä±karma hatasÄ±:', error);
       res.status(500).json({ 
-        message: "Özellikler çıkarılamadı", 
+        message: "Ã–zellikler Ã§Ä±karÄ±lamadÄ±", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
@@ -3429,14 +3430,14 @@ setTimeout(check, 1000);
         }
       }
       
-      console.log(`🎨 Multi-URL scrape request: ${urls.length} color variants`);
+      console.log(`ğŸ¨ Multi-URL scrape request: ${urls.length} color variants`);
       
       const result = await scrapeMultipleUrls({
         urls: urls,
         mode: 'multi-url'
       });
       
-      // CSV oluştur
+      // CSV oluÅŸtur
       const csvContent = await generateMultiVariantShopifyCSV(result);
       
       return res.json({
@@ -3448,7 +3449,7 @@ setTimeout(check, 1000);
       });
       
     } catch (error) {
-      console.error('❌ Multi-URL scraper error:', error);
+      console.error('âŒ Multi-URL scraper error:', error);
       return res.status(500).json({
         success: false,
         error: 'Multi-URL extraction failed',
@@ -3465,7 +3466,7 @@ setTimeout(check, 1000);
       const isConnected = await shopifyProductsManager.testConnection();
       res.json({
         success: isConnected,
-        message: isConnected ? 'Shopify bağlantısı başarılı' : 'Shopify bağlantısı başarısız'
+        message: isConnected ? 'Shopify baÄŸlantÄ±sÄ± baÅŸarÄ±lÄ±' : 'Shopify baÄŸlantÄ±sÄ± baÅŸarÄ±sÄ±z'
       });
     } catch (error: any) {
       res.status(500).json({
@@ -3531,7 +3532,7 @@ setTimeout(check, 1000);
       } else {
         res.status(404).json({
           success: false,
-          message: 'Ürün bulunamadı'
+          message: 'ÃœrÃ¼n bulunamadÄ±'
         });
       }
     } catch (error: any) {
@@ -3558,7 +3559,7 @@ setTimeout(check, 1000);
       if (!sourceUrl || sourceUrl.trim() === '') {
         return res.status(400).json({
           success: false,
-          message: 'Geçerli bir Trendyol URL\'si gerekli'
+          message: 'GeÃ§erli bir Trendyol URL\'si gerekli'
         });
       }
 
@@ -3570,13 +3571,13 @@ setTimeout(check, 1000);
         if (!urlObj.hostname.includes('trendyol.com')) {
           return res.status(400).json({
             success: false,
-            message: 'URL Trendyol domain\'inden olmalı (trendyol.com)'
+            message: 'URL Trendyol domain\'inden olmalÄ± (trendyol.com)'
           });
         }
       } catch (e) {
         return res.status(400).json({
           success: false,
-          message: 'Geçerli bir URL formatı değil'
+          message: 'GeÃ§erli bir URL formatÄ± deÄŸil'
         });
       }
 
@@ -3607,7 +3608,7 @@ setTimeout(check, 1000);
         if (productInfo.length === 0) {
           return res.status(404).json({
             success: false,
-            message: 'Ürün bulunamadı'
+            message: 'ÃœrÃ¼n bulunamadÄ±'
           });
         }
 
@@ -3617,7 +3618,7 @@ setTimeout(check, 1000);
           sourceUrl: trimmedUrl,
           shopifyProductId: shopifyProductId,
           shopifyHandle: product.handle || '',
-          title: product.title || 'Ürün',
+          title: product.title || 'ÃœrÃ¼n',
           brand: product.vendor || '',
           originalPrice: parseFloat(product.price || '0'),
           shopifyPrice: parseFloat(product.price || '0'),
@@ -3641,10 +3642,10 @@ setTimeout(check, 1000);
 
       res.json({
         success: true,
-        message: sourceUrl ? 'Trendyol URL güncellendi' : 'Trendyol URL kaldırıldı'
+        message: sourceUrl ? 'Trendyol URL gÃ¼ncellendi' : 'Trendyol URL kaldÄ±rÄ±ldÄ±'
       });
     } catch (error: any) {
-      console.error('❌ Update source URL error:', error);
+      console.error('âŒ Update source URL error:', error);
       res.status(500).json({
         success: false,
         message: error.message
@@ -3700,7 +3701,7 @@ setTimeout(check, 1000);
 
       res.json({
         success: true,
-        message: `Fiyat güncellendi: ${newPrice} TL`,
+        message: `Fiyat gÃ¼ncellendi: ${newPrice} TL`,
         updatedVariants: variants.length,
         shopDomain: envShopDomain(),
       });
@@ -3712,7 +3713,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify upload — standart handler (legacy alias)
+  // Shopify upload â€” standart handler (legacy alias)
   app.post('/api/shopify-upload', handleShopifyProductsRoute);
 
   // CSV-specific Shopify upload endpoint
@@ -3728,11 +3729,11 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log('🔍 DEBUG: /api/shopify/upload-csv-product çağrıldı');
-      console.log('🔍 DEBUG: Request body keys:', Object.keys(req.body));
-      console.log('🔍 DEBUG: CSV length:', req.body.csvContent?.length || 0);
-      console.log('🔍 DEBUG: Product title:', req.body.productTitle);
-      console.log('🔍 DEBUG: Individual tags:', req.body.individualTags);
+      console.log('ğŸ” DEBUG: /api/shopify/upload-csv-product Ã§aÄŸrÄ±ldÄ±');
+      console.log('ğŸ” DEBUG: Request body keys:', Object.keys(req.body));
+      console.log('ğŸ” DEBUG: CSV length:', req.body.csvContent?.length || 0);
+      console.log('ğŸ” DEBUG: Product title:', req.body.productTitle);
+      console.log('ğŸ” DEBUG: Individual tags:', req.body.individualTags);
       
       const { csvContent, productTitle, individualTags, productData, csvInfo } = req.body;
 
@@ -3742,7 +3743,7 @@ setTimeout(check, 1000);
       if (priceOriginal <= 0) {
         return res.status(400).json({
           success: false,
-          error: 'Fiyat alınamadığı için Shopify aktarımı yapılamaz.',
+          error: 'Fiyat alÄ±namadÄ±ÄŸÄ± iÃ§in Shopify aktarÄ±mÄ± yapÄ±lamaz.',
           step: 'price_validation',
         });
       }
@@ -3750,13 +3751,13 @@ setTimeout(check, 1000);
       if (csvInfo?.ready === false || csvInfo?.productCount === 0) {
         return res.status(400).json({
           success: false,
-          error: 'CSV hazır değil — önce geçerli fiyatlı ürün verisi çekin.',
+          error: 'CSV hazÄ±r deÄŸil â€” Ã¶nce geÃ§erli fiyatlÄ± Ã¼rÃ¼n verisi Ã§ekin.',
           step: 'csv_not_ready',
         });
       }
       
       if (!csvContent || csvContent.trim().length < 50) {
-        console.log('❌ CSV content is missing or empty');
+        console.log('âŒ CSV content is missing or empty');
         return res.status(400).json({
           success: false,
           error: 'CSV content is required'
@@ -3773,25 +3774,25 @@ setTimeout(check, 1000);
       if (!csvCheck.valid) {
         return res.status(400).json({
           success: false,
-          error: csvCheck.error || 'CSV kolon sayısı uyumsuz',
+          error: csvCheck.error || 'CSV kolon sayÄ±sÄ± uyumsuz',
           step: 'csv_validation',
         });
       }
 
-      console.log('✅ CSV content validated, proceeding with upload...');
+      console.log('âœ… CSV content validated, proceeding with upload...');
       
-      // ✅ TAGS ALREADY ADDED BY FRONTEND - No need to parse/stringify CSV again
+      // âœ… TAGS ALREADY ADDED BY FRONTEND - No need to parse/stringify CSV again
       // Frontend adds individualTags to CSV before sending to backend
       // Parsing and stringifying CSV again can cause data loss (images, special characters)
       if (individualTags && individualTags.length > 0) {
-        console.log('📋 Individual tags already merged into CSV by frontend:', individualTags);
+        console.log('ğŸ“‹ Individual tags already merged into CSV by frontend:', individualTags);
       }
       
-      console.log(`🛒 CSV Shopify Upload: ${productTitle}`);
+      console.log(`ğŸ›’ CSV Shopify Upload: ${productTitle}`);
       const uploadResult = await uploadProductToShopify(csvContent, productTitle);
       
       if (uploadResult.success) {
-        // ✅ Register product in shopifyTransferredProducts table for MemoryTrackingPage
+        // âœ… Register product in shopifyTransferredProducts table for MemoryTrackingPage
         try {
           const sourceUrl = req.body.sourceUrl || req.body.trendyolUrl || '';
           if (sourceUrl && uploadResult.productId) {
@@ -3821,10 +3822,10 @@ setTimeout(check, 1000);
               sourceData: req.body.productData || { title: productTitle },
               shopifyData: uploadResult
             });
-            console.log('✅ Shopify transfer kaydı oluşturuldu (shopifyTransferredProducts)');
+            console.log('âœ… Shopify transfer kaydÄ± oluÅŸturuldu (shopifyTransferredProducts)');
           }
         } catch (transferError) {
-          console.warn('⚠️ Shopify transfer tracking hatası (non-critical):', transferError);
+          console.warn('âš ï¸ Shopify transfer tracking hatasÄ± (non-critical):', transferError);
         }
         
         // Register product for automated tracking
@@ -3839,23 +3840,23 @@ setTimeout(check, 1000);
               req.body.variants || [],
               uploadResult.variants || []
             );
-            console.log('🎯 CSV Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
+            console.log('ğŸ¯ CSV Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
             
-            // ✅ START TRACKING after successful registration
+            // âœ… START TRACKING after successful registration
             if (trackingResult.success && trackingResult.sourceUrl) {
               try {
                 const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl, uploadResult.productId);
-                console.log('🎯 Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
+                console.log('ğŸ¯ Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
               } catch (enableError) {
-                console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
+                console.warn('âš ï¸ Failed to enable tracking (non-critical):', enableError);
               }
             }
           }
         } catch (trackingError) {
-          console.warn('⚠️ CSV Tracking registration failed (non-critical):', trackingError);
+          console.warn('âš ï¸ CSV Tracking registration failed (non-critical):', trackingError);
         }
         
-        // Send product images to Telegram (non-blocking — fire and forget)
+        // Send product images to Telegram (non-blocking â€” fire and forget)
         setImmediate(async () => {
           try {
             const chatId = process.env.TELEGRAM_CHAT_ID || '1219880063';
@@ -3892,7 +3893,7 @@ setTimeout(check, 1000);
             }
 
             if (images.length > 0) {
-              console.log(`📸 [CSV-Specific] Sending ${images.length} images to Telegram for: ${productTitle}`);
+              console.log(`ğŸ“¸ [CSV-Specific] Sending ${images.length} images to Telegram for: ${productTitle}`);
               await ImageTelegramService.sendProductImages(
                 productTitle,
                 req.body.sourceUrl || req.body.trendyolUrl || '',
@@ -3902,14 +3903,14 @@ setTimeout(check, 1000);
               );
               if (CanvaService.isEnabled()) {
                 CanvaService.sendProductImages(productTitle, images).catch((e: any) =>
-                  console.warn('⚠️ [Canva] CSV-Specific send failed (non-critical):', e.message)
+                  console.warn('âš ï¸ [Canva] CSV-Specific send failed (non-critical):', e.message)
                 );
               }
             } else {
-              console.log(`📸 [CSV-Specific] No images found to send for: ${productTitle}`);
+              console.log(`ğŸ“¸ [CSV-Specific] No images found to send for: ${productTitle}`);
             }
           } catch (imageError: any) {
-            console.warn('⚠️ CSV image sending failed (non-critical):', imageError.message);
+            console.warn('âš ï¸ CSV image sending failed (non-critical):', imageError.message);
           }
         });
         
@@ -3920,10 +3921,10 @@ setTimeout(check, 1000);
           tracking: trackingResult
         });
       } else {
-        // Duplicate detection → 409 Conflict (frontend counts 409 as "already uploaded" = success)
-        const isDuplicate = uploadResult.message?.includes('yakın zamanda yüklendi');
+        // Duplicate detection â†’ 409 Conflict (frontend counts 409 as "already uploaded" = success)
+        const isDuplicate = uploadResult.message?.includes('yakÄ±n zamanda yÃ¼klendi');
         const statusCode = isDuplicate ? 409 : 400;
-        console.log(isDuplicate ? '⚠️ Duplicate upload detected → 409' : '❌ Upload failed → 400', uploadResult.message);
+        console.log(isDuplicate ? 'âš ï¸ Duplicate upload detected â†’ 409' : 'âŒ Upload failed â†’ 400', uploadResult.message);
         return res.status(statusCode).json({
           success: false,
           error: uploadResult.message
@@ -3931,7 +3932,7 @@ setTimeout(check, 1000);
       }
       
     } catch (error) {
-      console.error('❌ CSV Shopify upload error:', error);
+      console.error('âŒ CSV Shopify upload error:', error);
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'CSV upload failed'
@@ -3952,18 +3953,18 @@ setTimeout(check, 1000);
         }
       };
       
-      console.log('🔍 DEBUG TEST - Colors:', testData.variants.colors);
+      console.log('ğŸ” DEBUG TEST - Colors:', testData.variants.colors);
       
       // Test color extraction
       const extractColor = (text: string): string => {
         const lowerText = text.toLowerCase();
         if (lowerText.includes('beyaz')) return 'Beyaz';
-        if (lowerText.includes('yesil') || lowerText.includes('yeşil')) return 'Yeşil';
-        return 'Çok Renkli';
+        if (lowerText.includes('yesil') || lowerText.includes('yeÅŸil')) return 'YeÅŸil';
+        return 'Ã‡ok Renkli';
       };
       
       const extractedColors = testData.variants.colors.map(extractColor);
-      console.log('🎨 Extracted colors:', extractedColors);
+      console.log('ğŸ¨ Extracted colors:', extractedColors);
       
       return res.json({
         success: true,
@@ -4000,13 +4001,13 @@ setTimeout(check, 1000);
     }
   });
 
-  // ── Shopify OAuth & Credentials API ────────────────────────────────────────
+  // â”€â”€ Shopify OAuth & Credentials API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // Mevcut kimlik bilgilerini döndürür (token gizlenir)
+  // Mevcut kimlik bilgilerini dÃ¶ndÃ¼rÃ¼r (token gizlenir)
   app.get('/api/shopify/credentials', async (req, res) => {
     try {
-      // getShopifyConfig() ile aynı öncelik sırası: DB önce, ENV fallback
-      // 1. DB'yi önce kontrol et
+      // getShopifyConfig() ile aynÄ± Ã¶ncelik sÄ±rasÄ±: DB Ã¶nce, ENV fallback
+      // 1. DB'yi Ã¶nce kontrol et
       const rows = await db.select().from(shopifyCredentials)
         .where(eq(shopifyCredentials.isActive, true))
         .orderBy(desc(shopifyCredentials.updatedAt))
@@ -4014,7 +4015,7 @@ setTimeout(check, 1000);
       const cred = rows[0];
 
       if (cred && cred.shopDomain && cred.accessToken) {
-        // shpss_ formatı deprecated/geçersiz token
+        // shpss_ formatÄ± deprecated/geÃ§ersiz token
         const isDeprecatedToken = cred.accessToken.startsWith('shpss_');
         return res.json({
           connected: !isDeprecatedToken,
@@ -4027,7 +4028,7 @@ setTimeout(check, 1000);
         });
       }
 
-      // 2. DB'de geçerli token yoksa ENV'e bak
+      // 2. DB'de geÃ§erli token yoksa ENV'e bak
       const envShopDomain =
         process.env.SHOPIFY_SHOP_DOMAIN ||
         process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '') ||
@@ -4047,7 +4048,7 @@ setTimeout(check, 1000);
         });
       }
 
-      // Hiç token yok
+      // HiÃ§ token yok
       return res.json({ connected: false, hasToken: false });
     } catch (err) {
       res.status(500).json({ error: String(err) });
@@ -4069,7 +4070,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify OAuth yetkilendirme URL'i üretir
+  // Shopify OAuth yetkilendirme URL'i Ã¼retir
   app.get('/api/shopify/auth-url', async (req, res) => {
     try {
       const rows = await db.select().from(shopifyCredentials)
@@ -4077,7 +4078,7 @@ setTimeout(check, 1000);
         .orderBy(desc(shopifyCredentials.updatedAt))
         .limit(1);
       const cred = rows[0];
-      if (!cred) return res.status(400).json({ error: 'Önce kimlik bilgilerini kaydedin.' });
+      if (!cred) return res.status(400).json({ error: 'Ã–nce kimlik bilgilerini kaydedin.' });
 
       const scopes = 'read_products,write_products,read_inventory,write_inventory,read_orders';
       const redirectUri = `${req.protocol}://${req.get('host')}/api/shopify/callback`;
@@ -4094,17 +4095,17 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify OAuth callback - kodu access token ile değiştirir
+  // Shopify OAuth callback - kodu access token ile deÄŸiÅŸtirir
   app.get('/api/shopify/callback', async (req, res) => {
     try {
       const { code, shop } = req.query as { code: string; shop: string };
-      if (!code || !shop) return res.status(400).send('Geçersiz OAuth parametreleri');
+      if (!code || !shop) return res.status(400).send('GeÃ§ersiz OAuth parametreleri');
 
       const rows = await db.select().from(shopifyCredentials)
         .where(eq(shopifyCredentials.shopDomain, shop))
         .limit(1);
       const cred = rows[0];
-      if (!cred) return res.status(400).send('Bu mağaza için kayıtlı kimlik bilgisi bulunamadı.');
+      if (!cred) return res.status(400).send('Bu maÄŸaza iÃ§in kayÄ±tlÄ± kimlik bilgisi bulunamadÄ±.');
 
       const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
         method: 'POST',
@@ -4113,17 +4114,17 @@ setTimeout(check, 1000);
       });
       const tokenData = await tokenRes.json() as any;
       if (!tokenData.access_token) {
-        return res.status(400).send(`Token alınamadı: ${JSON.stringify(tokenData)}`);
+        return res.status(400).send(`Token alÄ±namadÄ±: ${JSON.stringify(tokenData)}`);
       }
 
       await saveShopifyAccessToken(shop, tokenData.access_token);
       res.redirect('/?shopify=connected');
     } catch (err) {
-      res.status(500).send(`OAuth hatası: ${err}`);
+      res.status(500).send(`OAuth hatasÄ±: ${err}`);
     }
   });
 
-  // Shopify bağlantısını test eder
+  // Shopify baÄŸlantÄ±sÄ±nÄ± test eder
   app.get('/api/shopify/status', async (req, res) => {
     try {
       const result = await testShopifyConnection();
@@ -4145,7 +4146,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify token otomatik yenileme — manuel tetikleme
+  // Shopify token otomatik yenileme â€” manuel tetikleme
   app.post('/api/shopify/rotate-token', async (req, res) => {
     try {
       const { rotateShopifyToken, getTokenStatus } = await import('./shopify-token-rotator');
@@ -4155,14 +4156,14 @@ setTimeout(check, 1000);
         return res.json({
           success: true,
           method: result.method,
-          message: `Token başarıyla yenilendi (${result.method})`,
+          message: `Token baÅŸarÄ±yla yenilendi (${result.method})`,
           status: getTokenStatus()
         });
       }
       return res.status(500).json({
         success: false,
         error: result.error,
-        message: 'Token yenileme başarısız. SHOPIFY_API_KEY ve SHOPIFY_APP_SHARED_SECRET env değerlerini kontrol edin.',
+        message: 'Token yenileme baÅŸarÄ±sÄ±z. SHOPIFY_API_KEY ve SHOPIFY_APP_SHARED_SECRET env deÄŸerlerini kontrol edin.',
         status: getTokenStatus()
       });
     } catch (err: any) {
@@ -4191,7 +4192,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify health — token değeri asla dönmez
+  // Shopify health â€” token deÄŸeri asla dÃ¶nmez
   app.get('/api/shopify/health', async (_req, res) => {
     try {
       const snapshot = await getShopifyHealthSnapshot();
@@ -4213,20 +4214,20 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify bağlantı testi — shop bilgisi, domain, token source (token loglanmaz)
+  // Shopify baÄŸlantÄ± testi â€” shop bilgisi, domain, token source (token loglanmaz)
   app.post('/api/shopify/connection-test', async (req, res) => {
     const requestId = getRequestId(req);
     const result = await runShopifyConnectionTest(requestId);
     return res.status(result.connected ? 200 : 400).json(result);
   });
 
-  // Standart Shopify ürün oluşturma endpoint'i
+  // Standart Shopify Ã¼rÃ¼n oluÅŸturma endpoint'i
   app.post('/api/shopify/products', handleShopifyProductsRoute);
 
-  // Geriye dönük uyumluluk
+  // Geriye dÃ¶nÃ¼k uyumluluk
   app.post('/api/shopify/upload-product', handleShopifyProductsRoute);
 
-  // Doğrudan Admin API token kaydet (OAuth olmadan)
+  // DoÄŸrudan Admin API token kaydet (OAuth olmadan)
   app.post('/api/shopify/direct-token', async (req, res) => {
     try {
       const { shopDomain, accessToken } = req.body;
@@ -4235,7 +4236,7 @@ setTimeout(check, 1000);
       }
       const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
-      // Token'ı test et
+      // Token'Ä± test et
       const testRes = await fetch(`https://${cleanDomain}/admin/api/2024-01/shop.json`, {
         headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' }
       });
@@ -4243,13 +4244,13 @@ setTimeout(check, 1000);
       if (!testRes.ok) {
         const errData = await testRes.json().catch(() => ({})) as any;
         return res.status(400).json({
-          error: `Token geçersiz (${testRes.status}): ${errData?.errors || 'Shopify bağlantı hatası'}`
+          error: `Token geÃ§ersiz (${testRes.status}): ${errData?.errors || 'Shopify baÄŸlantÄ± hatasÄ±'}`
         });
       }
 
       const shopData = await testRes.json() as any;
       await saveDirectAccessToken(cleanDomain, accessToken);
-      // Cache'i temizle — tüm servisler yeni token'ı hemen kullansın
+      // Cache'i temizle â€” tÃ¼m servisler yeni token'Ä± hemen kullansÄ±n
       invalidateShopifyCredentialCache();
       res.json({ success: true, shopDomain: cleanDomain, storeName: shopData?.shop?.name || cleanDomain });
     } catch (err) {
@@ -4257,24 +4258,24 @@ setTimeout(check, 1000);
     }
   });
 
-  // ── Shopify OAuth bitiş ────────────────────────────────────────────────────
+  // â”€â”€ Shopify OAuth bitiÅŸ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // ── Mini Tarayıcı Proxy ────────────────────────────────────────────────────
-  // Trendyol sayfalarını iframe içinde göstermek için X-Frame-Options kaldırır
+  // â”€â”€ Mini TarayÄ±cÄ± Proxy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Trendyol sayfalarÄ±nÄ± iframe iÃ§inde gÃ¶stermek iÃ§in X-Frame-Options kaldÄ±rÄ±r
   app.get('/api/browser-proxy', async (req, res) => {
     const targetUrl = req.query.url as string;
     if (!targetUrl) return res.status(400).send('url parametresi eksik');
 
-    // Sadece izin verilen alan adları
+    // Sadece izin verilen alan adlarÄ±
     const allowedHosts = ['trendyol.com', 'www.trendyol.com', 'arcelik.com', 'www.arcelik.com'];
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(targetUrl);
     } catch {
-      return res.status(400).send('Geçersiz URL');
+      return res.status(400).send('GeÃ§ersiz URL');
     }
     if (!allowedHosts.some(h => parsedUrl.hostname === h)) {
-      return res.status(403).send('Sadece Trendyol ve Arçelik URL\'leri desteklenir.');
+      return res.status(403).send('Sadece Trendyol ve ArÃ§elik URL\'leri desteklenir.');
     }
 
     try {
@@ -4294,7 +4295,7 @@ setTimeout(check, 1000);
       let html: string = response.data;
       const baseHref = `${parsedUrl.protocol}//${parsedUrl.hostname}`;
 
-      // <head> sonrasına base href + URL izleyici script ekle
+      // <head> sonrasÄ±na base href + URL izleyici script ekle
       const injectedScript = `
 <base href="${baseHref}/" target="_self">
 <script>
@@ -4306,13 +4307,13 @@ setTimeout(check, 1000);
     } catch(e) {}
   }
   reportUrl();
-  // Trendyol SPA navigate olduğunda da bildir
+  // Trendyol SPA navigate olduÄŸunda da bildir
   var _pushState = history.pushState;
   history.pushState = function() { _pushState.apply(this, arguments); setTimeout(reportUrl, 100); };
   var _replaceState = history.replaceState;
   history.replaceState = function() { _replaceState.apply(this, arguments); setTimeout(reportUrl, 100); };
   window.addEventListener('popstate', function() { setTimeout(reportUrl, 100); });
-  // Periyodik kontrol (SPA için)
+  // Periyodik kontrol (SPA iÃ§in)
   var lastUrl = '';
   setInterval(function() {
     if (window.location.href !== lastUrl) { lastUrl = window.location.href; reportUrl(); }
@@ -4320,7 +4321,7 @@ setTimeout(check, 1000);
 })();
 </script>`;
 
-      // <head> tagının hemen ardına ekle
+      // <head> tagÄ±nÄ±n hemen ardÄ±na ekle
       if (html.includes('<head>')) {
         html = html.replace('<head>', '<head>' + injectedScript);
       } else if (html.includes('<html')) {
@@ -4329,7 +4330,7 @@ setTimeout(check, 1000);
         html = injectedScript + html;
       }
 
-      // Güvenlik başlıklarını sıfırla (iframe için)
+      // GÃ¼venlik baÅŸlÄ±klarÄ±nÄ± sÄ±fÄ±rla (iframe iÃ§in)
       res.removeHeader('X-Frame-Options');
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -4339,22 +4340,22 @@ setTimeout(check, 1000);
       const status = err.response?.status || 500;
       res.status(status).send(`
         <html><body style="background:#0f172a;color:#94a3b8;font-family:sans-serif;padding:20px;">
-          <h3>⚠️ Sayfa yüklenemedi</h3>
+          <h3>âš ï¸ Sayfa yÃ¼klenemedi</h3>
           <p>${err.message}</p>
           <p>URL: ${targetUrl}</p>
         </body></html>`);
     }
   });
-  // ── Mini Tarayıcı Proxy bitiş ──────────────────────────────────────────────
+  // â”€â”€ Mini TarayÄ±cÄ± Proxy bitiÅŸ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // ── Puppeteer Tarayıcı API ─────────────────────────────────────────────────
+  // â”€â”€ Puppeteer TarayÄ±cÄ± API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.use('/api/browser', async (_req, res, next) => {
     const { puppeteerAllowed } = await import('@shared/deploy-runtime');
     if (!puppeteerAllowed()) {
       return res.status(503).json({
         error: 'puppeteer-disabled-in-cloud',
         code: 'puppeteer-disabled-in-cloud',
-        message: 'Dahili Tarayıcı bu ortamda devre dışı. Otomatik hızlı mod kullanılıyor.',
+        message: 'Dahili TarayÄ±cÄ± bu ortamda devre dÄ±ÅŸÄ±. Otomatik hÄ±zlÄ± mod kullanÄ±lÄ±yor.',
       });
     }
     next();
@@ -4477,9 +4478,9 @@ setTimeout(check, 1000);
       res.status(500).json({ error: err.message });
     }
   });
-  // ── Puppeteer Tarayıcı API bitiş ───────────────────────────────────────────
+  // â”€â”€ Puppeteer TarayÄ±cÄ± API bitiÅŸ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // Comprehensive Image System endpoint - TÜM görselleri sistematik çıkarma
+  // Comprehensive Image System endpoint - TÃœM gÃ¶rselleri sistematik Ã§Ä±karma
   app.post('/api/comprehensive-images', async (req, res) => {
     try {
       const { url, productTitle } = req.body;
@@ -4488,16 +4489,16 @@ setTimeout(check, 1000);
         return res.status(400).json({ message: "URL gerekli" });
       }
 
-      console.log('🎯 Comprehensive görsel sistem çalışıyor...');
+      console.log('ğŸ¯ Comprehensive gÃ¶rsel sistem Ã§alÄ±ÅŸÄ±yor...');
       
-      // Comprehensive görsel çıkarma
+      // Comprehensive gÃ¶rsel Ã§Ä±karma
       const result = await extractComprehensiveImages(url);
       
       if (result.allImages.length === 0) {
-        return res.status(400).json({ message: "Görsel bulunamadı" });
+        return res.status(400).json({ message: "GÃ¶rsel bulunamadÄ±" });
       }
       
-      console.log(`✅ ${result.allImages.length} görsel sistematik olarak çıkarıldı`);
+      console.log(`âœ… ${result.allImages.length} gÃ¶rsel sistematik olarak Ã§Ä±karÄ±ldÄ±`);
       
       res.json({
         success: true,
@@ -4509,9 +4510,9 @@ setTimeout(check, 1000);
         summary: generateImageGroupSummary(result.imageGroups)
       });
     } catch (error) {
-      console.error('Comprehensive görsel çıkarma hatası:', error);
+      console.error('Comprehensive gÃ¶rsel Ã§Ä±karma hatasÄ±:', error);
       res.status(500).json({ 
-        message: "Comprehensive görsel çıkarılamadı", 
+        message: "Comprehensive gÃ¶rsel Ã§Ä±karÄ±lamadÄ±", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
@@ -4526,27 +4527,27 @@ setTimeout(check, 1000);
         return res.status(400).json({ message: "URL gerekli" });
       }
 
-      console.log('📄 Comprehensive images CSV oluşturuluyor...');
+      console.log('ğŸ“„ Comprehensive images CSV oluÅŸturuluyor...');
       
       const result = await extractComprehensiveImages(url);
       
       if (result.allImages.length === 0) {
-        return res.status(400).json({ message: "Görsel bulunamadı" });
+        return res.status(400).json({ message: "GÃ¶rsel bulunamadÄ±" });
       }
       
       const csvContent = generateComprehensiveImageCSV(
         result.allImages,
         result.imageGroups,
-        productTitle || 'Ürün'
+        productTitle || 'ÃœrÃ¼n'
       );
       
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="comprehensive-product-images.csv"');
       res.send(csvContent);
     } catch (error) {
-      console.error('Comprehensive CSV oluşturma hatası:', error);
+      console.error('Comprehensive CSV oluÅŸturma hatasÄ±:', error);
       res.status(500).json({ 
-        message: "CSV oluşturulamadı", 
+        message: "CSV oluÅŸturulamadÄ±", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
@@ -4557,7 +4558,7 @@ setTimeout(check, 1000);
     res.setHeader('Content-Type', 'application/json');
     try {
       const { url } = req.body;
-      console.log('🔍 Multi-variant discovery başlıyor...');
+      console.log('ğŸ” Multi-variant discovery baÅŸlÄ±yor...');
       
       if (!url) {
         return res.status(400).json({ message: 'URL gerekli' });
@@ -4565,7 +4566,7 @@ setTimeout(check, 1000);
       
       const result = await processCompleteMultiVariant(url);
       
-      console.log(`✅ Multi-variant discovery tamamlandı: ${result.summary.totalVariants} varyant`);
+      console.log(`âœ… Multi-variant discovery tamamlandÄ±: ${result.summary.totalVariants} varyant`);
       
       res.json({
         success: true,
@@ -4583,7 +4584,7 @@ setTimeout(check, 1000);
       
     } catch (error) {
       console.error('Multi-variant discovery error:', error);
-      res.status(500).json({ message: 'Multi-variant discovery hatası', error: (error as Error).message });
+      res.status(500).json({ message: 'Multi-variant discovery hatasÄ±', error: (error as Error).message });
     }
   });
 
@@ -4599,7 +4600,7 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log('📊 Generating CSV for product:', productData.title);
+      console.log('ğŸ“Š Generating CSV for product:', productData.title);
       
       // Create CSV content with the product data format from scenario scraping
       const csvContent = convertProductToShopifyCSV(productData);
@@ -4611,7 +4612,7 @@ setTimeout(check, 1000);
       });
       
     } catch (error) {
-      console.error('❌ CSV generation error:', error);
+      console.error('âŒ CSV generation error:', error);
       return res.status(500).json({
         success: false,
         error: 'CSV generation failed',
@@ -4624,7 +4625,7 @@ setTimeout(check, 1000);
   app.post('/api/multi-variant-csv', async (req, res) => {
     try {
       const { url, productTitle } = req.body;
-      console.log('📄 Multi-variant CSV oluşturuluyor...');
+      console.log('ğŸ“„ Multi-variant CSV oluÅŸturuluyor...');
       
       if (!url) {
         return res.status(400).json({ message: 'URL gerekli' });
@@ -4633,7 +4634,7 @@ setTimeout(check, 1000);
       const result = await processCompleteMultiVariant(url);
       const csvContent = generateMultiVariantCSV(result);
       
-      console.log(`✅ Multi-variant CSV oluşturuldu: ${result.summary.totalVariants} varyant`);
+      console.log(`âœ… Multi-variant CSV oluÅŸturuldu: ${result.summary.totalVariants} varyant`);
       
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="multi-variant-complete-analysis.csv"');
@@ -4641,7 +4642,7 @@ setTimeout(check, 1000);
       
     } catch (error) {
       console.error('Multi-variant CSV generation error:', error);
-      res.status(500).json({ message: 'Multi-variant CSV oluşturma hatası', error: (error as Error).message });
+      res.status(500).json({ message: 'Multi-variant CSV oluÅŸturma hatasÄ±', error: (error as Error).message });
     }
   });
 
@@ -4649,7 +4650,7 @@ setTimeout(check, 1000);
   app.post('/api/multi-variant-summary', async (req, res) => {
     try {
       const { url } = req.body;
-      console.log('📊 Multi-variant summary oluşturuluyor...');
+      console.log('ğŸ“Š Multi-variant summary oluÅŸturuluyor...');
       
       if (!url) {
         return res.status(400).json({ message: 'URL gerekli' });
@@ -4658,7 +4659,7 @@ setTimeout(check, 1000);
       const result = await processCompleteMultiVariant(url);
       const summaryReport = generateMultiVariantSummary(result);
       
-      console.log(`✅ Multi-variant summary oluşturuldu`);
+      console.log(`âœ… Multi-variant summary oluÅŸturuldu`);
       
       res.json({
         success: true,
@@ -4668,7 +4669,7 @@ setTimeout(check, 1000);
       
     } catch (error) {
       console.error('Multi-variant summary error:', error);
-      res.status(500).json({ message: 'Multi-variant summary hatası', error: (error as Error).message });
+      res.status(500).json({ message: 'Multi-variant summary hatasÄ±', error: (error as Error).message });
     }
   });
 
@@ -4677,7 +4678,7 @@ setTimeout(check, 1000);
     res.setHeader('Content-Type', 'application/json');
     try {
       const { url } = req.body;
-      console.log('🔧 Advanced Variant Scraper başlıyor...');
+      console.log('ğŸ”§ Advanced Variant Scraper baÅŸlÄ±yor...');
       
       if (!url) {
         return res.status(400).json({ message: 'URL gerekli' });
@@ -4685,7 +4686,7 @@ setTimeout(check, 1000);
       
       const result = await scrapeAdvancedVariants(url);
       
-      console.log(`✅ Advanced variant scraping tamamlandı: ${result.totalVariants} varyant`);
+      console.log(`âœ… Advanced variant scraping tamamlandÄ±: ${result.totalVariants} varyant`);
       
       res.json({
         success: true,
@@ -4706,7 +4707,7 @@ setTimeout(check, 1000);
       
     } catch (error) {
       console.error('Advanced variant scraper error:', error);
-      res.status(500).json({ message: 'Advanced variant scraper hatası', error: (error as Error).message });
+      res.status(500).json({ message: 'Advanced variant scraper hatasÄ±', error: (error as Error).message });
     }
   });
 
@@ -4714,7 +4715,7 @@ setTimeout(check, 1000);
   app.post('/api/advanced-variant-csv', async (req, res) => {
     try {
       const { url, productTitle } = req.body;
-      console.log('📄 Advanced variant CSV oluşturuluyor...');
+      console.log('ğŸ“„ Advanced variant CSV oluÅŸturuluyor...');
       
       if (!url) {
         return res.status(400).json({ message: 'URL gerekli' });
@@ -4723,7 +4724,7 @@ setTimeout(check, 1000);
       const result = await scrapeAdvancedVariants(url);
       const csvContent = generateAdvancedVariantCSV(result);
       
-      console.log(`✅ Advanced variant CSV oluşturuldu: ${result.totalVariants} varyant`);
+      console.log(`âœ… Advanced variant CSV oluÅŸturuldu: ${result.totalVariants} varyant`);
       
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="advanced-variant-analysis.csv"');
@@ -4731,7 +4732,7 @@ setTimeout(check, 1000);
       
     } catch (error) {
       console.error('Advanced variant CSV generation error:', error);
-      res.status(500).json({ message: 'Advanced variant CSV oluşturma hatası', error: (error as Error).message });
+      res.status(500).json({ message: 'Advanced variant CSV oluÅŸturma hatasÄ±', error: (error as Error).message });
     }
   });
 
@@ -4739,7 +4740,7 @@ setTimeout(check, 1000);
   app.post('/api/scrapy-variants', async (req, res) => {
     try {
       const { url } = req.body;
-      console.log('🕷️ Scrapy-like spider başlatılıyor...');
+      console.log('ğŸ•·ï¸ Scrapy-like spider baÅŸlatÄ±lÄ±yor...');
       
       if (!url) {
         return res.status(400).json({ message: 'URL gerekli' });
@@ -4747,7 +4748,7 @@ setTimeout(check, 1000);
       
       const variants = await runTrendyolVariantsSpider(url);
       
-      console.log(`✅ Scrapy spider tamamlandı: ${variants.length} varyant işlendi`);
+      console.log(`âœ… Scrapy spider tamamlandÄ±: ${variants.length} varyant iÅŸlendi`);
       
       res.json({
         success: true,
@@ -4763,7 +4764,7 @@ setTimeout(check, 1000);
       
     } catch (error) {
       console.error('Scrapy spider error:', error);
-      res.status(500).json({ message: 'Scrapy spider hatası', error: (error as Error).message });
+      res.status(500).json({ message: 'Scrapy spider hatasÄ±', error: (error as Error).message });
     }
   });
 
@@ -4771,7 +4772,7 @@ setTimeout(check, 1000);
   app.post('/api/scrapy-json', async (req, res) => {
     try {
       const { url } = req.body;
-      console.log('📄 Scrapy JSON çıktısı oluşturuluyor...');
+      console.log('ğŸ“„ Scrapy JSON Ã§Ä±ktÄ±sÄ± oluÅŸturuluyor...');
       
       if (!url) {
         return res.status(400).json({ message: 'URL gerekli' });
@@ -4780,7 +4781,7 @@ setTimeout(check, 1000);
       const variants = await runTrendyolVariantsSpider(url);
       const jsonOutput = generateScrapyOutput(variants);
       
-      console.log(`✅ Scrapy JSON oluşturuldu: ${variants.length} varyant`);
+      console.log(`âœ… Scrapy JSON oluÅŸturuldu: ${variants.length} varyant`);
       
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="scrapy-variants.json"');
@@ -4788,7 +4789,7 @@ setTimeout(check, 1000);
       
     } catch (error) {
       console.error('Scrapy JSON generation error:', error);
-      res.status(500).json({ message: 'Scrapy JSON oluşturma hatası', error: (error as Error).message });
+      res.status(500).json({ message: 'Scrapy JSON oluÅŸturma hatasÄ±', error: (error as Error).message });
     }
   });
 
@@ -4796,7 +4797,7 @@ setTimeout(check, 1000);
   app.post('/api/comprehensive-csv', async (req, res) => {
     try {
       const { url, productTitle } = req.body;
-      console.log('📄 Kapsamlı CSV özellikleri ile oluşturuluyor...');
+      console.log('ğŸ“„ KapsamlÄ± CSV Ã¶zellikleri ile oluÅŸturuluyor...');
       
       if (!url) {
         return res.status(400).json({ message: 'URL gerekli' });
@@ -4807,7 +4808,7 @@ setTimeout(check, 1000);
       
       if (!result.success) {
         return res.status(400).json({ 
-          message: 'Ürün verileri çıkarılamadı',
+          message: 'ÃœrÃ¼n verileri Ã§Ä±karÄ±lamadÄ±',
           details: result.extractionDetails
         });
       }
@@ -4820,7 +4821,7 @@ setTimeout(check, 1000);
         images: result.images,
         features: result.features,
         variants: result.variants,
-        description: result.features.find(f => f.key.toLowerCase().includes('açıklama'))?.value,
+        description: result.features.find(f => f.key.toLowerCase().includes('aÃ§Ä±klama'))?.value,
         category: result.features.find(f => f.key.toLowerCase().includes('kategori'))?.value,
         sku: result.features.find(f => f.key.toLowerCase().includes('sku'))?.value
       };
@@ -4829,7 +4830,7 @@ setTimeout(check, 1000);
       const csvContent = generateComprehensiveShopifyCSV(comprehensiveData);
       const featureSummary = generateFeatureSummary(comprehensiveData);
 
-      console.log(`✅ Kapsamlı CSV oluşturuldu: ${result.features.length} özellik, ${result.images.length} görsel, ${result.variants.length} varyant`);
+      console.log(`âœ… KapsamlÄ± CSV oluÅŸturuldu: ${result.features.length} Ã¶zellik, ${result.images.length} gÃ¶rsel, ${result.variants.length} varyant`);
       console.log(featureSummary);
 
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -4838,7 +4839,7 @@ setTimeout(check, 1000);
       
     } catch (error) {
       console.error('Comprehensive CSV generation error:', error);
-      res.status(500).json({ message: 'Kapsamlı CSV oluşturma hatası', error: (error as Error).message });
+      res.status(500).json({ message: 'KapsamlÄ± CSV oluÅŸturma hatasÄ±', error: (error as Error).message });
     }
   });
 
@@ -4846,7 +4847,7 @@ setTimeout(check, 1000);
   app.post('/api/scrapy-csv', async (req, res) => {
     try {
       const { url } = req.body;
-      console.log('📄 Scrapy CSV çıktısı oluşturuluyor...');
+      console.log('ğŸ“„ Scrapy CSV Ã§Ä±ktÄ±sÄ± oluÅŸturuluyor...');
       
       if (!url) {
         return res.status(400).json({ message: 'URL gerekli' });
@@ -4855,7 +4856,7 @@ setTimeout(check, 1000);
       const variants = await runTrendyolVariantsSpider(url);
       const csvContent = generateScrapyCSV(variants);
       
-      console.log(`✅ Scrapy CSV oluşturuldu: ${variants.length} varyant`);
+      console.log(`âœ… Scrapy CSV oluÅŸturuldu: ${variants.length} varyant`);
       
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="scrapy-variants.csv"');
@@ -4863,7 +4864,7 @@ setTimeout(check, 1000);
       
     } catch (error) {
       console.error('Scrapy CSV generation error:', error);
-      res.status(500).json({ message: 'Scrapy CSV oluşturma hatası', error: (error as Error).message });
+      res.status(500).json({ message: 'Scrapy CSV oluÅŸturma hatasÄ±', error: (error as Error).message });
     }
   });
 
@@ -4957,12 +4958,12 @@ setTimeout(check, 1000);
       
       res.json({
         success: true,
-        message: 'Manuel test mesajı gönderildi'
+        message: 'Manuel test mesajÄ± gÃ¶nderildi'
       });
     } catch (error: any) {
       res.status(500).json({
         success: false,
-        message: `Manuel test hatası: ${error.message}`
+        message: `Manuel test hatasÄ±: ${error.message}`
       });
     }
   });
@@ -4970,78 +4971,78 @@ setTimeout(check, 1000);
   // Shopify Test Connection Endpoint
   app.post('/api/shopify/test-connection', async (req, res) => {
     try {
-      console.log('🔍 Testing Shopify connection...');
+      console.log('ğŸ” Testing Shopify connection...');
       
       const { testShopifyConnection } = await import('./connection-test');
       const result = await testShopifyConnection();
       
       if (result.connected) {
-        console.log('✅ Shopify connection test successful');
+        console.log('âœ… Shopify connection test successful');
         res.json({
           success: true,
           message: result.message,
           data: result.details
         });
       } else {
-        console.log('❌ Shopify connection test failed');
+        console.log('âŒ Shopify connection test failed');
         res.status(400).json({
           success: false,
           message: result.message
         });
       }
     } catch (error: any) {
-      console.error('❌ Shopify test error:', error.message);
+      console.error('âŒ Shopify test error:', error.message);
       res.status(500).json({
         success: false,
-        message: `Shopify test hatası: ${error.message}`
+        message: `Shopify test hatasÄ±: ${error.message}`
       });
     }
   });
 
-  // Shopify Add Product Endpoint — standart upload handler
+  // Shopify Add Product Endpoint â€” standart upload handler
   app.post('/api/shopify/add-product', handleShopifyProductsRoute);
 
-  // Shopify ürünleri hafızaya kaydetme endpoint'i
+  // Shopify Ã¼rÃ¼nleri hafÄ±zaya kaydetme endpoint'i
   app.post('/api/shopify/save-to-memory', async (req, res) => {
     try {
-      console.log('🔄 Shopify ürünleri hafızaya kaydediliyor (pagination ile tüm ürünler)...');
+      console.log('ğŸ”„ Shopify Ã¼rÃ¼nleri hafÄ±zaya kaydediliyor (pagination ile tÃ¼m Ã¼rÃ¼nler)...');
       
-      // Shopify'dan TÜM ürünleri çek (pagination ile 1000+ ürün destegi)
+      // Shopify'dan TÃœM Ã¼rÃ¼nleri Ã§ek (pagination ile 1000+ Ã¼rÃ¼n destegi)
       const result = await shopifyApiService.syncAllProducts();
       
       if (!result.success) {
         return res.json({
           success: false,
-          message: result.error || 'Shopify ürünleri alınırken hata oluştu',
+          message: result.error || 'Shopify Ã¼rÃ¼nleri alÄ±nÄ±rken hata oluÅŸtu',
           savedProducts: 0,
           savedVariants: 0
         });
       }
       
-      console.log(`✅ Shopify hafızaya kaydetme tamamlandı: ${result.newProducts} yeni, ${result.updatedProducts} güncellenen ürün`);
+      console.log(`âœ… Shopify hafÄ±zaya kaydetme tamamlandÄ±: ${result.newProducts} yeni, ${result.updatedProducts} gÃ¼ncellenen Ã¼rÃ¼n`);
       
       res.json({
         success: true,
-        message: `Shopify ürünleri başarıyla hafızaya kaydedildi: ${result.totalProducts} ürün`,
+        message: `Shopify Ã¼rÃ¼nleri baÅŸarÄ±yla hafÄ±zaya kaydedildi: ${result.totalProducts} Ã¼rÃ¼n`,
         savedProducts: result.totalProducts,
         savedVariants: 0,
         totalFetched: result.totalProducts
       });
       
     } catch (error: any) {
-      console.error('❌ Shopify hafızaya kaydetme hatası:', error);
+      console.error('âŒ Shopify hafÄ±zaya kaydetme hatasÄ±:', error);
       res.status(500).json({
         success: false,
-        error: `Shopify hafızaya kaydetme hatası: ${error.message}`
+        error: `Shopify hafÄ±zaya kaydetme hatasÄ±: ${error.message}`
       });
     }
   });
 
 
 
-  // (image-proxy tek endpoint — yukarıda tanımlı)
+  // (image-proxy tek endpoint â€” yukarÄ±da tanÄ±mlÄ±)
 
-  // COMPLETE PRODUCT WORKFLOW - Extract → Store → Sync → Monitor
+  // COMPLETE PRODUCT WORKFLOW - Extract â†’ Store â†’ Sync â†’ Monitor
   app.post('/api/process-product-complete', async (req, res) => {
     const { url } = req.body;
     
@@ -5053,15 +5054,15 @@ setTimeout(check, 1000);
     }
     
     try {
-      console.log(`🚀 Complete product workflow started for: ${url}`);
+      console.log(`ğŸš€ Complete product workflow started for: ${url}`);
       
       const result = await ProductManagementSystem.processProductComplete(url);
       
       if (result.success) {
-        console.log(`✅ Complete product workflow finished successfully`);
+        console.log(`âœ… Complete product workflow finished successfully`);
         res.json(result);
       } else {
-        console.log(`❌ Complete product workflow failed: ${result.error}`);
+        console.log(`âŒ Complete product workflow failed: ${result.error}`);
         res.status(500).json(result);
       }
       
@@ -5080,11 +5081,11 @@ setTimeout(check, 1000);
     const { id } = req.params;
     
     try {
-      console.log(`📊 Getting product analysis for ID: ${id}`);
+      console.log(`ğŸ“Š Getting product analysis for ID: ${id}`);
       
       const analysis = await ProductManagementSystem.getProductAnalysis(parseInt(id));
       
-      console.log(`✅ Product analysis retrieved successfully`);
+      console.log(`âœ… Product analysis retrieved successfully`);
       res.json(analysis);
       
     } catch (error) {
@@ -5100,11 +5101,11 @@ setTimeout(check, 1000);
   // Get all products for analysis page
   app.get('/api/products-analysis', async (req, res) => {
     try {
-      console.log(`📊 Getting all products for analysis`);
+      console.log(`ğŸ“Š Getting all products for analysis`);
       
       const products = await ProductManagementSystem.getAllProductsForAnalysis();
       
-      console.log(`✅ All products retrieved: ${products.length} products`);
+      console.log(`âœ… All products retrieved: ${products.length} products`);
       res.json(products);
       
     } catch (error) {
@@ -5120,7 +5121,7 @@ setTimeout(check, 1000);
   // System stats for unified dashboard
   app.get('/api/system-stats', async (req, res) => {
     try {
-      console.log(`📊 Getting system statistics`);
+      console.log(`ğŸ“Š Getting system statistics`);
       
       const products = await ProductManagementSystem.getAllProductsForAnalysis();
       
@@ -5138,7 +5139,7 @@ setTimeout(check, 1000);
         lastUpdate: new Date().toISOString()
       };
       
-      console.log(`✅ System stats retrieved successfully`);
+      console.log(`âœ… System stats retrieved successfully`);
       res.json(stats);
       
     } catch (error) {
@@ -5154,7 +5155,7 @@ setTimeout(check, 1000);
   // Recent activity for unified dashboard
   app.get('/api/recent-activity', async (req, res) => {
     try {
-      console.log(`📊 Getting recent activity`);
+      console.log(`ğŸ“Š Getting recent activity`);
       
       const products = await ProductManagementSystem.getAllProductsForAnalysis();
       
@@ -5167,7 +5168,7 @@ setTimeout(check, 1000);
         url: product.trendyolUrl
       }));
       
-      console.log(`✅ Recent activity retrieved: ${recentActivity.length} items`);
+      console.log(`âœ… Recent activity retrieved: ${recentActivity.length} items`);
       res.json(recentActivity);
       
     } catch (error) {
@@ -5184,16 +5185,16 @@ setTimeout(check, 1000);
   // SHOPIFY API SERVICE ENDPOINTS
   // ================================
 
-  // Shopify ürün senkronizasyonu (tüm ürünleri çek ve hafızaya kaydet)
+  // Shopify Ã¼rÃ¼n senkronizasyonu (tÃ¼m Ã¼rÃ¼nleri Ã§ek ve hafÄ±zaya kaydet)
   app.post('/api/shopify/sync-all-products', async (req, res) => {
     try {
-      console.log('🔄 Shopify ürün senkronizasyonu başlatılıyor...');
+      console.log('ğŸ”„ Shopify Ã¼rÃ¼n senkronizasyonu baÅŸlatÄ±lÄ±yor...');
       const result = await shopifyApiService.syncAllProducts();
       
-      // 🎯 AUTO-TRACKING: Sync sonrası tüm ürünleri otomatik izlemeye ekle
+      // ğŸ¯ AUTO-TRACKING: Sync sonrasÄ± tÃ¼m Ã¼rÃ¼nleri otomatik izlemeye ekle
       let trackingAdded = 0;
       if (result.success && result.newProducts > 0) {
-        console.log('🔄 Yeni ürünler izlemeye ekleniyor...');
+        console.log('ğŸ”„ Yeni Ã¼rÃ¼nler izlemeye ekleniyor...');
         try {
           // Trigger bulk tracking for new products with source URLs
           const validProducts = await db
@@ -5235,33 +5236,33 @@ setTimeout(check, 1000);
               // Skip errors
             }
           }
-          console.log(`✅ ${trackingAdded} ürün izlemeye eklendi`);
+          console.log(`âœ… ${trackingAdded} Ã¼rÃ¼n izlemeye eklendi`);
         } catch (trackingError) {
-          console.error('⚠️ Auto-tracking error:', trackingError);
+          console.error('âš ï¸ Auto-tracking error:', trackingError);
         }
       }
       
       res.json({
         success: result.success,
         message: result.success 
-          ? `${result.totalProducts} ürün senkronize edildi (${result.newProducts} yeni, ${result.updatedProducts} güncellendi, ${trackingAdded} izlemeye eklendi)`
-          : 'Senkronizasyon başarısız',
+          ? `${result.totalProducts} Ã¼rÃ¼n senkronize edildi (${result.newProducts} yeni, ${result.updatedProducts} gÃ¼ncellendi, ${trackingAdded} izlemeye eklendi)`
+          : 'Senkronizasyon baÅŸarÄ±sÄ±z',
         totalProducts: result.totalProducts,
         newProducts: result.newProducts,
         updatedProducts: result.updatedProducts,
         trackingAdded
       });
     } catch (error) {
-      console.error('❌ Shopify sync hatası:', error);
+      console.error('âŒ Shopify sync hatasÄ±:', error);
       res.status(500).json({
         success: false,
         error: error.message,
-        message: 'Shopify senkronizasyon hatası'
+        message: 'Shopify senkronizasyon hatasÄ±'
       });
     }
   });
 
-  // Hafızadaki Shopify ürünlerini listele
+  // HafÄ±zadaki Shopify Ã¼rÃ¼nlerini listele
   app.get('/api/shopify/memory-products', async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
@@ -5277,16 +5278,16 @@ setTimeout(check, 1000);
         offset
       });
     } catch (error) {
-      console.error('❌ Hafızadaki Shopify ürünleri listeleme hatası:', error);
+      console.error('âŒ HafÄ±zadaki Shopify Ã¼rÃ¼nleri listeleme hatasÄ±:', error);
       res.status(500).json({
         success: false,
         error: error.message,
-        message: 'Ürün listeleme hatası'
+        message: 'ÃœrÃ¼n listeleme hatasÄ±'
       });
     }
   });
 
-  // Benzersiz ID ile ürün getir
+  // Benzersiz ID ile Ã¼rÃ¼n getir
   app.get('/api/shopify/product/:trackingId', async (req, res) => {
     try {
       const { trackingId } = req.params;
@@ -5301,20 +5302,20 @@ setTimeout(check, 1000);
         res.status(404).json({
           success: false,
           error: result.error,
-          message: 'Ürün bulunamadı'
+          message: 'ÃœrÃ¼n bulunamadÄ±'
         });
       }
     } catch (error) {
-      console.error('❌ Ürün getirme hatası:', error);
+      console.error('âŒ ÃœrÃ¼n getirme hatasÄ±:', error);
       res.status(500).json({
         success: false,
         error: error.message,
-        message: 'Ürün getirme hatası'
+        message: 'ÃœrÃ¼n getirme hatasÄ±'
       });
     }
   });
 
-  // Ürün takibini aktifleştir
+  // ÃœrÃ¼n takibini aktifleÅŸtir
   app.post('/api/shopify/enable-tracking/:trackingId', async (req, res) => {
     try {
       const { trackingId } = req.params;
@@ -5324,20 +5325,20 @@ setTimeout(check, 1000);
       
       res.json({
         success: result.success,
-        message: result.success ? 'Ürün takibi aktifleştirildi' : 'Takip aktifleştirme başarısız',
+        message: result.success ? 'ÃœrÃ¼n takibi aktifleÅŸtirildi' : 'Takip aktifleÅŸtirme baÅŸarÄ±sÄ±z',
         error: result.error
       });
     } catch (error) {
-      console.error('❌ Ürün takibi aktifleştirme hatası:', error);
+      console.error('âŒ ÃœrÃ¼n takibi aktifleÅŸtirme hatasÄ±:', error);
       res.status(500).json({
         success: false,
         error: error.message,
-        message: 'Takip aktifleştirme hatası'
+        message: 'Takip aktifleÅŸtirme hatasÄ±'
       });
     }
   });
 
-  // Hafıza istatistikleri
+  // HafÄ±za istatistikleri
   app.get('/api/shopify/memory-stats', async (req, res) => {
     try {
       const result = await shopifyApiService.getMemoryStats();
@@ -5348,16 +5349,16 @@ setTimeout(check, 1000);
         error: result.error
       });
     } catch (error) {
-      console.error('❌ Hafıza istatistik hatası:', error);
+      console.error('âŒ HafÄ±za istatistik hatasÄ±:', error);
       res.status(500).json({
         success: false,
         error: error.message,
-        message: 'İstatistik getirme hatası'
+        message: 'Ä°statistik getirme hatasÄ±'
       });
     }
   });
 
-  // Shopify'a aktarılan ürünleri listele
+  // Shopify'a aktarÄ±lan Ã¼rÃ¼nleri listele
   app.get('/api/shopify/transferred-products', async (req, res) => {
     try {
       const shopifyProducts = await db
@@ -5381,7 +5382,7 @@ setTimeout(check, 1000);
         .where(eq(products.isActive, true))
         .limit(20);
       
-      // Sadece Shopify'a aktarılanları filtrele
+      // Sadece Shopify'a aktarÄ±lanlarÄ± filtrele
       const transferredProducts = shopifyProducts.filter(p => 
         p.shopifyProductId || p.shopifyUrl
       );
@@ -5416,7 +5417,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify mağaza istatistikleri
+  // Shopify maÄŸaza istatistikleri
   app.get('/api/shopify/store-stats', async (req, res) => {
     try {
       const allProducts = await db
@@ -5429,7 +5430,7 @@ setTimeout(check, 1000);
         .from(products)
         .where(eq(products.isActive, true));
       
-      // Sadece Shopify'a aktarılanları filtrele
+      // Sadece Shopify'a aktarÄ±lanlarÄ± filtrele
       const shopifyProducts = allProducts.filter(p => 
         p.shopifyProductId || p.shopifyUrl
       );
@@ -5467,12 +5468,12 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify-Trendyol ürün eşleştirme endpoint'i
+  // Shopify-Trendyol Ã¼rÃ¼n eÅŸleÅŸtirme endpoint'i
   app.post('/api/matcher/start-matching', async (req, res) => {
     try {
-      console.log('🚀 Shopify-Trendyol ürün eşleştirme başlıyor...');
+      console.log('ğŸš€ Shopify-Trendyol Ã¼rÃ¼n eÅŸleÅŸtirme baÅŸlÄ±yor...');
       
-      // Hafızadaki Shopify ürünlerini al (ilk 20 ürünle test)
+      // HafÄ±zadaki Shopify Ã¼rÃ¼nlerini al (ilk 20 Ã¼rÃ¼nle test)
       const shopifyProducts = await db
         .select({
           id: products.id,
@@ -5485,24 +5486,24 @@ setTimeout(check, 1000);
         .where(isNotNull(products.shopifyProductId))
         .limit(20);
 
-      console.log(`📦 ${shopifyProducts.length} Shopify ürünü bulundu`);
+      console.log(`ğŸ“¦ ${shopifyProducts.length} Shopify Ã¼rÃ¼nÃ¼ bulundu`);
       
       if (shopifyProducts.length === 0) {
         return res.json({
           success: false,
-          message: 'Hafızada Shopify ürünü bulunamadı'
+          message: 'HafÄ±zada Shopify Ã¼rÃ¼nÃ¼ bulunamadÄ±'
         });
       }
 
-      // Her ürün için basit Trendyol araması
+      // Her Ã¼rÃ¼n iÃ§in basit Trendyol aramasÄ±
       const matches = [];
       
-      for (const product of shopifyProducts.slice(0, 5)) { // İlk 5 ürünle test
-        console.log(`🔍 Arıyor: ${product.title}`);
+      for (const product of shopifyProducts.slice(0, 5)) { // Ä°lk 5 Ã¼rÃ¼nle test
+        console.log(`ğŸ” ArÄ±yor: ${product.title}`);
         
-        // Basit arama URL'si oluştur
+        // Basit arama URL'si oluÅŸtur
         const searchQuery = product.title
-          .replace(/[^\w\sÇĞıİÖŞÜçğıiöşü]/g, '')
+          .replace(/[^\w\sÃ‡ÄÄ±Ä°Ã–ÅÃœÃ§ÄŸÄ±iÃ¶ÅŸÃ¼]/g, '')
           .replace(/\s+/g, ' ')
           .trim();
         
@@ -5523,11 +5524,11 @@ setTimeout(check, 1000);
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
-      // Telegram raporu gönder
+      // Telegram raporu gÃ¶nder
       const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
       if (telegramBotToken) {
         try {
-          const report = `🎯 *Shopify-Trendyol Ürün Analizi*\n\n📊 *Durum:*\n• Analiz edilen: ${matches.length} ürün\n• Toplam hafızada: ${shopifyProducts.length} Shopify ürünü\n\n🔍 *İlk 3 Ürün:*\n${matches.slice(0, 3).map(m => `• ${m.shopifyProduct.title.substring(0, 30)}...\n  Fiyat: ${m.shopifyProduct.price} TL`).join('\n\n')}\n\n⏰ ${new Date().toLocaleString('tr-TR')}`;
+          const report = `ğŸ¯ *Shopify-Trendyol ÃœrÃ¼n Analizi*\n\nğŸ“Š *Durum:*\nâ€¢ Analiz edilen: ${matches.length} Ã¼rÃ¼n\nâ€¢ Toplam hafÄ±zada: ${shopifyProducts.length} Shopify Ã¼rÃ¼nÃ¼\n\nğŸ” *Ä°lk 3 ÃœrÃ¼n:*\n${matches.slice(0, 3).map(m => `â€¢ ${m.shopifyProduct.title.substring(0, 30)}...\n  Fiyat: ${m.shopifyProduct.price} TL`).join('\n\n')}\n\nâ° ${new Date().toLocaleString('tr-TR')}`;
           
           const axios = require('axios');
           await axios.post(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
@@ -5536,25 +5537,25 @@ setTimeout(check, 1000);
             parse_mode: 'Markdown'
           });
           
-          console.log('✅ Telegram raporu gönderildi');
+          console.log('âœ… Telegram raporu gÃ¶nderildi');
         } catch (error) {
-          console.error('❌ Telegram gönderim hatası:', error);
+          console.error('âŒ Telegram gÃ¶nderim hatasÄ±:', error);
         }
       }
       
       res.json({
         success: true,
-        message: `${matches.length} ürün analiz edildi ve Telegram'a rapor gönderildi`,
+        message: `${matches.length} Ã¼rÃ¼n analiz edildi ve Telegram'a rapor gÃ¶nderildi`,
         totalShopifyProducts: shopifyProducts.length,
         analyzedProducts: matches.length,
         matches: matches
       });
       
     } catch (error) {
-      console.error('❌ Matching hatası:', error);
+      console.error('âŒ Matching hatasÄ±:', error);
       res.status(500).json({
         success: false,
-        error: 'Ürün eşleştirme sırasında hata oluştu'
+        error: 'ÃœrÃ¼n eÅŸleÅŸtirme sÄ±rasÄ±nda hata oluÅŸtu'
       });
     }
   });
@@ -5576,11 +5577,11 @@ setTimeout(check, 1000);
       if (!telegramBotToken) {
         return res.status(500).json({
           success: false,
-          error: 'Telegram bot token bulunamadı'
+          error: 'Telegram bot token bulunamadÄ±'
         });
       }
 
-      // Telegram API'ye mesaj gönder
+      // Telegram API'ye mesaj gÃ¶nder
       const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
       
       const telegramResponse = await fetch(telegramUrl, {
@@ -5589,7 +5590,7 @@ setTimeout(check, 1000);
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          chat_id: '1219880063', // Kişisel chat ID
+          chat_id: '1219880063', // KiÅŸisel chat ID
           text: message,
           parse_mode: 'Markdown',
           disable_web_page_preview: true
@@ -5599,24 +5600,24 @@ setTimeout(check, 1000);
       const telegramResult = await telegramResponse.json();
       
       if (telegramResult.ok) {
-        console.log('✅ Telegram mesajı gönderildi');
+        console.log('âœ… Telegram mesajÄ± gÃ¶nderildi');
         res.json({
           success: true,
-          message: 'Telegram mesajı başarıyla gönderildi'
+          message: 'Telegram mesajÄ± baÅŸarÄ±yla gÃ¶nderildi'
         });
       } else {
-        console.error('❌ Telegram gönderim hatası:', telegramResult);
+        console.error('âŒ Telegram gÃ¶nderim hatasÄ±:', telegramResult);
         res.status(500).json({
           success: false,
-          error: `Telegram hatası: ${telegramResult.description || 'Bilinmeyen hata'}`
+          error: `Telegram hatasÄ±: ${telegramResult.description || 'Bilinmeyen hata'}`
         });
       }
       
     } catch (error) {
-      console.error('❌ Telegram endpoint hatası:', error);
+      console.error('âŒ Telegram endpoint hatasÄ±:', error);
       res.status(500).json({
         success: false,
-        error: 'Telegram mesaj gönderim hatası'
+        error: 'Telegram mesaj gÃ¶nderim hatasÄ±'
       });
     }
   });
@@ -5629,38 +5630,38 @@ setTimeout(check, 1000);
       if (!productData || !productData.title) {
         return res.status(400).json({
           success: false,
-          message: 'Geçersiz ürün verisi'
+          message: 'GeÃ§ersiz Ã¼rÃ¼n verisi'
         });
       }
 
-      console.log('🚀 Shopify\'a direkt ürün yükleme başlıyor:', productData.title);
+      console.log('ğŸš€ Shopify\'a direkt Ã¼rÃ¼n yÃ¼kleme baÅŸlÄ±yor:', productData.title);
       
-      // Önce Shopify bağlantısını test et
+      // Ã–nce Shopify baÄŸlantÄ±sÄ±nÄ± test et
       const connectionTest = await shopifyIntegration.testConnection();
       if (!connectionTest) {
         return res.status(500).json({
           success: false,
-          message: 'Shopify bağlantısı başarısız. Lütfen API anahtarlarını kontrol edin.'
+          message: 'Shopify baÄŸlantÄ±sÄ± baÅŸarÄ±sÄ±z. LÃ¼tfen API anahtarlarÄ±nÄ± kontrol edin.'
         });
       }
 
-      // Product data'sını database formatına dönüştür
-      // Debug: productData'yı konsola yazdır
-      console.log('🔍 ProductData sourceUrl:', productData.sourceUrl);
-      console.log('🔍 ProductData:', JSON.stringify(productData, null, 2));
+      // Product data'sÄ±nÄ± database formatÄ±na dÃ¶nÃ¼ÅŸtÃ¼r
+      // Debug: productData'yÄ± konsola yazdÄ±r
+      console.log('ğŸ” ProductData sourceUrl:', productData.sourceUrl);
+      console.log('ğŸ” ProductData:', JSON.stringify(productData, null, 2));
       
-      // Trendyol Product ID extract et (URL'den veya unique ID oluştur)
+      // Trendyol Product ID extract et (URL'den veya unique ID oluÅŸtur)
       const extractTrendyolId = (url: string) => {
-        console.log('🔍 extractTrendyolId input:', url);
+        console.log('ğŸ” extractTrendyolId input:', url);
         if (url && typeof url === 'string' && url.includes('trendyol.com')) {
           const match = url.match(/p-(.+?)(\?|$)/);
           if (match && match[1] && match[1].trim()) {
-            console.log('🔍 extractTrendyolId result (from URL):', match[1]);
+            console.log('ğŸ” extractTrendyolId result (from URL):', match[1]);
             return match[1].trim();
           }
         }
         const result = 'generated-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        console.log('🔍 extractTrendyolId result (generated):', result);
+        console.log('ğŸ” extractTrendyolId result (generated):', result);
         return result;
       };
 
@@ -5670,18 +5671,18 @@ setTimeout(check, 1000);
       // Double-check to ensure it's never null/undefined
       if (!trendyolProductId || typeof trendyolProductId !== 'string' || trendyolProductId.trim() === '') {
         trendyolProductId = 'fallback-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        console.log('🔍 Fallback trendyolProductId generated:', trendyolProductId);
+        console.log('ğŸ” Fallback trendyolProductId generated:', trendyolProductId);
       }
       
-      console.log('🔍 Final trendyolUrl:', trendyolUrl);
-      console.log('🔍 Final trendyolProductId:', trendyolProductId);
+      console.log('ğŸ” Final trendyolUrl:', trendyolUrl);
+      console.log('ğŸ” Final trendyolProductId:', trendyolProductId);
       
       // Final safety check before database insertion
       if (!trendyolProductId) {
-        console.error('❌ trendyolProductId is still null or empty after all checks!');
+        console.error('âŒ trendyolProductId is still null or empty after all checks!');
         return res.status(400).json({
           success: false,
-          message: 'Ürün ID oluşturulamadı. Lütfen tekrar deneyin.'
+          message: 'ÃœrÃ¼n ID oluÅŸturulamadÄ±. LÃ¼tfen tekrar deneyin.'
         });
       }
 
@@ -5707,10 +5708,10 @@ setTimeout(check, 1000);
         profitMargin: '15.00'
       };
 
-      // Ürünü veritabanına kaydet
+      // ÃœrÃ¼nÃ¼ veritabanÄ±na kaydet
       const [savedProduct] = await db.insert(products).values(dbProduct).returning();
       
-      // Varyantları hazırla
+      // VaryantlarÄ± hazÄ±rla
       const dbVariants: InsertProductVariant[] = [];
       
       if (productData.variants?.allVariants && productData.variants.allVariants.length > 0) {
@@ -5740,31 +5741,31 @@ setTimeout(check, 1000);
         });
       }
 
-      // Varyantları veritabanına kaydet
+      // VaryantlarÄ± veritabanÄ±na kaydet
       const savedVariants = dbVariants.length > 0 
         ? await db.insert(productVariants).values(dbVariants).returning()
         : [];
 
-      // Shopify'a ürün oluştur
+      // Shopify'a Ã¼rÃ¼n oluÅŸtur
       const shopifyProductId = await shopifyIntegration.createProduct(savedProduct, savedVariants);
       
       if (shopifyProductId) {
-        console.log('✅ Ürün başarıyla Shopify\'a yüklendi:', shopifyProductId);
+        console.log('âœ… ÃœrÃ¼n baÅŸarÄ±yla Shopify\'a yÃ¼klendi:', shopifyProductId);
         
-        // Ürünü otomatik olarak tracking'e ekle
+        // ÃœrÃ¼nÃ¼ otomatik olarak tracking'e ekle
         try {
           if (trendyolUrl && trendyolUrl.includes('trendyol.com')) {
-            console.log('🎯 Yüklenen ürün otomatik tracking sistemi ekleniyor...');
+            console.log('ğŸ¯ YÃ¼klenen Ã¼rÃ¼n otomatik tracking sistemi ekleniyor...');
             await urlTrackingService.addUrlToTracking(trendyolUrl, 300, 'auto-shopify-upload');
-            console.log('✅ Ürün otomatik tracking sistemi eklendi');
+            console.log('âœ… ÃœrÃ¼n otomatik tracking sistemi eklendi');
           }
         } catch (trackingError) {
-          console.error('⚠️ Otomatik tracking ekleme hatası (devam ediyor):', trackingError);
+          console.error('âš ï¸ Otomatik tracking ekleme hatasÄ± (devam ediyor):', trackingError);
         }
         
         return res.json({
           success: true,
-          message: `Ürün başarıyla Shopify'a yüklendi ve otomatik takip sistemi aktif edildi!`,
+          message: `ÃœrÃ¼n baÅŸarÄ±yla Shopify'a yÃ¼klendi ve otomatik takip sistemi aktif edildi!`,
           data: {
             shopifyProductId,
             productTitle: productData.title,
@@ -5774,25 +5775,25 @@ setTimeout(check, 1000);
           }
         });
       } else {
-        console.error('❌ Shopify ürün oluşturma başarısız');
+        console.error('âŒ Shopify Ã¼rÃ¼n oluÅŸturma baÅŸarÄ±sÄ±z');
         
         return res.status(500).json({
           success: false,
-          message: 'Shopify\'a ürün yüklenirken hata oluştu. Lütfen tekrar deneyin.'
+          message: 'Shopify\'a Ã¼rÃ¼n yÃ¼klenirken hata oluÅŸtu. LÃ¼tfen tekrar deneyin.'
         });
       }
       
     } catch (error) {
-      console.error('❌ Shopify export error:', error);
+      console.error('âŒ Shopify export error:', error);
       res.status(500).json({
         success: false,
-        message: 'Shopify\'a yükleme sırasında hata oluştu',
+        message: 'Shopify\'a yÃ¼kleme sÄ±rasÄ±nda hata oluÅŸtu',
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
   });
 
-  // URL Tracking API endpoints - ÜRÜN URL'LERİNİ HAFIZAYa KAYDET VE TAKİP ET
+  // URL Tracking API endpoints - ÃœRÃœN URL'LERÄ°NÄ° HAFIZAYa KAYDET VE TAKÄ°P ET
   app.post("/api/tracking/add", async (req, res) => {
     try {
       const { url, trackingInterval = 300 } = req.body;
@@ -5804,7 +5805,7 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log(`🎯 URL tracking'e ekleme isteği: ${url}`);
+      console.log(`ğŸ¯ URL tracking'e ekleme isteÄŸi: ${url}`);
       
       const result = await urlTrackingService.addUrlToTracking(url, trackingInterval);
       
@@ -5822,7 +5823,7 @@ setTimeout(check, 1000);
         });
       }
     } catch (error) {
-      console.error("❌ Tracking add error:", error);
+      console.error("âŒ Tracking add error:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -5840,7 +5841,7 @@ setTimeout(check, 1000);
         total: trackedUrls.length
       });
     } catch (error) {
-      console.error("❌ Tracking list error:", error);
+      console.error("âŒ Tracking list error:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -5854,7 +5855,7 @@ setTimeout(check, 1000);
    */
   app.get("/api/tracking", async (req, res) => {
     try {
-      console.log('📊 Fetching comprehensive tracking data...');
+      console.log('ğŸ“Š Fetching comprehensive tracking data...');
       
       // Get all products with their variants
       const allProducts = await db
@@ -5987,7 +5988,7 @@ setTimeout(check, 1000);
         totalStockChanges: enrichedProducts.reduce((sum, p) => sum + Number(p.stockChangeCount), 0)
       };
       
-      console.log('✅ Comprehensive tracking data fetched successfully');
+      console.log('âœ… Comprehensive tracking data fetched successfully');
       
       res.json({
         success: true,
@@ -5995,7 +5996,7 @@ setTimeout(check, 1000);
         products: enrichedProducts
       });
     } catch (error) {
-      console.error("❌ Comprehensive tracking error:", error);
+      console.error("âŒ Comprehensive tracking error:", error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -6018,10 +6019,10 @@ setTimeout(check, 1000);
       
       res.json({
         success: true,
-        message: "URL tracking'den kaldırıldı"
+        message: "URL tracking'den kaldÄ±rÄ±ldÄ±"
       });
     } catch (error) {
-      console.error("❌ Tracking remove error:", error);
+      console.error("âŒ Tracking remove error:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6038,7 +6039,7 @@ setTimeout(check, 1000);
         stats
       });
     } catch (error) {
-      console.error("❌ Tracking stats error:", error);
+      console.error("âŒ Tracking stats error:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6064,7 +6065,7 @@ setTimeout(check, 1000);
         message: "URL kontrol edildi"
       });
     } catch (error) {
-      console.error("❌ Tracking check error:", error);
+      console.error("âŒ Tracking check error:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6072,7 +6073,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // URL arama ve yönetim endpoints
+  // URL arama ve yÃ¶netim endpoints
   app.get("/api/saved-urls/search", async (req, res) => {
     try {
       const { q } = req.query;
@@ -6084,7 +6085,7 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log(`🔍 URL arama: "${q}"`);
+      console.log(`ğŸ” URL arama: "${q}"`);
       const results = await savedUrlsManager.searchSavedUrls(q);
       
       res.json({
@@ -6094,7 +6095,7 @@ setTimeout(check, 1000);
         total: results.length
       });
     } catch (error) {
-      console.error("❌ URL arama hatası:", error);
+      console.error("âŒ URL arama hatasÄ±:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6104,7 +6105,7 @@ setTimeout(check, 1000);
 
   app.get("/api/saved-urls/all", async (req, res) => {
     try {
-      console.log('📋 Tüm kayıtlı URL\'ler getiriliyor...');
+      console.log('ğŸ“‹ TÃ¼m kayÄ±tlÄ± URL\'ler getiriliyor...');
       const urls = await savedUrlsManager.getAllSavedUrls();
       
       res.json({
@@ -6113,7 +6114,7 @@ setTimeout(check, 1000);
         total: urls.length
       });
     } catch (error) {
-      console.error("❌ URL listesi hatası:", error);
+      console.error("âŒ URL listesi hatasÄ±:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6126,7 +6127,7 @@ setTimeout(check, 1000);
       const { limit } = req.query;
       const limitNum = limit ? parseInt(limit as string) : 10;
       
-      console.log(`📅 Son ${limitNum} URL getiriliyor...`);
+      console.log(`ğŸ“… Son ${limitNum} URL getiriliyor...`);
       const urls = await savedUrlsManager.getRecentUrls(limitNum);
       
       res.json({
@@ -6135,7 +6136,7 @@ setTimeout(check, 1000);
         total: urls.length
       });
     } catch (error) {
-      console.error("❌ Son URL'ler hatası:", error);
+      console.error("âŒ Son URL'ler hatasÄ±:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6145,7 +6146,7 @@ setTimeout(check, 1000);
 
   app.get("/api/saved-urls/popular", async (req, res) => {
     try {
-      console.log('🔥 Popüler URL\'ler getiriliyor...');
+      console.log('ğŸ”¥ PopÃ¼ler URL\'ler getiriliyor...');
       const urls = await savedUrlsManager.getPopularUrls();
       
       res.json({
@@ -6154,7 +6155,7 @@ setTimeout(check, 1000);
         total: urls.length
       });
     } catch (error) {
-      console.error("❌ Popüler URL'ler hatası:", error);
+      console.error("âŒ PopÃ¼ler URL'ler hatasÄ±:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6164,7 +6165,7 @@ setTimeout(check, 1000);
 
   app.get("/api/saved-urls/stats", async (req, res) => {
     try {
-      console.log('📊 URL istatistikleri getiriliyor...');
+      console.log('ğŸ“Š URL istatistikleri getiriliyor...');
       const stats = await savedUrlsManager.getUrlStats();
       
       res.json({
@@ -6172,7 +6173,7 @@ setTimeout(check, 1000);
         stats: stats
       });
     } catch (error) {
-      console.error("❌ URL istatistikleri hatası:", error);
+      console.error("âŒ URL istatistikleri hatasÄ±:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6191,7 +6192,7 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log(`🔍 URL kontrol ediliyor: ${url}`);
+      console.log(`ğŸ” URL kontrol ediliyor: ${url}`);
       const isSaved = await savedUrlsManager.isUrlSaved(url);
       
       res.json({
@@ -6200,7 +6201,7 @@ setTimeout(check, 1000);
         isSaved: isSaved
       });
     } catch (error) {
-      console.error("❌ URL kontrol hatası:", error);
+      console.error("âŒ URL kontrol hatasÄ±:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6219,13 +6220,13 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log(`🗑️ URL siliniyor: ${url}`);
+      console.log(`ğŸ—‘ï¸ URL siliniyor: ${url}`);
       const deleted = await savedUrlsManager.deleteUrl(url);
       
       if (deleted) {
         res.json({
           success: true,
-          message: "URL başarıyla silindi"
+          message: "URL baÅŸarÄ±yla silindi"
         });
       } else {
         res.status(500).json({
@@ -6234,7 +6235,7 @@ setTimeout(check, 1000);
         });
       }
     } catch (error) {
-      console.error("❌ URL silme hatası:", error);
+      console.error("âŒ URL silme hatasÄ±:", error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -6242,8 +6243,8 @@ setTimeout(check, 1000);
     }
   });
 
-  console.log('🎯 URL Tracking Service API endpoints registered');
-  console.log('🔍 Saved URLs Manager API endpoints registered');
+  console.log('ğŸ¯ URL Tracking Service API endpoints registered');
+  console.log('ğŸ” Saved URLs Manager API endpoints registered');
 
   // ==== SHOPIFY TRANSFER TRACKING API ENDPOINTS ====
   
@@ -6260,10 +6261,10 @@ setTimeout(check, 1000);
         total: products.length
       });
     } catch (error) {
-      console.error('❌ Shopify transferred products listesi hatası:', error);
+      console.error('âŒ Shopify transferred products listesi hatasÄ±:', error);
       res.status(500).json({
         success: false,
-        error: 'Shopify ürün listesi alınamadı'
+        error: 'Shopify Ã¼rÃ¼n listesi alÄ±namadÄ±'
       });
     }
   });
@@ -6279,15 +6280,15 @@ setTimeout(check, 1000);
         stats
       });
     } catch (error) {
-      console.error('❌ Shopify transfer istatistikleri hatası:', error);
+      console.error('âŒ Shopify transfer istatistikleri hatasÄ±:', error);
       res.status(500).json({
         success: false,
-        error: 'İstatistikler alınamadı'
+        error: 'Ä°statistikler alÄ±namadÄ±'
       });
     }
   });
 
-  // Son değişiklikler
+  // Son deÄŸiÅŸiklikler
   app.get('/api/shopify/recent-changes', async (req, res) => {
     try {
       const { shopifyTransferTracker } = await import('./shopify-transfer-tracker');
@@ -6300,25 +6301,25 @@ setTimeout(check, 1000);
         changes
       });
     } catch (error) {
-      console.error('❌ Son değişiklikler hatası:', error);
+      console.error('âŒ Son deÄŸiÅŸiklikler hatasÄ±:', error);
       res.status(500).json({
         success: false,
-        error: 'Son değişiklikler alınamadı'
+        error: 'Son deÄŸiÅŸiklikler alÄ±namadÄ±'
       });
     }
   });
 
-  // Shopify senkronizasyon - silinen ürünleri temizle
+  // Shopify senkronizasyon - silinen Ã¼rÃ¼nleri temizle
   app.post('/api/shopify/sync-deleted-products', async (req, res) => {
     try {
-      console.log('🔄 Shopify sync başlatılıyor...');
+      console.log('ğŸ”„ Shopify sync baÅŸlatÄ±lÄ±yor...');
       
       // Get all products from database
       const allProducts = await db
         .select()
         .from(shopifyTransferredProducts);
       
-      console.log(`📊 Database'de ${allProducts.length} ürün bulundu`);
+      console.log(`ğŸ“Š Database'de ${allProducts.length} Ã¼rÃ¼n bulundu`);
       
       // Manual cleanup: Mark products as inactive if needed
       // TODO: Implement Shopify Admin API integration to check actual product status
@@ -6326,20 +6327,20 @@ setTimeout(check, 1000);
       
       res.json({
         success: true,
-        message: 'Shopify Admin API entegrasyonu gerekiyor. Manuel temizleme için ürünleri tek tek silebilirsiniz.',
+        message: 'Shopify Admin API entegrasyonu gerekiyor. Manuel temizleme iÃ§in Ã¼rÃ¼nleri tek tek silebilirsiniz.',
         totalProducts: allProducts.length,
-        note: 'Shopify Admin API credentials eklendiğinde otomatik senkronizasyon aktif olacak'
+        note: 'Shopify Admin API credentials eklendiÄŸinde otomatik senkronizasyon aktif olacak'
       });
     } catch (error) {
-      console.error('❌ Shopify sync hatası:', error);
+      console.error('âŒ Shopify sync hatasÄ±:', error);
       res.status(500).json({
         success: false,
-        error: 'Senkronizasyon hatası'
+        error: 'Senkronizasyon hatasÄ±'
       });
     }
   });
   
-  // Ürün silme endpoint'i
+  // ÃœrÃ¼n silme endpoint'i
   app.delete('/api/shopify/transferred-products/:id', async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -6350,27 +6351,27 @@ setTimeout(check, 1000);
       
       res.json({
         success: true,
-        message: 'Ürün başarıyla silindi'
+        message: 'ÃœrÃ¼n baÅŸarÄ±yla silindi'
       });
     } catch (error) {
-      console.error('❌ Ürün silme hatası:', error);
+      console.error('âŒ ÃœrÃ¼n silme hatasÄ±:', error);
       res.status(500).json({
         success: false,
-        error: 'Ürün silinemedi'
+        error: 'ÃœrÃ¼n silinemedi'
       });
     }
   });
 
-  console.log('📦 Shopify transfer tracking API endpoints registered');
+  console.log('ğŸ“¦ Shopify transfer tracking API endpoints registered');
 
   // AI-Powered Routes Integration
   (async () => {
     try {
       const { addAIPoweredRoutes } = await import('./ai-powered-routes');
       addAIPoweredRoutes(app);
-      console.log('🤖 AI-Powered routes başarıyla eklendi');
+      console.log('ğŸ¤– AI-Powered routes baÅŸarÄ±yla eklendi');
     } catch (error) {
-      console.error('⚠️ AI routes yüklenemedi:', error);
+      console.error('âš ï¸ AI routes yÃ¼klenemedi:', error);
     }
   })();
 
@@ -6379,9 +6380,9 @@ setTimeout(check, 1000);
     try {
       const { priceMovementApiRouter } = await import('./price-movement-api');
       app.use('/api/price-movement', priceMovementApiRouter);
-      console.log('📊 Enhanced Price Movement API routes eklendi');
+      console.log('ğŸ“Š Enhanced Price Movement API routes eklendi');
     } catch (error) {
-      console.error('⚠️ Price Movement API routes yüklenemedi:', error);
+      console.error('âš ï¸ Price Movement API routes yÃ¼klenemedi:', error);
     }
   })();
 
@@ -6489,7 +6490,7 @@ setTimeout(check, 1000);
       res.json(dashboardData);
 
     } catch (error) {
-      console.error('❌ Dashboard stats error:', error);
+      console.error('âŒ Dashboard stats error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to fetch dashboard statistics',
@@ -6527,7 +6528,7 @@ setTimeout(check, 1000);
       });
 
     } catch (error) {
-      console.error('❌ Active tracking items error:', error);
+      console.error('âŒ Active tracking items error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to fetch active tracking items',
@@ -6582,7 +6583,7 @@ setTimeout(check, 1000);
       });
 
     } catch (error) {
-      console.error('❌ Recent changes error:', error);
+      console.error('âŒ Recent changes error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to fetch recent changes',
@@ -6591,7 +6592,7 @@ setTimeout(check, 1000);
     }
   });
 
-  console.log('🎯 Automated Tracking Dashboard API endpoints registered');
+  console.log('ğŸ¯ Automated Tracking Dashboard API endpoints registered');
 
   // ==================== MONITORING SERVICE ENDPOINTS ====================
   
@@ -6601,11 +6602,11 @@ setTimeout(check, 1000);
       monitoringService.start();
       res.json({
         success: true,
-        message: 'Monitoring service başlatıldı',
+        message: 'Monitoring service baÅŸlatÄ±ldÄ±',
         status: 'running'
       });
     } catch (error) {
-      console.error('❌ Monitoring start error:', error);
+      console.error('âŒ Monitoring start error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to start monitoring service',
@@ -6624,7 +6625,7 @@ setTimeout(check, 1000);
         status: 'stopped'
       });
     } catch (error) {
-      console.error('❌ Monitoring stop error:', error);
+      console.error('âŒ Monitoring stop error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to stop monitoring service',
@@ -6642,7 +6643,7 @@ setTimeout(check, 1000);
         ...stats
       });
     } catch (error) {
-      console.error('❌ Monitoring status error:', error);
+      console.error('âŒ Monitoring status error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to get monitoring status',
@@ -6668,7 +6669,7 @@ setTimeout(check, 1000);
       if (added) {
         res.json({
           success: true,
-          message: 'Ürün monitoring\'e eklendi',
+          message: 'ÃœrÃ¼n monitoring\'e eklendi',
           url
         });
       } else {
@@ -6678,7 +6679,7 @@ setTimeout(check, 1000);
         });
       }
     } catch (error) {
-      console.error('❌ Monitoring add error:', error);
+      console.error('âŒ Monitoring add error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to add product to monitoring',
@@ -6704,7 +6705,7 @@ setTimeout(check, 1000);
       if (removed) {
         res.json({
           success: true,
-          message: 'Ürün monitoring\'den çıkarıldı',
+          message: 'ÃœrÃ¼n monitoring\'den Ã§Ä±karÄ±ldÄ±',
           productId
         });
       } else {
@@ -6714,7 +6715,7 @@ setTimeout(check, 1000);
         });
       }
     } catch (error) {
-      console.error('❌ Monitoring remove error:', error);
+      console.error('âŒ Monitoring remove error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to remove product from monitoring',
@@ -6732,7 +6733,7 @@ setTimeout(check, 1000);
         ...status
       });
     } catch (error) {
-      console.error('❌ Telegram status error:', error);
+      console.error('âŒ Telegram status error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to get Telegram status',
@@ -6747,10 +6748,10 @@ setTimeout(check, 1000);
       const testResult = await telegramIntegration.testConnection();
       res.json({
         success: testResult,
-        message: testResult ? 'Telegram bağlantısı başarılı' : 'Telegram bağlantısı başarısız'
+        message: testResult ? 'Telegram baÄŸlantÄ±sÄ± baÅŸarÄ±lÄ±' : 'Telegram baÄŸlantÄ±sÄ± baÅŸarÄ±sÄ±z'
       });
     } catch (error) {
-      console.error('❌ Telegram test error:', error);
+      console.error('âŒ Telegram test error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to test Telegram connection',
@@ -6759,9 +6760,9 @@ setTimeout(check, 1000);
     }
   });
 
-  console.log('📊 Monitoring service API endpoints registered');
+  console.log('ğŸ“Š Monitoring service API endpoints registered');
 
-  // 🧪 MANUAL MONITORING TEST ENDPOINT - Test monitoring system manually
+  // ğŸ§ª MANUAL MONITORING TEST ENDPOINT - Test monitoring system manually
   app.post('/api/monitoring/test/:productId', async (req, res) => {
     try {
       const productId = parseInt(req.params.productId);
@@ -6773,7 +6774,7 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log(`🧪 MANUAL TEST: Checking product ${productId}`);
+      console.log(`ğŸ§ª MANUAL TEST: Checking product ${productId}`);
 
       // Get product from database
       const [product] = await db.select()
@@ -6800,7 +6801,7 @@ setTimeout(check, 1000);
       });
 
     } catch (error) {
-      console.error('❌ Manual monitoring test error:', error);
+      console.error('âŒ Manual monitoring test error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -6808,13 +6809,13 @@ setTimeout(check, 1000);
     }
   });
 
-  console.log('🧪 Manual monitoring test endpoint registered');
+  console.log('ğŸ§ª Manual monitoring test endpoint registered');
 
   // System Diagnostic Endpoint
   app.post('/api/system/diagnostic', async (req, res) => {
     try {
       const { systemDiagnostic } = await import('./diagnostic-test');
-      console.log('\n🔬 Running full system diagnostic...\n');
+      console.log('\nğŸ”¬ Running full system diagnostic...\n');
       
       const result = await systemDiagnostic.runAll();
       
@@ -6826,7 +6827,7 @@ setTimeout(check, 1000);
         status: result.failed === 0 ? 'FULLY OPERATIONAL' : 'ISSUES DETECTED'
       });
     } catch (error) {
-      console.error('❌ Diagnostic error:', error);
+      console.error('âŒ Diagnostic error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -6834,9 +6835,9 @@ setTimeout(check, 1000);
     }
   });
 
-  console.log('🔬 System diagnostic API endpoint registered');
+  console.log('ğŸ”¬ System diagnostic API endpoint registered');
 
-  // 🧪 HYBRID VARIANT EXTRACTION TEST ENDPOINT
+  // ğŸ§ª HYBRID VARIANT EXTRACTION TEST ENDPOINT
   app.post('/api/test/hybrid-variants', async (req, res) => {
     try {
       const { url } = req.body;
@@ -6848,17 +6849,17 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log(`\n🧪 HYBRID VARIANT TEST: Starting extraction for ${url}\n`);
+      console.log(`\nğŸ§ª HYBRID VARIANT TEST: Starting extraction for ${url}\n`);
 
       // Run hybrid extraction
       const result = await scenarioBasedScrape(url);
 
-      console.log(`\n✅ HYBRID VARIANT TEST COMPLETE\n`);
-      console.log(`📊 Variants found: ${result.variants?.length || 0}`);
-      console.log(`📊 Scenario: ${result.detectedScenario || 'unknown'}`);
+      console.log(`\nâœ… HYBRID VARIANT TEST COMPLETE\n`);
+      console.log(`ğŸ“Š Variants found: ${result.variants?.length || 0}`);
+      console.log(`ğŸ“Š Scenario: ${result.detectedScenario || 'unknown'}`);
       
       if (result.variants && result.variants.length > 0) {
-        console.log('\n🎯 Variant Details:');
+        console.log('\nğŸ¯ Variant Details:');
         result.variants.slice(0, 10).forEach((v: any, i: number) => {
           console.log(`  ${i + 1}. ${v.color} / ${v.size} (${v.inStock ? 'In Stock' : 'Out of Stock'})`);
         });
@@ -6880,7 +6881,7 @@ setTimeout(check, 1000);
       });
 
     } catch (error) {
-      console.error('❌ Hybrid variant test error:', error);
+      console.error('âŒ Hybrid variant test error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -6889,7 +6890,7 @@ setTimeout(check, 1000);
     }
   });
 
-  console.log('🧪 Hybrid variant test endpoint registered');
+  console.log('ğŸ§ª Hybrid variant test endpoint registered');
 
   // Admin Memory Management Routes
   setupAdminMemoryRoutes(app);
@@ -6898,24 +6899,24 @@ setTimeout(check, 1000);
   setupTrackingDashboardAPI(app);
 
   // ========================================
-  // TELEGRAM BİLDİRİM AYARLARI API
+  // TELEGRAM BÄ°LDÄ°RÄ°M AYARLARI API
   // ========================================
   
-  // Telegram bildirim ayarlarını getir
+  // Telegram bildirim ayarlarÄ±nÄ± getir
   app.get('/api/telegram/settings', async (req, res) => {
     try {
       const { telegramNotificationSettings } = await import('@shared/schema');
       const settings = await db.select().from(telegramNotificationSettings);
       
-      // Eğer ayar yoksa, varsayılan ayarları oluştur
+      // EÄŸer ayar yoksa, varsayÄ±lan ayarlarÄ± oluÅŸtur
       if (settings.length === 0) {
         const defaultSettings = [
-          { notificationType: 'new_product', enabled: true, description: 'Yeni ürün eklendiğinde bildirim gönder' },
-          { notificationType: 'variant_change', enabled: true, description: 'Ürün varyantları değiştiğinde bildirim gönder' },
-          { notificationType: 'variant_removed', enabled: false, description: 'Varyant kaldırıldığında bildirim gönder' },
-          { notificationType: 'price_change', enabled: true, description: 'Fiyat değişikliklerinde bildirim gönder' },
-          { notificationType: 'stock_update', enabled: true, description: 'Stok güncellemelerinde bildirim gönder' },
-          { notificationType: 'shopify_upload', enabled: true, description: 'Shopify\'a ürün yüklendiğinde bildirim gönder' }
+          { notificationType: 'new_product', enabled: true, description: 'Yeni Ã¼rÃ¼n eklendiÄŸinde bildirim gÃ¶nder' },
+          { notificationType: 'variant_change', enabled: true, description: 'ÃœrÃ¼n varyantlarÄ± deÄŸiÅŸtiÄŸinde bildirim gÃ¶nder' },
+          { notificationType: 'variant_removed', enabled: false, description: 'Varyant kaldÄ±rÄ±ldÄ±ÄŸÄ±nda bildirim gÃ¶nder' },
+          { notificationType: 'price_change', enabled: true, description: 'Fiyat deÄŸiÅŸikliklerinde bildirim gÃ¶nder' },
+          { notificationType: 'stock_update', enabled: true, description: 'Stok gÃ¼ncellemelerinde bildirim gÃ¶nder' },
+          { notificationType: 'shopify_upload', enabled: true, description: 'Shopify\'a Ã¼rÃ¼n yÃ¼klendiÄŸinde bildirim gÃ¶nder' }
         ];
         
         for (const setting of defaultSettings) {
@@ -6928,7 +6929,7 @@ setTimeout(check, 1000);
       
       res.json({ success: true, settings });
     } catch (error) {
-      console.error('❌ Telegram ayarları getirme hatası:', error);
+      console.error('âŒ Telegram ayarlarÄ± getirme hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -6936,7 +6937,7 @@ setTimeout(check, 1000);
     }
   });
   
-  // Telegram bildirim ayarını güncelle
+  // Telegram bildirim ayarÄ±nÄ± gÃ¼ncelle
   app.put('/api/telegram/settings/:type', async (req, res) => {
     try {
       const { type } = req.params;
@@ -6947,9 +6948,9 @@ setTimeout(check, 1000);
         .set({ enabled, updatedAt: new Date() })
         .where(eq(telegramNotificationSettings.notificationType, type));
       
-      res.json({ success: true, message: 'Ayar güncellendi' });
+      res.json({ success: true, message: 'Ayar gÃ¼ncellendi' });
     } catch (error) {
-      console.error('❌ Telegram ayarı güncelleme hatası:', error);
+      console.error('âŒ Telegram ayarÄ± gÃ¼ncelleme hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -6957,7 +6958,7 @@ setTimeout(check, 1000);
     }
   });
   
-  // Tüm bildirimleri aç/kapat
+  // TÃ¼m bildirimleri aÃ§/kapat
   app.post('/api/telegram/settings/toggle-all', async (req, res) => {
     try {
       const { enabled } = req.body;
@@ -6966,9 +6967,9 @@ setTimeout(check, 1000);
       await db.update(telegramNotificationSettings)
         .set({ enabled, updatedAt: new Date() });
       
-      res.json({ success: true, message: `Tüm bildirimler ${enabled ? 'açıldı' : 'kapatıldı'}` });
+      res.json({ success: true, message: `TÃ¼m bildirimler ${enabled ? 'aÃ§Ä±ldÄ±' : 'kapatÄ±ldÄ±'}` });
     } catch (error) {
-      console.error('❌ Toplu ayar güncelleme hatası:', error);
+      console.error('âŒ Toplu ayar gÃ¼ncelleme hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -6976,7 +6977,7 @@ setTimeout(check, 1000);
     }
   });
   
-  // Telegram bildirim geçmişini getir
+  // Telegram bildirim geÃ§miÅŸini getir
   app.get('/api/telegram/history', async (req, res) => {
     try {
       const { telegramNotificationHistory } = await import('@shared/schema');
@@ -7001,7 +7002,7 @@ setTimeout(check, 1000);
       
       res.json({ success: true, history });
     } catch (error) {
-      console.error('❌ Telegram geçmişi getirme hatası:', error);
+      console.error('âŒ Telegram geÃ§miÅŸi getirme hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7009,15 +7010,15 @@ setTimeout(check, 1000);
     }
   });
   
-  // Bildirim geçmişini temizle
+  // Bildirim geÃ§miÅŸini temizle
   app.delete('/api/telegram/history', async (req, res) => {
     try {
       const { telegramNotificationHistory } = await import('@shared/schema');
       await db.delete(telegramNotificationHistory);
       
-      res.json({ success: true, message: 'Geçmiş temizlendi' });
+      res.json({ success: true, message: 'GeÃ§miÅŸ temizlendi' });
     } catch (error) {
-      console.error('❌ Telegram geçmişi temizleme hatası:', error);
+      console.error('âŒ Telegram geÃ§miÅŸi temizleme hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7025,17 +7026,17 @@ setTimeout(check, 1000);
     }
   });
   
-  // Test bildirimi gönder
+  // Test bildirimi gÃ¶nder
   app.post('/api/telegram/test', async (req, res) => {
     try {
-      const message = '🧪 **Test Bildirimi**\n\nTelegram bağlantınız başarıyla çalışıyor!';
+      const message = 'ğŸ§ª **Test Bildirimi**\n\nTelegram baÄŸlantÄ±nÄ±z baÅŸarÄ±yla Ã§alÄ±ÅŸÄ±yor!';
       
-      // Telegram integration'ı kullanarak bildirim gönder - yeni parametre yapısı ile
+      // Telegram integration'Ä± kullanarak bildirim gÃ¶nder - yeni parametre yapÄ±sÄ± ile
       await telegramIntegration.sendNotification(message, 'test', undefined, undefined, { source: 'manual_test' });
       
-      res.json({ success: true, message: 'Test bildirimi gönderildi' });
+      res.json({ success: true, message: 'Test bildirimi gÃ¶nderildi' });
     } catch (error) {
-      console.error('❌ Test bildirimi hatası:', error);
+      console.error('âŒ Test bildirimi hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7043,7 +7044,7 @@ setTimeout(check, 1000);
     }
   });
   
-  // 🔴 LIVE FEED - En son gönderilen bildirimler (status='sent')
+  // ğŸ”´ LIVE FEED - En son gÃ¶nderilen bildirimler (status='sent')
   app.get('/api/telegram/live', async (req, res) => {
     try {
       const { telegramNotificationHistory } = await import('@shared/schema');
@@ -7058,7 +7059,7 @@ setTimeout(check, 1000);
       
       res.json({ success: true, notifications: liveNotifications, count: liveNotifications.length });
     } catch (error) {
-      console.error('❌ Live feed hatası:', error);
+      console.error('âŒ Live feed hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7066,7 +7067,7 @@ setTimeout(check, 1000);
     }
   });
   
-  // 🟡 PENDING QUEUE - Bekleyen bildirimler
+  // ğŸŸ¡ PENDING QUEUE - Bekleyen bildirimler
   app.get('/api/telegram/pending', async (req, res) => {
     try {
       const { telegramNotificationHistory } = await import('@shared/schema');
@@ -7081,7 +7082,7 @@ setTimeout(check, 1000);
       
       res.json({ success: true, notifications: pendingNotifications, count: pendingNotifications.length });
     } catch (error) {
-      console.error('❌ Pending queue hatası:', error);
+      console.error('âŒ Pending queue hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7089,7 +7090,7 @@ setTimeout(check, 1000);
     }
   });
   
-  // 🔴 FAILED LOG - Başarısız bildirimler
+  // ğŸ”´ FAILED LOG - BaÅŸarÄ±sÄ±z bildirimler
   app.get('/api/telegram/failed', async (req, res) => {
     try {
       const { telegramNotificationHistory } = await import('@shared/schema');
@@ -7104,7 +7105,7 @@ setTimeout(check, 1000);
       
       res.json({ success: true, notifications: failedNotifications, count: failedNotifications.length });
     } catch (error) {
-      console.error('❌ Failed log hatası:', error);
+      console.error('âŒ Failed log hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7112,19 +7113,19 @@ setTimeout(check, 1000);
     }
   });
   
-  // 📊 STATISTICS - Bildirim istatistikleri
+  // ğŸ“Š STATISTICS - Bildirim istatistikleri
   app.get('/api/telegram/stats', async (req, res) => {
     try {
       const { telegramNotificationHistory } = await import('@shared/schema');
       const { sql, count } = await import('drizzle-orm');
       
-      // Toplam bildirim sayısı
+      // Toplam bildirim sayÄ±sÄ±
       const totalResult = await db
         .select({ value: count() })
         .from(telegramNotificationHistory);
       const total = totalResult[0]?.value || 0;
       
-      // Status'a göre sayılar
+      // Status'a gÃ¶re sayÄ±lar
       const sentResult = await db
         .select({ value: count() })
         .from(telegramNotificationHistory)
@@ -7143,7 +7144,7 @@ setTimeout(check, 1000);
         .where(eq(telegramNotificationHistory.status, 'failed'));
       const failed = failedResult[0]?.value || 0;
       
-      // Başarı oranı
+      // BaÅŸarÄ± oranÄ±
       const successRate = total > 0 ? ((sent / total) * 100).toFixed(2) : '0';
       
       res.json({ 
@@ -7157,7 +7158,7 @@ setTimeout(check, 1000);
         }
       });
     } catch (error) {
-      console.error('❌ İstatistik hatası:', error);
+      console.error('âŒ Ä°statistik hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7165,7 +7166,7 @@ setTimeout(check, 1000);
     }
   });
   
-  // 🔄 MANUAL SEND - Pending/Failed bildirimi manuel gönder
+  // ğŸ”„ MANUAL SEND - Pending/Failed bildirimi manuel gÃ¶nder
   app.post('/api/telegram/manual-send/:id', async (req, res) => {
     try {
       const { id } = req.params;
@@ -7182,22 +7183,22 @@ setTimeout(check, 1000);
       if (!notification) {
         return res.status(404).json({ 
           success: false, 
-          error: 'Bildirim bulunamadı' 
+          error: 'Bildirim bulunamadÄ±' 
         });
       }
       
       if (notification.status === 'sent') {
         return res.status(400).json({ 
           success: false, 
-          error: 'Bu bildirim zaten gönderilmiş' 
+          error: 'Bu bildirim zaten gÃ¶nderilmiÅŸ' 
         });
       }
       
-      // Gateway kullanmadan direkt Telegram'a gönder (deduplication bypass)
+      // Gateway kullanmadan direkt Telegram'a gÃ¶nder (deduplication bypass)
       try {
         await filteredNotifier.sendNotification(notification.message);
         
-        // Database'de status güncelle
+        // Database'de status gÃ¼ncelle
         await db.update(telegramNotificationHistory)
           .set({ 
             status: 'sent',
@@ -7209,14 +7210,14 @@ setTimeout(check, 1000);
         
         res.json({ 
           success: true, 
-          message: 'Bildirim başarıyla gönderildi',
+          message: 'Bildirim baÅŸarÄ±yla gÃ¶nderildi',
           notification: {
             ...notification,
             status: 'sent'
           }
         });
       } catch (telegramError) {
-        // Gönderim başarısız, failed olarak işaretle
+        // GÃ¶nderim baÅŸarÄ±sÄ±z, failed olarak iÅŸaretle
         await db.update(telegramNotificationHistory)
           .set({ 
             status: 'failed',
@@ -7230,7 +7231,7 @@ setTimeout(check, 1000);
         throw telegramError;
       }
     } catch (error) {
-      console.error('❌ Manuel gönderim hatası:', error);
+      console.error('âŒ Manuel gÃ¶nderim hatasÄ±:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7238,9 +7239,9 @@ setTimeout(check, 1000);
     }
   });
   
-  console.log('📱 Telegram notification API endpoints registered');
+  console.log('ğŸ“± Telegram notification API endpoints registered');
 
-  // 🌈 Multi-Color Scraping API
+  // ğŸŒˆ Multi-Color Scraping API
   app.post('/api/scrape-all-colors', async (req, res) => {
     try {
       const { url } = req.body;
@@ -7252,7 +7253,7 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log('🌈 Starting multi-color extraction for:', url);
+      console.log('ğŸŒˆ Starting multi-color extraction for:', url);
       
       const { multiColorScraper } = await import('./multi-color-scraper');
       const result = await multiColorScraper.scrapeAllColors(url);
@@ -7267,7 +7268,7 @@ setTimeout(check, 1000);
       });
       
     } catch (error) {
-      console.error('❌ Multi-color scraping error:', error);
+      console.error('âŒ Multi-color scraping error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7275,7 +7276,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // 📦 Bulk URL Scraping API
+  // ğŸ“¦ Bulk URL Scraping API
   app.post('/api/scrape-bulk-urls', async (req, res) => {
     try {
       const { urls, extractAllColors = false } = req.body;
@@ -7287,8 +7288,8 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log(`📦 Starting bulk scraping: ${urls.length} URLs`);
-      console.log(`🎨 Extract all colors: ${extractAllColors}`);
+      console.log(`ğŸ“¦ Starting bulk scraping: ${urls.length} URLs`);
+      console.log(`ğŸ¨ Extract all colors: ${extractAllColors}`);
       
       const { bulkUrlScraper } = await import('./bulk-url-scraper');
       const result = await bulkUrlScraper.scrapeMultipleUrls(urls, extractAllColors);
@@ -7303,7 +7304,7 @@ setTimeout(check, 1000);
       });
       
     } catch (error) {
-      console.error('❌ Bulk scraping error:', error);
+      console.error('âŒ Bulk scraping error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7311,7 +7312,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // 📝 Bulk CSV Generation API
+  // ğŸ“ Bulk CSV Generation API
   app.post('/api/generate-bulk-csv', async (req, res) => {
     try {
       const bulkResult = req.body;
@@ -7323,7 +7324,7 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log(`📝 Generating CSV from ${bulkResult.combinedVariants.length} variants`);
+      console.log(`ğŸ“ Generating CSV from ${bulkResult.combinedVariants.length} variants`);
       
       const { bulkCSVGenerator } = await import('./bulk-csv-generator');
       const csvContent = bulkCSVGenerator.generateShopifyCSV(bulkResult);
@@ -7335,7 +7336,7 @@ setTimeout(check, 1000);
       });
       
     } catch (error) {
-      console.error('❌ Bulk CSV generation error:', error);
+      console.error('âŒ Bulk CSV generation error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7343,12 +7344,12 @@ setTimeout(check, 1000);
     }
   });
 
-  console.log('🌈 Multi-color and bulk scraping API endpoints registered');
+  console.log('ğŸŒˆ Multi-color and bulk scraping API endpoints registered');
 
-  // 📊 CENTRALIZED PRODUCT TRACKING SYSTEM API
+  // ğŸ“Š CENTRALIZED PRODUCT TRACKING SYSTEM API
   
   /**
-   * GET /api/tracking/all - Tüm takip edilen ürünleri getir
+   * GET /api/tracking/all - TÃ¼m takip edilen Ã¼rÃ¼nleri getir
    */
   app.get('/api/tracking/all', async (req, res) => {
     try {
@@ -7373,7 +7374,7 @@ setTimeout(check, 1000);
       const active = trackedUrls.filter(u => u.isTracking && u.status === 'active').length;
       const paused = trackedUrls.filter(u => !u.isTracking || u.status === 'paused').length;
       
-      console.log(`📊 Tracking All: ${total} total, ${active} active, ${paused} paused`);
+      console.log(`ğŸ“Š Tracking All: ${total} total, ${active} active, ${paused} paused`);
       
       res.json({
         success: true,
@@ -7394,7 +7395,7 @@ setTimeout(check, 1000);
         }
       });
     } catch (error) {
-      console.error('❌ Tracking all URLs error:', error);
+      console.error('âŒ Tracking all URLs error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7457,7 +7458,7 @@ setTimeout(check, 1000);
         }
       });
     } catch (error) {
-      console.error('❌ Tracking stats error:', error);
+      console.error('âŒ Tracking stats error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7466,11 +7467,11 @@ setTimeout(check, 1000);
   });
 
   /**
-   * POST /api/tracking/scan - Manuel olarak tüm izlenen URL'leri tara ve değişiklikleri tespit et
+   * POST /api/tracking/scan - Manuel olarak tÃ¼m izlenen URL'leri tara ve deÄŸiÅŸiklikleri tespit et
    */
   app.post('/api/tracking/scan', async (req, res) => {
     try {
-      console.log('🔍 Starting manual tracking scan...');
+      console.log('ğŸ” Starting manual tracking scan...');
       
       // Get all active URL tracking records
       const activeTracking = await db
@@ -7482,7 +7483,7 @@ setTimeout(check, 1000);
       let scanned = 0;
       let changesFound = 0;
       
-      console.log(`📊 Found ${activeTracking.length} active tracked URLs`);
+      console.log(`ğŸ“Š Found ${activeTracking.length} active tracked URLs`);
       
       // For MVP: Just acknowledge the scan without actual scraping
       // TODO: Implement actual scraping and change detection
@@ -7492,11 +7493,11 @@ setTimeout(check, 1000);
         success: true,
         scanned,
         changesFound,
-        message: `${scanned} URL tarandı, değişiklik tespit sistemi yakında aktif olacak`
+        message: `${scanned} URL tarandÄ±, deÄŸiÅŸiklik tespit sistemi yakÄ±nda aktif olacak`
       });
       
     } catch (error) {
-      console.error('❌ Tracking scan error:', error);
+      console.error('âŒ Tracking scan error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7505,7 +7506,7 @@ setTimeout(check, 1000);
   });
 
   /**
-   * POST /api/tracking/bulk-add-shopify - Shopify ürünlerini toplu izlemeye ekle
+   * POST /api/tracking/bulk-add-shopify - Shopify Ã¼rÃ¼nlerini toplu izlemeye ekle
    * Supports: { productIds: number[] } or { scope: 'all', filters?: {...} }
    */
   app.post('/api/tracking/bulk-add-shopify', async (req, res) => {
@@ -7514,14 +7515,14 @@ setTimeout(check, 1000);
       
       // Validate input: either productIds array or scope:'all'
       if (scope === 'all') {
-        console.log(`🎯 Bulk tracking başlatılıyor: TÜM Shopify ürünleri`);
+        console.log(`ğŸ¯ Bulk tracking baÅŸlatÄ±lÄ±yor: TÃœM Shopify Ã¼rÃ¼nleri`);
       } else if (!Array.isArray(productIds) || productIds.length === 0) {
         return res.status(400).json({
           success: false,
           error: 'productIds dizisi veya scope:"all" gerekli'
         });
       } else {
-        console.log(`🎯 Bulk tracking başlatılıyor: ${productIds.length} ürün`);
+        console.log(`ğŸ¯ Bulk tracking baÅŸlatÄ±lÄ±yor: ${productIds.length} Ã¼rÃ¼n`);
       }
       
       // Get Shopify products based on scope
@@ -7554,7 +7555,7 @@ setTimeout(check, 1000);
             .select()
             .from(shopifyMemoryProducts);
         }
-        console.log(`📊 Toplam ${shopifyProducts.length} ürün bulundu`);
+        console.log(`ğŸ“Š Toplam ${shopifyProducts.length} Ã¼rÃ¼n bulundu`);
       } else {
         // Get specific products by IDs
         shopifyProducts = await db
@@ -7572,7 +7573,7 @@ setTimeout(check, 1000);
       const skippedCount = shopifyProducts.length - validProducts.length;
       
       if (skippedCount > 0) {
-        console.log(`⚠️ ${skippedCount} ürün atlandı (URL veya shopifyId eksik)`);
+        console.log(`âš ï¸ ${skippedCount} Ã¼rÃ¼n atlandÄ± (URL veya shopifyId eksik)`);
       }
       
       // Process in chunks for better performance
@@ -7582,7 +7583,7 @@ setTimeout(check, 1000);
       
       for (let i = 0; i < totalChunks; i++) {
         const chunk = validProducts.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-        console.log(`📦 Chunk ${i + 1}/${totalChunks}: ${chunk.length} ürün işleniyor...`);
+        console.log(`ğŸ“¦ Chunk ${i + 1}/${totalChunks}: ${chunk.length} Ã¼rÃ¼n iÅŸleniyor...`);
         
         // Process chunk in a single transaction for speed
         try {
@@ -7639,9 +7640,9 @@ setTimeout(check, 1000);
             }
           });
           
-          console.log(`✅ Chunk ${i + 1}/${totalChunks} tamamlandı: ${chunk.length} ürün eklendi`);
+          console.log(`âœ… Chunk ${i + 1}/${totalChunks} tamamlandÄ±: ${chunk.length} Ã¼rÃ¼n eklendi`);
         } catch (chunkError) {
-          console.error(`❌ Chunk ${i + 1}/${totalChunks} hatası:`, chunkError);
+          console.error(`âŒ Chunk ${i + 1}/${totalChunks} hatasÄ±:`, chunkError);
           errorCount += chunk.length;
         }
       }
@@ -7649,12 +7650,12 @@ setTimeout(check, 1000);
       // Invalidate eligibility cache so new Shopify products are included
       if (successCount > 0) {
         productEligibilityService.invalidateCache();
-        console.log(`🔄 Eligibility cache invalidated for ${successCount} new trackers`);
+        console.log(`ğŸ”„ Eligibility cache invalidated for ${successCount} new trackers`);
       }
       
       // Start tracking for all added URLs (async, don't wait)
       if (addedTrackers.length > 0) {
-        console.log(`🚀 ${addedTrackers.length} URL için izleme servisi başlatılıyor...`);
+        console.log(`ğŸš€ ${addedTrackers.length} URL iÃ§in izleme servisi baÅŸlatÄ±lÄ±yor...`);
         // Enable tracking in background (don't block response)
         setImmediate(async () => {
           for (const tracker of addedTrackers) {
@@ -7662,9 +7663,9 @@ setTimeout(check, 1000);
               // Use canonical URL from database to avoid encoding mismatch
               // Pass shopifyProductId so the tracker remains eligible after restart
               await urlTrackingService.enableTracking(tracker.url, tracker.shopifyProductId);
-              console.log(`✅ Tracking enabled: ${tracker.shopifyProductId}`);
+              console.log(`âœ… Tracking enabled: ${tracker.shopifyProductId}`);
             } catch (err) {
-              console.error(`⚠️ Tracking başlatma hatası: ${tracker.shopifyProductId}`, err);
+              console.error(`âš ï¸ Tracking baÅŸlatma hatasÄ±: ${tracker.shopifyProductId}`, err);
             }
           }
         });
@@ -7676,11 +7677,11 @@ setTimeout(check, 1000);
         errorCount,
         totalRequested: scope === 'all' ? shopifyProducts.length : productIds.length,
         errors: errors.length > 0 ? errors : undefined,
-        message: `${successCount} ürün başarıyla izlemeye eklendi${errorCount > 0 ? `, ${errorCount} hata` : ''}`
+        message: `${successCount} Ã¼rÃ¼n baÅŸarÄ±yla izlemeye eklendi${errorCount > 0 ? `, ${errorCount} hata` : ''}`
       });
       
     } catch (error) {
-      console.error('❌ Bulk tracking error:', error);
+      console.error('âŒ Bulk tracking error:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : String(error)
@@ -7696,7 +7697,7 @@ setTimeout(check, 1000);
    */
   app.post('/api/tracking/reconcile-shopify-ids', async (req, res) => {
     try {
-      console.log('🔗 Reconciling urlTracking → shopifyProductId...');
+      console.log('ğŸ”— Reconciling urlTracking â†’ shopifyProductId...');
 
       // Find all trackers that are missing shopifyProductId
       const trackersMissingId = await db
@@ -7708,9 +7709,9 @@ setTimeout(check, 1000);
         return res.json({ success: true, fixed: 0, message: 'All trackers already have shopifyProductId' });
       }
 
-      console.log(`📋 Found ${trackersMissingId.length} trackers missing shopifyProductId`);
+      console.log(`ğŸ“‹ Found ${trackersMissingId.length} trackers missing shopifyProductId`);
 
-      // Build a lookup map: sourceUrl → shopifyProductId from shopifyTransferredProducts
+      // Build a lookup map: sourceUrl â†’ shopifyProductId from shopifyTransferredProducts
       const transfers = await db
         .select({
           sourceUrl: shopifyTransferredProducts.sourceUrl,
@@ -7752,7 +7753,7 @@ setTimeout(check, 1000);
         if (isActive) {
           reEnabledTrackers.push({ url: tracker.url, shopifyProductId: shopifyId });
         }
-        console.log(`✅ Linked tracker ${tracker.url} → ${shopifyId} (active: ${isActive})`);
+        console.log(`âœ… Linked tracker ${tracker.url} â†’ ${shopifyId} (active: ${isActive})`);
       }
 
       // Invalidate eligibility cache
@@ -7764,32 +7765,32 @@ setTimeout(check, 1000);
           for (const t of reEnabledTrackers) {
             try {
               urlTrackingService.startTracking(t.url, 300);
-              console.log(`▶️ Tracking started for reconciled tracker: ${t.url}`);
+              console.log(`â–¶ï¸ Tracking started for reconciled tracker: ${t.url}`);
             } catch (err) {
-              console.warn(`⚠️ Could not start tracking for ${t.url}:`, err);
+              console.warn(`âš ï¸ Could not start tracking for ${t.url}:`, err);
             }
           }
         });
       }
 
-      console.log(`✅ Reconciliation complete: ${fixed}/${trackersMissingId.length} trackers linked, ${reEnabledTrackers.length} re-enabled`);
+      console.log(`âœ… Reconciliation complete: ${fixed}/${trackersMissingId.length} trackers linked, ${reEnabledTrackers.length} re-enabled`);
 
       res.json({
         success: true,
         total: trackersMissingId.length,
         fixed,
         reEnabled: reEnabledTrackers.length,
-        message: `${fixed} takip Shopify ile eşleştirildi, ${reEnabledTrackers.length} takip yeniden aktif edildi`
+        message: `${fixed} takip Shopify ile eÅŸleÅŸtirildi, ${reEnabledTrackers.length} takip yeniden aktif edildi`
       });
 
     } catch (error) {
-      console.error('❌ Reconcile error:', error);
+      console.error('âŒ Reconcile error:', error);
       res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
     }
   });
 
   /**
-   * GET /api/tracking/:id - Belirli bir ürünün detaylarını getir
+   * GET /api/tracking/:id - Belirli bir Ã¼rÃ¼nÃ¼n detaylarÄ±nÄ± getir
    */
   app.get('/api/tracking/:id', async (req, res) => {
     try {
@@ -7797,7 +7798,7 @@ setTimeout(check, 1000);
       if (!Number.isInteger(productId) || productId <= 0) {
         return res.status(400).json({
           success: false,
-          error: 'Geçersiz ürün ID',
+          error: 'GeÃ§ersiz Ã¼rÃ¼n ID',
         });
       }
       
@@ -7858,7 +7859,7 @@ setTimeout(check, 1000);
         priceHistory: priceHistoryData
       });
     } catch (error) {
-      console.error('❌ Tracking product detail error:', error);
+      console.error('âŒ Tracking product detail error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7867,13 +7868,13 @@ setTimeout(check, 1000);
   });
 
   /**
-   * POST /api/tracking/:id/pause - Tek ürünü pause/resume et
+   * POST /api/tracking/:id/pause - Tek Ã¼rÃ¼nÃ¼ pause/resume et
    */
   app.post('/api/tracking/:id/pause', async (req, res) => {
     try {
       const productId = parseInt(req.params.id, 10);
       if (!Number.isInteger(productId) || productId <= 0) {
-        return res.status(400).json({ success: false, error: 'Geçersiz ürün ID' });
+        return res.status(400).json({ success: false, error: 'GeÃ§ersiz Ã¼rÃ¼n ID' });
       }
       const { pause } = req.body; // true = pause, false = resume
       
@@ -7892,7 +7893,7 @@ setTimeout(check, 1000);
         isActive: !pause
       });
     } catch (error) {
-      console.error('❌ Tracking pause/resume error:', error);
+      console.error('âŒ Tracking pause/resume error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7929,7 +7930,7 @@ setTimeout(check, 1000);
         isActive: !pause
       });
     } catch (error) {
-      console.error('❌ Bulk pause/resume error:', error);
+      console.error('âŒ Bulk pause/resume error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7938,13 +7939,13 @@ setTimeout(check, 1000);
   });
 
   /**
-   * DELETE /api/tracking/:id - Takibi durdur ve ürünü sil
+   * DELETE /api/tracking/:id - Takibi durdur ve Ã¼rÃ¼nÃ¼ sil
    */
   app.delete('/api/tracking/:id', async (req, res) => {
     try {
       const productId = parseInt(req.params.id, 10);
       if (!Number.isInteger(productId) || productId <= 0) {
-        return res.status(400).json({ success: false, error: 'Geçersiz ürün ID' });
+        return res.status(400).json({ success: false, error: 'GeÃ§ersiz Ã¼rÃ¼n ID' });
       }
       
       // Delete will cascade to variants, price history, etc.
@@ -7958,7 +7959,7 @@ setTimeout(check, 1000);
         productId
       });
     } catch (error) {
-      console.error('❌ Tracking delete error:', error);
+      console.error('âŒ Tracking delete error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7966,70 +7967,70 @@ setTimeout(check, 1000);
     }
   });
 
-  console.log('📊 Centralized tracking system API endpoints registered');
+  console.log('ğŸ“Š Centralized tracking system API endpoints registered');
 
   /**
-   * POST /api/tracking/:id/check-now - Ürünü anlık olarak şimdi kontrol et
+   * POST /api/tracking/:id/check-now - ÃœrÃ¼nÃ¼ anlÄ±k olarak ÅŸimdi kontrol et
    */
   app.post('/api/tracking/:id/check-now', async (req, res) => {
     try {
       const productId = parseInt(req.params.id, 10);
       if (!Number.isInteger(productId) || productId <= 0) {
-        return res.status(400).json({ success: false, error: 'Geçersiz ürün ID' });
+        return res.status(400).json({ success: false, error: 'GeÃ§ersiz Ã¼rÃ¼n ID' });
       }
       const [product] = await db
         .select()
         .from(products)
         .where(eq(products.id, productId));
       if (!product) {
-        return res.status(404).json({ success: false, error: 'Ürün bulunamadı' });
+        return res.status(404).json({ success: false, error: 'ÃœrÃ¼n bulunamadÄ±' });
       }
       const url = product.trendyolUrl || (product as any).sourceUrl;
       if (!url) {
-        return res.status(400).json({ success: false, error: 'Ürün URL\'si bulunamadı' });
+        return res.status(400).json({ success: false, error: 'ÃœrÃ¼n URL\'si bulunamadÄ±' });
       }
       await urlTrackingService.checkUrl(url);
-      res.json({ success: true, message: 'Anlık kontrol tamamlandı', productId, url });
+      res.json({ success: true, message: 'AnlÄ±k kontrol tamamlandÄ±', productId, url });
     } catch (error) {
-      console.error('❌ Check-now error:', error);
+      console.error('âŒ Check-now error:', error);
       res.status(500).json({ success: false, error: (error as Error).message });
     }
   });
 
   /**
-   * POST /api/tracking/:id/set-interval - Takip aralığını güncelle
+   * POST /api/tracking/:id/set-interval - Takip aralÄ±ÄŸÄ±nÄ± gÃ¼ncelle
    */
   app.post('/api/tracking/:id/set-interval', async (req, res) => {
     try {
       const productId = parseInt(req.params.id, 10);
       if (!Number.isInteger(productId) || productId <= 0) {
-        return res.status(400).json({ success: false, error: 'Geçersiz ürün ID' });
+        return res.status(400).json({ success: false, error: 'GeÃ§ersiz Ã¼rÃ¼n ID' });
       }
       const { intervalSeconds } = req.body;
       if (!intervalSeconds || intervalSeconds < 60) {
-        return res.status(400).json({ success: false, error: 'Geçersiz aralık (min 60 saniye)' });
+        return res.status(400).json({ success: false, error: 'GeÃ§ersiz aralÄ±k (min 60 saniye)' });
       }
       const [product] = await db
         .select()
         .from(products)
         .where(eq(products.id, productId));
       if (!product) {
-        return res.status(404).json({ success: false, error: 'Ürün bulunamadı' });
+        return res.status(404).json({ success: false, error: 'ÃœrÃ¼n bulunamadÄ±' });
       }
-      // URL tracking tablosunu güncelle
+      // URL tracking tablosunu gÃ¼ncelle
       await db
         .update(urlTracking)
         .set({ trackingInterval: intervalSeconds, updatedAt: new Date() })
         .where(eq(urlTracking.productId, productId));
-      res.json({ success: true, message: 'Takip aralığı güncellendi', intervalSeconds });
+      res.json({ success: true, message: 'Takip aralÄ±ÄŸÄ± gÃ¼ncellendi', intervalSeconds });
     } catch (error) {
-      console.error('❌ Set-interval error:', error);
+      console.error('âŒ Set-interval error:', error);
       res.status(500).json({ success: false, error: (error as Error).message });
     }
   });
 
   /**
-   * POST /api/admin/cleanup-database - Veritabanı temizleme (tek ürün dışında tümünü sil)
+   * POST /api/admin/cleanup-database - VeritabanÄ± temizleme (tek Ã¼rÃ¼n dÄ±ÅŸÄ±nda tÃ¼mÃ¼nÃ¼ sil)
    */
   app.post('/api/admin/cleanup-database', async (req, res) => {
     try {
@@ -8051,7 +8052,7 @@ setTimeout(check, 1000);
         });
       }
       
-      console.log('🗑️ Starting database cleanup - keeping only:', keepProductTitle);
+      console.log('ğŸ—‘ï¸ Starting database cleanup - keeping only:', keepProductTitle);
       
       // Find the product to keep
       const keepProduct = await db
@@ -8068,7 +8069,7 @@ setTimeout(check, 1000);
       }
       
       const keepProductId = keepProduct[0].id;
-      console.log(`✅ Found product to keep: ID ${keepProductId} - "${keepProductTitle}"`);
+      console.log(`âœ… Found product to keep: ID ${keepProductId} - "${keepProductTitle}"`);
       
       // Delete all products EXCEPT the one we want to keep
       // CASCADE will handle deletion in child tables (product_variants, price_history, etc.)
@@ -8077,7 +8078,7 @@ setTimeout(check, 1000);
         .where(ne(products.id, keepProductId))
         .returning();
       
-      console.log(`🗑️ Deleted ${deletedProducts.length} products from products table`);
+      console.log(`ğŸ—‘ï¸ Deleted ${deletedProducts.length} products from products table`);
       
       // Also clean up other independent tables
       // url_tracking - keep only records linked to our product
@@ -8089,21 +8090,21 @@ setTimeout(check, 1000);
         ))
         .returning();
       
-      console.log(`🗑️ Deleted ${deletedUrlTracking.length} records from url_tracking table`);
+      console.log(`ğŸ—‘ï¸ Deleted ${deletedUrlTracking.length} records from url_tracking table`);
       
       // shopify_transferred_products - clean up
       const deletedTransferred = await db
         .delete(shopifyTransferredProducts)
         .returning();
       
-      console.log(`🗑️ Deleted ${deletedTransferred.length} records from shopify_transferred_products table`);
+      console.log(`ğŸ—‘ï¸ Deleted ${deletedTransferred.length} records from shopify_transferred_products table`);
       
       // shopify_memory_products - clean up
       const deletedMemory = await db
         .delete(shopifyMemoryProducts)
         .returning();
       
-      console.log(`🗑️ Deleted ${deletedMemory.length} records from shopify_memory_products table`);
+      console.log(`ğŸ—‘ï¸ Deleted ${deletedMemory.length} records from shopify_memory_products table`);
       
       // Verify remaining data
       const remainingProducts = await db
@@ -8115,8 +8116,8 @@ setTimeout(check, 1000);
         .from(productVariants)
         .where(eq(productVariants.productId, keepProductId));
       
-      console.log('✅ Database cleanup completed');
-      console.log(`📊 Remaining: ${remainingProducts[0].count} product(s), ${remainingVariants[0].count} variant(s)`);
+      console.log('âœ… Database cleanup completed');
+      console.log(`ğŸ“Š Remaining: ${remainingProducts[0].count} product(s), ${remainingVariants[0].count} variant(s)`);
       
       res.json({
         success: true,
@@ -8135,7 +8136,7 @@ setTimeout(check, 1000);
         }
       });
     } catch (error) {
-      console.error('❌ Database cleanup error:', error);
+      console.error('âŒ Database cleanup error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8143,7 +8144,7 @@ setTimeout(check, 1000);
     }
   });
 
-  // AI Product Statistics API - Trendyol'dan canlı veri + AI analizi
+  // AI Product Statistics API - Trendyol'dan canlÄ± veri + AI analizi
   app.get("/api/products/:id/statistics", async (req, res) => {
     try {
       const productId = parseInt(req.params.id);
@@ -8155,7 +8156,7 @@ setTimeout(check, 1000);
         });
       }
 
-      console.log(`📊 AI Product Statistics requested for ID: ${productId}`);
+      console.log(`ğŸ“Š AI Product Statistics requested for ID: ${productId}`);
       const statistics = await aiProductStatisticsService.getProductStatistics(productId);
 
       if (!statistics) {
@@ -8167,7 +8168,7 @@ setTimeout(check, 1000);
 
       res.json(statistics);
     } catch (error) {
-      console.error('❌ AI Product statistics error:', error);
+      console.error('âŒ AI Product statistics error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8178,11 +8179,11 @@ setTimeout(check, 1000);
   // Shopify Products Management API
   app.post("/api/shopify/sync-products", async (req, res) => {
     try {
-      console.log('🔄 Manual Shopify products sync triggered');
+      console.log('ğŸ”„ Manual Shopify products sync triggered');
       const result = await shopifyProductsSync.syncAllShopifyProducts();
       res.json(result);
     } catch (error) {
-      console.error('❌ Shopify sync error:', error);
+      console.error('âŒ Shopify sync error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8197,7 +8198,7 @@ setTimeout(check, 1000);
       const category = req.query.category as string;
       const searchQuery = req.query.search as string;
 
-      console.log(`📊 Shopify products requested: limit=${limit}, offset=${offset}, category=${category || 'all'}`);
+      console.log(`ğŸ“Š Shopify products requested: limit=${limit}, offset=${offset}, category=${category || 'all'}`);
 
       const result = await shopifyProductsSync.getAllShopifyProducts({
         limit,
@@ -8208,7 +8209,7 @@ setTimeout(check, 1000);
 
       res.json(result);
     } catch (error) {
-      console.error('❌ Get Shopify products error:', error);
+      console.error('âŒ Get Shopify products error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8245,7 +8246,7 @@ setTimeout(check, 1000);
 
       return res.json({ success: true, changes, productFound: true, productTitle: product[0].title });
     } catch (error) {
-      console.error('❌ Stock history error:', error);
+      console.error('âŒ Stock history error:', error);
       return res.status(500).json({ success: false, error: (error as Error).message });
     }
   });
@@ -8255,7 +8256,7 @@ setTimeout(check, 1000);
       const result = await shopifyProductsSync.getCategories();
       res.json(result);
     } catch (error) {
-      console.error('❌ Get categories error:', error);
+      console.error('âŒ Get categories error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8276,7 +8277,7 @@ setTimeout(check, 1000);
       const result = await shopifyProductsSync.getStatistics();
       res.json(result);
     } catch (error) {
-      console.error('❌ Get statistics error:', error);
+      console.error('âŒ Get statistics error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8284,27 +8285,27 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify auto-sync on startup (dev'de geciktir — sunucu/UI donmasın)
+  // Shopify auto-sync on startup (dev'de geciktir â€” sunucu/UI donmasÄ±n)
   const runInitialShopifySync = async () => {
     const { assertCoreTablesReady, refreshDbFeatureState, warnDbFeatureSkipped } = await import('./db-health');
     const ready = await assertCoreTablesReady(['shopify_memory_products']);
     if (!ready) {
       const status = await refreshDbFeatureState();
-      warnDbFeatureSkipped('Başlangıç Shopify senkronizasyonu', status.missingTables);
+      warnDbFeatureSkipped('BaÅŸlangÄ±Ã§ Shopify senkronizasyonu', status.missingTables);
       return;
     }
 
-    console.log('🔄 Starting initial Shopify products sync...');
+    console.log('ğŸ”„ Starting initial Shopify products sync...');
     shopifyProductsSync.syncAllShopifyProducts()
       .then(result => {
         if (result.success) {
-          console.log(`✅ Initial Shopify sync completed: ${result.totalProducts} products, ${result.categories.length} categories`);
+          console.log(`âœ… Initial Shopify sync completed: ${result.totalProducts} products, ${result.categories.length} categories`);
         } else {
-          console.error('❌ Initial Shopify sync failed:', result.error);
+          console.error('âŒ Initial Shopify sync failed:', result.error);
         }
       })
       .catch(err => {
-        console.error('❌ Initial Shopify sync error:', err);
+        console.error('âŒ Initial Shopify sync error:', err);
       });
   };
 
@@ -8330,7 +8331,7 @@ setTimeout(check, 1000);
         count: healthStatuses.length
       });
     } catch (error) {
-      console.error('❌ Get health statuses error:', error);
+      console.error('âŒ Get health statuses error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8357,7 +8358,7 @@ setTimeout(check, 1000);
         health
       });
     } catch (error) {
-      console.error('❌ Get health status error:', error);
+      console.error('âŒ Get health status error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8376,7 +8377,7 @@ setTimeout(check, 1000);
         statistics: stats
       });
     } catch (error) {
-      console.error('❌ Get failover statistics error:', error);
+      console.error('âŒ Get failover statistics error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8404,7 +8405,7 @@ setTimeout(check, 1000);
         message: 'Failover triggered successfully'
       });
     } catch (error) {
-      console.error('❌ Trigger failover error:', error);
+      console.error('âŒ Trigger failover error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8432,7 +8433,7 @@ setTimeout(check, 1000);
         message: 'Recovery triggered successfully - switched to primary mode'
       });
     } catch (error) {
-      console.error('❌ Trigger recovery error:', error);
+      console.error('âŒ Trigger recovery error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
@@ -8440,10 +8441,10 @@ setTimeout(check, 1000);
     }
   });
 
-  // Canva bağlantı testi
+  // Canva baÄŸlantÄ± testi
   app.get('/api/canva-test', async (req, res) => {
     if (!process.env.CANVA_API_TOKEN) {
-      return res.json({ success: false, error: 'CANVA_API_TOKEN ayarlı değil' });
+      return res.json({ success: false, error: 'CANVA_API_TOKEN ayarlÄ± deÄŸil' });
     }
     try {
       const axios = (await import('axios')).default;
@@ -8463,7 +8464,7 @@ setTimeout(check, 1000);
       const jobId = response.data?.job?.id;
       return res.json({
         success: true,
-        message: 'Canva bağlantısı başarılı! Görsel yükleme işi oluşturuldu.',
+        message: 'Canva baÄŸlantÄ±sÄ± baÅŸarÄ±lÄ±! GÃ¶rsel yÃ¼kleme iÅŸi oluÅŸturuldu.',
         jobId,
         response: response.data
       });
@@ -8479,16 +8480,16 @@ setTimeout(check, 1000);
     }
   });
 
-  // ── PttAvm Cookie Relay ───────────────────────────────────────────────────
+  // â”€â”€ PttAvm Cookie Relay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/pttavm-set-cookie', async (req, res) => {
     const { cfClearance, userAgent } = req.body || {};
     if (!cfClearance || cfClearance.trim().length < 20) {
-      return res.status(400).json({ success: false, message: 'cf_clearance değeri gerekli (en az 20 karakter)' });
+      return res.status(400).json({ success: false, message: 'cf_clearance deÄŸeri gerekli (en az 20 karakter)' });
     }
     try {
       const { setPttAvmCookie } = await import('./pttavm-scraper.js');
       setPttAvmCookie(cfClearance.trim(), userAgent);
-      res.json({ success: true, message: 'Cookie kaydedildi. Artık otomatik scraping deneyecek.' });
+      res.json({ success: true, message: 'Cookie kaydedildi. ArtÄ±k otomatik scraping deneyecek.' });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
     }
@@ -8503,12 +8504,12 @@ setTimeout(check, 1000);
     }
   });
 
-  // ── PttAvm Parse HTML (client-side bypass) ───────────────────────────────
-  // ── PttAvm Bookmarklet JSON Import ───────────────────────────────────────
+  // â”€â”€ PttAvm Parse HTML (client-side bypass) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ PttAvm Bookmarklet JSON Import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/pttavm-import-json', async (req, res) => {
     const data = req.body || {};
     if (!data.url || !data.title) {
-      return res.status(400).json({ success: false, message: 'url ve title alanları zorunlu' });
+      return res.status(400).json({ success: false, message: 'url ve title alanlarÄ± zorunlu' });
     }
     try {
       const { importJsonProduct } = await import('./pttavm-scraper.js');
@@ -8523,7 +8524,7 @@ setTimeout(check, 1000);
   app.post('/api/pttavm-parse-html', async (req, res) => {
     const { html, url } = req.body || {};
     if (!html || html.length < 500) {
-      return res.status(400).json({ success: false, message: 'HTML içeriği gerekli (en az 500 karakter)' });
+      return res.status(400).json({ success: false, message: 'HTML iÃ§eriÄŸi gerekli (en az 500 karakter)' });
     }
     try {
       const { parsePttAvmHtml } = await import('./pttavm-scraper.js');
@@ -8535,11 +8536,11 @@ setTimeout(check, 1000);
     }
   });
 
-  // ── PttAvm Scraper ────────────────────────────────────────────────────────
+  // â”€â”€ PttAvm Scraper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/pttavm-scrape', async (req, res) => {
     const { url } = req.body || {};
     if (!url || !url.includes('pttavm.com')) {
-      return res.status(400).json({ success: false, message: 'Geçerli bir PttAvm URL\'si gerekli' });
+      return res.status(400).json({ success: false, message: 'GeÃ§erli bir PttAvm URL\'si gerekli' });
     }
 
     const jobId = `pttavm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -8558,9 +8559,9 @@ setTimeout(check, 1000);
     })();
   });
 
-  // ────────────────────────────────────────────────────────────
-  //  TRENDYOL REVIEWS SCRAPER  (direct axios — apigw.trendyol.com)
-  // ────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  TRENDYOL REVIEWS SCRAPER  (direct axios â€” apigw.trendyol.com)
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function parseReviewsFromHtml(html: string): { reviews: any[], totalPages: number, totalElements: number, title: string } {
     const MARKER = 'window["__review-detail__PROPS"]=';
     const idx = html.indexOf(MARKER);
@@ -8591,7 +8592,7 @@ setTimeout(check, 1000);
       }
       return { reviews: Array.from(byReviewId.values()), totalPages: tPages, totalElements: tElements, title };
     } catch (e: any) {
-      console.warn(`⚠️ parseReviewsFromHtml parse error: ${e.message}`);
+      console.warn(`âš ï¸ parseReviewsFromHtml parse error: ${e.message}`);
       return { reviews: [], totalPages: 1, totalElements: 0, title: '' };
     }
   }
@@ -8602,7 +8603,7 @@ setTimeout(check, 1000);
       if (!url) return res.status(400).json({ success: false, error: 'URL gerekli' });
 
       const productIdMatch = url.match(/[/-]p-(\d+)/i);
-      if (!productIdMatch) return res.status(400).json({ success: false, error: 'Geçerli bir Trendyol ürün URL\'si girin (p-XXXXXXX formatında ürün ID içermeli)' });
+      if (!productIdMatch) return res.status(400).json({ success: false, error: 'GeÃ§erli bir Trendyol Ã¼rÃ¼n URL\'si girin (p-XXXXXXX formatÄ±nda Ã¼rÃ¼n ID iÃ§ermeli)' });
       const productId = productIdMatch[1];
 
       const parsedUrl = new URL(url.includes('?') ? url : url + '?');
@@ -8612,9 +8613,9 @@ setTimeout(check, 1000);
       const slugMatch = baseUrl.match(/trendyol\.com\/([^/]+\/[^/]+)-p-\d+/) || baseUrl.match(/trendyol\.com\/[^/]+\/([^/]+)-p-\d+/);
       const handleFromUrl = shopifyHandle || (slugMatch ? slugMatch[1] : productId);
 
-      console.log(`📝 Trendyol yorum çekimi başlatılıyor: productId=${productId}, merchantId=${merchantId}`);
+      console.log(`ğŸ“ Trendyol yorum Ã§ekimi baÅŸlatÄ±lÄ±yor: productId=${productId}, merchantId=${merchantId}`);
 
-      // ── Strategy: curl via child_process (bypasses Cloudflare TLS fingerprint) ──
+      // â”€â”€ Strategy: curl via child_process (bypasses Cloudflare TLS fingerprint) â”€â”€
       // Node.js axios gets 403; system curl passes Cloudflare and returns 200.
       const { execFile } = await import('child_process');
       const { promisify } = await import('util');
@@ -8650,13 +8651,13 @@ setTimeout(check, 1000);
       };
 
       try {
-        // Page 0 first — discovers totalPages
+        // Page 0 first â€” discovers totalPages
         const firstRevs = await curlFetchPage(0);
         for (const r of firstRevs) {
           const key = String(r.id || '').substring(0, 80);
           if (!seenIds.has(key)) { seenIds.add(key); allReviews.push(r); }
         }
-        console.log(`📥 Sayfa 1/${totalPages}: ${firstRevs.length} yorum`);
+        console.log(`ğŸ“¥ Sayfa 1/${totalPages}: ${firstRevs.length} yorum`);
 
         // Remaining pages in parallel batches of 5
         const BATCH = 5;
@@ -8672,14 +8673,14 @@ setTimeout(check, 1000);
               }
             }
           }
-          console.log(`📥 Sayfalar ${pgStart+1}-${pgEnd}/${totalPages} işlendi, toplam: ${allReviews.length}`);
+          console.log(`ğŸ“¥ Sayfalar ${pgStart+1}-${pgEnd}/${totalPages} iÅŸlendi, toplam: ${allReviews.length}`);
           if (pgEnd < Math.min(totalPages, MAX_API_PAGES)) await new Promise(r => setTimeout(r, 200));
         }
       } catch (apiErr: any) {
-        console.warn(`⚠️ Trendyol reviews API hatası: ${apiErr.message}`);
+        console.warn(`âš ï¸ Trendyol reviews API hatasÄ±: ${apiErr.message}`);
       }
 
-      console.log(`✅ Toplam ${allReviews.length} yorum çekildi (${totalPages} sayfa)`);
+      console.log(`âœ… Toplam ${allReviews.length} yorum Ã§ekildi (${totalPages} sayfa)`);
 
       const formatDate = (ts: number | string) => {
         if (!ts) return '';
@@ -8721,15 +8722,16 @@ setTimeout(check, 1000);
       });
 
     } catch (error: any) {
-      console.error('❌ Reviews scrape error:', error.message);
-      return res.status(500).json({ success: false, error: error.message || 'Yorumlar çekilemedi' });
+      console.error('âŒ Reviews scrape error:', error.message);
+      return res.status(500).json({ success: false, error: error.message || 'Yorumlar Ã§ekilemedi' });
     }
   });
 
-  console.log('🗑️ Clearing existing product memory cache...');
+  console.log('ğŸ—‘ï¸ Clearing existing product memory cache...');
   memoryManager.purgeAll();
   notificationGateway.clearNotificationCache();
-  console.log('✅ Memory cache cleared successfully');
+  console.log('âœ… Memory cache cleared successfully');
 
   return httpServer;
 }
+
