@@ -18,9 +18,23 @@ export function isSupportedProductUrl(raw: string): boolean {
   );
 }
 
+/** HTML entity'leri decode et — drop'ta & vs &amp; çift kayıt önlenir */
+function decodeHtmlEntitiesInUrl(raw: string): string {
+  return raw
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) =>
+      String.fromCharCode(Number.parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(Number.parseInt(num, 10)));
+}
+
 /** Canonical URL — hostname küçük harf, trailing slash kaldır, hash temizle */
 export function normalizeProductUrl(raw: string): string | null {
-  const trimmed = raw.trim().replace(/[),.;]+$/g, "");
+  const trimmed = decodeHtmlEntitiesInUrl(raw.trim()).replace(/[),.;]+$/g, "");
   if (!trimmed) return null;
 
   try {
@@ -61,6 +75,20 @@ export function parseUrlsFromText(text: string): string[] {
 }
 
 export function extractDroppedUrls(e: DragEvent): string[] {
+  // Tarayıcı link sürüklemesinde en güvenilir kaynak — plain/html ile çakışmayı önler
+  const uriList = e.dataTransfer.getData("text/uri-list");
+  if (uriList) {
+    const fromUriList = dedupeNormalizedUrls(
+      uriList
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#")),
+    );
+    if (fromUriList.length > 0) {
+      return fromUriList;
+    }
+  }
+
   const candidates: string[] = [];
 
   const plain = e.dataTransfer.getData("text/plain");
@@ -69,16 +97,6 @@ export function extractDroppedUrls(e: DragEvent): string[] {
     for (const match of plain.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
       candidates.push(match[0]);
     }
-  }
-
-  const uriList = e.dataTransfer.getData("text/uri-list");
-  if (uriList) {
-    candidates.push(
-      ...uriList
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#")),
-    );
   }
 
   const html = e.dataTransfer.getData("text/html");
