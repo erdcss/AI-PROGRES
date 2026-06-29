@@ -1,5 +1,7 @@
 # Local Agent + Railway (Trendyol scraper)
 
+> **Not:** Bu yöntem geçici/geliştirme çözümüdür. Production için [Browser Worker](browser-worker-deploy.md) önerilir (`BROWSER_WORKER_ENDPOINT`).
+
 Railway üzerinde Trendyol scraper, renk/beden gibi HTML tabanlı veriler için **Windows PC'nizde çalışan Local Agent**'a ihtiyaç duyar. Agent kapalıysa veya Cloudflare Tunnel adresi güncel değilse fiyat/görsel gelebilir ancak varyantlar eksik kalır.
 
 Doğrulama: `GET /api/local-agent/health` — `reachable: true` olmalı.

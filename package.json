@@ -14,7 +14,10 @@
     "db:init": "drizzle-kit push --force",
     "test:smoke": "node scripts/smoke-test.mjs",
     "agent": "tsx local-agent/server.ts",
-    "agent:dev": "tsx watch local-agent/server.ts"
+    "agent:dev": "tsx watch local-agent/server.ts",
+    "browser-worker": "npm --prefix browser-worker start",
+    "browser-worker:dev": "npm --prefix browser-worker run dev",
+    "browser-worker:build": "npm --prefix browser-worker run build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",

@@ -24,7 +24,9 @@ export type ScrapeStageErrorCode =
   | "source-access-internal-provider-unavailable"
   | "source-access-provider-failed"
   | "source-access-no-usable-data"
-  | "local-agent-failed";
+  | "local-agent-failed"
+  | "browser-worker-failed"
+  | "browser-worker-not-configured";
 
 export type FinalSuccessReason =
   | "api-only"
@@ -74,6 +76,7 @@ export type ScrapeDiagnostics = {
   gatewayDurationMs?: number;
   gatewaySkippedReason?: string;
   localAgentSucceeded?: boolean;
+  browserWorkerSucceeded?: boolean;
   scenarioSkippedReason?: string;
   stageErrors: ScrapeStageErrorCode[];
   finalSuccessReason?: FinalSuccessReason | string;
@@ -308,6 +311,8 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "source-access-provider-failed": "Alternatif erişim başarısız",
     "source-access-no-usable-data": "Geçerli ürün verisi yok",
     "local-agent-failed": "Yerel agent başarısız",
+    "browser-worker-failed": "Tarayıcı Worker başarısız",
+    "browser-worker-not-configured": "Tarayıcı Worker yapılandırılmamış",
     "scraping-provider-error": "Harici sağlayıcı hatası",
   };
   return stageErrors.map((e) => labels[e] || e).join("; ");

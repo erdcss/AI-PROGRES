@@ -1,4 +1,8 @@
-export type InternalProviderType = "generic_proxy" | "scraping_api" | "local_agent";
+export type InternalProviderType =
+  | "browser_worker"
+  | "local_agent"
+  | "generic_proxy"
+  | "scraping_api";
 
 export type SourceAccessProviderConfig = {
   type: InternalProviderType;
@@ -15,19 +19,24 @@ export function getSourceAccessProviderRegistry(): SourceAccessProviderConfig[] 
   const secrets = getInternalSourceAccessSecrets();
   return [
     {
+      type: "browser_worker",
+      enabled: envFlag(secrets.browserWorkerEndpoint) && envFlag(secrets.browserWorkerToken),
+      priority: 0,
+    },
+    {
       type: "local_agent",
       enabled: envFlag(secrets.localAgentEndpoint) && envFlag(secrets.localAgentToken),
-      priority: 0,
+      priority: 1,
     },
     {
       type: "generic_proxy",
       enabled: envFlag(secrets.proxyUrl ?? undefined),
-      priority: 1,
+      priority: 2,
     },
     {
       type: "scraping_api",
       enabled: envFlag(secrets.scrapingApiEndpoint) && envFlag(secrets.scrapingApiKey),
-      priority: 2,
+      priority: 3,
     },
   ];
 }
@@ -44,6 +53,8 @@ export function hasAnyInternalProvider(): boolean {
 
 export function getInternalSourceAccessSecrets() {
   return {
+    browserWorkerEndpoint: process.env.BROWSER_WORKER_ENDPOINT?.trim() || null,
+    browserWorkerToken: process.env.BROWSER_WORKER_TOKEN?.trim() || null,
     proxyUrl: process.env.INTERNAL_PROXY_URL?.trim() || null,
     scrapingApiEndpoint: process.env.INTERNAL_SCRAPING_API_ENDPOINT?.trim() || null,
     scrapingApiKey: process.env.INTERNAL_SCRAPING_API_KEY?.trim() || null,

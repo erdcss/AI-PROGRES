@@ -20,8 +20,12 @@ import {
   getLocalAgentHealthStatus,
   isLocalAgentConfigured,
   maskLocalAgentEndpoint,
-  pingLocalAgentHealth,
 } from "./local-agent-client.service";
+import {
+  getBrowserWorkerHealthStatus,
+  isBrowserWorkerConfigured,
+  scrapeTrendyolWithBrowserWorker,
+} from "./browser-worker-client.service";
 
 export type SourceAccessAttemptResult = GatewayFetchResult & {
   strategy: string;
@@ -87,6 +91,22 @@ async function runProviderAttempt(
   providerType: InternalProviderType,
   settings: ScrapeGatewaySettingsDto,
 ): Promise<SourceAccessAttemptResult> {
+  if (providerType === "browser_worker") {
+    const bw = await scrapeTrendyolWithBrowserWorker(url);
+    return {
+      html: bw.html,
+      images: [],
+      providerType: "browser_worker",
+      htmlSuccess: Boolean(bw.success && bw.html && bw.html.length >= 500),
+      imageSuccess: false,
+      error: bw.error,
+      reason: bw.stageError ?? bw.error,
+      durationMs: bw.durationMs,
+      strategy: "browser_worker",
+      stageError: bw.stageError,
+    };
+  }
+
   if (providerType === "local_agent") {
     const agent = await callLocalScrapeAgent(url);
     localAgentLastStatus = agent.agentSuccess ? "success" : "failed";
@@ -141,6 +161,17 @@ export async function seedInternalSourceAccessFromEnv(): Promise<void> {
 
   const providers = getEnabledInternalProviders().map((p) => p.type).join(", ") || "none";
   console.log(`ℹ️ Kaynak erişim internal seed: primary=${primary}, providers=${providers}`);
+
+  if (isBrowserWorkerConfigured()) {
+    const health = await getBrowserWorkerHealthStatus().catch(() => null);
+    if (health?.reachable) {
+      console.log(
+        `ℹ️ Browser Worker: erişilebilir (${health.endpointHost ?? "host"}, ${health.latencyMs ?? "?"}ms, browserReady=${health.browserReady})`,
+      );
+    } else {
+      console.warn(`⚠️ Browser Worker: erişilemiyor — ${health?.error ?? "deploy/env kontrol edin"}`);
+    }
+  }
 
   if (isLocalAgentConfigured()) {
     const health = await getLocalAgentHealthStatus().catch(() => null);

@@ -747,6 +747,8 @@ app.use(pendingChangesRoutes);
         await seedInternalSourceAccessFromEnv().catch(() => undefined);
         const { bootstrapProductTrackingV2 } = await import('./services/tracking.bootstrap');
         await bootstrapProductTrackingV2();
+        const { startProductTrackingWorker } = await import('./workers/product-tracking-worker');
+        startProductTrackingWorker();
       } catch (err) {
         console.warn('⚠️ Product Tracking v2 bootstrap hatası:', err);
       }

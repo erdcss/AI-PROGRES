@@ -15,7 +15,7 @@ import {
   type ScrapeStageErrorCode,
   type SelectedScrapeMode,
 } from "@shared/scrape-runtime";
-import { evaluateScrapeQuality } from "./scrape-quality";
+import { evaluateScrapeQuality, assessTrendyolVariantGaps } from "./scrape-quality";
 import { hasRealTrendyolVariants } from "@shared/trendyol-variant-utils";
 import { buildStockAnalysisFromVariants } from "./trendyol-html-enrichment";
 import { fetchTrendyolProductByUrl } from "./trendyol-product-api";
@@ -78,6 +78,28 @@ function applyAgentAccessToResult(
   diagnostics.gatewayHtmlSuccess = access.htmlSuccess;
   diagnostics.gatewayImageSuccess = access.imageSuccess;
   diagnostics.gatewayProviderType = "local_agent";
+}
+
+function applyBrowserWorkerToResult(
+  result: any,
+  url: string,
+  access: {
+    html: string | null;
+    rawProductJson: Record<string, unknown> | null;
+    durationMs: number;
+  },
+  diagnostics: ScrapeDiagnostics,
+) {
+  result._fromBrowserWorker = true;
+  result._sourceAccessStrategy = "browser_worker";
+  diagnostics.gatewayHtmlSuccess = Boolean(access.html && access.html.length >= 500);
+  diagnostics.gatewayImageSuccess = diagnostics.gatewayImageSuccess ?? false;
+  diagnostics.gatewayProviderType = "browser_worker";
+  diagnostics.gatewayDurationMs = access.durationMs;
+  diagnostics.browserWorkerSucceeded = true;
+  if (access.rawProductJson) {
+    result._browserWorkerRawProduct = access.rawProductJson;
+  }
 }
 
 function evaluateFields(result: any, url: string) {
@@ -150,7 +172,9 @@ function finalizeOutcome(
     gatewaySkippedReason: diagnostics.gatewaySkippedReason,
     stageErrors: diagnostics.stageErrors,
     preferLocalAgent: policy.preferLocalAgent,
+    preferBrowserWorker: policy.preferBrowserWorker,
     localAgentSucceeded: diagnostics.localAgentSucceeded,
+    browserWorkerSucceeded: diagnostics.browserWorkerSucceeded,
     htmlUnavailable:
       !diagnostics.htmlParseSuccess &&
       !diagnostics.gatewayHtmlSuccess &&
@@ -285,10 +309,91 @@ export async function runTrendyolScrapePipeline(
     }
   };
 
-  // ── Cloud + Local Agent: API ve agent paralel (direct HTML atlanır) ──
+  // ── Cloud + Browser Worker: API önce, varyant eksikse worker ──
   const skipInternalSourceAccess = process.env.LOCAL_SCRAPE_AGENT_MODE === "true";
 
-  if (policy.preferLocalAgent && !skipInternalSourceAccess && !isPastDeadline()) {
+  if (policy.preferBrowserWorker && !skipInternalSourceAccess && !isPastDeadline()) {
+    diagnostics.apiStarted = true;
+    const apiStart = Date.now();
+    console.log("⚡ [1/6] Cloud+BrowserWorker: Trendyol API...");
+
+    try {
+      apiProduct = await withStageTimeout(
+        () => fetchTrendyolProductByUrl(url),
+        Math.min(policy.apiTimeoutMs, remainingMs()),
+        "api-timeout",
+      );
+      diagnostics.apiDurationMs = Date.now() - apiStart;
+      if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
+        result = convertApiProduct(apiProduct);
+        diagnostics.apiSuccess = true;
+        console.log(`✅ [1/6] Trendyol API (${diagnostics.apiDurationMs}ms)`);
+      } else {
+        diagnostics.apiSuccess = false;
+        diagnostics.apiError = apiProduct ? "api-empty-payload" : "api-null-response";
+      }
+    } catch (err) {
+      diagnostics.apiDurationMs = Date.now() - apiStart;
+      const code: ScrapeStageErrorCode =
+        err instanceof ScrapeStageTimeoutError ? err.code : "api-error";
+      pushStageError(diagnostics, code);
+      diagnostics.apiError = code;
+      diagnostics.apiSuccess = false;
+    }
+
+    const variantGaps = assessTrendyolVariantGaps(url, result);
+    const needsBrowser =
+      !diagnostics.apiSuccess || variantGaps.likelyIncomplete || !hasRealTrendyolVariants(result?.variants);
+
+    if (needsBrowser && !isPastDeadline()) {
+      diagnostics.gatewayStarted = true;
+      console.log("⚡ [BW] Varyant/HTML eksik — Browser Worker devreye giriyor...");
+      try {
+        const { scrapeTrendyolWithBrowserWorker } = await import(
+          "./services/browser-worker-client.service"
+        );
+        const bw = await withStageTimeout(
+          () => scrapeTrendyolWithBrowserWorker(url),
+          Math.min(policy.browserWorkerTimeoutMs, remainingMs()),
+          "direct-html-timeout",
+        );
+
+        if (bw.success && bw.html && bw.html.length >= 500) {
+          directHtml = bw.html;
+          diagnostics.directHtmlSuccess = true;
+          applyBrowserWorkerToResult(result, url, bw, diagnostics);
+          if (bw.rawProductJson) {
+            apiProduct = apiProduct
+              ? { ...apiProduct, rawProduct: bw.rawProductJson }
+              : ({ rawProduct: bw.rawProductJson } as typeof apiProduct);
+          }
+          console.log(
+            `✅ Browser Worker başarılı (${bw.durationMs}ms): HTML ${bw.html.length} bytes`,
+          );
+        } else {
+          diagnostics.browserWorkerSucceeded = false;
+          const errCode = (bw.stageError ?? "browser-worker-failed") as ScrapeStageErrorCode;
+          diagnostics.gatewayError = errCode;
+          pushStageError(diagnostics, errCode);
+          console.warn(
+            `⚠️ Browser Worker başarısız [${bw.errorCategory ?? "unknown"}]: ${bw.error ?? errCode}`,
+          );
+        }
+      } catch (err) {
+        diagnostics.browserWorkerSucceeded = false;
+        const code: ScrapeStageErrorCode =
+          err instanceof ScrapeStageTimeoutError ? "direct-html-timeout" : "browser-worker-failed";
+        pushStageError(diagnostics, code);
+        diagnostics.gatewayError = code;
+        console.warn(`⚠️ Browser Worker soft-fail (${code})`);
+      }
+    } else if (!needsBrowser) {
+      diagnostics.browserWorkerSucceeded = true;
+      console.log("✅ [BW] API yanıtı yeterli — Browser Worker atlandı");
+    }
+
+    diagnostics.directHtmlSkippedReason = "cloud-browser-worker-mode";
+  } else if (policy.preferLocalAgent && !skipInternalSourceAccess && !isPastDeadline()) {
     diagnostics.apiStarted = true;
     diagnostics.gatewayStarted = true;
     const parallelStart = Date.now();
@@ -450,6 +555,7 @@ export async function runTrendyolScrapePipeline(
   if (
     !skipInternalSourceAccess &&
     !policy.preferLocalAgent &&
+    !policy.preferBrowserWorker &&
     !htmlReadyBeforeGateway &&
     !isPastDeadline() &&
     !forcedGlobalTimeout
@@ -502,6 +608,12 @@ export async function runTrendyolScrapePipeline(
         diagnostics.gatewayHtmlSuccess = true;
         result._fromLocalAgent = true;
         result._sourceAccessStrategy = "local_agent";
+      }
+      if (access.strategy === "browser_worker" && access.htmlSuccess) {
+        diagnostics.gatewayHtmlSuccess = true;
+        diagnostics.browserWorkerSucceeded = true;
+        result._fromBrowserWorker = true;
+        result._sourceAccessStrategy = "browser_worker";
       }
 
       if (!access.htmlSuccess && !access.imageSuccess) {
@@ -733,7 +845,10 @@ export async function runTrendyolScrapePipeline(
     forcedGlobalTimeout,
     {
       html: directHtml,
-      rawProduct: apiProduct?.rawProduct ?? null,
+      rawProduct:
+        apiProduct?.rawProduct ??
+        (result._browserWorkerRawProduct as Record<string, unknown> | undefined) ??
+        null,
     },
   );
 }

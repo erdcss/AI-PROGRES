@@ -30,6 +30,7 @@ export type FinalSuccessReason =
   | "local-agent-success"
   | "local-agent-full-data"
   | "local-agent-failed"
+  | "browser-worker-failed"
   | "gateway-data-invalid";
 
 export type ScrapeQuality = {
@@ -127,6 +128,7 @@ export function detectTitleSource(
 }
 
 export const LOCAL_AGENT_VARIANT_WARNING = "local_agent_unreachable";
+export const BROWSER_WORKER_VARIANT_WARNING = "browser_worker_unreachable";
 
 export type TrendyolVariantGapAssessment = {
   sparseVariants: boolean;
@@ -187,7 +189,9 @@ export function evaluateScrapeQuality(
     gatewaySkippedReason?: string;
     stageErrors?: string[];
     preferLocalAgent?: boolean;
+    preferBrowserWorker?: boolean;
     localAgentSucceeded?: boolean;
+    browserWorkerSucceeded?: boolean;
     htmlUnavailable?: boolean;
   } = {},
 ): ScrapeQuality {
@@ -228,13 +232,35 @@ export function evaluateScrapeQuality(
     opts.gatewayError === "local-agent-failed" ||
     opts.gatewaySkippedReason === "local-agent-failed";
   const localAgentExpected = opts.preferLocalAgent === true;
+  const browserWorkerExpected = opts.preferBrowserWorker === true;
   const htmlUnavailable =
     opts.htmlUnavailable === true ||
-    (!htmlParseSuccess && !gatewayHtmlSuccess && localAgentExpected);
+    (!htmlParseSuccess &&
+      !gatewayHtmlSuccess &&
+      (localAgentExpected || browserWorkerExpected));
   const variantGaps = assessTrendyolVariantGaps(url, result);
 
   if (
+    browserWorkerExpected &&
+    opts.browserWorkerSucceeded !== true &&
+    (htmlUnavailable || variantGaps.likelyIncomplete)
+  ) {
+    if (!warnings.includes(BROWSER_WORKER_VARIANT_WARNING)) {
+      warnings.push(BROWSER_WORKER_VARIANT_WARNING);
+    }
+    if (variantGaps.sparseVariants) {
+      console.warn(
+        "⚠️ Trendyol varyant sonucu eksik olabilir: Browser Worker/HTML yok, API kısmi yanıt verdi.",
+      );
+    }
+  } else if (opts.browserWorkerSucceeded === true) {
+    const bwIdx = warnings.indexOf(BROWSER_WORKER_VARIANT_WARNING);
+    if (bwIdx >= 0) warnings.splice(bwIdx, 1);
+  }
+
+  if (
     localAgentExpected &&
+    !browserWorkerExpected &&
     (localAgentFailed || opts.localAgentSucceeded === false) &&
     (htmlUnavailable || variantGaps.likelyIncomplete)
   ) {
@@ -277,6 +303,11 @@ export function evaluateScrapeQuality(
   ) {
     finalSuccessReason = "source-access-provider-failed";
   } else if (
+    stageErrors.includes("browser-worker-failed") ||
+    opts.gatewayError === "browser-worker-failed"
+  ) {
+    finalSuccessReason = "browser-worker-failed" as FinalSuccessReason;
+  } else if (
     stageErrors.includes("local-agent-failed") ||
     opts.gatewayError === "local-agent-failed" ||
     opts.gatewaySkippedReason === "local-agent-failed"
@@ -307,13 +338,21 @@ export function evaluateScrapeQuality(
     finalSuccessReason = hasValidPrice ? "title-price-no-images" : "api-title-only";
   }
 
+  const browserWorkerDrivenPartial =
+    browserWorkerExpected &&
+    opts.browserWorkerSucceeded !== true &&
+    (htmlUnavailable || variantGaps.likelyIncomplete) &&
+    previewOk;
+
   const variantDrivenPartial =
     localAgentExpected &&
+    !browserWorkerExpected &&
     (localAgentFailed || opts.localAgentSucceeded === false) &&
     (htmlUnavailable || variantGaps.likelyIncomplete) &&
     previewOk;
 
   const partialSuccess =
+    browserWorkerDrivenPartial ||
     variantDrivenPartial ||
     (previewOk && (!usableForCsv || titleSource === "url-slug"));
 

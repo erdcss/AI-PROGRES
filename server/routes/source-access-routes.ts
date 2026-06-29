@@ -1,4 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import { getBrowserWorkerHealthStatus } from "../services/browser-worker-client.service";
 import { getLocalAgentHealthStatus } from "../services/local-agent-client.service";
 import {
   getSourceAccessStatus,
@@ -17,6 +18,25 @@ function requireAdminSecret(req: Request, res: Response, next: NextFunction) {
 }
 
 export function registerSourceAccessRoutes(app: Express): void {
+  app.get("/api/browser-worker/health", async (_req, res) => {
+    try {
+      const health = await getBrowserWorkerHealthStatus();
+      return res.json(health);
+    } catch (err) {
+      return res.status(500).json({
+        enabled: false,
+        endpointConfigured: false,
+        endpointHost: null,
+        tokenConfigured: false,
+        reachable: false,
+        browserReady: false,
+        latencyMs: null,
+        error: (err as Error).message,
+        errorCategory: "unknown",
+      });
+    }
+  });
+
   app.get("/api/local-agent/health", async (_req, res) => {
     try {
       const health = await getLocalAgentHealthStatus();
