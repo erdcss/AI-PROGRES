@@ -17,6 +17,7 @@ import {
   unwrapTrendyolApiProductRoot,
 } from './trendyol-variant-resolver';
 import type { SanitizedVariants } from '@shared/trendyol-variant-utils';
+import { pickRicherTrendyolVariants, variantRichnessScore } from '@shared/trendyol-variant-utils';
 
 export interface TrendyolApiProduct {
   title: string;
@@ -208,13 +209,21 @@ export async function fetchTrendyolImagesFromApi(url: string): Promise<string[]>
   return filterValidProductImages(collected);
 }
 
+function scoreTrendyolApiProduct(parsed: TrendyolApiProduct): number {
+  let score = variantRichnessScore(parsed.variants);
+  if (parsed.price.original > 0) score += 50;
+  score += Math.min(parsed.images.length, 20);
+  if (parsed.rawProduct?.slicedAttributes) score += 25;
+  return score;
+}
+
 export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolApiProduct | null> {
   const productId = extractTrendyolProductId(url);
   if (!productId) return null;
 
   const slugTitle = titleFromTrendyolUrl(url);
-  const slugBrand = brandFromTrendyolUrl(url);
   let bestPartial: TrendyolApiProduct | null = null;
+  const parsedList: TrendyolApiProduct[] = [];
 
   const endpoints = API_ENDPOINTS(productId);
   const headers = API_HEADERS(productId, url);
@@ -235,22 +244,63 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
     if (status === 403 || status === 429 || status >= 500) continue;
 
     const parsed = parseProductPayload(result.value.data, url);
-    if (parsed && parsed.price.original > 0 && parsed.images.length > 0) {
-      return parsed;
-    }
-    if (parsed && (!bestPartial || parsed.price.original > bestPartial.price.original)) {
-      bestPartial = parsed;
-    }
-
-    if (slugTitle && bestPartial && bestPartial.price.original <= 0) {
+    if (parsed) {
+      parsedList.push(parsed);
+      if (!bestPartial || parsed.price.original > bestPartial.price.original) {
+        bestPartial = parsed;
+      }
+    } else if (slugTitle && bestPartial && bestPartial.price.original <= 0) {
       const priceOnly = parsePriceOnlyPayload(result.value.data, url, bestPartial);
       if (priceOnly) bestPartial = priceOnly;
     }
   }
 
-  if (bestPartial && (bestPartial.price.original > 0 || bestPartial.images.length > 0)) {
-    return bestPartial;
+  if (parsedList.length === 0) {
+    if (bestPartial && (bestPartial.price.original > 0 || bestPartial.images.length > 0)) {
+      return bestPartial;
+    }
+    return null;
   }
 
-  return null;
+  const title =
+    parsedList.find((p) => isValidTrendyolProductTitle(p.title))?.title ||
+    slugTitle ||
+    parsedList[0].title;
+
+  const variantCandidates: SanitizedVariants[] = parsedList
+    .map((p) => p.variants)
+    .filter((v): v is SanitizedVariants => Boolean(v));
+
+  for (const parsed of parsedList) {
+    if (parsed.rawProduct) {
+      variantCandidates.push(
+        resolveTrendyolVariants({
+          product: parsed.rawProduct,
+          url,
+          productTitle: title,
+        }),
+      );
+    }
+  }
+
+  const mergedVariants = pickRicherTrendyolVariants(...variantCandidates);
+
+  const base =
+    parsedList.reduce((best, cur) =>
+      scoreTrendyolApiProduct(cur) > scoreTrendyolApiProduct(best) ? cur : best,
+    ) ?? parsedList[0];
+
+  return {
+    ...base,
+    title: resolveProductTitleFromApi(title, base.title),
+    variants: mergedVariants,
+    rawProduct: base.rawProduct,
+  };
+}
+
+function resolveProductTitleFromApi(preferred: string, fallback: string): string {
+  if (isValidTrendyolProductTitle(preferred) && !isBlockedTrendyolTitle(preferred)) {
+    return preferred;
+  }
+  return fallback;
 }

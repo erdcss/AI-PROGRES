@@ -6,6 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { resolvePreviewImagesForEntry, resolvePreviewProxyUrl } from "@/lib/product-image-url";
 import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
 import { getTrendyolImageFallbackUrls } from "@shared/trendyol-product-images";
+import {
+  normalizeTrendyolDisplayPrice,
+  formatOriginalPrice,
+  formatSalePrice,
+  formatProfitPercentage,
+} from "@/utils/price-utils";
 
 function PreviewCarouselImage({
   directUrl,
@@ -280,8 +286,27 @@ export const ProductPreview = memo(function ProductPreview({
       return { original: 0, withProfit: 0 };
     };
     
-    const prices = parsePriceFromCSV();
-    
+    const prices = (() => {
+      const fromPreview = normalizeTrendyolDisplayPrice(preview.price, 0.1);
+      if (fromPreview.original > 0) return fromPreview;
+      const fromCsv = parsePriceFromCSV();
+      return normalizeTrendyolDisplayPrice(
+        { original: fromCsv.original, withProfit: fromCsv.withProfit },
+        0.1,
+      );
+    })();
+
+    const sizeCount =
+      sanitizedVariants.sizes.length > 0
+        ? sanitizedVariants.sizes.length
+        : [...new Set(sanitizedVariants.allVariants.map((v) => v.size).filter(Boolean))].length;
+    const colorCount =
+      sanitizedVariants.colors.length > 0
+        ? sanitizedVariants.colors.length
+        : [...new Set(sanitizedVariants.allVariants.map((v) => v.color).filter(Boolean))].length;
+    const variantCount = sanitizedVariants.allVariants.length;
+    const imageCount = previewImages.length;
+
     return (
       <Card className="bg-slate-800/40 border border-slate-600/50 mb-3">
         <CardContent className="p-3">
@@ -358,29 +383,51 @@ export const ProductPreview = memo(function ProductPreview({
                 </div>
               )}
               
+              {/* Özet sayılar */}
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <Badge variant="outline" className="border-slate-600/50 text-slate-300 px-1.5 py-0 h-4">
+                  {imageCount} görsel
+                </Badge>
+                {colorCount > 0 && (
+                  <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 px-1.5 py-0 h-4">
+                    {colorCount} renk
+                  </Badge>
+                )}
+                {sizeCount > 0 && (
+                  <Badge variant="outline" className="border-green-600/40 text-green-300 px-1.5 py-0 h-4">
+                    {sizeCount} beden
+                  </Badge>
+                )}
+                {variantCount > 0 && (
+                  <Badge variant="outline" className="border-purple-600/40 text-purple-300 px-1.5 py-0 h-4">
+                    {variantCount} varyant
+                  </Badge>
+                )}
+              </div>
+
               {/* Fiyat Bilgileri */}
               {prices.original > 0 && (
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   <div className="flex items-center gap-1">
                     <span className="text-slate-400">Alış:</span>
                     <span className="text-orange-300 font-semibold">
-                      {prices.original.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                      {formatOriginalPrice(prices)}
                     </span>
                   </div>
                   <span className="text-slate-600">→</span>
                   <div className="flex items-center gap-1">
-                    <span className="text-slate-400">Satış:</span>
+                    <span className="text-slate-400">Karlı satış:</span>
                     <span className="text-green-300 font-semibold">
-                      {prices.withProfit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                      {formatSalePrice(prices)}
                     </span>
                   </div>
                   <Badge variant="outline" className="border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4">
-                    +%{(((prices.withProfit - prices.original) / prices.original) * 100).toFixed(1)}
+                    {formatProfitPercentage(prices)}
                   </Badge>
                 </div>
               )}
               
-              {/* Varyant ve Etiketler */}
+              {/* Varyant detayları */}
               <div className="space-y-1.5 pt-2 border-t border-slate-700/30">
                 {/* Renk Seçenekleri */}
                 {(() => {
@@ -487,13 +534,17 @@ export const ProductPreview = memo(function ProductPreview({
                     const inStockCount = allVariants.filter(v => v.inStock).length;
                     const totalCount = allVariants.length;
                     
-                    if (allVariants.length === 0 && uniqueColors.length === 0) {
+                    if (allVariants.length === 0 && uniqueColors.length === 0 && sizeCount === 0) {
                       return <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-1.5 py-0 h-4">Tek ürün</Badge>;
                     }
                     
                     return (
                       <>
-                        {uniqueColors.length > 0 && <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4">{uniqueColors.length} renk</Badge>}
+                        {sizeCount > 0 && (
+                          <Badge variant="outline" className="border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4">
+                            {sizeCount} beden
+                          </Badge>
+                        )}
                         {totalCount > 0 && (
                           <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-1.5 py-0 h-4">
                             {inStockCount}/{totalCount} stokta

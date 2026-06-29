@@ -293,6 +293,7 @@ export function buildCsvPreviewEntry(
     variants: {
       colors: data.variants?.colors || [],
       sizes: data.variants?.sizes || [],
+      allVariants: data.variants?.allVariants || [],
     },
     images: data.images,
     price: {

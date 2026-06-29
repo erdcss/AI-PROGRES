@@ -352,19 +352,23 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                         {preview.productTitle.length > 40 ? preview.productTitle.substring(0, 40) + '...' : preview.productTitle}
                       </CardTitle>
                       <div className="flex items-center gap-1 flex-wrap">
+                        {previewImageUrls.length > 0 && (
+                          <Badge variant="outline" className="text-slate-300 border-slate-600 text-[10px] px-1 py-0 h-4 leading-none">
+                            {previewImageUrls.length} görsel
+                          </Badge>
+                        )}
                         {uniqueColors.length > 0 && uniqueColors[0] !== 'Standart' && uniqueColors[0] !== 'Tek Renk' && (
                           <Badge variant="outline" className="text-pink-300 border-pink-800 text-[10px] px-1 py-0 h-4 leading-none">
-                            {uniqueColors.length}r
+                            {uniqueColors.length} renk
+                          </Badge>
+                        )}
+                        {uniqueSizes.length > 0 && (
+                          <Badge variant="outline" className="text-green-300 border-green-800 text-[10px] px-1 py-0 h-4 leading-none">
+                            {uniqueSizes.length} beden
                           </Badge>
                         )}
                         <Badge variant="outline" className="text-cyan-300 border-cyan-800 text-[10px] px-1 py-0 h-4 leading-none">
-                          {variantCount}v
-                        </Badge>
-                        <Badge variant="outline" className="text-green-300 border-green-800 text-[10px] px-1 py-0 h-4 leading-none">
-                          {headers.length}s
-                        </Badge>
-                        <Badge variant="outline" className="text-purple-300 border-purple-800 text-[10px] px-1 py-0 h-4 leading-none">
-                          {previewImageUrls.length || preview.images.length}g
+                          {variantCount} varyant
                         </Badge>
                       </div>
                     </div>
