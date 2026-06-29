@@ -4,6 +4,8 @@
 import * as cheerio from "cheerio";
 import {
   buildVariantsFromSlicing,
+  extractVariantsFromJsonLd,
+  extractVariantsFromSlicingRegex,
   parseSlicingAttributesFromProduct,
   parseSkuComboVariantsFromProduct,
   type SlicingVariant,
@@ -133,6 +135,23 @@ function applyUrlColorToVariants(
   return variants;
 }
 
+function toSanitizedVariants(
+  rawVariants: SlicingVariant[],
+  productTitle?: string,
+): SanitizedVariants {
+  return sanitizeTrendyolVariants(
+    {
+      allVariants: rawVariants.map((v) => ({
+        color: v.color,
+        size: v.size,
+        inStock: v.inStock,
+        colorCode: v.colorCode,
+      })),
+    },
+    { productTitle },
+  );
+}
+
 export function resolveTrendyolVariants(input: {
   product?: Record<string, unknown> | null;
   html?: string;
@@ -148,34 +167,60 @@ export function resolveTrendyolVariants(input: {
     product = getTrendyolProductFromState(input.html);
   }
 
-  let rawVariants: SlicingVariant[] = [];
+  const candidates: SanitizedVariants[] = [];
 
   if (input.html) {
     const $ = cheerio.load(input.html);
-    rawVariants = buildVariantsFromSlicing($, input.html);
+    const fromSlicing = buildVariantsFromSlicing($, input.html);
+    if (fromSlicing.length > 0) {
+      candidates.push(toSanitizedVariants(fromSlicing, title));
+    }
+
+    const fromJsonLd = extractVariantsFromJsonLd(input.html);
+    if (fromJsonLd.length > 0) {
+      candidates.push(toSanitizedVariants(fromJsonLd, title));
+    }
+
+    const fromRegex = extractVariantsFromSlicingRegex(input.html);
+    if (fromRegex.length > 0) {
+      candidates.push(toSanitizedVariants(fromRegex, title));
+    }
   }
 
-  if (rawVariants.length === 0 && product) {
-    rawVariants = parseSkuComboVariantsFromProduct(product);
+  if (product) {
+    const skuVariants = parseSkuComboVariantsFromProduct(product);
+    if (skuVariants.length > 0) {
+      candidates.push(toSanitizedVariants(skuVariants, title));
+    }
+
+    const matrixVariants = buildMatrixFromSlicing(
+      parseSlicingAttributesFromProduct(product),
+    );
+    if (matrixVariants.length > 0) {
+      candidates.push(toSanitizedVariants(matrixVariants, title));
+    }
   }
 
-  if (rawVariants.length === 0 && product) {
-    rawVariants = buildMatrixFromSlicing(parseSlicingAttributesFromProduct(product));
+  const urlColorVariants = applyUrlColorToVariants([], input.url);
+  if (urlColorVariants.length > 0) {
+    candidates.push(toSanitizedVariants(urlColorVariants, title));
   }
 
-  rawVariants = applyUrlColorToVariants(rawVariants, input.url);
-
-  return sanitizeTrendyolVariants(
-    {
-      allVariants: rawVariants.map((v) => ({
-        color: v.color,
+  let result = pickRicherTrendyolVariants(...candidates);
+  const urlColor = input.url ? colorFromTrendyolProductUrl(input.url) : null;
+  if (urlColor && result.sizes.length > 0 && result.colors.length === 0) {
+    result = toSanitizedVariants(
+      result.allVariants.map((v) => ({
+        color: v.color || urlColor,
+        colorCode: v.colorCode || "",
         size: v.size,
         inStock: v.inStock,
-        colorCode: v.colorCode,
       })),
-    },
-    { productTitle: title },
-  );
+      title,
+    );
+  }
+
+  return result;
 }
 
 export function resolveTrendyolVariantBundle(input: {

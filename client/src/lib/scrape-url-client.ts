@@ -282,6 +282,9 @@ export function buildCsvPreviewEntry(
   idPrefix = "csv",
 ) {
   const urlSlug = url.split("/").pop()?.split("?")[0] || `url-${Date.now()}`;
+  const sanitizedVariants = sanitizeTrendyolVariants(data.variants, {
+    productTitle: data.title,
+  });
   return {
     id: `${idPrefix}-${urlSlug}-${Date.now()}`,
     productTitle: data.title,
@@ -291,9 +294,9 @@ export function buildCsvPreviewEntry(
     usableForCsv: data.usableForCsv,
     csvInfo: data.csvInfo,
     variants: {
-      colors: data.variants?.colors || [],
-      sizes: data.variants?.sizes || [],
-      allVariants: data.variants?.allVariants || [],
+      colors: sanitizedVariants.colors,
+      sizes: sanitizedVariants.sizes,
+      allVariants: sanitizedVariants.allVariants,
     },
     images: data.images,
     price: {

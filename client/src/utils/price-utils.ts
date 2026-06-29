@@ -32,6 +32,9 @@ export function normalizePrice(price: any, defaultProfitMargin = 0.10): Standard
     if (price.original && price.withProfit) {
       original = Number(price.original);
       withProfit = Number(price.withProfit);
+      if (withProfit <= original) {
+        withProfit = Math.round(original * (1 + defaultProfitMargin) * 100) / 100;
+      }
     }
     // Legacy format with profitFormatted
     else if (price.profitFormatted) {

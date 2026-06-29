@@ -120,10 +120,84 @@ export const ProductPreview = memo(function ProductPreview({
   onRemoveTag,
   onAddTag,
 }: ProductPreviewProps) {
+    const parseCsvLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = "";
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === "," && !inQuotes) {
+          result.push(current.trim());
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
 
-    const sanitizedVariants = sanitizeTrendyolVariants(preview.variants, {
+    const variantsFromCsv = (() => {
+      const lines = preview.csvContent.split("\n").filter((line) => line.trim());
+      if (lines.length < 2) {
+        return { colors: [] as string[], sizes: [] as string[], allVariants: [] as Array<{ color: string; size: string; inStock: boolean }> };
+      }
+      const headers = parseCsvLine(lines[0]).map((h) => h.replace(/^"|"$/g, "").trim());
+      const lowerHeaders = headers.map((h) => h.toLowerCase());
+      const opt1NameIdx = lowerHeaders.findIndex((h) => h.includes("option1 name") || h === "option1 name");
+      const opt1ValIdx = lowerHeaders.findIndex((h) => h.includes("option1 value") || h === "option1 value");
+      const opt2ValIdx = lowerHeaders.findIndex((h) => h.includes("option2 value") || h === "option2 value");
+
+      const colors = new Set<string>();
+      const sizes = new Set<string>();
+      const allVariants: Array<{ color: string; size: string; inStock: boolean }> = [];
+
+      for (const line of lines.slice(1)) {
+        const cells = parseCsvLine(line).map((c) => c.replace(/^"|"$/g, "").trim());
+        const opt1Name = opt1NameIdx >= 0 ? cells[opt1NameIdx] : "";
+        const opt1Val = opt1ValIdx >= 0 ? cells[opt1ValIdx] : "";
+        const opt2Val = opt2ValIdx >= 0 ? cells[opt2ValIdx] : "";
+        if (!opt1Val && !opt2Val) continue;
+
+        let color = "";
+        let size = "";
+        if (/renk|color/i.test(opt1Name)) {
+          color = opt1Val;
+          size = opt2Val;
+        } else if (/beden|size/i.test(opt1Name)) {
+          size = opt1Val;
+          color = opt2Val;
+        } else if (opt2Val) {
+          color = opt1Val;
+          size = opt2Val;
+        } else {
+          size = opt1Val;
+        }
+
+        if (color) colors.add(color);
+        if (size) sizes.add(size);
+        allVariants.push({ color, size, inStock: true });
+      }
+
+      return {
+        colors: [...colors],
+        sizes: [...sizes],
+        allVariants,
+      };
+    })();
+
+    const sanitizedFromPayload = sanitizeTrendyolVariants(preview.variants, {
       productTitle: preview.productTitle,
     });
+    const sanitizedFromCsv = sanitizeTrendyolVariants(variantsFromCsv, {
+      productTitle: preview.productTitle,
+    });
+    const sanitizedVariants =
+      sanitizedFromCsv.allVariants.length > sanitizedFromPayload.allVariants.length
+        ? sanitizedFromCsv
+        : sanitizedFromPayload;
     const { urls: previewImages } = resolvePreviewImagesForEntry({
       images: preview.images,
       csvContent: preview.csvContent,
@@ -429,133 +503,85 @@ export const ProductPreview = memo(function ProductPreview({
               
               {/* Varyant detayları */}
               <div className="space-y-1.5 pt-2 border-t border-slate-700/30">
-                {/* Renk Seçenekleri */}
-                {(() => {
-                  const colors = sanitizedVariants.colors;
-                  const allVariants = sanitizedVariants.allVariants;
-                  const uniqueColors =
-                    colors.length > 0
-                      ? colors
-                      : [...new Set(allVariants.map((v) => v.color).filter(Boolean))];
-                  
-                  if (uniqueColors.length > 0) {
-                    return (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400 text-xs flex-shrink-0">Renkler:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {uniqueColors.map((color, idx) => {
-                            // Check if this color has any stock
-                            const colorVariants = allVariants.filter(v => v.color === color);
-                            const hasStock = colorVariants.some(v => v.inStock);
-                            
-                            return (
-                              <Badge 
-                                key={idx}
-                                variant="outline" 
-                                className={hasStock 
-                                  ? "border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4" 
-                                  : "border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 line-through"
-                                }
-                              >
-                                {color}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-                
-                {/* Beden Seçenekleri - Stokta Olan ve Olmayan Ayrımı */}
-                {(() => {
-                  const allVariants = sanitizedVariants.allVariants;
-                  
-                  if (allVariants.length > 0) {
-                    const inStockSizes = new Set<string>();
-                    const outOfStockSizes = new Set<string>();
-                    
-                    allVariants.forEach(v => {
-                      if (v.size) {
-                        if (v.inStock) {
-                          inStockSizes.add(v.size);
-                        } else {
-                          // Only add to out of stock if it's not already in stock
-                          if (!inStockSizes.has(v.size)) {
-                            outOfStockSizes.add(v.size);
-                          }
-                        }
-                      }
-                    });
-                    
-                    const inStockArray = Array.from(inStockSizes);
-                    const outOfStockArray = Array.from(outOfStockSizes);
-                    
-                    if (inStockArray.length > 0 || outOfStockArray.length > 0) {
-                      return (
-                        <div className="flex items-start gap-1.5">
-                          <span className="text-slate-400 text-xs flex-shrink-0 mt-0.5">Bedenler:</span>
-                          <div className="flex flex-wrap gap-1">
-                            {/* Stokta olan bedenler - yeşil */}
-                            {inStockArray.map((size, idx) => (
-                              <Badge 
-                                key={`in-${idx}`}
-                                className="bg-green-900/40 border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4"
-                              >
-                                {size}
-                              </Badge>
-                            ))}
-                            {/* Stokta olmayan bedenler - gri */}
-                            {outOfStockArray.map((size, idx) => (
-                              <Badge 
-                                key={`out-${idx}`}
-                                variant="outline"
-                                className="border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 opacity-60"
-                              >
-                                {size}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    }
-                  }
-                  return null;
-                })()}
-                
-                {/* Varyant Sayısı Özeti */}
-                <div className="flex gap-1">
-                  {(() => {
-                    const allVariants = sanitizedVariants.allVariants;
-                    const uniqueColors = sanitizedVariants.colors.length > 0
-                      ? sanitizedVariants.colors
-                      : [...new Set(allVariants.map(v => v.color).filter(Boolean))];
-                    const inStockCount = allVariants.filter(v => v.inStock).length;
-                    const totalCount = allVariants.length;
-                    
-                    if (allVariants.length === 0 && uniqueColors.length === 0 && sizeCount === 0) {
-                      return <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-1.5 py-0 h-4">Tek ürün</Badge>;
-                    }
-                    
-                    return (
-                      <>
-                        {sizeCount > 0 && (
-                          <Badge variant="outline" className="border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4">
-                            {sizeCount} beden
-                          </Badge>
-                        )}
-                        {totalCount > 0 && (
-                          <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-1.5 py-0 h-4">
-                            {inStockCount}/{totalCount} stokta
-                          </Badge>
-                        )}
-                      </>
-                    );
-                  })()}
+                {/* Renk Seçenekleri — her zaman göster */}
+                <div className="flex items-start gap-1.5">
+                  <span className="text-slate-400 text-xs flex-shrink-0 mt-0.5">
+                    Renkler ({colorCount}):
+                  </span>
+                  {colorCount > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {(sanitizedVariants.colors.length > 0
+                        ? sanitizedVariants.colors
+                        : [...new Set(sanitizedVariants.allVariants.map((v) => v.color).filter(Boolean))]
+                      ).map((color, idx) => (
+                        <Badge
+                          key={idx}
+                          variant="outline"
+                          className="border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4"
+                        >
+                          {color}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-slate-500 text-xs">Renk bilgisi yok</span>
+                  )}
                 </div>
-                
-                {/* Etiketler */}
+
+                {/* Beden Seçenekleri — her zaman göster */}
+                <div className="flex items-start gap-1.5">
+                  <span className="text-slate-400 text-xs flex-shrink-0 mt-0.5">
+                    Bedenler ({sizeCount}):
+                  </span>
+                  {sizeCount > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {(() => {
+                        const inStockSizes = new Set<string>();
+                        const outOfStockSizes = new Set<string>();
+                        sanitizedVariants.allVariants.forEach((v) => {
+                          if (!v.size) return;
+                          if (v.inStock) inStockSizes.add(v.size);
+                          else if (!inStockSizes.has(v.size)) outOfStockSizes.add(v.size);
+                        });
+                        const sizeList =
+                          sanitizedVariants.sizes.length > 0
+                            ? sanitizedVariants.sizes
+                            : [...new Set(sanitizedVariants.allVariants.map((v) => v.size).filter(Boolean))];
+                        return sizeList.map((size, idx) => {
+                          const inStock = inStockSizes.has(size);
+                          return (
+                            <Badge
+                              key={idx}
+                              variant="outline"
+                              className={
+                                inStock
+                                  ? "border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4"
+                                  : "border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 opacity-60"
+                              }
+                            >
+                              {size}
+                            </Badge>
+                          );
+                        });
+                      })()}
+                    </div>
+                  ) : (
+                    <span className="text-slate-500 text-xs">Beden bilgisi yok</span>
+                  )}
+                </div>
+
+                <div className="flex gap-1">
+                  {variantCount > 0 ? (
+                    <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-1.5 py-0 h-4">
+                      {sanitizedVariants.allVariants.filter((v) => v.inStock).length}/{variantCount} stokta
+                    </Badge>
+                  ) : colorCount === 0 && sizeCount === 0 ? (
+                    <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-1.5 py-0 h-4">
+                      Tek ürün
+                    </Badge>
+                  ) : null}
+                </div>
+
                 <div className="flex items-start gap-1.5">
                   <Tag className="w-3 h-3 text-cyan-400 mt-0.5 flex-shrink-0" />
                   

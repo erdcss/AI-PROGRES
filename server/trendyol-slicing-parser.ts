@@ -407,6 +407,149 @@ export function extractColorsFromSlicingDom($: CheerioAPI): string[] {
   return colors;
 }
 
+/** JSON-LD ProductGroup / Product içinden renk×beden */
+export function extractVariantsFromJsonLd(html: string): SlicingVariant[] {
+  const variants: SlicingVariant[] = [];
+  const seen = new Set<string>();
+  const push = (color: string, size: string, inStock: boolean) => {
+    const key = `${color.toLowerCase()}::${size.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    variants.push({ color, colorCode: "", size, inStock });
+  };
+
+  const scripts = [
+    ...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi),
+  ];
+
+  for (const match of scripts) {
+    try {
+      const data = JSON.parse(match[1]);
+      const roots = Array.isArray(data?.["@graph"]) ? data["@graph"] : [data];
+
+      for (const root of roots) {
+        if (!root || typeof root !== "object") continue;
+
+        if (root["@type"] === "ProductGroup" && Array.isArray(root.hasVariant)) {
+          for (const variant of root.hasVariant) {
+            const color = String(variant?.color ?? "").trim();
+            if (!color) continue;
+            let sizes: string[] = [];
+            if (Array.isArray(variant?.size)) {
+              sizes = variant.size.map(String).filter((s) => s && s !== "Standart");
+            } else if (typeof variant?.size === "string" && variant.size !== "Standart") {
+              sizes = [variant.size];
+            }
+            if (sizes.length === 0) sizes = [""];
+            const inStock =
+              !variant?.offers?.availability ||
+              !String(variant.offers.availability).includes("OutOfStock");
+            for (const size of sizes) push(color, size, inStock);
+          }
+        }
+
+        if (root["@type"] === "Product") {
+          const color = String(root.color ?? "").trim();
+          let sizes: string[] = [];
+          if (Array.isArray(root.size)) sizes = root.size.map(String).filter(Boolean);
+          else if (typeof root.size === "string" && root.size) sizes = [root.size];
+
+          if (color && sizes.length > 0) {
+            for (const size of sizes) push(color, size, true);
+          } else if (Array.isArray(root.hasVariant)) {
+            for (const variant of root.hasVariant) {
+              const vColor = String(variant?.color ?? color).trim();
+              const vSize = String(variant?.size ?? "").trim();
+              if (vColor || vSize) push(vColor, vSize, true);
+            }
+          }
+        }
+      }
+    } catch {
+      /* skip malformed JSON-LD */
+    }
+  }
+
+  return variants;
+}
+
+/** Ham HTML içinde attributeType 1/2 flat varyant kayıtları */
+export function extractVariantsFromSlicingRegex(html: string): SlicingVariant[] {
+  const colors: SlicingOption[] = [];
+  const sizes: SlicingOption[] = [];
+
+  const mergeOption = (list: SlicingOption[], name: string, inStock: boolean) => {
+    const key = name.toLowerCase();
+    const existing = list.find((x) => x.name.toLowerCase() === key);
+    if (existing) {
+      existing.inStock = existing.inStock || inStock;
+      return;
+    }
+    list.push({ name, inStock });
+  };
+
+  const itemPattern =
+    /\{[^{}]*"attributeType"\s*:\s*(1|2|"Color"|"Size")[^{}]*"attributeValue"\s*:\s*"([^"]+)"[^{}]*\}/g;
+
+  for (const match of html.matchAll(itemPattern)) {
+    const type = match[1];
+    const value = match[2]?.trim();
+    if (!value || value.length > 40) continue;
+    const chunk = match[0];
+    const inStock = !/OutOfStock|outofstock|soldout|tükendi|tukendi/i.test(chunk);
+    if (type === "1" || type === "Color") mergeOption(colors, value, inStock);
+    else mergeOption(sizes, value, inStock);
+  }
+
+  const slicedColorPattern =
+    /"attributeName"\s*:\s*"(?:Renk|Color)"[\s\S]*?"attributeValue"\s*:\s*"([^"]+)"/gi;
+  for (const match of html.matchAll(slicedColorPattern)) {
+    const value = match[1]?.trim();
+    if (value) mergeOption(colors, value, true);
+  }
+
+  const slicedSizePattern =
+    /"attributeName"\s*:\s*"(?:Beden|Size)"[\s\S]*?"attributeValue"\s*:\s*"([^"]+)"/gi;
+  for (const match of html.matchAll(slicedSizePattern)) {
+    const value = match[1]?.trim();
+    if (value) mergeOption(sizes, value, true);
+  }
+
+  const variants: SlicingVariant[] = [];
+  if (colors.length > 0 && sizes.length > 0) {
+    for (const color of colors) {
+      for (const size of sizes) {
+        variants.push({
+          color: color.name,
+          colorCode: "",
+          size: size.name,
+          inStock: color.inStock && size.inStock,
+        });
+      }
+    }
+  } else if (sizes.length > 0) {
+    for (const size of sizes) {
+      variants.push({
+        color: "",
+        colorCode: "",
+        size: size.name,
+        inStock: size.inStock,
+      });
+    }
+  } else if (colors.length > 0) {
+    for (const color of colors) {
+      variants.push({
+        color: color.name,
+        colorCode: "",
+        size: "",
+        inStock: color.inStock,
+      });
+    }
+  }
+
+  return variants;
+}
+
 export interface SlicingVariant {
   color: string;
   colorCode: string;
