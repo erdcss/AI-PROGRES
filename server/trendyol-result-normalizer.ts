@@ -23,6 +23,7 @@ import {
 } from '@shared/trendyol-variant-utils';
 
 import { isBlockedTrendyolTitle } from '@shared/trendyol-bot-detection';
+import { isClothingProduct } from '@shared/clothing-keywords';
 
 const PLACEHOLDER_TITLES = new Set([
   'Trendyol Ürünü',
@@ -66,10 +67,39 @@ export function hasUsableTrendyolResult(result: any): boolean {
 }
 
 /** Scrape sonrası başlık/fiyat/görsel düzelt; sahte placeholder kullanma */
+function finalizeEnrichedResult(url: string, result: any): any {
+  result.title = resolveProductTitle(url, result.title);
+  if (!result.brand || result.brand === 'Bilinmiyor') {
+    result.brand = brandFromTrendyolUrl(url) || result.brand || 'Marka';
+  }
+  result.images = filterValidProductImages(result.images);
+  const normalizedOriginal = normalizeTrendyolPriceValue(result.price);
+  if (normalizedOriginal > 0) {
+    result.price = buildTrendyolPriceObject(normalizedOriginal);
+  }
+  const hasTitle =
+    isValidTrendyolProductTitle(result.title) && !PLACEHOLDER_TITLES.has(String(result.title || ''));
+  const hasPrice = !needsPrice(result.price);
+  const hasImages = normalizeImages(result.images).length > 0;
+  result.success = hasTitle && (hasPrice || hasImages);
+  result.variants = sanitizeTrendyolVariants(result.variants, {
+    productTitle: result.title,
+  });
+  return result;
+}
+
 export async function enrichTrendyolResult(url: string, result: any): Promise<any> {
   if (!result) return result;
 
   result.sourceUrl = result.sourceUrl || url;
+
+  // Pipeline zaten export-ready veri ürettiyse yavaş Puppeteer turunu atla
+  if (
+    (result.previewOk === true || result.usableForCsv === true) &&
+    hasUsableTrendyolResult(result)
+  ) {
+    return finalizeEnrichedResult(url, result);
+  }
 
   // Local Agent — başlık/fiyat/görsel tam olsa bile varyant eksikse tamamla
   if (result._fromLocalAgent || result._sourceAccessStrategy === "local_agent") {
@@ -221,7 +251,8 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
       !stillMissingPrice &&
       !stillMissingImages &&
       stillMissingVariants &&
-      isValidTrendyolProductTitle(result.title);
+      isValidTrendyolProductTitle(result.title) &&
+      isClothingProduct(result.title);
 
     if (
       (stillMissingPrice || stillMissingImages || needsVariantsOnly) &&

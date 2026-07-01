@@ -94,7 +94,7 @@ export function getScrapeEnvironmentPolicy(): ScrapeEnvironmentPolicy {
     apiTimeoutMs: 10_000,
     sourceAccessTimeoutMs: 25_000,
     browserWorkerTimeoutMs: 50_000,
-    scrapeJobMaxMs: 90_000,
+    scrapeJobMaxMs: 180_000,
     puppeteerAllowed: true,
   };
 }
