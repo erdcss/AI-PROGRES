@@ -38,14 +38,25 @@ interface CanvaStatus {
 
 interface TokenRefreshStatus {
   status: {
+    autoRefreshEnabled: boolean;
     lastRefreshTime: number;
-    nextRefreshTime: number;
+    lastSuccessfulRefreshAt: number;
     isRefreshing: boolean;
     msUntilRefresh: number;
+    lastError: string | null;
+    cache?: {
+      expiresAt: number | null;
+      expiresInMs: number | null;
+      source: string | null;
+    };
   };
   hasActiveToken: boolean;
   shopDomain: string | null;
+  tokenExpiresAt?: string | null;
+  lastError?: string | null;
   envVarsConfigured: {
+    SHOPIFY_CLIENT_ID?: boolean;
+    SHOPIFY_CLIENT_SECRET?: boolean;
     SHOPIFY_API_KEY: boolean;
     SHOPIFY_APP_SHARED_SECRET: boolean;
   };
@@ -99,7 +110,7 @@ export default function ShopifySettingsDialog() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
-      toast({ title: "Token Yenilendi ✅", description: data.message || "12 saatlik döngü sıfırlandı." });
+      toast({ title: "Token Yenilendi ✅", description: data.message || "Token önbelleği yenilendi." });
       refetchTokenStatus();
       runLiveTest();
     },
@@ -399,27 +410,35 @@ export default function ShopifySettingsDialog() {
             {/* Token Otomatik Yenileme Durumu */}
             {(() => {
               const trs = tokenRefreshStatus;
-              const apiKeyOk  = trs?.envVarsConfigured?.SHOPIFY_API_KEY;
-              const secretOk  = trs?.envVarsConfigured?.SHOPIFY_APP_SHARED_SECRET;
-              const lastMs    = trs?.status?.lastRefreshTime || 0;
-              const msLeft    = trs?.status?.msUntilRefresh || 0;
-              const hLeft     = Math.floor(msLeft / 3600000);
-              const mLeft     = Math.floor((msLeft % 3600000) / 60000);
-              const lastStr   = lastMs > 0
-                ? new Date(lastMs).toLocaleString('tr-TR')
-                : 'Henüz yenilenmedi';
+              const clientIdOk =
+                trs?.envVarsConfigured?.SHOPIFY_CLIENT_ID ?? trs?.envVarsConfigured?.SHOPIFY_API_KEY;
+              const clientSecretOk =
+                trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET ??
+                trs?.envVarsConfigured?.SHOPIFY_APP_SHARED_SECRET;
+              const lastMs = trs?.status?.lastSuccessfulRefreshAt || trs?.status?.lastRefreshTime || 0;
+              const msLeft = trs?.status?.msUntilRefresh || 0;
+              const hLeft = Math.floor(msLeft / 3600000);
+              const mLeft = Math.floor((msLeft % 3600000) / 60000);
+              const lastStr =
+                lastMs > 0 ? new Date(lastMs).toLocaleString('tr-TR') : 'Henüz yenilenmedi';
+              const expiresStr = trs?.tokenExpiresAt
+                ? new Date(trs.tokenExpiresAt).toLocaleString('tr-TR')
+                : trs?.status?.cache?.expiresAt
+                  ? new Date(trs.status.cache.expiresAt).toLocaleString('tr-TR')
+                  : '—';
               const isRefreshing = trs?.status?.isRefreshing;
+              const lastErr = trs?.lastError || trs?.status?.lastError;
               return (
                 <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      Otomatik Token Yenileme (12 saatte bir)
+                      Otomatik Token Yenileme
                     </p>
-                    {(apiKeyOk && secretOk) ? (
+                    {trs?.status?.autoRefreshEnabled ? (
                       <Badge className="bg-green-500 text-white text-xs px-1 py-0">Aktif</Badge>
                     ) : (
-                      <Badge variant="destructive" className="text-xs px-1 py-0">Eksik ENV</Badge>
+                      <Badge variant="destructive" className="text-xs px-1 py-0">Pasif</Badge>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
@@ -428,24 +447,35 @@ export default function ShopifySettingsDialog() {
                       <span className="font-mono">{lastStr}</span>
                     </div>
                     <div>
-                      <span className="block text-foreground/70">Sonraki yenileme</span>
+                      <span className="block text-foreground/70">Token bitiş</span>
+                      <span className="font-mono">{expiresStr}</span>
+                    </div>
+                    <div>
+                      <span className="block text-foreground/70">Sonraki kontrol</span>
                       <span className="font-mono">
-                        {lastMs > 0 ? `${hLeft}s ${mLeft}dk sonra` : '—'}
+                        {lastMs > 0 ? `${hLeft}s ${mLeft}dk` : '—'}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-foreground/70">API Key</span>
-                      <span className={apiKeyOk ? 'text-green-600' : 'text-red-500'}>
-                        {apiKeyOk ? '✅ Tanımlı' : '❌ Eksik'}
+                      <span className="block text-foreground/70">Kaynak</span>
+                      <span className="font-mono">{trs?.status?.cache?.source || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-foreground/70">Client ID</span>
+                      <span className={clientIdOk ? 'text-green-600' : 'text-red-500'}>
+                        {clientIdOk ? '✅ Tanımlı' : '❌ Eksik'}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-foreground/70">Gizli Anahtar</span>
-                      <span className={secretOk ? 'text-green-600' : 'text-red-500'}>
-                        {secretOk ? '✅ Tanımlı' : '❌ Eksik'}
+                      <span className="block text-foreground/70">Client Secret</span>
+                      <span className={clientSecretOk ? 'text-green-600' : 'text-red-500'}>
+                        {clientSecretOk ? '✅ Tanımlı' : '❌ Eksik'}
                       </span>
                     </div>
                   </div>
+                  {lastErr && (
+                    <p className="text-xs text-red-600 dark:text-red-400 line-clamp-3">{lastErr}</p>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -472,7 +502,7 @@ export default function ShopifySettingsDialog() {
                   <li>"OAuth" sekmesine geçin (aşağıda)</li>
                   <li>"Shopify'da Yetkilendir" butonuna tıklayın</li>
                   <li>Açılan Shopify sayfasında onaylayın</li>
-                  <li>Token otomatik kaydedilir, 12 saatte bir yenilenir</li>
+                  <li>Token otomatik yenilenir (süre dolmadan 1 saat önce)</li>
                 </ol>
               </div>
             )}

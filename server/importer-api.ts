@@ -11,7 +11,7 @@ import { Request, Response, NextFunction, Router } from 'express';
 import { parse } from 'csv-parse/sync';
 import { getShopifyConfig, saveShopifyAccessToken } from './shopify-credentials';
 import { uploadProductToShopify } from './shopify-api-uploader';
-import { rotateShopifyToken } from './shopify-token-rotator';
+import { getValidShopifyAccessToken } from './shopify-token-manager';
 
 const router = Router();
 
@@ -39,42 +39,29 @@ const TOKEN_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 dakikada bir kontrol
  */
 async function validateShopifyToken(): Promise<boolean> {
   try {
+    const { shopifyAdminFetch } = await import('./shopify-token-manager');
+    const { response } = await shopifyAdminFetch('/shop.json');
     const config = await getShopifyConfig();
-    if (!config) {
-      tokenStatus = { ...tokenStatus, valid: false, lastChecked: new Date() };
-      return false;
-    }
 
-    const res = await fetch(
-      `https://${config.shopDomain}/admin/api/2024-01/shop.json`,
-      {
-        headers: {
-          'X-Shopify-Access-Token': config.accessToken,
-          'Content-Type': 'application/json',
-        },
-        signal: AbortSignal.timeout(10000),
-      }
-    );
-
-    const isValid = res.status === 200;
+    const isValid = response.status === 200;
     tokenStatus = {
       valid: isValid,
-      shopDomain: config.shopDomain,
+      shopDomain: config?.shopDomain,
       lastChecked: new Date(),
       checkCount: tokenStatus.checkCount + 1,
     };
     if (isValid) {
-      console.log(`✅ [Importer] Shopify token geçerli: ${config.shopDomain}`);
+      console.log(`✅ [Importer] Shopify token geçerli: ${config?.shopDomain}`);
     } else {
-      console.warn(`⚠️ [Importer] Shopify token geçersiz (${res.status}): ${config.shopDomain} — token yenileme tetikleniyor...`);
-      rotateShopifyToken().then(result => {
-        if (result.success) {
-          console.log(`✅ [Importer] Token yenilendi (${result.method})`);
+      console.warn(
+        `⚠️ [Importer] Shopify token geçersiz (${response.status}) — merkezi yenileme deneniyor...`,
+      );
+      getValidShopifyAccessToken({ forceRefresh: true })
+        .then(() => {
           tokenStatus.valid = true;
-        } else {
-          console.error(`❌ [Importer] Token yenileme başarısız: ${result.error}`);
-        }
-      }).catch(err => console.error('[Importer] Token yenileme hatası:', err));
+          console.log('✅ [Importer] Token merkezi manager ile yenilendi');
+        })
+        .catch((err) => console.error('[Importer] Token yenileme hatası:', err));
     }
     return isValid;
   } catch (err) {

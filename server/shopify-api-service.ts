@@ -3,7 +3,6 @@ import { db } from './db';
 import { shopifyMemoryProducts } from '@shared/schema';
 import { eq, desc, count, max } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { getShopifyConfig } from './shopify-credentials';
 import {
   assertCoreTablesReady,
   isPgMissingRelationError,
@@ -11,21 +10,9 @@ import {
   warnDbFeatureSkipped,
 } from './db-health';
 
-// Credential cache — 60 saniye TTL, çok fazla DB sorgusu yapmamak için
-let _credCache: { shopDomain: string; accessToken: string; cachedAt: number } | null = null;
-async function getCredentials(): Promise<{ shopDomain: string; accessToken: string }> {
-  const now = Date.now();
-  if (_credCache && now - _credCache.cachedAt < 60_000) {
-    return _credCache;
-  }
-  const config = await getShopifyConfig();
-  if (!config) throw new Error('Shopify API credentials missing. Please set SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_ACCESS_TOKEN');
-  _credCache = { shopDomain: config.shopDomain, accessToken: config.accessToken, cachedAt: now };
-  return _credCache;
-}
-// Cache'i temizle (token güncellendikten sonra çağrılabilir)
-export function invalidateShopifyCredentialCache() {
-  _credCache = null;
+// Credential cache kaldırıldı — shopify-token-manager tek kaynak
+export function invalidateShopifyCredentialCache(): void {
+  /* geriye dönük uyumluluk — token-manager cache kullanılır */
 }
 
 interface ShopifyProduct {
@@ -89,32 +76,26 @@ export class ShopifyApiService {
     console.log(`🛍️ Shopify API Service initialized: ${cleanStoreUrl}`);
   }
 
-  // Shopify API request helper — credentials loaded dynamically from DB (with ENV fallback)
-  private async makeRequest(endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', data?: any) {
-    try {
-      const creds = await getCredentials();
-      const cleanDomain = creds.shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-      const baseUrl = `https://${cleanDomain}/admin/api/2024-10/`;
+  // Shopify API request helper — merkezi shopifyAdminFetch
+  private async makeRequest(endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', data?: unknown) {
+    const { shopifyAdminFetch, parseShopifyAdminResponse } = await import('./shopify-token-manager');
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const { response } = await shopifyAdminFetch(path, {
+      method,
+      ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
+    });
 
-      const config = {
-        method,
-        url: `${baseUrl}${endpoint}`,
-        headers: {
-          'X-Shopify-Access-Token': creds.accessToken,
-          'Content-Type': 'application/json',
-        },
-        data
+    if (!response.ok) {
+      const errBody = await parseShopifyAdminResponse(response);
+      console.error(`❌ Shopify API error for ${endpoint}: HTTP ${response.status}`);
+      const err = new Error(`Shopify API HTTP ${response.status}`) as Error & {
+        response?: { status: number; data: unknown };
       };
-
-      const response = await axios(config);
-      return response.data;
-    } catch (error) {
-      console.error(`❌ Shopify API error for ${endpoint}:`);
-      console.error('Status:', error.response?.status);
-      console.error('Data:', JSON.stringify(error.response?.data, null, 2));
-      console.error('Original message:', error.message);
-      throw error;
+      err.response = { status: response.status, data: errBody };
+      throw err;
     }
+
+    return (await parseShopifyAdminResponse(response)) as any;
   }
 
   // Tüm ürünleri çek ve hafızaya kaydet

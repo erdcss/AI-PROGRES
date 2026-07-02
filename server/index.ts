@@ -15,7 +15,6 @@ import { fileURLToPath} from 'url';
 import * as fs from 'fs';
 import { enhancedErrorDetection } from './enhanced-error-detection';
 import { importerRouter, startTokenRefreshScheduler } from './importer-api';
-import { startShopifyTokenAutoRefresh } from './shopify-token-rotator';
 import { syncEnvApiKeyToDB } from './shopify-credentials';
 import { requestIdMiddleware } from './request-context';
 import {
@@ -287,19 +286,10 @@ app.use(pendingChangesRoutes);
   startTokenRefreshScheduler();
   syncEnvApiKeyToDB()
     .then(async () => {
-      const { getShopifyClientCredentials } = await import('./shopify-credentials');
-      if (getShopifyClientCredentials()) {
-        const { rotateShopifyToken } = await import('./shopify-token-rotator');
-        const result = await rotateShopifyToken();
-        if (result.success) {
-          console.log(`✅ SHOPIFY TOKEN: Başlangıç token alındı (${result.method})`);
-        } else {
-          console.warn(`⚠️ SHOPIFY TOKEN: Başlangıç token alınamadı — ${result.error}`);
-        }
-      }
+      const { warmUpShopifyToken } = await import('./shopify-token-manager');
+      warmUpShopifyToken();
     })
     .catch((err) => console.error('syncEnvApiKeyToDB error:', err));
-  startShopifyTokenAutoRefresh();
   
   // Test enhanced extraction endpoint - Direct registration
   app.post('/api/test-enhanced', async (req, res) => {

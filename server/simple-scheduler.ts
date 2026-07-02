@@ -490,34 +490,9 @@ function scheduleHourlyPriceMonitoring(): void {
   activeTimers.set('hourly-price-monitoring', timer);
 }
 
-// Shopify token yenileme görevini zamanla (22 saatte bir — 24 saatlik token süresinden önce)
+// Shopify token yenileme — merkezi cache istek başına kontrol edilir (ayrı scheduler yok)
 function scheduleShopifyTokenRefresh(): void {
-  const INTERVAL_MS = 22 * 60 * 60 * 1000;
-  console.log('🔑 Shopify token yenileme sistemi başlatılıyor...');
-  console.log(`⏰ shopify-token-refresh zamanlandı: her 22 saatte bir`);
-
-  const runRefresh = async () => {
-    try {
-      const { rotateShopifyToken } = await import('./shopify-token-rotator');
-      const result = await rotateShopifyToken();
-      if (result.success) {
-        console.log(`✅ Shopify token otomatik yenilendi (yöntem: ${result.method})`);
-      } else {
-        console.log(`⚠️ Shopify token yenileme başarısız: ${result.error}`);
-      }
-    } catch (err: any) {
-      console.error('❌ Shopify token yenileme görevi hatası:', err.message);
-    }
-  };
-
-  // İlk çalıştırma — sunucu başlangıcından 22 saat sonra (index.ts'teki startShopifyTokenAutoRefresh ilk token'ı alır)
-  const timer = setTimeout(async () => {
-    await runRefresh();
-    const interval = setInterval(runRefresh, INTERVAL_MS);
-    activeTimers.set('shopify-token-refresh-interval', interval as any);
-  }, INTERVAL_MS);
-
-  activeTimers.set('shopify-token-refresh', timer);
+  console.log('🔑 Shopify token: merkezi cache (shopify-token-manager) aktif');
 }
 
 // Product schedule monitoring görevini zamanla (5 dakikada bir)

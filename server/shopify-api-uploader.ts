@@ -1,6 +1,10 @@
 import { parse } from 'csv-parse/sync';
-import { resolveShopifyCredentials, ShopifyCredentialsError } from './shopify-credentials';
 import { formatShopifyApiError } from './shopify-payload-validator';
+import {
+  shopifyAdminFetch,
+  shopifyAdminGraphql,
+  parseShopifyAdminResponse,
+} from './shopify-token-manager';
 
 // Duplicate prevention için upload history
 const uploadHistory = new Map<string, { productId: string; timestamp: number }>();
@@ -139,201 +143,105 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
       console.log('⚠️ NO TRACKING ID FOUND IN CSV - Metafield will not be sent');
     }
     
-    // Shopify API endpoint
-    const shopifyConfig = await resolveShopifyCredentials().catch(() => null);
-    if (!shopifyConfig) {
-      return { 
-        success: false, 
-        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.' 
+    // Shopify API — merkezi token manager
+    try {
+      const { getValidShopifyAccessToken } = await import('./shopify-token-manager');
+      await getValidShopifyAccessToken();
+    } catch {
+      return {
+        success: false,
+        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.',
       };
     }
-    const shopifyStore = shopifyConfig.shopDomain;
-    const accessToken = shopifyConfig.accessToken;
 
     // ✅ 100+ varyant için GraphQL API'ye yönlendir
     if (productData.variants.length > 100) {
       console.log(`🔀 ${productData.variants.length} varyant > 100 — GraphQL API kullanılıyor`);
-      const gqlResult = await uploadProductViaGraphQL(productData, shopifyStore, accessToken, trackingId);
+      const gqlResult = await uploadProductViaGraphQL(productData, trackingId);
       if (gqlResult.success) recordUpload(productTitle, gqlResult.productId!);
       return gqlResult;
     }
 
-    // Shopify product create API call - Updated to 2024-01 for better metafield support
-    const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2024-01/products.json`, {
-      method: 'POST',
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        product: {
-          title: productData.title,
-          body_html: productData.bodyHtml,
-          vendor: productData.vendor,
-          tags: productData.tags,
-          handle: productData.handle,
-          // Metafield will be added separately after product creation
-          variants: productData.variants.map(variant => {
-            // "Default Title" is Shopify's internal default — treat as no real option
-            const opt1 = (variant.option1 && variant.option1 !== 'Default Title') ? variant.option1.trim() : '';
-            const opt2 = (variant.option2 && variant.option2 !== 'Default Title') ? variant.option2.trim() : '';
-            const hasOption1 = opt1 !== '';
-            const hasOption2 = opt2 !== '';
-            
-            if (!hasOption1 && !hasOption2) {
-              // Tek varyant ürün - Envanter takibi YOK
-              const singleVariant: any = {
-                price: variant.price,
-                sku: variant.sku,
-                inventory_quantity: 0,
-                inventory_management: null,
-                inventory_policy: 'continue',
-                requires_shipping: true,
-                taxable: true
-              };
-              if (variant.compareAtPrice) singleVariant.compare_at_price = variant.compareAtPrice;
-              return singleVariant;
-            } else {
-              // Multi-varyant ürün - Envanter takibi YOK
-              const variantData: any = {
-                price: variant.price,
-                sku: variant.sku,
-                inventory_quantity: 0,
-                inventory_management: null,
-                inventory_policy: 'continue',
-                requires_shipping: true,
-                taxable: true
-              };
-              
-              if (variant.compareAtPrice) variantData.compare_at_price = variant.compareAtPrice;
-              if (hasOption1) variantData.option1 = opt1;
-              if (hasOption2) variantData.option2 = opt2;
-              
-              return variantData;
-            }
-          }),
-          images: productData.images.filter(img => img.src && img.src.startsWith('http')).map(img => ({
-            src: img.src,
-            alt: img.alt || productData.title,
-            position: img.position || 1
-          })),
-          // 🚨 CRITICAL FIX: Use Option Names from CSV (not hardcoded)
-          // CSV'de sadece size varsa, Option1 Name = "Beden" olur, Option2 Name boş olur
-          // NOTE: "Title"/"Default Title" is Shopify's internal default — NEVER send it explicitly
-          ...((() => {
-            const isDefaultTitleOption = (name: string, values: string[]) =>
-              name.toLowerCase() === 'title' && values.every(v => v === 'Default Title');
+    const productPayload: Record<string, unknown> = {
+      title: productData.title,
+      body_html: productData.bodyHtml,
+      vendor: productData.vendor,
+      tags: productData.tags,
+      handle: productData.handle,
+      variants: productData.variants.map((variant) => {
+        const opt1 = variant.option1 && variant.option1 !== 'Default Title' ? variant.option1.trim() : '';
+        const opt2 = variant.option2 && variant.option2 !== 'Default Title' ? variant.option2.trim() : '';
+        const hasOption1 = opt1 !== '';
+        const hasOption2 = opt2 !== '';
+        const base: Record<string, unknown> = {
+          price: variant.price,
+          sku: variant.sku,
+          inventory_quantity: 0,
+          inventory_management: null,
+          inventory_policy: 'continue',
+          requires_shipping: true,
+          taxable: true,
+        };
+        if (variant.compareAtPrice) base.compare_at_price = variant.compareAtPrice;
+        if (hasOption1) base.option1 = opt1;
+        if (hasOption2) base.option2 = opt2;
+        return base;
+      }),
+      images: productData.images
+        .filter((img) => img.src && img.src.startsWith('http'))
+        .map((img) => ({
+          src: img.src,
+          alt: img.alt || productData.title,
+          position: img.position || 1,
+        })),
+    };
 
-            const validOption1Values = Array.from(new Set(
-              productData.variants.map(v => v.option1).filter(v => v && v.trim() && v !== 'Default Title')
-            ));
-            const validOption2Values = Array.from(new Set(
-              productData.variants.map(v => v.option2).filter(v => v && v.trim() && v !== 'Default Title')
-            ));
-            
-            const options = [];
-            if (validOption1Values.length > 0 && productData.option1Name && !isDefaultTitleOption(productData.option1Name, validOption1Values)) {
-              options.push({ name: productData.option1Name, values: validOption1Values });
-              console.log(`🏷️ Shopify API: Using Option1 name="${productData.option1Name}" with values:`, validOption1Values);
-            }
-            if (validOption2Values.length > 0 && productData.option2Name && !isDefaultTitleOption(productData.option2Name, validOption2Values)) {
-              options.push({ name: productData.option2Name, values: validOption2Values });
-              console.log(`🏷️ Shopify API: Using Option2 name="${productData.option2Name}" with values:`, validOption2Values);
-            }
-            
-            if (options.length === 0) {
-              console.log(`🏷️ Shopify API: No real options → single-variant product (no options array sent)`);
-            }
-            return options.length > 0 ? { options } : {};
-          })())
-        }
-      })
+    const isDefaultTitleOption = (name: string, values: string[]) =>
+      name.toLowerCase() === 'title' && values.every((v) => v === 'Default Title');
+    const validOption1Values = Array.from(
+      new Set(productData.variants.map((v) => v.option1).filter((v) => v && v.trim() && v !== 'Default Title')),
+    );
+    const validOption2Values = Array.from(
+      new Set(productData.variants.map((v) => v.option2).filter((v) => v && v.trim() && v !== 'Default Title')),
+    );
+    const options: Array<{ name: string; values: string[] }> = [];
+    if (
+      validOption1Values.length > 0 &&
+      productData.option1Name &&
+      !isDefaultTitleOption(productData.option1Name, validOption1Values)
+    ) {
+      options.push({ name: productData.option1Name, values: validOption1Values });
+    }
+    if (
+      validOption2Values.length > 0 &&
+      productData.option2Name &&
+      !isDefaultTitleOption(productData.option2Name, validOption2Values)
+    ) {
+      options.push({ name: productData.option2Name, values: validOption2Values });
+    }
+    if (options.length > 0) productPayload.options = options;
+
+    const { response: shopifyResponse, shopDomain: shopifyStore } = await shopifyAdminFetch('/products.json', {
+      method: 'POST',
+      body: JSON.stringify({ product: productPayload }),
     });
 
     if (!shopifyResponse.ok) {
-      const errorData = await shopifyResponse.json();
+      const errorData = await parseShopifyAdminResponse(shopifyResponse);
       console.error('Shopify API error:', errorData);
-
-      // ── 401: Token süresi dolmuş → otomatik yenile ve tekrar dene ──────────
-      if (shopifyResponse.status === 401) {
-        console.log('🔑 SHOPIFY 401: Token geçersiz — otomatik yenileme deneniyor...');
-        try {
-          const { rotateShopifyToken } = await import('./shopify-token-rotator');
-          const rotResult = await rotateShopifyToken();
-          if (rotResult.success && rotResult.newToken) {
-            console.log(`✅ SHOPIFY TOKEN: Yenilendi (${rotResult.method}), istek tekrarlanıyor...`);
-            const retryRes = await fetch(
-              `https://${shopifyStore}/admin/api/2024-01/products.json`,
-              {
-                method: 'POST',
-                headers: {
-                  'X-Shopify-Access-Token': rotResult.newToken,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  product: {
-                    title: productData.title,
-                    body_html: productData.bodyHtml,
-                    vendor: productData.vendor,
-                    tags: productData.tags,
-                    handle: productData.handle,
-                    variants: productData.variants.map(v => {
-                      const h1 = v.option1 && v.option1.trim() !== '';
-                      const h2 = v.option2 && v.option2.trim() !== '';
-                      const vd: any = {
-                        price: v.price, sku: v.sku, inventory_quantity: 0,
-                        inventory_management: null, inventory_policy: 'continue',
-                        requires_shipping: true, taxable: true
-                      };
-                      if (v.compareAtPrice) vd.compare_at_price = v.compareAtPrice;
-                      if (h1) vd.option1 = v.option1;
-                      if (h2) vd.option2 = v.option2;
-                      return vd;
-                    }),
-                    images: productData.images.filter(i => i.src?.startsWith('http')).map(i => ({
-                      src: i.src, alt: i.alt || productData.title, position: i.position || 1
-                    })),
-                    ...((() => {
-                      const v1 = Array.from(new Set(productData.variants.map(v => v.option1).filter(Boolean)));
-                      const v2 = Array.from(new Set(productData.variants.map(v => v.option2).filter(Boolean)));
-                      const opts: any[] = [];
-                      if (v1.length && productData.option1Name) opts.push({ name: productData.option1Name, values: v1 });
-                      if (v2.length && productData.option2Name) opts.push({ name: productData.option2Name, values: v2 });
-                      return opts.length > 0 ? { options: opts } : {};
-                    })())
-                  }
-                })
-              }
-            );
-            if (retryRes.ok) {
-              const retryData = await retryRes.json();
-              const pid = retryData.product.id;
-              console.log('✅ Shopify ürün oluşturuldu (token yenileme sonrası):', pid);
-              return {
-                success: true,
-                productId: pid.toString(),
-                handle: retryData.product.handle,
-                message: `Ürün yüklendi (token otomatik yenilendi): ${pid}`
-              };
-            }
-          }
-        } catch (retryErr: any) {
-          console.error('❌ Token yenileme sonrası retry hatası:', retryErr.message);
-        }
-        return {
-          success: false,
-          message: 'Shopify 401: Token geçersiz. Sistem otomatik yenilemeyi denedi ancak başarısız oldu. Lütfen yeni bir Shopify access token girin.'
-        };
-      }
-      // ─────────────────────────────────────────────────────────────────────
-
-      return { 
-        success: false, 
-        message: `Shopify API hatası: ${errorData.errors ? JSON.stringify(errorData.errors) : 'Bilinmeyen hata'}` 
+      return {
+        success: false,
+        message: `Shopify API hatası (HTTP ${shopifyResponse.status}): ${
+          typeof errorData === 'object' && errorData !== null && 'errors' in errorData
+            ? JSON.stringify((errorData as { errors: unknown }).errors)
+            : 'Bilinmeyen hata'
+        }`,
       };
     }
 
-    const result = await shopifyResponse.json();
+    const result = (await parseShopifyAdminResponse(shopifyResponse)) as {
+      product: { id: number; handle: string; images?: Array<{ src: string }>; variants: Array<{ id: number }> };
+    };
     const productId = result.product.id;
     console.log('✅ Shopify product created successfully:', productId);
     console.log('📸 Input images count:', productData.images.length);
@@ -351,13 +259,14 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
         const batch = pendingImages.slice(b, b + IMAGE_BATCH_SIZE);
         await Promise.all(batch.map(async (image) => {
           try {
-            const imageResponse = await fetch(
-              `https://${shopifyStore}/admin/api/2024-01/products/${productId}/images.json`,
+            const { response: imageResponse } = await shopifyAdminFetch(
+              `/products/${productId}/images.json`,
               {
                 method: 'POST',
-                headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: { src: image.src, alt: image.alt, position: image.position } })
-              }
+                body: JSON.stringify({
+                  image: { src: image.src, alt: image.alt, position: image.position },
+                }),
+              },
             );
             if (imageResponse.ok) {
               console.log(`✅ Image uploaded: ${image.src.substring(0, 60)}...`);
@@ -365,8 +274,9 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
               const err = await imageResponse.text();
               console.log(`⚠️ Image upload skipped (${imageResponse.status}): ${err.substring(0, 80)}`);
             }
-          } catch (imgError: any) {
-            console.log(`⚠️ Image upload error: ${imgError.message}`);
+          } catch (imgError: unknown) {
+            const msg = imgError instanceof Error ? imgError.message : String(imgError);
+            console.log(`⚠️ Image upload error: ${msg}`);
           }
         }));
       }
@@ -377,27 +287,28 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     if (trackingId) {
       console.log(`📌 Updating metafield for product ${productId} with tracking ID: ${trackingId}`);
       try {
-        const metafieldResponse = await fetch(`https://${shopifyStore}/admin/api/2024-01/products/${productId}/metafields.json`, {
-          method: 'POST',
-          headers: {
-            'X-Shopify-Access-Token': accessToken,
-            'Content-Type': 'application/json'
+        const { response: metafieldResponse } = await shopifyAdminFetch(
+          `/products/${productId}/metafields.json`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              metafield: {
+                namespace: 'custom',
+                key: 'repli_t_id',
+                value: trackingId,
+                type: 'single_line_text_field',
+              },
+            }),
           },
-          body: JSON.stringify({
-            metafield: {
-              namespace: 'custom',
-              key: 'repli_t_id',  // Changed to match admin panel field
-              value: trackingId,
-              type: 'single_line_text_field'
-            }
-          })
-        });
-        
+        );
+
         if (metafieldResponse.ok) {
-          const metafieldResult = await metafieldResponse.json();
-          console.log('✅ Metafield added successfully:', metafieldResult.metafield.id);
+          const metafieldResult = (await parseShopifyAdminResponse(metafieldResponse)) as {
+            metafield?: { id: number };
+          };
+          console.log('✅ Metafield added successfully:', metafieldResult.metafield?.id);
         } else {
-          const error = await metafieldResponse.json();
+          const error = await parseShopifyAdminResponse(metafieldResponse);
           console.log('⚠️ Failed to add metafield:', error);
         }
       } catch (error) {
@@ -441,14 +352,16 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
         if (hasOption2) updateData.option2 = originalVariant.option2;
 
         variantUpdateTasks.push(
-          fetch(`https://${shopifyStore}/admin/api/2024-01/variants/${shopifyVariant.id}.json`, {
+          shopifyAdminFetch(`/variants/${shopifyVariant.id}.json`, {
             method: 'PUT',
-            headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ variant: updateData })
-          }).then(r => {
+            body: JSON.stringify({ variant: updateData }),
+          }).then(({ response: r }) => {
             if (r.ok) console.log(`✅ Variant ${i} updated: ${originalVariant.option1 || ''}`);
-            else r.text().then(t => console.log(`⚠️ Variant ${i} update skipped: ${t.substring(0, 80)}`));
-          }).catch(e => console.log(`⚠️ Variant ${i} update error: ${e.message}`))
+            else r.text().then((t) => console.log(`⚠️ Variant ${i} update skipped: ${t.substring(0, 80)}`));
+          }).catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.log(`⚠️ Variant ${i} update error: ${msg}`);
+          }),
         );
       }
       if (variantUpdateTasks.length > 0) {
@@ -494,163 +407,144 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
 
 async function uploadProductViaGraphQL(
   productData: ShopifyProductData,
-  shopifyStore: string,
-  accessToken: string,
-  trackingId: string | null
+  trackingId: string | null,
 ): Promise<{ success: boolean; productId?: string; handle?: string; variants?: any[]; message: string }> {
-  const graphqlUrl = `https://${shopifyStore}/admin/api/2024-04/graphql.json`;
-  const headers = {
-    'X-Shopify-Access-Token': accessToken,
-    'Content-Type': 'application/json',
-  };
+  const option1Values = Array.from(new Set(productData.variants.map((v) => v.option1).filter((v) => v && v.trim())));
+  const option2Values = Array.from(new Set(productData.variants.map((v) => v.option2).filter((v) => v && v.trim())));
 
-  // Step 1: Collect unique option values
-  const option1Values = Array.from(new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim())));
-  const option2Values = Array.from(new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim())));
-
-  const productOptionsInput: any[] = [];
+  const productOptionsInput: Array<{ name: string; values: Array<{ name: string }> }> = [];
   if (option1Values.length > 0 && productData.option1Name) {
-    productOptionsInput.push({ name: productData.option1Name, values: option1Values.map(v => ({ name: v })) });
+    productOptionsInput.push({ name: productData.option1Name, values: option1Values.map((v) => ({ name: v })) });
   }
   if (option2Values.length > 0 && productData.option2Name) {
-    productOptionsInput.push({ name: productData.option2Name, values: option2Values.map(v => ({ name: v })) });
+    productOptionsInput.push({ name: productData.option2Name, values: option2Values.map((v) => ({ name: v })) });
   }
 
-  // Step 2: Create product (no variants yet)
   const createMutation = `
     mutation productCreate($input: ProductInput!) {
       productCreate(input: $input) {
-        product {
-          id
-          handle
-          options { id name values }
-        }
+        product { id handle options { id name values } }
         userErrors { field message }
       }
     }
   `;
 
-  const productInput: any = {
+  const productInput: Record<string, unknown> = {
     title: productData.title,
     descriptionHtml: productData.bodyHtml,
     vendor: productData.vendor,
-    tags: productData.tags ? productData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
+    tags: productData.tags ? productData.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
     handle: productData.handle,
   };
   if (productOptionsInput.length > 0) productInput.productOptions = productOptionsInput;
 
-  const createRes = await fetch(graphqlUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ query: createMutation, variables: { input: productInput } }),
-  });
+  const createResult = await shopifyAdminGraphql<{
+    productCreate?: {
+      product?: { id: string; handle: string };
+      userErrors?: Array<{ message: string }>;
+    };
+  }>(createMutation, { input: productInput }, false, '2024-10');
 
-  if (!createRes.ok) {
-    return { success: false, message: `GraphQL HTTP hatası: ${createRes.status}` };
+  if (!createResult.response.ok) {
+    return { success: false, message: `GraphQL HTTP hatası: ${createResult.response.status}` };
   }
 
-  const createData = await createRes.json();
-  const userErrors = createData.data?.productCreate?.userErrors || [];
-  if (createData.errors || userErrors.length > 0) {
-    const errMsg = createData.errors
-      ? JSON.stringify(createData.errors)
-      : userErrors.map((e: any) => e.message).join(', ');
+  const userErrors = createResult.data?.productCreate?.userErrors || [];
+  if (createResult.errors || userErrors.length > 0) {
+    const errMsg = createResult.errors
+      ? JSON.stringify(createResult.errors)
+      : userErrors.map((e) => e.message).join(', ');
     return { success: false, message: `GraphQL ürün oluşturma hatası: ${errMsg}` };
   }
 
-  const createdProduct = createData.data.productCreate.product;
-  const productGid: string = createdProduct.id;
+  const createdProduct = createResult.data?.productCreate?.product;
+  if (!createdProduct?.id) {
+    return { success: false, message: 'GraphQL ürün oluşturma yanıtı eksik' };
+  }
+
+  const productGid = createdProduct.id;
   const productId = productGid.split('/').pop()!;
   console.log(`✅ GraphQL: Ürün oluşturuldu ID=${productId}`);
 
-  // Step 3: Upload images via REST
-  const validImages = productData.images.filter(img => img.src && img.src.startsWith('http'));
+  const validImages = productData.images.filter((img) => img.src && img.src.startsWith('http'));
   if (validImages.length > 0) {
     const IMAGE_BATCH_SIZE = 5;
     for (let b = 0; b < validImages.length; b += IMAGE_BATCH_SIZE) {
       const batch = validImages.slice(b, b + IMAGE_BATCH_SIZE);
-      await Promise.all(batch.map(async (image) => {
-        try {
-          await fetch(`https://${shopifyStore}/admin/api/2024-01/products/${productId}/images.json`, {
-            method: 'POST',
-            headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: { src: image.src, alt: image.alt || productData.title, position: image.position || 1 } }),
-          });
-        } catch (e) {
-          console.log(`⚠️ GraphQL image upload error:`, (e as Error).message);
-        }
-      }));
+      await Promise.all(
+        batch.map(async (image) => {
+          try {
+            await shopifyAdminFetch(`/products/${productId}/images.json`, {
+              method: 'POST',
+              body: JSON.stringify({
+                image: { src: image.src, alt: image.alt || productData.title, position: image.position || 1 },
+              }),
+            });
+          } catch (e) {
+            console.log('⚠️ GraphQL image upload error:', (e as Error).message);
+          }
+        }),
+      );
     }
-    console.log(`📸 GraphQL: ${validImages.length} görsel yüklendi`);
   }
 
-  // Step 4: Bulk create variants in batches of 100
   const bulkVariantMutation = `
     mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
       productVariantsBulkCreate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          selectedOptions { name value }
-        }
+        productVariants { id selectedOptions { name value } }
         userErrors { field message }
       }
     }
   `;
 
   const VARIANT_BATCH_SIZE = 100;
-  const allCreatedVariants: any[] = [];
+  const allCreatedVariants: Array<{ id: string; selectedOptions?: Array<{ name: string; value: string }> }> = [];
 
   for (let i = 0; i < productData.variants.length; i += VARIANT_BATCH_SIZE) {
     const batch = productData.variants.slice(i, i + VARIANT_BATCH_SIZE);
-
-    const variantsInput = batch.map(v => {
-      const vi: any = {
+    const variantsInput = batch.map((v) => {
+      const vi: Record<string, unknown> = {
         price: v.price,
         sku: v.sku || '',
         inventoryPolicy: 'CONTINUE',
         inventoryItem: { tracked: false },
       };
       if (v.compareAtPrice) vi.compareAtPrice = v.compareAtPrice;
-
       const selectedOptions: { name: string; value: string }[] = [];
-      if (v.option1 && v.option1.trim() && productData.option1Name) {
+      if (v.option1?.trim() && productData.option1Name) {
         selectedOptions.push({ name: productData.option1Name, value: v.option1 });
       }
-      if (v.option2 && v.option2.trim() && productData.option2Name) {
+      if (v.option2?.trim() && productData.option2Name) {
         selectedOptions.push({ name: productData.option2Name, value: v.option2 });
       }
       if (selectedOptions.length > 0) vi.optionValues = selectedOptions;
-
       return vi;
     });
 
-    const varRes = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ query: bulkVariantMutation, variables: { productId: productGid, variants: variantsInput } }),
-    });
+    const varResult = await shopifyAdminGraphql<{
+      productVariantsBulkCreate?: {
+        productVariants?: Array<{ id: string; selectedOptions?: Array<{ name: string; value: string }> }>;
+        userErrors?: Array<{ message: string }>;
+      };
+    }>(bulkVariantMutation, { productId: productGid, variants: variantsInput }, false, '2024-10');
 
-    if (!varRes.ok) {
-      console.error(`⚠️ GraphQL varyant batch ${i} HTTP hatası: ${varRes.status}`);
+    if (!varResult.response.ok) {
+      console.error(`⚠️ GraphQL varyant batch ${i} HTTP hatası: ${varResult.response.status}`);
       continue;
     }
 
-    const varData = await varRes.json();
-    const created = varData.data?.productVariantsBulkCreate?.productVariants || [];
+    const created = varResult.data?.productVariantsBulkCreate?.productVariants || [];
     allCreatedVariants.push(...created);
-    const vErrors = varData.data?.productVariantsBulkCreate?.userErrors || [];
+    const vErrors = varResult.data?.productVariantsBulkCreate?.userErrors || [];
     if (vErrors.length > 0) {
-      console.error(`⚠️ GraphQL varyant hataları (batch ${i}):`, vErrors.map((e: any) => e.message).join(', '));
+      console.error(`⚠️ GraphQL varyant hataları (batch ${i}):`, vErrors.map((e) => e.message).join(', '));
     }
-    console.log(`✅ GraphQL: Varyant batch ${i}-${i + batch.length} yüklendi (${created.length} varyant)`);
   }
 
-  // Step 5: Add metafield if needed
   if (trackingId) {
     try {
-      await fetch(`https://${shopifyStore}/admin/api/2024-01/products/${productId}/metafields.json`, {
+      await shopifyAdminFetch(`/products/${productId}/metafields.json`, {
         method: 'POST',
-        headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           metafield: { namespace: 'custom', key: 'repli_t_id', value: trackingId, type: 'single_line_text_field' },
         }),
@@ -660,19 +554,16 @@ async function uploadProductViaGraphQL(
     }
   }
 
-  // Map variants back
-  const variantMappings = allCreatedVariants.map((sv: any, index: number) => {
+  const variantMappings = allCreatedVariants.map((sv, index) => {
     const opts = sv.selectedOptions || [];
     return {
       shopifyVariantId: sv.id.split('/').pop(),
-      color: opts.find((o: any) => o.name === productData.option1Name)?.value || productData.variants[index]?.option1 || '',
-      size: opts.find((o: any) => o.name === productData.option2Name)?.value || productData.variants[index]?.option2 || '',
+      color: opts.find((o) => o.name === productData.option1Name)?.value || productData.variants[index]?.option1 || '',
+      size: opts.find((o) => o.name === productData.option2Name)?.value || productData.variants[index]?.option2 || '',
       sku: productData.variants[index]?.sku || '',
       price: productData.variants[index]?.price || '0',
     };
   });
-
-  console.log(`✅ GraphQL upload tamamlandı: ${productData.variants.length} varyant, ID=${productId}`);
 
   return {
     success: true,
@@ -785,12 +676,13 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
     const price = col(firstRecord, 'Price', 'Variant Price') || '0';
     const handle = col(firstRecord, 'URL handle', 'Handle') || 'default-sku';
     variants.push({
-      option1: '', // Empty - no color option
-      option2: '', // Empty - no size option
+      option1: '',
+      option2: '',
       price: price,
+      compareAtPrice: '',
       sku: handle,
       inventory_quantity: 0,
-      image: images[0]?.src || ''
+      image: images[0]?.src || '',
     });
     console.log(`📦 Default variant created: price=${price}, sku=${handle}`);
   }
@@ -823,16 +715,15 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
       };
     }
     
-    // Shopify API endpoint
-    const shopifyConfig2 = await resolveShopifyCredentials().catch(() => null);
-    if (!shopifyConfig2) {
-      return { 
-        success: false, 
-        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.' 
+    try {
+      const { getValidShopifyAccessToken } = await import('./shopify-token-manager');
+      await getValidShopifyAccessToken();
+    } catch {
+      return {
+        success: false,
+        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.',
       };
     }
-    const shopifyStore = shopifyConfig2.shopDomain;
-    const accessToken = shopifyConfig2.accessToken;
 
     // Multi-URL verilerinden doğru variants ve colors oluştur
     const variants: any[] = [];
@@ -978,13 +869,8 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     console.log(`🎨 Final colors: ${allColors.join(', ')}`);
     console.log(`📏 Final sizes: ${Array.from(uniqueSizes).join(', ')}`);
     
-    // Shopify product create API call - Updated to 2024-01 for better metafield support
-    const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2024-01/products.json`, {
+    const { response: shopifyResponse, shopDomain: shopifyStore } = await shopifyAdminFetch('/products.json', {
       method: 'POST',
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
         product: {
           title: productData.title,
@@ -992,36 +878,36 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
           vendor: productData.brand,
           product_type: productType,
           tags: generateProductTags(productData, allColors),
-          // Add metafields with unique tracking ID
           metafields: [
             {
               namespace: 'custom',
-              key: 'repli_t_id',  // Changed to match Shopify admin panel field
+              key: 'repli_t_id',
               value: uniqueTrackingId,
-              type: 'single_line_text_field'
-            }
+              type: 'single_line_text_field',
+            },
           ],
-          variants: variants,
-          images: images,
-          // ❌ OPTIONS ENGELLENDİ - Tek ürün için options gerekmez
-          // options: [
-          //   { name: 'Renk', values: finalColors },
-          //   { name: 'Beden', values: finalSizes }
-          // ]
-        }
-      })
+          variants,
+          images,
+        },
+      }),
     });
 
     if (!shopifyResponse.ok) {
-      const errorData = await shopifyResponse.json();
+      const errorData = await parseShopifyAdminResponse(shopifyResponse);
       console.error('Shopify API error:', errorData);
-      return { 
-        success: false, 
-        message: `Shopify API hatası: ${errorData.errors ? JSON.stringify(errorData.errors) : 'Bilinmeyen hata'}` 
+      return {
+        success: false,
+        message: `Shopify API hatası: ${
+          typeof errorData === 'object' && errorData !== null && 'errors' in errorData
+            ? JSON.stringify((errorData as { errors: unknown }).errors)
+            : 'Bilinmeyen hata'
+        }`,
       };
     }
 
-    const result = await shopifyResponse.json();
+    const result = (await parseShopifyAdminResponse(shopifyResponse)) as {
+      product: { id: number; handle: string };
+    };
     const productId = result.product.id;
     
     console.log('✅ Multi-URL product created successfully:', productId);
@@ -1047,7 +933,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     return { 
       success: true, 
       productId: productId.toString(),
-      shopifyProductId: productId,
+      shopifyProductId: productId.toString(),
       adminUrl: adminUrl,
       storeUrl: storeUrl,
       message: 'Ürün başarıyla Shopify\'a eklendi',
@@ -1220,42 +1106,11 @@ async function sendTelegramNotification(data: any) {
 
 // Test connection to Shopify
 export async function testShopifyConnection(): Promise<{ success: boolean; message: string; store?: string }> {
-  try {
-    const shopifyConfig = await resolveShopifyCredentials().catch(() => null);
-    if (!shopifyConfig) {
-      return { 
-        success: false, 
-        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.' 
-      };
-    }
-    const shopifyStore = shopifyConfig.shopDomain;
-    const accessToken = shopifyConfig.accessToken;
-
-    const response = await fetch(`https://${shopifyStore}/admin/api/2023-10/shop.json`, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (response.ok) {
-      const shopData = await response.json();
-      return { 
-        success: true, 
-        message: 'Shopify bağlantısı başarılı',
-        store: shopData.shop.name
-      };
-    } else {
-      const errorData = await response.json();
-      return { 
-        success: false, 
-        message: `Shopify bağlantı hatası: ${JSON.stringify(errorData.errors || errorData)}` 
-      };
-    }
-  } catch (error) {
-    return { 
-      success: false, 
-      message: `Bağlantı hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}` 
-    };
-  }
+  const { runShopifyConnectionTest } = await import('./connection-test');
+  const result = await runShopifyConnectionTest('uploader-test');
+  return {
+    success: result.connected,
+    message: result.message,
+    store: result.shopName,
+  };
 }

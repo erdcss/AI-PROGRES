@@ -17,13 +17,25 @@ import { Badge } from "@/components/ui/badge";
 interface TokenStatusData {
   status: {
     lastRefreshTime: number;
-    nextRefreshTime: number;
+    lastSuccessfulRefreshAt?: number;
+    nextBackupRefreshTime?: number;
     isRefreshing: boolean;
     msUntilRefresh: number;
+    autoRefreshEnabled?: boolean;
+    lastError?: string | null;
+    cache?: {
+      expiresAt: number | null;
+      expiresInMs: number | null;
+      source: string | null;
+    };
   };
   hasActiveToken: boolean;
   shopDomain: string | null;
+  tokenExpiresAt?: string | null;
+  lastError?: string | null;
   envVarsConfigured: {
+    SHOPIFY_CLIENT_ID?: boolean;
+    SHOPIFY_CLIENT_SECRET?: boolean;
     SHOPIFY_API_KEY: boolean;
     SHOPIFY_APP_SHARED_SECRET: boolean;
     SHOPIFY_ACCESS_TOKEN: boolean;
@@ -183,9 +195,13 @@ export default function ShopifySystemPage() {
     refetchInterval: 60000,
   });
 
-  const nextRefreshMs = tokenStatus?.status?.nextRefreshTime || 0;
+  const lastRefreshMs =
+    tokenStatus?.status?.lastSuccessfulRefreshAt || tokenStatus?.status?.lastRefreshTime || 0;
+  const nextRefreshMs =
+    tokenStatus?.status?.cache?.expiresAt ||
+    tokenStatus?.status?.nextBackupRefreshTime ||
+    (lastRefreshMs > 0 ? lastRefreshMs + (tokenStatus?.status?.msUntilRefresh || 0) : 0);
   const countdownMs = useCountdown(nextRefreshMs);
-  const lastRefreshMs = tokenStatus?.status?.lastRefreshTime || 0;
 
   const rotateMutation = useMutation({
     mutationFn: async () => {
@@ -211,8 +227,8 @@ export default function ShopifySystemPage() {
   const env = tokenStatus?.envVarsConfigured;
   const isRefreshing = tokenStatus?.status?.isRefreshing || rotateMutation.isPending;
 
-  // Yüzde hesapla (12 saatlik döngü = 43200000 ms)
-  const CYCLE_MS = 12 * 60 * 60 * 1000;
+  // Yüzde hesapla (24 saatlik token ömrü)
+  const CYCLE_MS = 24 * 60 * 60 * 1000;
   const elapsed = lastRefreshMs > 0 ? Date.now() - lastRefreshMs : 0;
   const pct = lastRefreshMs > 0 ? Math.min(100, (elapsed / CYCLE_MS) * 100) : 0;
 

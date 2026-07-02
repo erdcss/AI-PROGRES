@@ -175,6 +175,18 @@ export function getShopifyClientCredentials(): {
   const shopDomain = envShopDomain();
 
   if (!clientId || !clientSecret || !shopDomain) return null;
+
+  if (
+    !process.env.SHOPIFY_CLIENT_SECRET &&
+    !process.env.SHOPIFY_CLIENT_SECRET_KEY &&
+    clientSecret.startsWith('shpss_')
+  ) {
+    console.warn(
+      '[SHOPIFY] secret_key shpss_ ile başlıyor — bu API shared secret olabilir. ' +
+        'client_credentials için Dev Dashboard Client Secret (shpsec_...) kullanın.',
+    );
+  }
+
   return { clientId, clientSecret, shopDomain };
 }
 
@@ -278,10 +290,19 @@ export async function syncEnvApiKeyToDB(): Promise<void> {
 }
 
 export async function syncNewTokenToDB(): Promise<void> {
-  const newToken = process.env.SHOPIFY_APP_SECRET_NEW;
+  const newToken =
+    process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ||
+    process.env.SHOPIFY_ACCESS_TOKEN ||
+    process.env.SHOPIFY_APP_SECRET_NEW;
   const shopDomain = envShopDomain();
 
   if (!newToken || !shopDomain) return;
+
+  if (process.env.SHOPIFY_APP_SECRET_NEW && !process.env.SHOPIFY_ADMIN_ACCESS_TOKEN && !process.env.SHOPIFY_ACCESS_TOKEN) {
+    console.warn(
+      '[SHOPIFY] SHOPIFY_APP_SECRET_NEW kullanılıyor — bu isim yanıltıcı. SHOPIFY_ADMIN_ACCESS_TOKEN kullanın.',
+    );
+  }
 
   try {
     const rows = await db
@@ -305,7 +326,7 @@ export async function syncNewTokenToDB(): Promise<void> {
         isActive: true,
       });
     }
-    console.log(`✅ SHOPIFY_APP_SECRET_NEW DB'ye senkronize edildi: ${shopDomain}`);
+    console.log(`✅ Admin access token DB'ye senkronize edildi: ${shopDomain}`);
   } catch (err) {
     if ((err as { code?: string })?.code === '42P01') {
       console.warn('syncNewTokenToDB: shopify_credentials tablosu yok — atlandı');

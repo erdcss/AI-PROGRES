@@ -3721,12 +3721,17 @@ setTimeout(check, 1000);
   app.post('/api/shopify/upload-csv-product', async (req, res) => {
     try {
       const requestId = getRequestId(req);
-      const conn = await runShopifyConnectionTest(requestId);
+      const { ensureShopifyConnectionReady } = await import('./shopify-token-manager');
+      const conn = await ensureShopifyConnectionReady(requestId);
       if (!conn.connected) {
         return res.status(400).json({
           success: false,
           error: conn.message,
           step: 'connection_check',
+          hint:
+            conn.message.includes('402') || conn.message.includes('Unavailable')
+              ? 'Dev Dashboard Client Secret (shpsec_...) kullanın ve uygulamayı mağazaya yükleyin'
+              : undefined,
         });
       }
 
@@ -4095,53 +4100,20 @@ setTimeout(check, 1000);
 
   // â”€â”€ Shopify OAuth & Credentials API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // Mevcut kimlik bilgilerini dÃ¶ndÃ¼rÃ¼r (token gizlenir)
-  app.get('/api/shopify/credentials', async (req, res) => {
+  // Mevcut kimlik bilgilerini döndürür (token gizlenir, gerçek API probe ile)
+  app.get('/api/shopify/credentials', async (_req, res) => {
     try {
-      // getShopifyConfig() ile aynÄ± Ã¶ncelik sÄ±rasÄ±: DB Ã¶nce, ENV fallback
-      // 1. DB'yi Ã¶nce kontrol et
-      const rows = await db.select().from(shopifyCredentials)
-        .where(eq(shopifyCredentials.isActive, true))
-        .orderBy(desc(shopifyCredentials.updatedAt))
-        .limit(1);
-      const cred = rows[0];
-
-      if (cred && cred.shopDomain && cred.accessToken) {
-        // shpss_ formatÄ± deprecated/geÃ§ersiz token
-        const isDeprecatedToken = cred.accessToken.startsWith('shpss_');
-        return res.json({
-          connected: !isDeprecatedToken,
-          shopDomain: cred.shopDomain,
-          apiKey: cred.apiKey,
-          hasToken: true,
-          tokenInvalid: isDeprecatedToken,
-          updatedAt: cred.updatedAt,
-          source: 'db'
-        });
-      }
-
-      // 2. DB'de geÃ§erli token yoksa ENV'e bak
-      const envShopDomain =
-        process.env.SHOPIFY_SHOP_DOMAIN ||
-        process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '') ||
-        (process.env as any).SHOPIFY_STORE_DOMAIN;
-      const envAccessToken =
-        process.env.SHOPIFY_ACCESS_TOKEN ||
-        process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
-
-      if (envShopDomain && envAccessToken) {
-        const isDeprecatedToken = envAccessToken.startsWith('shpss_');
-        return res.json({
-          connected: !isDeprecatedToken,
-          shopDomain: envShopDomain,
-          hasToken: true,
-          tokenInvalid: isDeprecatedToken,
-          source: 'env'
-        });
-      }
-
-      // HiÃ§ token yok
-      return res.json({ connected: false, hasToken: false });
+      const { resolveShopifyConfig } = await import('./shopify-credentials');
+      const config = await resolveShopifyConfig();
+      return res.json({
+        connected: config.ok,
+        shopDomain: config.shopDomain,
+        apiKey: config.apiKey,
+        hasToken: config.hasAccessToken,
+        tokenInvalid: !config.ok && config.hasAccessToken,
+        source: config.tokenSource,
+        error: config.error,
+      });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -4216,11 +4188,18 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify baÄŸlantÄ±sÄ±nÄ± test eder
-  app.get('/api/shopify/status', async (req, res) => {
+  // Shopify bağlantısını test eder
+  app.get('/api/shopify/status', async (_req, res) => {
     try {
-      const result = await testShopifyConnection();
-      res.json(result);
+      const result = await runShopifyConnectionTest('status');
+      return res.json({
+        success: result.connected,
+        message: result.message,
+        store: result.shopName,
+        shopDomain: result.shopDomain,
+        tokenSource: result.tokenSource,
+        error: result.error,
+      });
     } catch (err) {
       res.status(500).json({ success: false, message: String(err) });
     }
@@ -4241,22 +4220,25 @@ setTimeout(check, 1000);
   // Shopify token otomatik yenileme â€” manuel tetikleme
   app.post('/api/shopify/rotate-token', async (req, res) => {
     try {
-      const { rotateShopifyToken, getTokenStatus } = await import('./shopify-token-rotator');
-      const result = await rotateShopifyToken();
+      const { proactiveRefreshShopifyToken, getShopifyTokenLifecycleStatus } = await import(
+        './shopify-token-manager'
+      );
+      const result = await proactiveRefreshShopifyToken(true);
       if (result.success) {
         invalidateShopifyCredentialCache();
         return res.json({
           success: true,
-          method: result.method,
-          message: `Token baÅŸarÄ±yla yenilendi (${result.method})`,
-          status: getTokenStatus()
+          method: result.source,
+          message: `Token başarıyla yenilendi (${result.source})`,
+          status: getShopifyTokenLifecycleStatus(),
         });
       }
       return res.status(500).json({
         success: false,
         error: result.error,
-        message: 'Token yenileme baÅŸarÄ±sÄ±z. SHOPIFY_API_KEY ve SHOPIFY_APP_SHARED_SECRET env deÄŸerlerini kontrol edin.',
-        status: getTokenStatus()
+        message:
+          'Token yenileme başarısız. SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (shpsec_...) veya Admin Token kullanın.',
+        status: getShopifyTokenLifecycleStatus(),
       });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
@@ -4264,20 +4246,31 @@ setTimeout(check, 1000);
   });
 
   // Shopify token durumu
-  app.get('/api/shopify/token-status', async (req, res) => {
+  app.get('/api/shopify/token-status', async (_req, res) => {
     try {
-      const { getTokenStatus } = await import('./shopify-token-rotator');
-      const config = await getShopifyConfig();
+      const { getShopifyTokenLifecycleStatus } = await import('./shopify-token-manager');
+      const {
+        resolveClientIdSource,
+        resolveClientSecretSource,
+        envShopDomain,
+      } = await import('./shopify-credentials');
+      const lifecycle = getShopifyTokenLifecycleStatus();
       res.json({
-        status: getTokenStatus(),
-        hasActiveToken: !!config?.accessToken,
-        shopDomain: config?.shopDomain || null,
+        status: lifecycle,
+        hasActiveToken: lifecycle.cache.cached,
+        shopDomain: lifecycle.cache.shopDomain || envShopDomain() || null,
+        tokenExpiresAt: lifecycle.cache.expiresAt
+          ? new Date(lifecycle.cache.expiresAt).toISOString()
+          : null,
+        lastError: lifecycle.lastError,
         envVarsConfigured: {
+          SHOPIFY_CLIENT_ID: resolveClientIdSource() !== 'missing',
+          SHOPIFY_CLIENT_SECRET: resolveClientSecretSource() !== 'missing',
           SHOPIFY_API_KEY: !!process.env.SHOPIFY_API_KEY,
           SHOPIFY_APP_SHARED_SECRET: !!process.env.SHOPIFY_APP_SHARED_SECRET,
           SHOPIFY_ACCESS_TOKEN: !!process.env.SHOPIFY_ACCESS_TOKEN,
-          SHOPIFY_ADMIN_ACCESS_TOKEN: !!process.env.SHOPIFY_ADMIN_ACCESS_TOKEN
-        }
+          SHOPIFY_ADMIN_ACCESS_TOKEN: !!process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+        },
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -4286,12 +4279,14 @@ setTimeout(check, 1000);
 
   // Shopify health â€” token deÄŸeri asla dÃ¶nmez
   app.get('/api/shopify/health', async (_req, res) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     try {
       const snapshot = await getShopifyHealthSnapshot();
       return res.json(snapshot);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const { resolveClientIdSource, resolveClientSecretSource, envShopDomain } = await import('./shopify-credentials');
       const { hasEnvAccessToken, hasClientCredentialsConfigured } = await import('./shopify-token-manager');
+      const message = err instanceof Error ? err.message : 'Shopify health check failed';
       return res.status(500).json({
         ok: false,
         shopDomain: envShopDomain(),
@@ -4300,8 +4295,14 @@ setTimeout(check, 1000);
         clientIdSource: resolveClientIdSource(),
         clientSecretSource: resolveClientSecretSource(),
         tokenSource: 'missing',
+        expiresAt: null,
+        expiresInSeconds: null,
+        scopesOk: false,
+        scopes: [],
+        canReadProducts: false,
+        canWriteProducts: false,
         canCreateProducts: false,
-        error: err?.message || 'Shopify health check failed',
+        error: message,
       });
     }
   });
@@ -4340,9 +4341,17 @@ setTimeout(check, 1000);
         });
       }
 
-      const shopData = await testRes.json() as any;
+      const shopData = (await testRes.json()) as { shop?: { name?: string } };
       await saveDirectAccessToken(cleanDomain, accessToken);
-      // Cache'i temizle â€” tÃ¼m servisler yeni token'Ä± hemen kullansÄ±n
+
+      const { setShopifyTokenCache } = await import('./shopify-token-manager');
+      setShopifyTokenCache({
+        accessToken,
+        shopDomain: cleanDomain,
+        source: 'env',
+        expiresInSeconds: 23 * 3600,
+      });
+
       invalidateShopifyCredentialCache();
       res.json({ success: true, shopDomain: cleanDomain, storeName: shopData?.shop?.name || cleanDomain });
     } catch (err) {
