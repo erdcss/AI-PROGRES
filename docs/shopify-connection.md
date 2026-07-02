@@ -16,22 +16,42 @@ Opsiyonel manuel token:
 SHOPIFY_ADMIN_ACCESS_TOKEN=shpat_...
 ```
 
+Opsiyonel test base URL (npm run shopify:health için):
+
+```env
+# SHOPIFY_TEST_BASE_URL=http://127.0.0.1:3000
+```
+
 ## Manuel test
 
-Sunucu çalışırken:
+Sunucu çalışırken (`npm run dev:stable` → varsayılan port **3000**):
 
 ```powershell
-curl.exe -i http://localhost:5000/api/shopify/health
+curl.exe -i http://127.0.0.1:3000/api/shopify/health
 
-curl.exe -i -X POST http://localhost:5000/api/shopify/connection-test `
+curl.exe -i -X POST http://127.0.0.1:3000/api/shopify/connection-test `
   -H "Content-Type: application/json" `
   -d "{}"
+```
+
+Scriptler base URL’yi şu sırayla seçer: `SHOPIFY_TEST_BASE_URL` → `PORT` → `http://127.0.0.1:3000`
+
+```powershell
+npm run shopify:health
+npm run shopify:connection-test
+```
+
+Farklı port için:
+
+```powershell
+$env:PORT = "3000"
+npm run shopify:health
 ```
 
 veya:
 
 ```powershell
-npm run shopify:health
+$env:SHOPIFY_TEST_BASE_URL = "http://127.0.0.1:3000"
 npm run shopify:connection-test
 ```
 
