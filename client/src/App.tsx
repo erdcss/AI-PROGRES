@@ -96,9 +96,13 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   };
   
   return (
-    <div className="flex items-center justify-center min-h-screen business-bg px-4">
-      <Card className="business-card w-full max-w-md md:max-w-lg shadow-2xl">
-        <CardHeader className="business-header space-y-4 md:space-y-6 text-center px-4 md:px-6">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center min-h-screen bg-slate-950 px-4">
+      <div
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950/50 to-slate-950"
+        aria-hidden
+      />
+      <Card className="relative z-10 w-full max-w-md border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-md md:max-w-lg">
+        <CardHeader className="space-y-4 px-4 text-center md:space-y-6 md:px-6">
           <div className="mx-auto w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl flex items-center justify-center shadow-lg">
             <Lock className="h-6 w-6 md:h-8 md:w-8 text-white" />
           </div>
@@ -475,14 +479,18 @@ function App() {
     saveAppSession();
   };
 
+  if (!isLoggedIn) {
+    return (
+      <>
+        <LoginScreen onLogin={handleLogin} />
+        <Toaster />
+      </>
+    );
+  }
+
   return (
     <>
       <AppShell />
-      {!isLoggedIn && (
-        <div className="fixed inset-0 z-[10000]">
-          <LoginScreen onLogin={handleLogin} />
-        </div>
-      )}
       <Toaster />
     </>
   );
