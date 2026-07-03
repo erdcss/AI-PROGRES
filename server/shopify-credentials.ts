@@ -176,15 +176,16 @@ export function getShopifyClientCredentials(): {
 
   if (!clientId || !clientSecret || !shopDomain) return null;
 
-  if (
-    !process.env.SHOPIFY_CLIENT_SECRET &&
-    !process.env.SHOPIFY_CLIENT_SECRET_KEY &&
-    clientSecret.startsWith('shpss_')
-  ) {
-    console.warn(
-      '[SHOPIFY] secret_key shpss_ ile başlıyor — bu API shared secret olabilir. ' +
-        'client_credentials için Dev Dashboard Client Secret (shpsec_...) kullanın.',
-    );
+  if (clientSecret.startsWith('shpss_')) {
+    const fromExplicitSecret =
+      process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
+      process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim();
+    if (!fromExplicitSecret) {
+      console.warn(
+        '[SHOPIFY] secret_key shpss_ ile başlıyor — client_credentials için Dev Dashboard Client Secret (shpsec_...) kullanın.',
+      );
+      return null;
+    }
   }
 
   return { clientId, clientSecret, shopDomain };
@@ -266,7 +267,7 @@ export async function syncEnvApiKeyToDB(): Promise<void> {
             apiKey,
             ...(apiSecret ? { apiSecret } : {}),
             updatedAt: new Date(),
-          })
+          } as any)
           .where(eq(shopifyCredentials.shopDomain, shopDomain));
         console.log(`✅ ENV API Key DB'ye senkronize edildi: ${shopDomain}`);
       }
@@ -277,7 +278,7 @@ export async function syncEnvApiKeyToDB(): Promise<void> {
         apiSecret: apiSecret || '',
         accessToken: null as any,
         isActive: false,
-      });
+      } as any);
       console.log(`✅ ENV kimlik bilgileri DB'ye kaydedildi: ${shopDomain}`);
     }
   } catch (err) {
@@ -315,7 +316,7 @@ export async function syncNewTokenToDB(): Promise<void> {
       if (rows[0].accessToken === newToken) return;
       await db
         .update(shopifyCredentials)
-        .set({ accessToken: newToken, isActive: true, updatedAt: new Date() })
+        .set({ accessToken: newToken, isActive: true, updatedAt: new Date() } as any)
         .where(eq(shopifyCredentials.shopDomain, shopDomain));
     } else {
       await db.insert(shopifyCredentials).values({
@@ -324,7 +325,7 @@ export async function syncNewTokenToDB(): Promise<void> {
         apiSecret: '',
         accessToken: newToken,
         isActive: true,
-      });
+      } as any);
     }
     console.log(`✅ Admin access token DB'ye senkronize edildi: ${shopDomain}`);
   } catch (err) {
@@ -357,7 +358,7 @@ export async function saveShopifyCredentials(data: {
         apiSecret: data.apiSecret,
         ...(data.accessToken ? { accessToken: data.accessToken } : {}),
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(shopifyCredentials.shopDomain, cleanDomain));
   } else {
     await db.insert(shopifyCredentials).values({
@@ -366,13 +367,13 @@ export async function saveShopifyCredentials(data: {
       apiSecret: data.apiSecret,
       accessToken: data.accessToken || null,
       isActive: true,
-    });
+    } as any);
   }
 }
 
 export async function saveDirectAccessToken(shopDomain: string, accessToken: string): Promise<void> {
   const cleanDomain = normalizeShopDomain(shopDomain);
-  await db.update(shopifyCredentials).set({ isActive: false, updatedAt: new Date() });
+  await db.update(shopifyCredentials).set({ isActive: false, updatedAt: new Date() } as any);
 
   const existing = await db
     .select()
@@ -383,7 +384,7 @@ export async function saveDirectAccessToken(shopDomain: string, accessToken: str
   if (existing.length > 0) {
     await db
       .update(shopifyCredentials)
-      .set({ accessToken, isActive: true, updatedAt: new Date() })
+      .set({ accessToken, isActive: true, updatedAt: new Date() } as any)
       .where(eq(shopifyCredentials.shopDomain, cleanDomain));
   } else {
     await db.insert(shopifyCredentials).values({
@@ -392,7 +393,7 @@ export async function saveDirectAccessToken(shopDomain: string, accessToken: str
       apiSecret: '',
       accessToken,
       isActive: true,
-    });
+    } as any);
   }
 }
 
@@ -407,7 +408,7 @@ export async function saveShopifyAccessToken(shopDomain: string, accessToken: st
   if (existing.length > 0) {
     await db
       .update(shopifyCredentials)
-      .set({ accessToken, isActive: true, updatedAt: new Date() })
+      .set({ accessToken, isActive: true, updatedAt: new Date() } as any)
       .where(eq(shopifyCredentials.shopDomain, cleanDomain));
   } else {
     await db.insert(shopifyCredentials).values({
@@ -416,7 +417,7 @@ export async function saveShopifyAccessToken(shopDomain: string, accessToken: st
       apiSecret: '',
       accessToken,
       isActive: true,
-    });
+    } as any);
   }
 }
 
@@ -424,6 +425,6 @@ export async function deleteShopifyCredentials(shopDomain: string): Promise<void
   const cleanDomain = normalizeShopDomain(shopDomain);
   await db
     .update(shopifyCredentials)
-    .set({ isActive: false, updatedAt: new Date() })
+    .set({ isActive: false, updatedAt: new Date() } as any)
     .where(eq(shopifyCredentials.shopDomain, cleanDomain));
 }

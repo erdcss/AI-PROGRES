@@ -97,19 +97,23 @@ export interface AIEnhancedProductData {
   price: string;
   description: string;
   images: string[];
-  colors: Array<{
+  colors?: Array<{
     name: string;
     images: string[];
     price?: string;
   }>;
-  features: Array<{key: string, value: string}>;
+  features: Array<{ key: string; value: string }>;
+  specifications?: Array<{ key: string; value: string } | Record<string, string>>;
+  materials?: string[];
+  careInstructions?: string[];
+  variants?: Record<string, unknown>;
   aiAnalysis: {
     category: string;
     targetAudience: string;
     season: string;
-    materials: string[];
     style: string;
-    priceRange: string;
+    materials?: string[];
+    priceRange?: string;
   };
   shopifyData: {
     handle: string;
@@ -123,8 +127,8 @@ export interface AIEnhancedProductData {
       inventory: number;
       image: string;
     }>;
-  };
-  csvPreview: Array<Record<string, string>>;
+  } | null;
+  csvPreview: Array<Record<string, string>> | null;
 }
 
 /**
@@ -132,7 +136,10 @@ export interface AIEnhancedProductData {
  */
 export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductData> {
   console.log(`🚀 AI-destekli profesyonel veri çıkarma başlatılıyor: ${url}`);
-  
+
+  let htmlContent = '';
+  let basicData: ReturnType<typeof extractBasicData> | null = null;
+
   try {
     // URL doğrulama
     if (!url || typeof url !== 'string') {
@@ -150,12 +157,12 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     });
     
     const $ = cheerio.load(response.data);
-    const htmlContent = response.data;
+    htmlContent = response.data;
     
     console.log(`📊 AI analiz için veri hazırlanıyor - içerik uzunluğu: ${htmlContent.length}`);
     
     // 2. Temel veri çıkarma
-    const basicData = extractBasicData($, htmlContent);
+    basicData = extractBasicData($, htmlContent);
     
     // 2.1. Çoklu görsel çıkarma
     console.log('🖼️ Görsel çıkarma başlatılıyor...');
@@ -180,14 +187,17 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
       const { generateProfessionalCSV } = await import('./csv-generator');
       const csvContent = generateProfessionalCSV({...basicData, aiAnalysis});
       csvPreview = generateCSVPreview(basicData, shopifyData);
-    } catch (analysisError) {
-      console.log('AI analiz hatası (devam ediliyor):', analysisError.message);
+    } catch (analysisError: unknown) {
+      console.log(
+        'AI analiz hatası (devam ediliyor):',
+        analysisError instanceof Error ? analysisError.message : analysisError,
+      );
       // Initialize safe fallback values
       aiAnalysis = {
         category: 'Giyim',
         targetAudience: 'Unisex',
         season: 'Tüm Sezonlar',
-        style: 'Casual'
+        style: 'Casual',
       };
     }
     
@@ -217,20 +227,75 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
       materials: Array.isArray(basicData.materials) ? basicData.materials : [],
       careInstructions: Array.isArray(basicData.careInstructions) ? basicData.careInstructions : [],
       variants: basicData.variants || { colors: [], sizes: [] },
-      aiAnalysis: aiAnalysis || { category: 'Giyim', targetAudience: 'Unisex' },
+      aiAnalysis: aiAnalysis || {
+        category: 'Giyim',
+        targetAudience: 'Unisex',
+        season: 'Tüm Sezonlar',
+        style: 'Casual',
+      },
       shopifyData,
       csvPreview
     };
     
   } catch (error) {
-    console.error('AI-destekli scraping hatası:', error.message);
-    
-    // Extract basic data even on error
-    const fallbackHTML = htmlContent || '';
-    const $ = cheerio.load(fallbackHTML);
-    const fallbackData = extractBasicData($, fallbackHTML);
-    const fallbackImages = extractOriginalProductImages(fallbackHTML);
-    
+    console.error('AI-destekli scraping hatası:', error instanceof Error ? error.message : error);
+
+    if (!htmlContent) {
+      return {
+        success: false,
+        title: '',
+        brand: '',
+        price: '0',
+        description: 'Ürün verisi alınamadı',
+        images: [],
+        features: [],
+        specifications: [],
+        materials: [],
+        careInstructions: [],
+        variants: { colors: [], sizes: [] },
+        aiAnalysis: {
+          category: '',
+          targetAudience: '',
+          season: '',
+          style: '',
+        },
+        shopifyData: null,
+        csvPreview: null,
+      };
+    }
+
+    const $ = cheerio.load(htmlContent);
+    const fallbackData = extractBasicData($, htmlContent);
+    const fallbackImages = extractOriginalProductImages(htmlContent);
+    const hasRealData =
+      Boolean(fallbackData?.title && fallbackData.title !== 'Under Armour Tişört') ||
+      Boolean(fallbackData?.price && fallbackData.price !== '0' && fallbackData.price !== '890') ||
+      fallbackImages.length > 0;
+
+    if (!hasRealData) {
+      return {
+        success: false,
+        title: fallbackData?.title || '',
+        brand: fallbackData?.brand || '',
+        price: fallbackData?.price || '0',
+        description: 'Ürün verisi alınamadı',
+        images: fallbackImages,
+        features: Array.isArray(basicData?.features) ? basicData.features : [],
+        specifications: Array.isArray(basicData?.specifications) ? basicData.specifications : [],
+        materials: Array.isArray(basicData?.materials) ? basicData.materials : [],
+        careInstructions: Array.isArray(basicData?.careInstructions) ? basicData.careInstructions : [],
+        variants: basicData?.variants || { colors: [], sizes: [] },
+        aiAnalysis: {
+          category: '',
+          targetAudience: '',
+          season: '',
+          style: '',
+        },
+        shopifyData: null,
+        csvPreview: null,
+      };
+    }
+
     return {
       success: true,
       title: fallbackData?.title || 'Ürün bilgisi alınamadı',
@@ -238,33 +303,23 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
       price: fallbackData?.price || '0',
       description: fallbackData?.description || 'Ürün açıklaması alınamadı',
       images: fallbackImages || [],
-      features: Array.isArray(basicData?.features) ? 
-        basicData.features.filter((f, index, self) => 
-          f.key && f.value && 
-          index === self.findIndex(item => item.key === f.key)
-        ).slice(0, 20) : [
-        {key: 'Malzeme', value: '%100 Pamuk'},
-        {key: 'Beden', value: 'Regular Fit'}
-      ],
-      specifications: Array.isArray(basicData?.specifications) ? basicData.specifications : [
-        {key: 'Model', value: '1382911-036'},
-        {key: 'Renk', value: 'Gri'},
-        {key: 'Sezon', value: '2025 İlkbahar/Yaz'}
-      ],
-      materials: Array.isArray(basicData?.materials) ? basicData.materials : ['%100 Pamuk kumaş'],
-      careInstructions: Array.isArray(basicData?.careInstructions) ? basicData.careInstructions : ['30°C\'de yıkanabilir', 'Ütülenebilir'],
-      variants: basicData?.variants || { 
-        colors: [{name: 'Gri', inStock: true}], 
-        sizes: [{name: 'M', inStock: true}, {name: 'L', inStock: true}, {name: 'XL', inStock: true}] 
-      },
+      features: Array.isArray(basicData?.features)
+        ? basicData.features.filter((f, index, self) =>
+            f.key && f.value && index === self.findIndex((item) => item.key === f.key),
+          ).slice(0, 20)
+        : [],
+      specifications: Array.isArray(basicData?.specifications) ? basicData.specifications : [],
+      materials: Array.isArray(basicData?.materials) ? basicData.materials : [],
+      careInstructions: Array.isArray(basicData?.careInstructions) ? basicData.careInstructions : [],
+      variants: basicData?.variants || { colors: [], sizes: [] },
       aiAnalysis: {
         category: 'Giyim',
-        targetAudience: 'Erkek',
-        season: 'İlkbahar/Yaz',
-        style: 'Casual'
+        targetAudience: 'Unisex',
+        season: 'Tüm Sezonlar',
+        style: 'Casual',
       },
       shopifyData: null,
-      csvPreview: null
+      csvPreview: null,
     };
   }
 }
@@ -879,29 +934,12 @@ function extractOptimizedImages(htmlContent: string): string[] {
           }
         });
       });
-    } catch (e) {
-      console.log('DOM görsel çıkarma hatası:', e.message);
+    } catch (e: unknown) {
+      console.log('DOM görsel çıkarma hatası:', e instanceof Error ? e.message : e);
     }
     
-    const imageSelectors = [
-      'img[src*="prod/QC"]',
-      'img[data-src*="prod/QC"]', 
-      '.product-image img',
-      '.gallery img',
-      '.image-gallery img'
-    ];
-    
-    imageSelectors.forEach(selector => {
-      $(selector).each((i: number, elem: any) => {
-        const src = $(elem).attr('src') || $(elem).attr('data-src');
-        if (src && isValidProductImage(src)) {
-          images.add(src.startsWith('//') ? 'https:' + src : src);
-        }
-      });
-    });
-    
-  } catch (error) {
-    console.log('Görsel çıkarma hatası:', error.message);
+  } catch (error: unknown) {
+    console.log('Görsel çıkarma hatası:', error instanceof Error ? error.message : error);
   }
   
   const finalImages = Array.from(images)
@@ -1137,23 +1175,26 @@ function extractStockVariants(htmlContent: string) {
             
             // Scrapy benzeri fiyat hesaplama
             let basePrice = 0;
-            
-            // Scrapy'deki price.sellingPrice.value / 100 mantığı
-            if (variant.price?.sellingPrice?.value) {
-              basePrice = variant.price.sellingPrice.value / 100;
-            } else if (variant.price && typeof variant.price === 'number') {
-              basePrice = variant.price;
-            } else if (priceData?.main) {
-              basePrice = parseFloat(priceData.main.toString().replace(/[^\d.]/g, ''));
-            } else {
-              basePrice = 890; // fallback
+            const variantPrice = variant.price as
+              | number
+              | { sellingPrice?: { value?: number } }
+              | undefined;
+
+            if (
+              variantPrice &&
+              typeof variantPrice === 'object' &&
+              variantPrice.sellingPrice?.value
+            ) {
+              basePrice = variantPrice.sellingPrice.value / 100;
+            } else if (typeof variantPrice === 'number') {
+              basePrice = variantPrice;
             }
-            
-            const finalPrice = Math.round(basePrice * 1.15);
-            
+
+            const finalPrice = basePrice > 0 ? Math.round(basePrice * 1.15) : 0;
+
             variants.stockMatrix[`${variant.color}-${variant.size}`] = {
-              product_title: basicData.title || 'Ürün',
-              brand: basicData.brand || 'Bilinmiyor',
+              product_title: 'Ürün',
+              brand: 'Bilinmiyor',
               variant_name: `${variant.color} ${variant.size}`,
               color: variant.color,
               size: variant.size,

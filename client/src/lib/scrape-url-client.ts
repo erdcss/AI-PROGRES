@@ -220,16 +220,18 @@ export async function fetchScenarioScrapeResult(
 
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, pollInterval));
-      const pollResp = await fetch(`/api/scrape-job/${jobId}`);
+      const pollResp = await fetch(`/api/scrape-job/${jobId}`, { cache: "no-store" });
       if (!pollResp.ok) {
         throw new Error(`Polling hatası: HTTP ${pollResp.status}`);
       }
 
       const pollData = await pollResp.json();
-      if (pollData.status === "done") {
+      if (pollData.status === "success" || pollData.status === "partial_success") {
         const result = pollData.result as Record<string, unknown> | undefined;
         const canPreview =
-          result?.success === true || result?.previewOk === true;
+          result?.success === true ||
+          result?.previewOk === true ||
+          pollData.status === "partial_success";
         if (!canPreview) {
           const msg = String(
             result?.deployUserMessage ||
@@ -241,6 +243,22 @@ export async function fetchScenarioScrapeResult(
             ? ` — ${String(result.stageErrorsHuman)}`
             : "";
           throw new Error(`${msg}${detail}`);
+        }
+        polled = { ...result, originalUrl: url, partialSuccess: pollData.status === "partial_success" };
+        break;
+      }
+      if (pollData.status === "done") {
+        const result = pollData.result as Record<string, unknown> | undefined;
+        const canPreview =
+          result?.success === true || result?.previewOk === true;
+        if (!canPreview) {
+          const msg = String(
+            result?.deployUserMessage ||
+              result?.message ||
+              result?.error ||
+              "Çekim başarısız",
+          );
+          throw new Error(msg);
         }
         polled = { ...result, originalUrl: url };
         break;
@@ -264,7 +282,9 @@ export async function fetchScenarioScrapeResult(
     }
 
     if (!polled) {
-      throw new Error("Zaman aşımı — lütfen tekrar deneyin.");
+      throw new Error(
+        `Çekim zaman aşımı (${Math.round(maxWait / 1000)}s) — job tamamlanmadı. Railway scrape provider ayarlarını kontrol edin.`,
+      );
     }
     raw = polled;
   }

@@ -22,43 +22,41 @@ const DEFAULT_TITLE = "Ürün verisi alınamadı";
 const DEFAULT_MESSAGE =
   "Kaynak siteye erişim sağlanamadı veya ürün verisi doğrulanamadı. Program alternatif erişim yollarını denedi ancak geçerli fiyat, görsel veya başlık bulunamadı.";
 
+import { formatStageErrorsForUser } from "@shared/scrape-runtime";
+
+const STAGE_ERROR_LABELS: Record<string, string> = {
+  "local-agent-failed": "Yerel agent erişilemedi (DNS veya tunnel süresi dolmuş olabilir)",
+  "browser-worker-unhealthy": "Tarayıcı Worker sağlıksız veya yapılandırılmamış",
+  "browser-worker-not-configured": "Tarayıcı Worker yapılandırılmamış",
+  "api-null-response": "Trendyol API boş yanıt döndü",
+  "image-proxy-timeout": "Görsel proxy zaman aşımı (ürün verisi etkilenmeyebilir)",
+  "image-fallback-timeout": "Görsel yedek indirme zaman aşımı",
+  "puppeteer-disabled-in-cloud": "Cloud ortamında Puppeteer kapalı — Browser Worker gerekli",
+  "pipeline-global-timeout": "Toplam çekim süresi aşıldı",
+};
+
 function buildDetailLines(meta?: ScrapeErrorMeta) {
   const stages = meta?.stageErrors ?? [];
-  const lines: string[] = [];
+  const lines: string[] = stages.map((e) => STAGE_ERROR_LABELS[e] || e);
 
-  if (stages.some((e) => e.includes("api"))) {
-    lines.push("API başarısız");
-  }
-  if (
-    stages.some(
-      (e) =>
-        e.includes("direct-html") ||
-        e.includes("source-access-direct") ||
-        e.includes("html-parse"),
-    )
-  ) {
-    lines.push("HTML alınamadı");
-  }
-  if (stages.some((e) => e.includes("image"))) {
-    lines.push("Görseller alınamadı");
-  }
-  if (
-    stages.some(
-      (e) =>
-        e.startsWith("source-access-") ||
-        e.includes("gateway-provider") ||
-        e.includes("gateway-not") ||
-        e.includes("local-agent"),
-    )
-  ) {
-    lines.push("Alternatif erişim denendi (başarısız)");
+  if (lines.length === 0) {
+    if (stages.some((e) => e.includes("api"))) lines.push("Trendyol API başarısız");
+    if (stages.some((e) => e.includes("direct-html") || e.includes("html-parse"))) {
+      lines.push("Sayfa HTML alınamadı");
+    }
+    if (stages.some((e) => e.includes("image"))) lines.push("Görseller indirilemedi");
+    if (stages.some((e) => e.includes("local-agent") || e.includes("browser-worker"))) {
+      lines.push("Tarayıcı tabanlı erişim başarısız");
+    }
   }
 
   if (meta?.stageErrorsHuman) {
     lines.push(meta.stageErrorsHuman);
+  } else if (stages.length > 0) {
+    lines.push(formatStageErrorsForUser(stages as any));
   }
 
-  return lines.length > 0 ? lines : ["Kaynak veri doğrulanamadı"];
+  return lines.length > 0 ? [...new Set(lines)] : ["Kaynak veri doğrulanamadı"];
 }
 
 export function ScrapeSourceErrorAlert({ message, details, meta, onRetry }: Props) {

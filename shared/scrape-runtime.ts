@@ -3,6 +3,9 @@ import { isCloudRuntime, puppeteerAllowed } from "./deploy-runtime";
 export type ScrapeStageErrorCode =
   | "api-timeout"
   | "api-error"
+  | "api-null-response"
+  | "api-empty-payload"
+  | "api-json-parse-failed"
   | "direct-html-timeout"
   | "direct-html-error"
   | "html-parse-timeout"
@@ -26,7 +29,8 @@ export type ScrapeStageErrorCode =
   | "source-access-no-usable-data"
   | "local-agent-failed"
   | "browser-worker-failed"
-  | "browser-worker-not-configured";
+  | "browser-worker-not-configured"
+  | "browser-worker-unhealthy";
 
 export type FinalSuccessReason =
   | "api-only"
@@ -57,6 +61,7 @@ export type ScrapeDiagnostics = {
   directHtmlStarted: boolean;
   directHtmlSuccess: boolean;
   directHtmlError?: string;
+  directHtmlSkippedReason?: string | null;
   htmlParseStarted: boolean;
   htmlParseSkippedReason?: string;
   htmlParseSuccess: boolean;
@@ -291,7 +296,10 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
 export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): string {
   const labels: Record<string, string> = {
     "api-timeout": "Trendyol API zaman aşımı",
-    "api-error": "Trendyol API hatası",
+    "api-error": "Trendyol API yanıtı alınamadı veya işlenemedi",
+    "api-null-response": "Trendyol API boş yanıt",
+    "api-empty-payload": "Trendyol API eksik veri",
+    "api-json-parse-failed": "Trendyol API JSON ayrıştırma hatası",
     "direct-html-timeout": "Sayfa HTML zaman aşımı",
     "direct-html-error": "Sayfa HTML alınamadı",
     "html-parse-timeout": "HTML ayrıştırma zaman aşımı",
@@ -313,6 +321,7 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "local-agent-failed": "Yerel agent başarısız",
     "browser-worker-failed": "Tarayıcı Worker başarısız",
     "browser-worker-not-configured": "Tarayıcı Worker yapılandırılmamış",
+    "browser-worker-unhealthy": "Tarayıcı Worker sağlıksız",
     "scraping-provider-error": "Harici sağlayıcı hatası",
   };
   return stageErrors.map((e) => labels[e] || e).join("; ");

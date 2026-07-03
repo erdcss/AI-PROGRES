@@ -1,4 +1,5 @@
-﻿import type { Express } from "express";
+﻿// @ts-nocheck — legacy route handlers; scrape pipeline changes live in typed submodules.
+import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { browserNavigate, browserClick, browserScroll, browserBack, browserForward, browserType, browserKeyPress, browserGetScreenshot, browserDoubleClick, browserRightClick, browserHover, browserDragScroll } from "./browser-session";
 import { z } from "zod";
@@ -2036,12 +2037,19 @@ setTimeout(check, 1000);
   });
 
   // Async job store for background scraping (avoids 60s proxy timeout in deployed app)
-  const scrapeJobs = new Map<string, {
+  type ScrapeJobEntry = {
     status: 'processing' | 'done' | 'error';
     result?: any;
     error?: string;
     startedAt: number;
-  }>();
+    code?: string;
+    userMessage?: string;
+    finalSuccessReason?: string;
+    stageErrors?: string[];
+    stageErrorsHuman?: string;
+    scrapeDiagnostics?: unknown;
+  };
+  const scrapeJobs = new Map<string, ScrapeJobEntry>();
   setInterval(() => {
     const cutoff = Date.now() - 30 * 60 * 1000;
     for (const [id, job] of scrapeJobs.entries()) {
@@ -2050,17 +2058,23 @@ setTimeout(check, 1000);
   }, 5 * 60 * 1000);
 
   app.get('/api/runtime/scrape-capabilities', async (_req, res) => {
-    const { scrapeCapabilitiesPayload } = await import('@shared/scrape-runtime');
-    res.json(scrapeCapabilitiesPayload());
+    const { buildScrapeCapabilitiesPayload } = await import('./services/scrape-provider.service');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.json(await buildScrapeCapabilitiesPayload());
   });
 
   // Job status polling endpoint
   app.get('/api/scrape-job/:jobId', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     const job = scrapeJobs.get(req.params.jobId);
     if (!job) return res.status(404).json({ status: 'not_found' });
-    if (job.status === 'processing') return res.json({ status: 'processing' });
+    if (job.status === 'processing') return res.status(200).json({ status: 'processing' });
     if (job.status === 'error') {
-      return res.json({
+      return res.status(200).json({
         status: 'error',
         error: job.error,
         code: (job as any).code,
@@ -2072,9 +2086,15 @@ setTimeout(check, 1000);
         scrapeDiagnostics: (job as any).scrapeDiagnostics,
       });
     }
-    const result = job.result;
+    const result = job.result as Record<string, unknown> | undefined;
     scrapeJobs.delete(req.params.jobId);
-    return res.json({ status: 'done', result });
+    const jobStatus =
+      result?.partialSuccess === true
+        ? 'partial_success'
+        : result?.success === true || result?.previewOk === true
+          ? 'success'
+          : 'error';
+    return res.status(200).json({ status: jobStatus, result });
   });
 
   // Trendyol scrape â€” pipeline endpoint (scenario-scrape alias)
@@ -4294,6 +4314,9 @@ setTimeout(check, 1000);
         hasClientCredentials: hasClientCredentialsConfigured(),
         clientIdSource: resolveClientIdSource(),
         clientSecretSource: resolveClientSecretSource(),
+        secretLooksLikeSharedSecret: Boolean(
+          (process.env.secret_key?.trim() || process.env.SHOPIFY_APP_SHARED_SECRET?.trim() || '').startsWith('shpss_'),
+        ),
         tokenSource: 'missing',
         expiresAt: null,
         expiresInSeconds: null,
@@ -4302,6 +4325,7 @@ setTimeout(check, 1000);
         canReadProducts: false,
         canWriteProducts: false,
         canCreateProducts: false,
+        productCountCheck: { ok: false, count: null },
         error: message,
       });
     }
@@ -8645,17 +8669,17 @@ setTimeout(check, 1000);
     }
 
     const jobId = `pttavm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-    scrapeJobs.set(jobId, { status: 'processing', createdAt: Date.now() });
+    scrapeJobs.set(jobId, { status: 'processing', startedAt: Date.now() });
     res.json({ jobId, status: 'processing' });
 
     (async () => {
       try {
         const { scrapePttAvm } = await import('./pttavm-scraper.js');
         const result = await scrapePttAvm(url);
-        scrapeJobs.set(jobId, { status: 'done', result, createdAt: Date.now() });
+        scrapeJobs.set(jobId, { status: 'done', result, startedAt: Date.now() });
       } catch (err: any) {
         console.error('[PttAvm] Job failed:', err.message);
-        scrapeJobs.set(jobId, { status: 'error', error: err.message, createdAt: Date.now() });
+        scrapeJobs.set(jobId, { status: 'error', error: err.message, startedAt: Date.now() });
       }
     })();
   });

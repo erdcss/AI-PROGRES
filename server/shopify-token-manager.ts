@@ -496,6 +496,7 @@ export async function getShopifyHealthResponse(): Promise<{
   hasClientCredentials: boolean;
   clientIdSource: ReturnType<typeof resolveClientIdSource>;
   clientSecretSource: ReturnType<typeof resolveClientSecretSource>;
+  secretLooksLikeSharedSecret: boolean;
   tokenSource: ShopifyTokenSource;
   expiresAt: string | null;
   expiresInSeconds: number | null;
@@ -504,12 +505,20 @@ export async function getShopifyHealthResponse(): Promise<{
   canReadProducts: boolean;
   canWriteProducts: boolean;
   canCreateProducts: boolean;
+  productCountCheck: { ok: boolean; count: number | null; error?: string };
   error?: string;
 }> {
   const shopDomain = envShopDomain();
   const hasClientCredentials = hasClientCredentialsConfigured();
   const clientIdSource = resolveClientIdSource();
   const clientSecretSource = resolveClientSecretSource();
+  const sharedSecretCandidate =
+    process.env.secret_key?.trim() ||
+    process.env.SHOPIFY_APP_SHARED_SECRET?.trim() ||
+    '';
+  const secretLooksLikeSharedSecret =
+    sharedSecretCandidate.startsWith('shpss_') &&
+    !process.env.SHOPIFY_CLIENT_SECRET?.trim();
 
   const baseFailure = {
     shopDomain: shopDomain ? normalizeShopDomain(shopDomain) : '',
@@ -517,6 +526,7 @@ export async function getShopifyHealthResponse(): Promise<{
     hasClientCredentials,
     clientIdSource,
     clientSecretSource,
+    secretLooksLikeSharedSecret,
     tokenSource: 'missing' as ShopifyTokenSource,
     expiresAt: null as string | null,
     expiresInSeconds: null as number | null,
@@ -525,6 +535,7 @@ export async function getShopifyHealthResponse(): Promise<{
     canReadProducts: false,
     canWriteProducts: false,
     canCreateProducts: false,
+    productCountCheck: { ok: false, count: null as number | null },
   };
 
   if (!shopDomain) {
@@ -553,6 +564,32 @@ export async function getShopifyHealthResponse(): Promise<{
           : 'Scope bilgisi alınamadı';
     }
 
+    let productCountCheck: { ok: boolean; count: number | null; error?: string } = {
+      ok: false,
+      count: null,
+    };
+    if (shopOk && scopeInfo.canReadProducts) {
+      try {
+        const { response: countResponse } = await shopifyAdminFetch('/products/count.json');
+        if (countResponse.ok) {
+          const countBody = (await countResponse.json()) as { count?: number };
+          productCountCheck = { ok: true, count: countBody.count ?? 0 };
+        } else {
+          productCountCheck = {
+            ok: false,
+            count: null,
+            error: `HTTP ${countResponse.status}`,
+          };
+        }
+      } catch (countErr: unknown) {
+        productCountCheck = {
+          ok: false,
+          count: null,
+          error: countErr instanceof Error ? countErr.message : 'count fetch failed',
+        };
+      }
+    }
+
     return {
       ok: shopOk && scopeInfo.scopesOk,
       shopDomain: token.shopDomain,
@@ -560,6 +597,7 @@ export async function getShopifyHealthResponse(): Promise<{
       hasClientCredentials,
       clientIdSource,
       clientSecretSource,
+      secretLooksLikeSharedSecret,
       tokenSource: token.source,
       expiresAt: new Date(token.expiresAt).toISOString(),
       expiresInSeconds,
@@ -568,6 +606,7 @@ export async function getShopifyHealthResponse(): Promise<{
       canReadProducts: scopeInfo.canReadProducts,
       canWriteProducts: scopeInfo.canWriteProducts,
       canCreateProducts,
+      productCountCheck,
       error,
     };
   } catch (err: unknown) {

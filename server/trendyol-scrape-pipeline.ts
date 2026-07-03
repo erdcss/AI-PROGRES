@@ -28,21 +28,14 @@ import { mergeApiWithScrape, resolveProductTitle } from "./trendyol-result-norma
 import { scenarioBasedScrape } from "./scenario-based-scraper";
 import { getScrapeEnvironmentPolicy } from "./services/scrape-environment.service";
 
-const STAGE_TIMEOUT_BASE = {
-  api: 10_000,
-  directHtml: 22_000,
-  htmlParse: 4_000,
-  imageFetcher: 18_000,
-  imageFallback: 12_000,
-  scenario: 75_000,
-} as const;
-
 function stageTimeouts(policy = getScrapeEnvironmentPolicy()) {
   return {
-    ...STAGE_TIMEOUT_BASE,
     api: policy.apiTimeoutMs,
     directHtml: policy.directHtmlTimeoutMs,
-    imageFetcher: policy.isCloud ? 22_000 : STAGE_TIMEOUT_BASE.imageFetcher,
+    htmlParse: 4_000,
+    imageFetcher: policy.imageFetcherTimeoutMs,
+    imageFallback: policy.imageFallbackTimeoutMs,
+    scenario: policy.isCloud ? 0 : 75_000,
   };
 }
 
@@ -201,6 +194,21 @@ function finalizeOutcome(
   logScrapeDiagnostics(diagnostics);
 
   if (!quality.jobSuccess) {
+    console.error(
+      "❌ Scrape pipeline provider özeti:",
+      JSON.stringify({
+        stageErrors: diagnostics.stageErrors,
+        apiError: diagnostics.apiError,
+        directHtmlError: diagnostics.directHtmlError,
+        gatewayError: diagnostics.gatewayError,
+        gatewayProviderType: diagnostics.gatewayProviderType,
+        imageFetcherError: diagnostics.imageFetcherError,
+        imageFallbackError: diagnostics.imageFallbackError,
+        scenarioSkippedReason: diagnostics.scenarioSkippedReason,
+        finalSuccessReason: quality.finalSuccessReason,
+        pipelineDurationMs: diagnostics.pipelineDurationMs,
+      }),
+    );
     if (quality.previewOk) {
       return {
         result: {
@@ -309,45 +317,16 @@ export async function runTrendyolScrapePipeline(
     }
   };
 
-  // ── Cloud + Browser Worker: API önce, varyant eksikse worker ──
+  // ── Cloud: sıralı provider zinciri (BW → API → HTML → Local Agent fallback) ──
   const skipInternalSourceAccess = process.env.LOCAL_SCRAPE_AGENT_MODE === "true";
 
-  if (policy.preferBrowserWorker && !skipInternalSourceAccess && !isPastDeadline()) {
-    diagnostics.apiStarted = true;
-    const apiStart = Date.now();
-    console.log("⚡ [1/6] Cloud+BrowserWorker: Trendyol API...");
+  if (policy.isCloud && !skipInternalSourceAccess && !isPastDeadline()) {
+    const providers = policy.selectedProviders;
+    console.log(`⚡ [cloud] Provider zinciri: ${providers.join(" → ")}`);
 
-    try {
-      apiProduct = await withStageTimeout(
-        () => fetchTrendyolProductByUrl(url),
-        Math.min(policy.apiTimeoutMs, remainingMs()),
-        "api-timeout",
-      );
-      diagnostics.apiDurationMs = Date.now() - apiStart;
-      if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
-        result = convertApiProduct(apiProduct);
-        diagnostics.apiSuccess = true;
-        console.log(`✅ [1/6] Trendyol API (${diagnostics.apiDurationMs}ms)`);
-      } else {
-        diagnostics.apiSuccess = false;
-        diagnostics.apiError = apiProduct ? "api-empty-payload" : "api-null-response";
-      }
-    } catch (err) {
-      diagnostics.apiDurationMs = Date.now() - apiStart;
-      const code: ScrapeStageErrorCode =
-        err instanceof ScrapeStageTimeoutError ? err.code : "api-error";
-      pushStageError(diagnostics, code);
-      diagnostics.apiError = code;
-      diagnostics.apiSuccess = false;
-    }
-
-    const variantGaps = assessTrendyolVariantGaps(url, result);
-    const needsBrowser =
-      !diagnostics.apiSuccess || variantGaps.likelyIncomplete || !hasRealTrendyolVariants(result?.variants);
-
-    if (needsBrowser && !isPastDeadline()) {
+    if (providers.includes("browser_worker") && policy.preferBrowserWorker) {
       diagnostics.gatewayStarted = true;
-      console.log("⚡ [BW] Varyant/HTML eksik — Browser Worker devreye giriyor...");
+      console.log("⚡ [1] Browser Worker (primary)...");
       try {
         const { scrapeTrendyolWithBrowserWorker } = await import(
           "./services/browser-worker-client.service"
@@ -368,7 +347,7 @@ export async function runTrendyolScrapePipeline(
               : ({ rawProduct: bw.rawProductJson } as typeof apiProduct);
           }
           console.log(
-            `✅ Browser Worker başarılı (${bw.durationMs}ms): HTML ${bw.html.length} bytes`,
+            `✅ Browser Worker (${bw.durationMs}ms): HTML ${bw.html.length} bytes`,
           );
         } else {
           diagnostics.browserWorkerSucceeded = false;
@@ -376,7 +355,7 @@ export async function runTrendyolScrapePipeline(
           diagnostics.gatewayError = errCode;
           pushStageError(diagnostics, errCode);
           console.warn(
-            `⚠️ Browser Worker başarısız [${bw.errorCategory ?? "unknown"}]: ${bw.error ?? errCode}`,
+            `⚠️ Browser Worker [${bw.errorCategory ?? "unknown"}]: ${bw.error ?? errCode}`,
           );
         }
       } catch (err) {
@@ -387,96 +366,103 @@ export async function runTrendyolScrapePipeline(
         diagnostics.gatewayError = code;
         console.warn(`⚠️ Browser Worker soft-fail (${code})`);
       }
-    } else if (!needsBrowser) {
-      diagnostics.browserWorkerSucceeded = true;
-      console.log("✅ [BW] API yanıtı yeterli — Browser Worker atlandı");
     }
 
-    diagnostics.directHtmlSkippedReason = "cloud-browser-worker-mode";
-  } else if (policy.preferLocalAgent && !skipInternalSourceAccess && !isPastDeadline()) {
-    diagnostics.apiStarted = true;
-    diagnostics.gatewayStarted = true;
-    const parallelStart = Date.now();
-    console.log("⚡ [1/6] Cloud+Agent: Trendyol API + Local Scrape Agent (paralel)...");
+    const needsCoreData = () => !isCompleteScrapeData(evaluateFields(result, url));
 
-    const [apiSettled, agentSettled] = await Promise.allSettled([
-      withStageTimeout(
-        () => fetchTrendyolProductByUrl(url),
-        Math.min(policy.apiTimeoutMs, remainingMs()),
-        "api-timeout",
-      ),
-      withStageTimeout(
-        async () => {
-          const { callLocalScrapeAgent } = await import("./services/local-agent-client.service");
-          return callLocalScrapeAgent(url);
-        },
-        Math.min(policy.sourceAccessTimeoutMs, remainingMs()),
-        "direct-html-timeout",
-      ),
-    ]);
-
-    diagnostics.apiDurationMs = Date.now() - parallelStart;
-
-    if (apiSettled.status === "fulfilled") {
-      apiProduct = apiSettled.value;
-      if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
-        result = convertApiProduct(apiProduct);
-        diagnostics.apiSuccess = true;
-        console.log(`✅ [1/6] Trendyol API (${diagnostics.apiDurationMs}ms)`);
-      } else {
-        diagnostics.apiSuccess = false;
-        diagnostics.apiError = apiProduct ? "api-empty-payload" : "api-null-response";
-      }
-    } else {
-      const err = apiSettled.reason;
-      const code: ScrapeStageErrorCode =
-        err instanceof ScrapeStageTimeoutError ? err.code : "api-error";
-      pushStageError(diagnostics, code);
-      diagnostics.apiError = code;
-    }
-
-    if (agentSettled.status === "fulfilled" && agentSettled.value.agentSuccess) {
-      const access = agentSettled.value;
-      diagnostics.gatewayDurationMs = access.durationMs;
-      diagnostics.localAgentSucceeded = true;
-      applyAgentAccessToResult(result, url, access, diagnostics);
-      console.log(
-        `✅ Local Agent başarılı (${access.durationMs}ms): "${result.title}" — ${result.price?.original} TL, ${access.images.length} görsel`,
-      );
-
-      const fields = evaluateFields(result, url);
-      if (isCompleteScrapeData(fields)) {
-        return finalizeTrendyolPipelineWithVariants(
-          url,
-          result,
-          diagnostics,
-          pipelineStart,
-          forcedGlobalTimeout,
-          {
-            html: access.html || directHtml,
-            rawProduct: apiProduct?.rawProduct ?? null,
-          },
+    if (needsCoreData() && !isPastDeadline()) {
+      diagnostics.apiStarted = true;
+      const apiStart = Date.now();
+      console.log("⚡ [2] Trendyol API...");
+      try {
+        apiProduct = await withStageTimeout(
+          () => fetchTrendyolProductByUrl(url),
+          Math.min(policy.apiTimeoutMs, remainingMs()),
+          "api-timeout",
         );
+        diagnostics.apiDurationMs = Date.now() - apiStart;
+        if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
+          result = convertApiProduct(apiProduct);
+          diagnostics.apiSuccess = true;
+          console.log(`✅ Trendyol API (${diagnostics.apiDurationMs}ms)`);
+        } else {
+          diagnostics.apiSuccess = false;
+          diagnostics.apiError = apiProduct ? "api-empty-payload" : "api-null-response";
+          console.warn(`⚠️ Trendyol API boş: ${diagnostics.apiError}`);
+        }
+      } catch (err) {
+        diagnostics.apiDurationMs = Date.now() - apiStart;
+        const code: ScrapeStageErrorCode =
+          err instanceof ScrapeStageTimeoutError ? err.code : "api-error";
+        pushStageError(diagnostics, code);
+        diagnostics.apiError = code;
+        diagnostics.apiSuccess = false;
       }
-    } else if (agentSettled.status === "fulfilled") {
-      const access = agentSettled.value;
-      diagnostics.gatewayDurationMs = access.durationMs;
-      diagnostics.localAgentSucceeded = false;
-      const errCode = (access.stageError ?? "local-agent-failed") as ScrapeStageErrorCode;
-      diagnostics.gatewayError = errCode;
-      pushStageError(diagnostics, errCode);
-      const category = access.errorCategory ?? "unknown";
-      console.warn(
-        `⚠️ Local Agent başarısız [${category}]: ${access.error ?? errCode}`,
-      );
-    } else {
-      diagnostics.localAgentSucceeded = false;
-      pushStageError(diagnostics, "local-agent-failed");
-      diagnostics.gatewayError = "local-agent-failed";
-      console.warn("⚠️ Local Agent başarısız: istek tamamlanamadı");
     }
 
-    diagnostics.directHtmlSkippedReason = "cloud-agent-mode";
+    if (needsCoreData() && !directHtml && !isPastDeadline()) {
+      diagnostics.directHtmlStarted = true;
+      console.log("⚡ [3] Direct HTML...");
+      try {
+        const { fetchTrendyolDirectHtmlRaw } = await import("./trendyol-direct-html");
+        const directRaw = await withStageTimeout(
+          () => fetchTrendyolDirectHtmlRaw(url, policy.directHtmlRetries),
+          Math.min(policy.directHtmlTimeoutMs, remainingMs()),
+          "direct-html-timeout",
+        );
+        directHtml = directRaw?.html ?? null;
+        diagnostics.directHtmlSuccess = Boolean(directHtml && directHtml.length > 5000);
+        if (diagnostics.directHtmlSuccess) {
+          console.log(`✅ Direct HTML: ${directHtml!.length} bytes`);
+        } else {
+          pushStageError(diagnostics, "direct-html-error");
+          diagnostics.directHtmlError = "direct-html-error";
+        }
+      } catch (err) {
+        const code: ScrapeStageErrorCode =
+          err instanceof ScrapeStageTimeoutError ? err.code : "direct-html-error";
+        pushStageError(diagnostics, code);
+        diagnostics.directHtmlError = code;
+        console.warn(`⚠️ Direct HTML soft-fail (${code})`);
+      }
+    }
+
+    if (
+      needsCoreData() &&
+      policy.localAgentHealthy &&
+      providers.includes("local_agent") &&
+      !isPastDeadline()
+    ) {
+      diagnostics.gatewayStarted = true;
+      console.log("⚡ [4] Local Agent (son fallback)...");
+      try {
+        const { callLocalScrapeAgent } = await import("./services/local-agent-client.service");
+        const access = await withStageTimeout(
+          () => callLocalScrapeAgent(url),
+          Math.min(policy.localAgentTimeoutMs, remainingMs()),
+          "direct-html-timeout",
+        );
+        diagnostics.gatewayDurationMs = access.durationMs;
+        if (access.agentSuccess) {
+          diagnostics.localAgentSucceeded = true;
+          applyAgentAccessToResult(result, url, access, diagnostics);
+          console.log(`✅ Local Agent fallback (${access.durationMs}ms)`);
+        } else {
+          diagnostics.localAgentSucceeded = false;
+          const errCode = (access.stageError ?? "local-agent-failed") as ScrapeStageErrorCode;
+          diagnostics.gatewayError = errCode;
+          pushStageError(diagnostics, errCode);
+          console.warn(`⚠️ Local Agent fallback başarısız: ${access.error ?? errCode}`);
+        }
+      } catch (err) {
+        diagnostics.localAgentSucceeded = false;
+        pushStageError(diagnostics, "local-agent-failed");
+        diagnostics.gatewayError = "local-agent-failed";
+        console.warn("⚠️ Local Agent fallback timeout/hata");
+      }
+    }
+
+    diagnostics.directHtmlSkippedReason = "cloud-provider-chain";
   } else if (!isPastDeadline()) {
     diagnostics.apiStarted = true;
     diagnostics.directHtmlStarted = true;
@@ -554,6 +540,7 @@ export async function runTrendyolScrapePipeline(
 
   if (
     !skipInternalSourceAccess &&
+    !policy.isCloud &&
     !policy.preferLocalAgent &&
     !policy.preferBrowserWorker &&
     !htmlReadyBeforeGateway &&
@@ -694,7 +681,18 @@ export async function runTrendyolScrapePipeline(
 
   // ── 4) fetchTrendyolProductImages ──
   const hasImagesBeforeFetch = filterValidProductImages(result?.images || []).length > 0;
-  if (!skipHeavyStages && !hasImagesBeforeFetch && !isPastDeadline() && !forcedGlobalTimeout) {
+  const skipImageStagesForCloud =
+    policy.isCloud &&
+    (hasImagesBeforeFetch ||
+      (evaluateFields(result, url).hasTitle && evaluateFields(result, url).hasPrice));
+
+  if (
+    !skipHeavyStages &&
+    !skipImageStagesForCloud &&
+    !hasImagesBeforeFetch &&
+    !isPastDeadline() &&
+    !forcedGlobalTimeout
+  ) {
     diagnostics.imageFetcherStarted = true;
     console.log("⚡ [4/6] fetchTrendyolProductImages...");
     try {
@@ -716,15 +714,21 @@ export async function runTrendyolScrapePipeline(
       diagnostics.imageFetcherError = code;
       console.warn(`⚠️ [4/6] Image fetch soft-fail (${code})`);
     }
-  } else if (hasImagesBeforeFetch) {
-    console.log("⚡ [4/6] Görseller mevcut — image fetch atlandı");
+  } else if (hasImagesBeforeFetch || skipImageStagesForCloud) {
+    console.log("⚡ [4/6] Görseller mevcut veya cloud URL modu — image fetch atlandı");
   }
 
   if (isPastDeadline()) forcedGlobalTimeout = true;
 
   // ── 5) Alternatif görsel fallback ──
   const stillNoImages = filterValidProductImages(result?.images || []).length === 0;
-  if (!skipHeavyStages && stillNoImages && !isPastDeadline() && !forcedGlobalTimeout) {
+  if (
+    !skipHeavyStages &&
+    !skipImageStagesForCloud &&
+    stillNoImages &&
+    !isPastDeadline() &&
+    !forcedGlobalTimeout
+  ) {
     diagnostics.imageFallbackStarted = true;
     console.log("⚡ [5/6] Alternatif görsel fallback...");
     try {
@@ -790,7 +794,9 @@ export async function runTrendyolScrapePipeline(
         : "sufficient-data";
   } else if (!puppeteerAllowed()) {
     diagnostics.scenarioSkippedReason = "puppeteer-disabled-in-cloud";
-    pushStageError(diagnostics, "puppeteer-disabled-in-cloud");
+    if (!hasMinimumScrapeData(fieldsBeforeScenario)) {
+      pushStageError(diagnostics, "puppeteer-disabled-in-cloud");
+    }
     console.info("ℹ️ [6/6] Scenario atlandı (cloud): puppeteer-disabled-in-cloud");
   } else if (
     modes.effective === "auto-fast" &&

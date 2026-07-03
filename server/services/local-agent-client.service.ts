@@ -4,6 +4,7 @@ import { getInternalSourceAccessSecrets } from "../config/source-access.config";
 import { filterValidProductImages } from "../trendyol-image-utils";
 import { parseSourcePrice, validateTrackingSourceData } from "@shared/scrape-validity";
 import type { GatewayFetchResult } from "./scrape-gateway.service";
+import { isEphemeralTunnelEndpoint } from "./scrape-provider.service";
 
 export type LocalAgentApiResponse = {
   success: boolean;
@@ -51,7 +52,17 @@ export type LocalAgentHealthStatus = {
 };
 
 const LOCAL_AGENT_TIMEOUT_MS = 65_000;
+const LOCAL_AGENT_CLOUD_TIMEOUT_MS = 3_000;
 const LOCAL_AGENT_HEALTH_TIMEOUT_MS = 8_000;
+const LOCAL_AGENT_CLOUD_HEALTH_TIMEOUT_MS = 2_000;
+
+function getLocalAgentScrapeTimeoutMs(): number {
+  return isCloudRuntime() ? LOCAL_AGENT_CLOUD_TIMEOUT_MS : LOCAL_AGENT_TIMEOUT_MS;
+}
+
+function getLocalAgentHealthTimeoutMs(): number {
+  return isCloudRuntime() ? LOCAL_AGENT_CLOUD_HEALTH_TIMEOUT_MS : LOCAL_AGENT_HEALTH_TIMEOUT_MS;
+}
 
 function getAgentConfig() {
   const secrets = getInternalSourceAccessSecrets();
@@ -193,7 +204,7 @@ export async function getLocalAgentHealthStatus(): Promise<LocalAgentHealthStatu
   const start = Date.now();
   try {
     const res = await axios.get(`${base}/health`, {
-      timeout: LOCAL_AGENT_HEALTH_TIMEOUT_MS,
+      timeout: getLocalAgentHealthTimeoutMs(),
       validateStatus: () => true,
     });
     const latencyMs = Date.now() - start;
@@ -262,6 +273,23 @@ export async function callLocalScrapeAgent(url: string): Promise<
   const { endpoint, token, configured, endpointConfigured, tokenConfigured } = getAgentConfig();
   const endpointHost = extractSafeEndpointHost(endpoint);
 
+  if (isCloudRuntime() && isEphemeralTunnelEndpoint(endpoint)) {
+    logLocalAgent("request skipped: ephemeral tunnel endpoint in cloud");
+    return {
+      html: null,
+      images: [],
+      providerType: "local_agent",
+      htmlSuccess: false,
+      imageSuccess: false,
+      agentSuccess: false,
+      stageError: "local-agent-failed",
+      error: "local-agent-ephemeral-endpoint",
+      reason: "local-agent-failed",
+      errorCategory: "dns",
+      durationMs: Date.now() - start,
+    };
+  }
+
   logLocalAgent(`endpoint configured: ${endpointConfigured ? "yes" : "no"}`);
   logLocalAgent(`endpoint host: ${endpointHost ?? "(yok)"}`);
   logLocalAgent(`token configured: ${tokenConfigured ? "yes" : "no"}`);
@@ -293,7 +321,7 @@ export async function callLocalScrapeAgent(url: string): Promise<
       scrapeUrl,
       { url },
       {
-        timeout: LOCAL_AGENT_TIMEOUT_MS,
+        timeout: getLocalAgentScrapeTimeoutMs(),
         headers: {
           "Content-Type": "application/json",
           "x-agent-token": token,

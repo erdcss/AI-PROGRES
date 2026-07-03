@@ -732,7 +732,10 @@ app.use(pendingChangesRoutes);
     setTimeout(async () => {
       try {
         const { logScrapeEnvironmentPolicy } = await import('./services/scrape-environment.service');
+        const { initScrapeProviders, logScrapeProviderStartup } = await import('./services/scrape-provider.service');
         const { seedInternalSourceAccessFromEnv } = await import('./services/source-access-manager.service');
+        const providerSnap = await initScrapeProviders();
+        logScrapeProviderStartup(providerSnap);
         logScrapeEnvironmentPolicy();
         await seedInternalSourceAccessFromEnv().catch(() => undefined);
         const { bootstrapProductTrackingV2 } = await import('./services/tracking.bootstrap');

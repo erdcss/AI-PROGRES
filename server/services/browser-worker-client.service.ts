@@ -53,11 +53,16 @@ const BROWSER_WORKER_TIMEOUT_MS = 45_000;
 const BROWSER_WORKER_HEALTH_TIMEOUT_MS = 10_000;
 
 function getBrowserWorkerConfig() {
-  const endpoint = process.env.BROWSER_WORKER_ENDPOINT?.trim() || null;
+  const endpoint =
+    process.env.BROWSER_WORKER_URL?.trim() ||
+    process.env.BROWSER_WORKER_ENDPOINT?.trim() ||
+    null;
   const token = process.env.BROWSER_WORKER_TOKEN?.trim() || null;
+  const timeoutMs = Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || BROWSER_WORKER_TIMEOUT_MS;
   return {
     endpoint,
     token,
+    timeoutMs,
     endpointConfigured: Boolean(endpoint),
     tokenConfigured: Boolean(token),
     configured: Boolean(endpoint && token),
@@ -142,7 +147,7 @@ export async function getBrowserWorkerHealthStatus(): Promise<BrowserWorkerHealt
       reachable: false,
       browserReady: false,
       latencyMs: null,
-      error: "BROWSER_WORKER_ENDPOINT ve BROWSER_WORKER_TOKEN tanımlı değil.",
+      error: "BROWSER_WORKER_URL/BROWSER_WORKER_ENDPOINT ve BROWSER_WORKER_TOKEN tanımlı değil.",
       errorCategory: "not-configured",
     };
   }
@@ -231,7 +236,8 @@ export async function getBrowserWorkerHealthStatus(): Promise<BrowserWorkerHealt
 
 export async function fetchHtmlWithBrowserWorker(url: string): Promise<BrowserWorkerScrapeResult> {
   const start = Date.now();
-  const { endpoint, token, configured, endpointConfigured, tokenConfigured } = getBrowserWorkerConfig();
+  const { endpoint, token, configured, endpointConfigured, tokenConfigured, timeoutMs } =
+    getBrowserWorkerConfig();
   const endpointHost = extractSafeBrowserWorkerHost(endpoint);
 
   logBrowserWorker(`endpoint configured: ${endpointConfigured ? "yes" : "no"}`);
@@ -262,7 +268,7 @@ export async function fetchHtmlWithBrowserWorker(url: string): Promise<BrowserWo
       `${base}/scrape/html`,
       { url },
       {
-        timeout: BROWSER_WORKER_TIMEOUT_MS,
+        timeout: timeoutMs,
         headers: authHeaders(token),
         validateStatus: () => true,
       },
@@ -333,7 +339,8 @@ export async function fetchHtmlWithBrowserWorker(url: string): Promise<BrowserWo
 
 export async function scrapeTrendyolWithBrowserWorker(url: string): Promise<BrowserWorkerScrapeResult> {
   const start = Date.now();
-  const { endpoint, token, configured, endpointConfigured, tokenConfigured } = getBrowserWorkerConfig();
+  const { endpoint, token, configured, endpointConfigured, tokenConfigured, timeoutMs } =
+    getBrowserWorkerConfig();
   const endpointHost = extractSafeBrowserWorkerHost(endpoint);
 
   logBrowserWorker(`endpoint configured: ${endpointConfigured ? "yes" : "no"}`);
@@ -364,7 +371,7 @@ export async function scrapeTrendyolWithBrowserWorker(url: string): Promise<Brow
       `${base}/scrape/trendyol`,
       { url },
       {
-        timeout: BROWSER_WORKER_TIMEOUT_MS,
+        timeout: timeoutMs,
         headers: authHeaders(token),
         validateStatus: () => true,
       },

@@ -26,6 +26,7 @@ import { addRecentUrl, clearRecentUrls } from "@/lib/url-history-client";
 import { fetchShopifyCsvStatus } from "@/lib/shopify-csv-download";
 import { clearScraperUiStorage } from "@/lib/scraper-state-persist";
 import { resolvePreviewImageUrl, resolvePreviewImageUrls, resolvePreviewProxyUrl } from "@/lib/product-image-url";
+import { fetchScrapeCapabilities, type ScrapeCapabilities } from "@/lib/scrape-capabilities";
 import { resolveProductPreview } from "@/lib/product-preview-resolver";
 import {
   buildIngestFingerprint,
@@ -201,6 +202,7 @@ function ScraperPage() {
   } | null>(null);
   const [scrapedOriginalTitle, setScrapedOriginalTitle] = useState<string | null>(null);
   const [titleApproved, setTitleApproved] = useState(false);
+  const [runtimeCapabilities, setRuntimeCapabilities] = useState<ScrapeCapabilities | null>(null);
   const isMobile = useIsMobile();
   const urlQueueRef = useRef<UrlQueueItem[]>([]);
   const lastUrlIngestRef = useRef<{ fingerprint: string; at: number } | null>(null);
@@ -223,6 +225,7 @@ function ScraperPage() {
   useEffect(() => {
     clearScraperUiStorage();
     clearRecentUrls();
+    fetchScrapeCapabilities(true).then(setRuntimeCapabilities).catch(() => undefined);
   }, []);
 
 
@@ -2169,6 +2172,27 @@ function ScraperPage() {
 
         </div>
 
+        {/* Runtime scrape capabilities */}
+        {runtimeCapabilities?.isCloudRuntime && (
+          <div className="mb-4">
+            <Card className={`border ${runtimeCapabilities.fatal ? "border-red-500/60 bg-red-950/30" : "border-slate-700/50 bg-slate-900/70"}`}>
+              <CardContent className="p-3 text-sm space-y-1">
+                {runtimeCapabilities.fatal ? (
+                  <p className="text-red-300 font-medium">
+                    Canlı ortamda ürün çekme için Browser Worker yapılandırılmamış. Railway env ayarlarını kontrol edin (BROWSER_WORKER_URL, BROWSER_WORKER_TOKEN).
+                  </p>
+                ) : null}
+                <p className="text-slate-300">
+                  Provider: {(runtimeCapabilities.selectedProviders || []).join(" → ") || "—"}
+                </p>
+                {runtimeCapabilities.warnings?.map((w) => (
+                  <p key={w} className="text-amber-300 text-xs">{w}</p>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Workflow / error status — never blank */}
         {(singleScrapeMutation.isPending || workflowStep || scrapeError || lastShopifyResult) && (
           <div className="mt-6">
@@ -2221,6 +2245,21 @@ function ScraperPage() {
         {/* CSV Drawer Preview - Tüm CSV'ler */}
         {(csvPreviews.length > 0 || (product && hasCsvPreviewData(product))) && (
           <div className="mt-8 space-y-4">
+            {product?.partialSuccess && (
+              <Card className="border-amber-500/50 bg-amber-950/20">
+                <CardContent className="p-3 text-sm text-amber-200">
+                  Kısmi başarı — eksik alanlar olabilir
+                  {!product.images?.length ? " (görsel eksik)" : ""}
+                  {typeof product.price === "object"
+                    ? !product.price?.original
+                      ? " (fiyat eksik)"
+                      : ""
+                    : typeof product.price !== "number" || product.price <= 0
+                      ? " (fiyat eksik)"
+                      : ""}
+                </CardContent>
+              </Card>
+            )}
             {scrapeSourceWarning && (
               <LocalAgentWarningAlert warningCode={scrapeSourceWarning} detail={localAgentWarningDetail ?? undefined} />
             )}

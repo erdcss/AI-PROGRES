@@ -97,6 +97,14 @@ function extractImages(data: any): string[] {
   return normalizeTrendyolImages(combined);
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function readString(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+}
+
 function parseProductPayload(data: any, url: string): TrendyolApiProduct | null {
   const root = unwrapTrendyolApiProductRoot(data);
   if (!root) return null;
@@ -118,10 +126,15 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
     return null;
   }
 
+  const brandObj = asRecord(root.brand);
+  const categoryObj = asRecord(root.category);
+
   const brand =
-    String(root.brand?.name || root.brandName || root.brand || '').trim() ||
+    readString(brandObj.name) ||
+    readString(root.brandName) ||
+    readString(root.brand) ||
     brandFromTrendyolUrl(url) ||
-    'Marka';
+    "Marka";
 
   // Fiyat endpoint'i sadece fiyat dönebilir
   if (original <= 0 && images.length === 0 && !root.name && !root.title) {
@@ -144,7 +157,10 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
     },
     images: filterValidProductImages(images),
     description: String(root.description || root.content || '').trim(),
-    category: String(root.category?.name || root.categoryName || root.category || '').trim(),
+    category:
+      readString(categoryObj.name) ||
+      readString(root.categoryName) ||
+      readString(root.category),
     variants: resolvedVariants,
     rawProduct: root,
   };
@@ -231,19 +247,52 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
   const results = await Promise.allSettled(
     endpoints.map((endpoint) =>
       axios.get(endpoint, {
-        timeout: 10000,
+        timeout: 8_000,
         headers,
         validateStatus: (s) => s < 500,
       })
     )
   );
 
-  for (const result of results) {
-    if (result.status !== 'fulfilled') continue;
-    const status = result.value.status;
-    if (status === 403 || status === 429 || status >= 500) continue;
+  const debugSamples: Array<{
+    endpoint: string;
+    status: number;
+    contentType: string;
+    bodyPreview: string;
+  }> = [];
 
-    const parsed = parseProductPayload(result.value.data, url);
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const endpoint = endpoints[i];
+    if (result.status !== 'fulfilled') {
+      debugSamples.push({
+        endpoint,
+        status: 0,
+        contentType: 'network-error',
+        bodyPreview: String((result.reason as Error)?.message ?? result.reason).slice(0, 500),
+      });
+      continue;
+    }
+    const status = result.value.status;
+    const contentType = String(result.value.headers?.['content-type'] ?? 'unknown');
+    const bodyPreview =
+      typeof result.value.data === 'string'
+        ? result.value.data.slice(0, 500)
+        : JSON.stringify(result.value.data ?? {}).slice(0, 500);
+
+    if (status === 403 || status === 429 || status >= 500) {
+      debugSamples.push({ endpoint, status, contentType, bodyPreview });
+      continue;
+    }
+
+    let parsed: TrendyolApiProduct | null = null;
+    try {
+      parsed = parseProductPayload(result.value.data, url);
+    } catch {
+      debugSamples.push({ endpoint, status, contentType, bodyPreview });
+      continue;
+    }
+
     if (parsed) {
       parsedList.push(parsed);
       if (!bestPartial || parsed.price.original > bestPartial.price.original) {
@@ -252,12 +301,22 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
     } else if (slugTitle && bestPartial && bestPartial.price.original <= 0) {
       const priceOnly = parsePriceOnlyPayload(result.value.data, url, bestPartial);
       if (priceOnly) bestPartial = priceOnly;
+    } else if (!parsed && (status === 200 || status === 204)) {
+      debugSamples.push({ endpoint, status, contentType, bodyPreview });
     }
   }
 
   if (parsedList.length === 0) {
     if (bestPartial && (bestPartial.price.original > 0 || bestPartial.images.length > 0)) {
       return bestPartial;
+    }
+    if (debugSamples.length > 0) {
+      console.warn('[Trendyol API] api-null-response debug:', {
+        productId,
+        boutiqueId: new URL(url).searchParams.get('boutiqueId'),
+        merchantId: new URL(url).searchParams.get('merchantId'),
+        samples: debugSamples.slice(0, 4),
+      });
     }
     return null;
   }
