@@ -8,16 +8,20 @@ import { ensureScrapeGatewaySettings } from "./scrape-gateway-settings.service";
 import { seedInternalSourceAccessFromEnv } from "./source-access-manager.service";
 import { startTrackingScheduler, releaseStaleCheckLocks } from "./tracking.scheduler";
 import { trackingService } from "./tracking.service";
+import { runControlCenterMigration } from "../migrations/run-control-center-migration";
+import { resumePendingImportJobs } from "./import-job-runner.service";
 
 /** Ürün Takip v2 — tek resmi başlatma noktası */
 export async function bootstrapProductTrackingV2(): Promise<void> {
   const migrationOk = await runProductTrackingMigration(true);
+  const controlCenterOk = await runControlCenterMigration(true);
   const status = await refreshProductTrackingTableStatus();
 
   if (!migrationOk || !status.allTablesReady) {
     console.error("❌ Product Tracking v2 bootstrap: migration tamamlanamadı", {
       tables: status.tables,
       error: status.error,
+      controlCenterOk,
     });
     logProductTrackingV2Startup({
       safeSchedulerRunning: false,
@@ -40,6 +44,10 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
     }
 
     startTrackingScheduler();
+
+    if (controlCenterOk) {
+      void resumePendingImportJobs();
+    }
 
     const settings = await ensureTrackingSettings();
     logProductTrackingV2Startup({

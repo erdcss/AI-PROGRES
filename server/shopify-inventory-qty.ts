@@ -30,7 +30,7 @@ export function parseLastFewStock(productStockText?: string | null): number | nu
   return null;
 }
 
-/** Merkezi stok miktarı çözümleyici — `|| 1` fallback kullanılmaz */
+/** Merkezi stok miktarı çözümleyici — Shopify export için */
 export function resolveInventoryQty(
   variant: InventoryQtyVariantInput,
   productStockText?: string | null,
@@ -54,4 +54,61 @@ export function resolveInventoryQty(
   }
 
   return 0;
+}
+
+/** Canonical model — gerçek miktar yalnız doğrulanmışsa sayı döner */
+export function resolveCanonicalStock(variant: InventoryQtyVariantInput): {
+  stockQuantity: number | null;
+  available: boolean | null;
+  stockSource: "exact" | "availability_only" | "unknown";
+  stockConfidence: number;
+  stockQuantityVerified: boolean;
+} {
+  if (typeof variant.sourceStockQty === "number" && variant.sourceStockQty > 0) {
+    return {
+      stockQuantity: variant.sourceStockQty,
+      available: true,
+      stockSource: "exact",
+      stockConfidence: 95,
+      stockQuantityVerified: true,
+    };
+  }
+
+  if (typeof variant.stockCount === "number" && variant.stockCount > 0) {
+    return {
+      stockQuantity: variant.stockCount,
+      available: true,
+      stockSource: "exact",
+      stockConfidence: 90,
+      stockQuantityVerified: true,
+    };
+  }
+
+  if (variant.inStock === true) {
+    return {
+      stockQuantity: null,
+      available: true,
+      stockSource: "availability_only",
+      stockConfidence: 55,
+      stockQuantityVerified: false,
+    };
+  }
+
+  if (variant.inStock === false) {
+    return {
+      stockQuantity: 0,
+      available: false,
+      stockSource: "availability_only",
+      stockConfidence: 80,
+      stockQuantityVerified: false,
+    };
+  }
+
+  return {
+    stockQuantity: null,
+    available: null,
+    stockSource: "unknown",
+    stockConfidence: 0,
+    stockQuantityVerified: false,
+  };
 }

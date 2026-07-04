@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { getSessionBrowserFingerprint } from './browser-fingerprint';
 
 export interface StealthResult {
   success: boolean;
@@ -62,8 +63,16 @@ export class AdvancedStealthScraper {
   }
 
   private rotateFingerprint() {
-    this.currentFingerprint = STEALTH_FINGERPRINTS[Math.floor(Math.random() * STEALTH_FINGERPRINTS.length)];
-    console.log(`🎭 Fingerprint rotated to: ${this.currentFingerprint.secChUaPlatform}`);
+    const fp = getSessionBrowserFingerprint();
+    this.currentFingerprint = {
+      userAgent: fp.userAgent,
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      acceptLanguage: 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+      secChUa: '"Not A(Brand";v="99", "Google Chrome";v="131", "Chromium";v="131"',
+      secChUaPlatform: fp.secChUaPlatform,
+      viewport: `${fp.viewport.width}x${fp.viewport.height}`,
+    };
+    console.log(`🎭 Fingerprint session: ${fp.platform}`);
   }
 
   private getStealthHeaders(referer?: string) {

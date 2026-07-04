@@ -6,6 +6,8 @@ import { isConfirmedClothingProduct } from "@shared/clothing-keywords";
 import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
 import { VALID_SIZE_LABEL } from "./variant-shape-normalizer";
 import { resolveTrendyolSourceIds } from "./shopify-source-key";
+import { isValidTrendyolProductTitle } from "./trendyol-title-utils";
+import { filterValidProductImages } from "./trendyol-image-utils";
 
 export const APPAREL_TEXT_REGEX =
   /elbise|tişört|t-shirt|pantolon|etek|gömlek|ceket|ayakkabı|sneaker|bluz|kazak|mont|şort|body|takım/i;
@@ -329,11 +331,12 @@ export async function runTrendyolDomSizeProbe(url: string): Promise<DomSizeProbe
     const StealthPlugin = (await import("puppeteer-extra-plugin-stealth")).default;
     puppeteerExtra.use(StealthPlugin());
     const { buildLaunchOptions } = await import("./puppeteer-config");
+    const { getSessionBrowserFingerprint } = await import("./browser-fingerprint");
     browser = await puppeteerExtra.launch(buildLaunchOptions({ headless: true }));
     const page = await browser.newPage();
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    );
+    const fp = getSessionBrowserFingerprint();
+    await page.setUserAgent(fp.userAgent);
+    await page.setViewport(fp.viewport);
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
     const probe = await probeTrendyolDomSizes(page);
     const html = await page.content();
@@ -406,6 +409,27 @@ export async function applyFullVariantScrapeToResult(
 
   result.fullVariantScrapeAttempted = true;
   const domProbe = await runTrendyolDomSizeProbe(url);
+
+  if (domProbe.html && domProbe.html.length > 5000) {
+    const { parseTrendyolCoreFromHtml, mergeTrendyolHtmlCoreIntoResult } = await import(
+      "./trendyol-puppeteer-html-merge"
+    );
+    const fields = {
+      hasTitle: Boolean(result.title && isValidTrendyolProductTitle(String(result.title))),
+      hasPrice: Boolean(
+        (result.price as { original?: number } | undefined)?.original &&
+          (result.price as { original: number }).original > 0,
+      ),
+      hasImages: filterValidProductImages((result.images as string[]) || []).length > 0,
+    };
+    if (!fields.hasTitle || !fields.hasPrice || !fields.hasImages) {
+      const parsed = parseTrendyolCoreFromHtml(domProbe.html, url, "dom-probe-html");
+      if (parsed) {
+        mergeTrendyolHtmlCoreIntoResult(result, parsed, url);
+        console.log(`✅ DOM probe core backfill: title=${Boolean(result.title)} price=${(result.price as any)?.original || 0}`);
+      }
+    }
+  }
 
   logVariantSourceProbe({
     puppeteerStarted: domProbe.started,

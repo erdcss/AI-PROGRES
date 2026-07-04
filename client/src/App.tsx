@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ScraperPage from "@/pages/scraper";
@@ -37,6 +37,7 @@ import ProductPreview from "@/pages/product-preview";
 import TelegramNotifications from "@/pages/TelegramNotifications";
 import ProductTrackingPage from "@/pages/ProductTrackingPage";
 import UrunTakipPage from "@/pages/urun-takip";
+import ControlCenterPage from "@/pages/control-center";
 import TelegramManagementPage from "@/pages/TelegramManagementPage";
 import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
@@ -348,10 +349,13 @@ function Router() {
           <MemoryTrackingPage />
         </PageTransition>
       </Route>
-      <Route path="/tracking-dashboard">
+      <Route path="/control-center">
         <PageTransition>
-          <TrackingDashboard />
+          <ControlCenterPage />
         </PageTransition>
+      </Route>
+      <Route path="/tracking-dashboard">
+        <Redirect to="/control-center?tab=tracking" />
       </Route>
       <Route path="/arcelik">
         <PageTransition>
@@ -384,9 +388,7 @@ function Router() {
         </PageTransition>
       </Route>
       <Route path="/shopify-tracking">
-        <PageTransition>
-          <ShopifyTrackingPage />
-        </PageTransition>
+        <Redirect to="/control-center?tab=shopify" />
       </Route>
       <Route path="/product-preview">
         <PageTransition>
@@ -399,22 +401,16 @@ function Router() {
         </PageTransition>
       </Route>
       <Route path="/product-tracking">
-        <PageTransition>
-          <ProductTrackingPage />
-        </PageTransition>
+        <Redirect to="/control-center?tab=tracking" />
       </Route>
       <Route path="/urun-takip">
-        <PageTransition>
-          <UrunTakipPage />
-        </PageTransition>
+        <Redirect to="/control-center?tab=tracking" />
       </Route>
       <Route path="/memory-dashboard">
         <MemoryDashboard />
       </Route>
       <Route path="/shopify-system">
-        <PageTransition>
-          <ShopifySystemPage />
-        </PageTransition>
+        <Redirect to="/control-center?tab=shopify" />
       </Route>
       <Route path="/telegram-management">
         <PageTransition>

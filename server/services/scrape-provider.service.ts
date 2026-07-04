@@ -27,6 +27,8 @@ export type ScrapeProviderSnapshot = {
   warnings: string[];
   fatal: boolean;
   globalTimeoutMs: number;
+  scenarioTimeoutMs: number;
+  puppeteerLaunchTimeoutMs: number;
   apiTimeoutMs: number;
   directHtmlTimeoutMs: number;
   browserWorkerTimeoutMs: number;
@@ -181,6 +183,10 @@ function defaultSnapshot(): ScrapeProviderSnapshot {
 
   const browserWorkerTimeoutMs =
     Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || 45_000;
+  const localGlobalTimeout =
+    Number(process.env.LOCAL_SCRAPE_GLOBAL_TIMEOUT_MS) || 180_000;
+  const localScenarioTimeout = Number(process.env.SCENARIO_TIMEOUT_MS) || 120_000;
+  const localLaunchTimeout = Number(process.env.PUPPETEER_LAUNCH_TIMEOUT_MS) || 60_000;
 
   return {
     isCloudRuntime: isCloud,
@@ -201,7 +207,9 @@ function defaultSnapshot(): ScrapeProviderSnapshot {
     }),
     warnings,
     fatal,
-    globalTimeoutMs: isCloud ? 55_000 : 90_000,
+    globalTimeoutMs: isCloud ? 55_000 : localGlobalTimeout,
+    scenarioTimeoutMs: isCloud ? 0 : localScenarioTimeout,
+    puppeteerLaunchTimeoutMs: isCloud ? 45_000 : localLaunchTimeout,
     apiTimeoutMs: isCloud ? 8_000 : 10_000,
     directHtmlTimeoutMs: isCloud ? 10_000 : 22_000,
     browserWorkerTimeoutMs,
@@ -241,6 +249,10 @@ export async function refreshScrapeProviderSnapshot(): Promise<ScrapeProviderSna
 
   const browserWorkerTimeoutMs =
     Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || 45_000;
+  const localGlobalTimeout =
+    Number(process.env.LOCAL_SCRAPE_GLOBAL_TIMEOUT_MS) || 180_000;
+  const localScenarioTimeout = Number(process.env.SCENARIO_TIMEOUT_MS) || 120_000;
+  const localLaunchTimeout = Number(process.env.PUPPETEER_LAUNCH_TIMEOUT_MS) || 60_000;
 
   const snapshot: ScrapeProviderSnapshot = {
     isCloudRuntime: isCloud,
@@ -261,7 +273,9 @@ export async function refreshScrapeProviderSnapshot(): Promise<ScrapeProviderSna
     }),
     warnings,
     fatal,
-    globalTimeoutMs: isCloud ? 55_000 : 90_000,
+    globalTimeoutMs: isCloud ? 55_000 : localGlobalTimeout,
+    scenarioTimeoutMs: isCloud ? 0 : localScenarioTimeout,
+    puppeteerLaunchTimeoutMs: isCloud ? 45_000 : localLaunchTimeout,
     apiTimeoutMs: isCloud ? 8_000 : 10_000,
     directHtmlTimeoutMs: isCloud ? 10_000 : 22_000,
     browserWorkerTimeoutMs,
@@ -291,10 +305,20 @@ export async function initScrapeProviders(): Promise<ScrapeProviderSnapshot> {
 
 export async function buildScrapeCapabilitiesPayload() {
   const snap = await refreshScrapeProviderSnapshot();
+  const { resolveChromiumPath } = await import("../puppeteer-config");
+  const { ensureEnvLoaded } = await import("../env-bootstrap");
+  const chromium = resolveChromiumPath();
   return {
     isCloudRuntime: snap.isCloudRuntime,
     puppeteerAllowed: snap.puppeteerAllowed,
     browserUiEnabled: snap.puppeteerAllowed,
+    platform: process.platform,
+    envLoaded: ensureEnvLoaded(),
+    chromiumResolved: Boolean(chromium.path),
+    chromiumExists: chromium.exists,
+    chromiumSource: chromium.source,
+    localPuppeteerReady:
+      !snap.isCloudRuntime && snap.puppeteerAllowed && chromium.exists,
     browserWorkerConfigured: snap.browserWorkerConfigured,
     browserWorkerHealthy: snap.browserWorkerHealthy,
     localAgentConfigured: snap.localAgentConfigured,

@@ -128,7 +128,7 @@ export class TrackingService {
       inStock?: boolean;
     }>;
   }) {
-    this.assertEnabled();
+    await this.assertEnabled();
     if (input.price <= 0) {
       throw new Error("price=0 — tracking kaydı oluşturulamaz");
     }
@@ -168,11 +168,11 @@ export class TrackingService {
 
     const variantList = input.variants ?? [];
     for (const v of variantList) {
-      const option1 = v.color || "Varsayılan";
-      const option2 = v.size || "Tek Beden";
+      const option1 = v.color?.trim() || null;
+      const option2 = v.size?.trim() || null;
       const variantPayload: InsertTrackedVariant = {
         trackedProductId: productRow.id,
-        sourceVariantTitle: `${option1} / ${option2}`,
+        sourceVariantTitle: [option1, option2].filter(Boolean).join(" / ") || v.sku || "unknown",
         option1,
         option2,
         sourceSku: v.sku ?? null,
@@ -183,17 +183,28 @@ export class TrackingService {
         matchStatus: v.shopifyVariantId ? "matched" : "uncertain",
       };
 
-      const existingVar = await db
-        .select()
-        .from(trackedVariants)
-        .where(
-          and(
-            eq(trackedVariants.trackedProductId, productRow.id),
-            eq(trackedVariants.option1, option1),
-            eq(trackedVariants.option2, option2),
-          ),
-        )
-        .limit(1);
+      const existingVar = v.sku
+        ? await db
+            .select()
+            .from(trackedVariants)
+            .where(
+              and(
+                eq(trackedVariants.trackedProductId, productRow.id),
+                eq(trackedVariants.sourceSku, v.sku),
+              ),
+            )
+            .limit(1)
+        : await db
+            .select()
+            .from(trackedVariants)
+            .where(
+              and(
+                eq(trackedVariants.trackedProductId, productRow.id),
+                eq(trackedVariants.option1, option1 ?? ""),
+                eq(trackedVariants.option2, option2 ?? ""),
+              ),
+            )
+            .limit(1);
 
       if (existingVar[0]) {
         await db
@@ -205,17 +216,31 @@ export class TrackingService {
       }
     }
 
-    const snapshot = await this.saveSnapshot({
-      trackedProductId: productRow.id,
-      snapshotType: "initial",
-      sourceUrl: input.sourceUrl,
-      title: input.title,
-      price: input.price,
-      images: [],
-      variants: variantList,
-      rawData: { shopifyProductId: input.shopifyProductId },
-      quality: { registeredFrom: "shopify_upload" },
-    });
+    const priorInitial = await db
+      .select()
+      .from(productSnapshots)
+      .where(
+        and(
+          eq(productSnapshots.trackedProductId, productRow.id),
+          eq(productSnapshots.snapshotType, "initial"),
+        ),
+      )
+      .limit(1);
+
+    let snapshot = priorInitial[0];
+    if (!snapshot) {
+      snapshot = await this.saveSnapshot({
+        trackedProductId: productRow.id,
+        snapshotType: "initial",
+        sourceUrl: input.sourceUrl,
+        title: input.title,
+        price: input.price,
+        images: [],
+        variants: variantList,
+        rawData: { shopifyProductId: input.shopifyProductId },
+        quality: { registeredFrom: "shopify_upload" },
+      });
+    }
 
     await this.writeSyncLog({
       trackedProductId: productRow.id,

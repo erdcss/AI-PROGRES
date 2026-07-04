@@ -6,6 +6,8 @@
 import puppeteer from 'puppeteer';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { buildLaunchOptions } from './puppeteer-config';
+import { getSessionBrowserFingerprint, type BrowserFingerprintProfile } from './browser-fingerprint';
 
 interface StealthConfig {
   enableFingerprinting: boolean;
@@ -72,10 +74,18 @@ export class UltraStealthSystem {
     this.rotateFingerprint();
   }
 
-  // Rotate device fingerprint
+  // Rotate device fingerprint — session-stable, matches host OS
   private rotateFingerprint(): void {
-    this.currentFingerprint = deviceFingerprints[Math.floor(Math.random() * deviceFingerprints.length)];
-    console.log(`🎭 Fingerprint rotated to: ${this.currentFingerprint.platform}`);
+    const fp = getSessionBrowserFingerprint();
+    this.currentFingerprint = {
+      userAgent: fp.userAgent,
+      viewport: fp.viewport,
+      platform: fp.platform,
+      language: fp.language,
+      timezone: fp.timezone,
+      webgl: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)',
+    };
+    console.log(`🎭 Fingerprint session: ${this.currentFingerprint.platform}`);
   }
 
   // Human-like delay patterns - ULTRA SPEED VERSION
@@ -100,25 +110,20 @@ export class UltraStealthSystem {
     try {
       console.log('🕵️ Creating ultra-stealth browser session...');
       
-      browser = await puppeteer.launch({
-      executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser',
-        headless: 'new',
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-blink-features=AutomationControlled',
-          '--disable-features=VizDisplayCompositor',
-          '--no-first-run',
-          '--disable-default-apps',
-          '--disable-extensions',
-          '--disable-plugins',
-          '--disable-images', // Faster loading
-          '--disable-javascript', // Some pages work without JS
-          '--user-agent=' + this.currentFingerprint.userAgent,
-          '--lang=tr-TR,tr',
-          '--accept-lang=tr-TR,tr,en-US,en'
-        ]
-      });
+      browser = await puppeteer.launch(
+        buildLaunchOptions({
+          headless: true,
+          args: [
+            '--disable-blink-features=AutomationControlled',
+            '--disable-features=VizDisplayCompositor',
+            '--no-first-run',
+            '--disable-default-apps',
+            '--disable-extensions',
+            '--disable-plugins',
+            '--lang=tr-TR,tr',
+          ],
+        }),
+      );
 
       const page = await browser.newPage();
 

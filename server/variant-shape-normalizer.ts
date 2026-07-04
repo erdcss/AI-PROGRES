@@ -151,6 +151,16 @@ function variantKey(color: string, size: string): string {
   return `${color.trim().toLowerCase()}|${size.trim().toLowerCase()}`;
 }
 
+type EvidenceSource =
+  | "api_listing"
+  | "all_variants"
+  | "stock_map"
+  | "dom_buttons"
+  | "script_state"
+  | "color_size_cross"
+  | "inferred_matrix"
+  | "unknown";
+
 interface RawVariantRow {
   color: string;
   size: string;
@@ -160,6 +170,9 @@ interface RawVariantRow {
   image?: string;
   disabledReason?: string;
   confidence: "high" | "medium" | "low";
+  evidenceSource?: EvidenceSource;
+  sourceListingId?: string | null;
+  sourceProductId?: string | null;
 }
 
 function collectFromItems(variants: Record<string, unknown>): RawVariantRow[] {
@@ -184,6 +197,7 @@ function collectFromItems(variants: Record<string, unknown>): RawVariantRow[] {
       image: typeof o.image === "string" ? o.image : undefined,
       disabledReason: typeof o.disabledReason === "string" ? o.disabledReason : undefined,
       confidence: "high" as const,
+      evidenceSource: "api_listing",
     };
   });
 }
@@ -206,20 +220,7 @@ function collectFromStockMap(
     } else {
       color = key;
     }
-    rows.push({ color, size, inStock, confidence: "high" });
-  }
-  if (rows.length > 0) return rows;
-
-  for (const color of colors.length ? colors : [DEFAULT_COLOR]) {
-    for (const size of sizes.length ? sizes : [DEFAULT_SIZE]) {
-      const key = `${color}-${size}`;
-      rows.push({
-        color,
-        size,
-        inStock: stockMap[key] !== false,
-        confidence: "high",
-      });
-    }
+    rows.push({ color, size, inStock, confidence: "high", evidenceSource: "stock_map" });
   }
   return rows;
 }
@@ -237,6 +238,7 @@ function collectFromStockMatrix(stockMatrix: Record<string, unknown>): RawVarian
       inStock: o.inStock !== false,
       stockCount: typeof o.stockCount === "number" ? o.stockCount : null,
       confidence: "high",
+      evidenceSource: "stock_map",
     });
   }
   return rows;
@@ -254,6 +256,9 @@ function collectFromAllVariants(allVariants: unknown[]): RawVariantRow[] {
       stockCount: typeof o.stockCount === "number" ? o.stockCount : null,
       image: typeof o.image === "string" ? o.image : undefined,
       confidence: "high" as const,
+      evidenceSource: "all_variants" as const,
+      sourceListingId: typeof o.listingId === "string" ? o.listingId : null,
+      sourceProductId: typeof o.productId === "string" ? o.productId : null,
     };
   });
 }
@@ -270,7 +275,7 @@ function collectFromColorSizeCross(
     for (const size of s) {
       const key = `${color}-${size}`;
       const inStock = stockMap ? stockMap[key] !== false : true;
-      rows.push({ color, size, inStock, confidence: "low" });
+      rows.push({ color, size, inStock, confidence: "low", evidenceSource: "color_size_cross" });
     }
   }
   return rows;
@@ -358,10 +363,10 @@ function mergeAllVariantSources(
   if (Array.isArray(v.allVariants) && v.allVariants.length > 0) {
     ingest(collectFromAllVariants(v.allVariants as unknown[]), "allVariants");
   }
-  if (colors.length || sizes.length) {
-    ingest(collectFromColorSizeCross(colors, sizes, stockMap), "colorSizeCross");
-  }
-  if (extras?.slicingAttributes) {
+  const hasNamedColorsInMap = [...rowMap.values()].some(
+    (r) => r.color && r.color !== DEFAULT_COLOR,
+  );
+  if (!hasNamedColorsInMap && extras?.slicingAttributes) {
     const slicingSizes = extractSizesFromSlicingAttributes(extras.slicingAttributes);
     if (slicingSizes.length) {
       ingest(
@@ -370,31 +375,47 @@ function mergeAllVariantSources(
           size,
           inStock: true,
           confidence: "high" as const,
+          evidenceSource: "script_state" as const,
         })),
         "slicingAttributes",
       );
     }
   }
-  if (extras?.scriptSizes?.length) {
+  if (!hasNamedColorsInMap && extras?.scriptSizes?.length) {
     ingest(
       extras.scriptSizes.map((size) => ({
         color: DEFAULT_COLOR,
         size,
         inStock: true,
         confidence: "high" as const,
+        evidenceSource: "script_state" as const,
       })),
       "scriptJson",
     );
   }
-  if (extras?.domSizeButtons?.length) {
+  if (!hasNamedColorsInMap && extras?.domSizeButtons?.length) {
     ingest(
       extras.domSizeButtons.map((size) => ({
         color: DEFAULT_COLOR,
         size,
         inStock: true,
         confidence: "high" as const,
+        evidenceSource: "dom_buttons" as const,
       })),
       "domButtons",
+    );
+  }
+
+  if (colors.length === 0 && sizes.length > 0 && rowMap.size === 0) {
+    ingest(
+      sizes.map((size) => ({
+        color: DEFAULT_COLOR,
+        size,
+        inStock: stockMap ? stockMap[`${DEFAULT_COLOR}-${size}`] !== false && stockMap[`Tek Renk-${size}`] !== false : true,
+        confidence: "medium" as const,
+        evidenceSource: "script_state" as const,
+      })),
+      "sizesOnly",
     );
   }
 
@@ -497,7 +518,7 @@ function extractPrice(raw: unknown): string {
   }
   if (raw && typeof raw === "object") {
     const o = raw as Record<string, unknown>;
-    for (const key of ["withProfit", "original", "sale", "value"]) {
+    for (const key of ["original", "sale", "value", "withProfit"]) {
       const p = extractPrice(o[key]);
       if (p && p !== "0.00") return p;
     }

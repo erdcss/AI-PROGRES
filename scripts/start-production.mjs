@@ -1,12 +1,15 @@
-import { config } from "dotenv";
+import { loadProjectEnv, logEnvBootstrapSummary } from "./load-env.mjs";
 import fs from "fs";
 import path from "path";
+
+loadProjectEnv();
+logEnvBootstrapSummary("start-production");
 
 process.env.NODE_ENV = "production";
 
 const envPath = path.resolve(".env");
 if (fs.existsSync(envPath)) {
-  config({ path: envPath });
+  // loadProjectEnv already applied; keep for backward-compatible log below
 }
 
 const required = ["DATABASE_URL"];

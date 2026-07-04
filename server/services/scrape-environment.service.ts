@@ -28,6 +28,8 @@ export type ScrapeEnvironmentPolicy = {
   imageFetcherTimeoutMs: number;
   imageFallbackTimeoutMs: number;
   scrapeJobMaxMs: number;
+  scenarioTimeoutMs: number;
+  puppeteerLaunchTimeoutMs: number;
   puppeteerAllowed: boolean;
 };
 
@@ -58,6 +60,8 @@ export function getScrapeEnvironmentPolicy(): ScrapeEnvironmentPolicy {
     imageFetcherTimeoutMs: snap.imageFetcherTimeoutMs,
     imageFallbackTimeoutMs: snap.imageFallbackTimeoutMs,
     scrapeJobMaxMs: snap.scrapeJobMaxMs,
+    scenarioTimeoutMs: snap.scenarioTimeoutMs,
+    puppeteerLaunchTimeoutMs: snap.puppeteerLaunchTimeoutMs,
     puppeteerAllowed: puppeteerAllowed(),
   };
 }

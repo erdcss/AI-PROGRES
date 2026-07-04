@@ -273,7 +273,17 @@ export async function fetchScenarioScrapeResult(
     raw = { ...startData, originalUrl: url };
   } else {
     const { jobId } = startData;
-    const maxWait = 180_000;
+    let globalTimeoutMs = 180_000;
+    try {
+      const capResp = await fetch("/api/runtime/scrape-capabilities", { cache: "no-store" });
+      if (capResp.ok) {
+        const caps = await capResp.json();
+        if (typeof caps.globalTimeoutMs === "number") globalTimeoutMs = caps.globalTimeoutMs;
+      }
+    } catch {
+      /* use default */
+    }
+    const maxWait = Math.max(globalTimeoutMs + 45_000, 240_000);
     const pollInterval = 2500;
     const deadline = Date.now() + maxWait;
     let polled: Record<string, unknown> | null = null;
@@ -281,6 +291,9 @@ export async function fetchScenarioScrapeResult(
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, pollInterval));
       const pollResp = await fetch(`/api/scrape-job/${jobId}`, { cache: "no-store" });
+      if (pollResp.status === 404) {
+        throw new Error("job not found; server may have restarted");
+      }
       if (!pollResp.ok) {
         throw new Error(`Polling hatası: HTTP ${pollResp.status}`);
       }

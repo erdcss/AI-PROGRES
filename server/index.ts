@@ -1,3 +1,4 @@
+import "./env-bootstrap";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -739,6 +740,8 @@ app.use(pendingChangesRoutes);
         const providerSnap = await initScrapeProviders();
         logScrapeProviderStartup(providerSnap);
         logScrapeEnvironmentPolicy();
+        const { logLocalScrapeBoot } = await import('./local-scrape-boot');
+        logLocalScrapeBoot();
         await seedInternalSourceAccessFromEnv().catch(() => undefined);
         const { bootstrapProductTrackingV2 } = await import('./services/tracking.bootstrap');
         await bootstrapProductTrackingV2();

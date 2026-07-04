@@ -76,8 +76,21 @@ export function resetPerformanceConfig(): void {
   console.log('🔄 Performance config reset to defaults');
 }
 
+import { isCloudRuntime } from "@shared/deploy-runtime";
+
 // Helper to get appropriate timeout based on attempt
 export function getTimeout(type: 'axios' | 'puppeteerGoto' | 'puppeteerSelector', attempt: number = 1): number {
+  const isLocalWin = process.platform === "win32" && !isCloudRuntime();
+  if (isLocalWin) {
+    if (type === "puppeteerGoto") {
+      return Number(process.env.PUPPETEER_GOTO_TIMEOUT_MS) || (attempt === 1 ? 60_000 : 90_000);
+    }
+    if (type === "puppeteerSelector") {
+      return Number(process.env.PUPPETEER_SELECTOR_TIMEOUT_MS) || (attempt === 1 ? 8_000 : 15_000);
+    }
+    return Number(process.env.AXIOS_SCRAPE_TIMEOUT_MS) || (attempt === 1 ? 8_000 : 15_000);
+  }
+
   if (attempt === 1) {
     return currentConfig.timeouts.fast[type];
   }

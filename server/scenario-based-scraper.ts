@@ -875,7 +875,21 @@ function isValidProductTitle(title: string): boolean {
     }
   }
   
-  // Check 4: Must contain at least one letter (not just numbers/symbols)
+  // Check 4: Placeholder / DOM noise titles
+  const placeholderTitles = [
+    'slicing attribute product',
+    'ürün',
+    'product',
+    'marka',
+    'trendyol ürünü',
+    'slicing attribute',
+  ];
+  if (placeholderTitles.includes(cleanTitle) || /slicing attribute/i.test(cleanTitle)) {
+    console.log(`❌ TITLE REJECTED: Placeholder title "${cleanTitle}"`);
+    return false;
+  }
+
+  // Check 5: Must contain at least one letter (not just numbers/symbols)
   if (!/[a-zA-ZçğıöşüÇĞIİÖŞÜ]/.test(cleanTitle)) {
     console.log(`❌ TITLE REJECTED: No letters found`);
     return false;
@@ -1383,6 +1397,7 @@ export async function scenarioBasedScrape(
     // Size-level stock from Puppeteer rendering (for current URL's color)
     let puppeteerSizeStockForCurrentColor: Map<string, boolean> = new Map();
     let savedPuppeteerStockSnapshot: import('./trendyol-variant-stock-normalizer').PuppeteerStockSnapshot | null = null;
+    let puppeteerHtmlCore: import('./trendyol-puppeteer-html-merge').ParsedHtmlCore | null = null;
     
     try {
       // ⚡ SPEED OPTIMIZATION: Try direct scraping FIRST (fastest method)
@@ -1392,20 +1407,9 @@ export async function scenarioBasedScrape(
       const { isCloudRuntime } = await import('@shared/deploy-runtime');
       if (!isCloudRuntime()) {
       try {
-        console.log('🌐 Trying curl subprocess (HTTP/2 bypass)...');
-        const curlCmd = [
-          'curl', '-s', '--max-time', '12',
-          '--http2',
-          '--compressed',  // sends Accept-Encoding AND auto-decompresses response
-          '-H', `"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"`,
-          '-H', '"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"',
-          '-H', '"Accept-Language: tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7"',
-          '-H', '"Cache-Control: no-cache"',
-          '-H', '"Referer: https://www.google.com/"',
-          '-L',  // follow redirects
-          `"${url.replace(/"/g, '\\"')}"`,
-        ].join(' ');
-        const curlOutput = execSync(curlCmd, { maxBuffer: 10 * 1024 * 1024, timeout: 14000, encoding: 'utf8' });
+        console.log('🌐 Trying curl subprocess...');
+        const { fetchUrlWithCurl } = await import('./curl-fetch');
+        const curlOutput = fetchUrlWithCurl(url, 12);
         if (curlOutput && curlOutput.length > 5000 && (curlOutput.includes('application/ld+json') || curlOutput.includes('product'))) {
           htmlContent = curlOutput;
           console.log(`✅ Curl subprocess succeeded: ${htmlContent.length} bytes`);
@@ -1717,6 +1721,28 @@ export async function scenarioBasedScrape(
                 }
                 if ((puppeteerResult as any).puppeteerStockSnapshot) {
                   savedPuppeteerStockSnapshot = (puppeteerResult as any).puppeteerStockSnapshot;
+                }
+                const puppeteerHtmlForParse =
+                  puppeteerHtmlLength > currentHtmlLength
+                    ? puppeteerResult.htmlContent
+                    : htmlContent;
+                try {
+                  const { parseTrendyolCoreFromHtml, mergeTrendyolHtmlCoreIntoResult } =
+                    await import('./trendyol-puppeteer-html-merge');
+                  const parsedCore = parseTrendyolCoreFromHtml(
+                    puppeteerHtmlForParse,
+                    url,
+                    'puppeteer-html',
+                  );
+                  if (parsedCore) {
+                    puppeteerHtmlCore = parsedCore;
+                    if (parsedCore.title) console.log(`✅ Puppeteer HTML parser title: ${parsedCore.title}`);
+                    if (parsedCore.price?.original) {
+                      console.log(`✅ Puppeteer HTML parser price: ${parsedCore.price.original}`);
+                    }
+                  }
+                } catch (parseErr: any) {
+                  console.log(`⚠️ Puppeteer HTML core parse failed: ${parseErr?.message || parseErr}`);
                 }
                 // FIX: Extract size-level stock from Puppeteer-rendered HTML using __PRODUCT_DETAIL_APP_INITIAL_STATE__
                 // DOM button parsing is unreliable (Trendyol uses CSS opacity, not disabled attr).
@@ -2514,7 +2540,21 @@ export async function scenarioBasedScrape(
       
       // Step 2: Extract basic information with individual error handling
       try {
-        title = extractTitle($, url);
+        if (htmlContent && htmlContent.length > 5000) {
+          const { parseTrendyolCoreFromHtml } = await import('./trendyol-puppeteer-html-merge');
+          const htmlCore = parseTrendyolCoreFromHtml(htmlContent, url, 'scenario-html');
+          if (htmlCore?.title) {
+            title = htmlCore.title;
+            if (htmlCore.brand) brand = htmlCore.brand;
+            if (htmlCore.price?.original && htmlCore.price.original > 0) {
+              price = htmlCore.price;
+            }
+            console.log(`✅ Title from HTML parser: "${title}"`);
+          }
+        }
+        if (!title || !isValidProductTitle(title)) {
+          title = extractTitle($, url);
+        }
         console.log(`✅ Title extraction successful: "${title}"`);
       } catch (titleError: any) {
         console.log(`❌ Title extraction failed: ${titleError?.message || 'Unknown title error'}`);
@@ -2522,7 +2562,9 @@ export async function scenarioBasedScrape(
       }
       
       try {
-        brand = extractBrandFromDOM($, htmlContent, title, url);
+        if (!brand) {
+          brand = extractBrandFromDOM($, htmlContent, title, url);
+        }
         console.log(`✅ Brand extraction successful: "${brand}"`);
       } catch (brandError: any) {
         console.log(`❌ Brand extraction failed: ${brandError?.message || 'Unknown brand error'}`);
@@ -2531,7 +2573,11 @@ export async function scenarioBasedScrape(
       
       console.log('🔥 ULTIMATE PRICE EXTRACTOR: Starting comprehensive price extraction');
       try {
-        price = await ultimatePriceExtract($, htmlContent);
+        if (!price || !(price as { original?: number }).original) {
+          price = await ultimatePriceExtract($, htmlContent);
+        } else {
+          console.log(`✅ Price already set from HTML parser: ${(price as { original: number }).original}`);
+        }
         console.log('🔥 ULTIMATE PRICE EXTRACTOR RESULT:', JSON.stringify(price, null, 2));
         
         // ✅ CRITICAL FIX: If price extraction returns 0 or fails, use fallback price
@@ -3452,7 +3498,7 @@ export async function scenarioBasedScrape(
     }
 
     // Save successful result to cache
-    const result = {
+    const result: Record<string, unknown> = {
       success: true,
       scenario: detection.scenario,
       confidence: detection.confidence,
@@ -3480,6 +3526,14 @@ export async function scenarioBasedScrape(
         strategy: detection.suggestedStrategy
       }
     };
+
+    if (puppeteerHtmlCore) {
+      const { mergeTrendyolHtmlCoreIntoResult } = await import('./trendyol-puppeteer-html-merge');
+      mergeTrendyolHtmlCoreIntoResult(result, puppeteerHtmlCore, url);
+    }
+    if (htmlContent && htmlContent.length > 5000) {
+      result.htmlContent = htmlContent;
+    }
     
     // 🔧 DEBUG: Log result variants before return
     console.log('🔧 RESULT.VARIANTS before return:', JSON.stringify(result.variants, null, 2));

@@ -1,3 +1,8 @@
+import { loadProjectEnv, logEnvBootstrapSummary } from "./load-env.mjs";
+
+loadProjectEnv();
+logEnvBootstrapSummary("start-stable");
+
 process.env.NODE_ENV = "production";
 
 console.log("");

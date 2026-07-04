@@ -6,6 +6,7 @@ import {
 } from "./shopify-token-manager";
 import { buildUploadLockKey } from "./shopify-source-key";
 import type { CanonicalProductForShopify } from "./variant-shape-normalizer";
+import { fetchShopifyVariantMappings } from "./services/shopify-variant-fetch.service";
 
 export type UpsertMode = "created" | "updated" | "skipped";
 
@@ -13,11 +14,25 @@ export interface UpsertResult {
   success: boolean;
   mode?: UpsertMode;
   productId?: string;
+  productGid?: string;
   handle?: string;
   message: string;
   createdVariants?: number;
   updatedVariants?: number;
+  skippedVariants?: number;
   skippedDuplicateVariants?: number;
+  variantMappings?: Array<{
+    sourceVariantKey: string;
+    sku: string;
+    option1?: string;
+    option2?: string;
+    shopifyVariantId: string;
+    shopifyVariantGid?: string;
+    inventoryItemId?: string;
+  }>;
+  imageResults?: Array<{ src: string; status: string }>;
+  metafieldResults?: Array<{ key: string; status: string }>;
+  warnings?: string[];
   httpStatus?: number;
 }
 
@@ -369,15 +384,20 @@ async function createNewProduct(
     product: { id: number; handle: string };
   };
 
+  const productId = String(result.product.id);
+  const variantMappings = await fetchShopifyVariantMappings(productId);
+
   return {
     success: true,
     mode: "created",
-    productId: String(result.product.id),
+    productId,
+    productGid: `gid://shopify/Product/${productId}`,
     handle: result.product.handle,
     message: "Ürün oluşturuldu",
     createdVariants: parsed.variants.length,
     updatedVariants: 0,
     skippedDuplicateVariants: 0,
+    variantMappings,
   };
 }
 
@@ -461,14 +481,19 @@ async function updateExistingProduct(
     `[ShopifyUpsert] createdVariants=${created} updatedVariants=${updated} skippedDuplicateVariants=${skipped}`,
   );
 
+  const variantMappings = await fetchShopifyVariantMappings(existing.id);
+
   return {
     success: true,
     mode: "updated",
     productId: existing.id,
+    productGid: `gid://shopify/Product/${existing.id}`,
     handle: existing.handle,
     message: "Mevcut ürün güncellendi",
     createdVariants: created,
     updatedVariants: updated,
+    skippedVariants: skipped,
     skippedDuplicateVariants: skipped,
+    variantMappings,
   };
 }

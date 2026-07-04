@@ -13,6 +13,12 @@ export type ScrapeStageErrorCode =
   | "puppeteer-disabled-in-cloud"
   | "scenario-timeout"
   | "scenario-error"
+  | "chromium-not-found"
+  | "chromium-launch-failed"
+  | "navigation-timeout"
+  | "trendyol-blocked"
+  | "page-empty"
+  | "unknown-scenario-error"
   | "image-proxy-timeout"
   | "image-proxy-error"
   | "image-fallback-timeout"
@@ -70,9 +76,11 @@ export type ScrapeDiagnostics = {
   imageFetcherStarted: boolean;
   imageFetcherSuccess: boolean;
   imageFetcherError?: string;
+  imageFetcherSkippedReason?: string;
   imageFallbackStarted: boolean;
   imageFallbackSuccess: boolean;
   imageFallbackError?: string;
+  imageFallbackSkippedReason?: string;
   gatewayStarted?: boolean;
   gatewayProviderType?: string;
   gatewayHtmlSuccess?: boolean;
@@ -83,10 +91,25 @@ export type ScrapeDiagnostics = {
   localAgentSucceeded?: boolean;
   browserWorkerSucceeded?: boolean;
   scenarioSkippedReason?: string;
+  scenarioErrorDetail?: {
+    code: string;
+    name: string;
+    message: string;
+    executablePath: string | null;
+    executableExists: boolean;
+    chromiumSource: string;
+    platform: string;
+    puppeteerAllowed: boolean;
+    isCloudRuntime: boolean;
+    isTimeout: boolean;
+    isLaunchFailure: boolean;
+    isNavigationFailure: boolean;
+  };
   stageErrors: ScrapeStageErrorCode[];
   finalSuccessReason?: FinalSuccessReason | string;
   partialSuccess?: boolean;
   pipelineDurationMs?: number;
+  recoveredStageErrors?: string[];
 };
 
 export type PipelineOutcome = {
@@ -322,6 +345,14 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "browser-worker-failed": "Tarayıcı Worker başarısız",
     "browser-worker-not-configured": "Tarayıcı Worker yapılandırılmamış",
     "browser-worker-unhealthy": "Tarayıcı Worker sağlıksız",
+    "scenario-timeout": "Senaryo zaman aşımı",
+    "scenario-error": "Senaryo hatası",
+    "chromium-not-found": "Chromium bulunamadı — PUPPETEER_EXECUTABLE_PATH veya puppeteer browsers install chrome",
+    "chromium-launch-failed": "Chromium başlatılamadı",
+    "navigation-timeout": "Sayfa yükleme zaman aşımı",
+    "trendyol-blocked": "Trendyol erişimi engellendi",
+    "page-empty": "Sayfa boş veya ürün verisi yok",
+    "unknown-scenario-error": "Bilinmeyen senaryo hatası",
     "scraping-provider-error": "Harici sağlayıcı hatası",
   };
   return stageErrors.map((e) => labels[e] || e).join("; ");

@@ -7,6 +7,9 @@ vite.config.ts.*
 .env
 .env.*
 !.env.example
+env
+env (*)
+.env.backup
 .cache
 .config
 .local

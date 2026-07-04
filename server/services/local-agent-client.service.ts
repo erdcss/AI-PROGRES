@@ -76,7 +76,12 @@ function getAgentConfig() {
 }
 
 export function isLocalAgentConfigured(): boolean {
-  return getAgentConfig().configured;
+  const cfg = getAgentConfig();
+  if (!cfg.configured) return false;
+  if (!isCloudRuntime() && process.env.USE_EXTERNAL_LOCAL_AGENT !== "true") {
+    return false;
+  }
+  return true;
 }
 
 /** Yanıtlarda/logda güvenli hostname — token ve query parametreleri dönmez */

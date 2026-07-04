@@ -32,7 +32,12 @@ const STAGE_ERROR_LABELS: Record<string, string> = {
   "image-proxy-timeout": "Görsel proxy zaman aşımı (ürün verisi etkilenmeyebilir)",
   "image-fallback-timeout": "Görsel yedek indirme zaman aşımı",
   "puppeteer-disabled-in-cloud": "Cloud ortamında Puppeteer kapalı — Browser Worker gerekli",
-  "pipeline-global-timeout": "Toplam çekim süresi aşıldı",
+  "unknown-scenario-error": "Bilinmeyen senaryo hatası",
+  "chromium-not-found": "Chromium bulunamadı",
+  "chromium-launch-failed": "Chromium başlatılamadı",
+  "navigation-timeout": "Sayfa yükleme zaman aşımı",
+  "trendyol-blocked": "Trendyol erişimi engellendi",
+  "page-empty": "Sayfa boş veya veri yok",
 };
 
 function buildDetailLines(meta?: ScrapeErrorMeta) {

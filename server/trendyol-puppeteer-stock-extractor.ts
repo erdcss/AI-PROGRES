@@ -17,8 +17,10 @@ function isValidSizeLabel(text: string): boolean {
   return SIZE_PATTERN.test(t);
 }
 
-/** page.evaluate içinde çalışacak DOM stok okuyucu (string olarak da export) */
+/** page.evaluate içinde çalışacak DOM stok okuyucu — dış scope referansı yok */
 export function domStockEvaluateScript(): PuppeteerStockSnapshot {
+  const OOS_TEXT = /tükendi|tukendi|stokta yok|satışa kapalı|gelince haber ver|ürün tükenmiştir|beden tükendi/i;
+
   const snapshot: PuppeteerStockSnapshot = {
     colors: [],
     sizesByColor: {},
@@ -94,6 +96,17 @@ export function domStockEvaluateScript(): PuppeteerStockSnapshot {
     inStock: boolean;
     disabledReason?: string;
   }> => {
+    const isValidSizeLabelInDom = (text: string): boolean => {
+      const t = text.trim();
+      if (!t || t.length > 12) return false;
+      const oosText = /tükendi|tukendi|stokta yok|satışa kapalı|gelince haber ver|ürün tükenmiştir|beden tükendi/i;
+      const sizePattern =
+        /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|STD|STANDART|TEK\s*EBAT|TEK\s*BEDEN|ONE\s*SIZE|\d{2,3})$/i;
+      if (oosText.test(t)) return false;
+      if (/sepete ekle|şimdi al|son \d+ ürün|kupon|popüler|yorum/i.test(t)) return false;
+      return sizePattern.test(t);
+    };
+
     const sizes: Array<{ name: string; inStock: boolean; disabledReason?: string }> = [];
     const seen = new Set<string>();
 
@@ -118,7 +131,7 @@ export function domStockEvaluateScript(): PuppeteerStockSnapshot {
           htmlEl.getAttribute("aria-label") ||
           ""
         ).trim();
-        if (!isValidSizeLabel(text)) return;
+        if (!isValidSizeLabelInDom(text)) return;
         const key = text.toLowerCase();
         if (seen.has(key)) return;
         seen.add(key);

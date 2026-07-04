@@ -2,6 +2,12 @@ export type ScrapeCapabilities = {
   isCloudRuntime: boolean;
   puppeteerAllowed: boolean;
   browserUiEnabled: boolean;
+  platform?: string;
+  envLoaded?: boolean;
+  chromiumResolved?: boolean;
+  chromiumExists?: boolean;
+  chromiumSource?: string;
+  localPuppeteerReady?: boolean;
   browserWorkerConfigured?: boolean;
   browserWorkerHealthy?: boolean;
   localAgentConfigured?: boolean;

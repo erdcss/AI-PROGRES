@@ -430,7 +430,7 @@ export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {
     scrapeVariants.allVariants.length > 0
   ) {
     const sanitized = sanitizeTrendyolVariants(scrapeVariants, {
-      productTitle: merged.title || apiResult.title,
+      productTitle: merged.title || scrapeResult.title || apiResult.title,
     });
     if (hasRealTrendyolVariants(sanitized)) {
       merged.variants = sanitized;
@@ -439,6 +439,23 @@ export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {
   }
   if (scrapeResult?.features?.length) merged.features = scrapeResult.features;
   if (scrapeResult?.tags?.length) merged.tags = scrapeResult.tags;
+  if (scrapeResult?.description && !merged.description) merged.description = scrapeResult.description;
+  if (scrapeResult?.category && !merged.category) merged.category = scrapeResult.category;
+
+  const scrapeTitle = scrapeResult?.title ? String(scrapeResult.title).trim() : '';
+  const apiTitle = merged.title ? String(merged.title).trim() : '';
+  if (
+    scrapeTitle &&
+    isValidTrendyolProductTitle(scrapeTitle) &&
+    (!apiTitle || !isValidTrendyolProductTitle(apiTitle))
+  ) {
+    merged.title = cleanTrendyolDisplayTitle(scrapeTitle);
+    merged.titleSource = scrapeResult.titleSource || 'scenario';
+  }
+
+  if (scrapeResult?.brand && (!merged.brand || merged.brand === 'Marka' || merged.brand === 'Bilinmiyor')) {
+    merged.brand = scrapeResult.brand;
+  }
 
   merged.images = mergeTrendyolImageLists(apiResult?.images, scrapeResult?.images);
 
@@ -447,6 +464,11 @@ export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {
   const bestPrice = pickPlausibleTrendyolPrice(apiPrice, scrapePrice);
   if (bestPrice > 0) {
     merged.price = buildTrendyolPriceObject(bestPrice);
+  }
+
+  if (scrapeResult?.sourceProductId) merged.sourceProductId = scrapeResult.sourceProductId;
+  if (scrapeResult?.extractionMethod) {
+    merged.extractionMethod = scrapeResult.extractionMethod;
   }
 
   return merged;

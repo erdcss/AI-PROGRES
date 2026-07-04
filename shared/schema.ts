@@ -603,16 +603,60 @@ export const detectedChanges = pgTable('detected_changes', {
   id: serial('id').primaryKey(),
   trackedProductId: integer('tracked_product_id').notNull().references(() => trackedProducts.id, { onDelete: 'cascade' }),
   trackedVariantId: integer('tracked_variant_id').references(() => trackedVariants.id, { onDelete: 'set null' }),
-  changeType: text('change_type').notNull(), // price|stock|variant_added|variant_removed|variant_changed|title|image|error
+  changeType: text('change_type').notNull(),
   fieldName: text('field_name').notNull(),
   oldValue: jsonb('old_value'),
   newValue: jsonb('new_value'),
   confidence: decimal('confidence', { precision: 5, scale: 2 }).notNull().default('0'),
-  status: text('status').notNull().default('pending'), // pending|manual_review|approved|rejected|applied|ignored
+  status: text('status').notNull().default('pending'),
   reason: text('reason'),
   sourceSnapshotId: integer('source_snapshot_id').references(() => productSnapshots.id, { onDelete: 'set null' }),
   targetSnapshotId: integer('target_snapshot_id').references(() => productSnapshots.id, { onDelete: 'set null' }),
   seenAt: timestamp('seen_at'),
+  changeGroupId: text('change_group_id'),
+  severity: text('severity').notNull().default('normal'),
+  requiresApproval: boolean('requires_approval').notNull().default(true),
+  applyStatus: text('apply_status'),
+  approvedAt: timestamp('approved_at'),
+  approvedBy: text('approved_by'),
+  rejectedAt: timestamp('rejected_at'),
+  rejectedBy: text('rejected_by'),
+  appliedAt: timestamp('applied_at'),
+  applyError: text('apply_error'),
+  retryCount: integer('retry_count').notNull().default(0),
+  idempotencyKey: text('idempotency_key'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const trackingRuns = pgTable('tracking_runs', {
+  id: serial('id').primaryKey(),
+  trackedProductId: integer('tracked_product_id').references(() => trackedProducts.id, { onDelete: 'set null' }),
+  runId: text('run_id').notNull().unique(),
+  status: text('status').notNull().default('running'),
+  priority: text('priority').notNull().default('normal'),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  meta: jsonb('meta').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const changeGroups = pgTable('change_groups', {
+  id: serial('id').primaryKey(),
+  groupId: text('group_id').notNull().unique(),
+  trackedProductId: integer('tracked_product_id').notNull().references(() => trackedProducts.id, { onDelete: 'cascade' }),
+  severity: text('severity').notNull().default('normal'),
+  status: text('status').notNull().default('pending'),
+  changeCount: integer('change_count').notNull().default(0),
+  requiresApproval: boolean('requires_approval').notNull().default(true),
+  approvedAt: timestamp('approved_at'),
+  approvedBy: text('approved_by'),
+  rejectedAt: timestamp('rejected_at'),
+  rejectedBy: text('rejected_by'),
+  appliedAt: timestamp('applied_at'),
+  applyError: text('apply_error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -682,12 +726,97 @@ export const priceRules = pgTable('price_rules', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+// ─── Import Jobs (Control Center) ───────────────────────────────────────────
+
+export const importJobs = pgTable('import_jobs', {
+  id: serial('id').primaryKey(),
+  jobId: text('job_id').notNull().unique(),
+  sourceUrl: text('source_url').notNull(),
+  sourcePlatform: text('source_platform').notNull().default('trendyol'),
+  sourceProductId: text('source_product_id'),
+  status: text('status').notNull().default('queued'),
+  currentStage: text('current_stage'),
+  progressPercentage: integer('progress_percentage').notNull().default(0),
+  scrapeMode: text('scrape_mode').notNull().default('auto'),
+  uploadMode: text('upload_mode').notNull().default('manual_approval'),
+  profitRuleId: integer('profit_rule_id'),
+  requestedBy: text('requested_by'),
+  canonicalProduct: jsonb('canonical_product'),
+  qualityResult: jsonb('quality_result'),
+  shopifyResult: jsonb('shopify_result'),
+  trackingResult: jsonb('tracking_result'),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  retryCount: integer('retry_count').notNull().default(0),
+  requestId: text('request_id'),
+  version: integer('version').notNull().default(1),
+  lockedAt: timestamp('locked_at'),
+  lockedBy: text('locked_by'),
+  idempotencyKey: text('idempotency_key'),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const importJobEvents = pgTable('import_job_events', {
+  id: serial('id').primaryKey(),
+  importJobId: integer('import_job_id').notNull().references(() => importJobs.id, { onDelete: 'cascade' }),
+  stage: text('stage').notNull(),
+  level: text('level').notNull().default('info'),
+  code: text('code'),
+  message: text('message').notNull(),
+  safeMeta: jsonb('safe_meta').notNull().default({}),
+  durationMs: integer('duration_ms'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const shopifyApplyJobs = pgTable('shopify_apply_jobs', {
+  id: serial('id').primaryKey(),
+  applyJobId: text('apply_job_id').notNull().unique(),
+  changeGroupId: text('change_group_id'),
+  trackedProductId: integer('tracked_product_id').references(() => trackedProducts.id, { onDelete: 'set null' }),
+  importJobId: integer('import_job_id').references(() => importJobs.id, { onDelete: 'set null' }),
+  status: text('status').notNull().default('queued'),
+  dryRunResult: jsonb('dry_run_result'),
+  applyResult: jsonb('apply_result'),
+  idempotencyKey: text('idempotency_key'),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const auditLogs = pgTable('audit_logs', {
+  id: serial('id').primaryKey(),
+  actor: text('actor'),
+  action: text('action').notNull(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  oldValue: jsonb('old_value'),
+  newValue: jsonb('new_value'),
+  requestId: text('request_id'),
+  ipHint: text('ip_hint'),
+  userAgentHint: text('user_agent_hint'),
+  success: boolean('success').notNull().default(true),
+  errorCode: text('error_code'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export type ImportJob = typeof importJobs.$inferSelect;
+export type InsertImportJob = typeof importJobs.$inferInsert;
+export type ImportJobEvent = typeof importJobEvents.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;
+
 export type TrackedProduct = typeof trackedProducts.$inferSelect;
 export type InsertTrackedProduct = typeof trackedProducts.$inferInsert;
 export type TrackedVariant = typeof trackedVariants.$inferSelect;
 export type InsertTrackedVariant = typeof trackedVariants.$inferInsert;
 export type ProductSnapshot = typeof productSnapshots.$inferSelect;
 export type DetectedChange = typeof detectedChanges.$inferSelect;
+export type InsertDetectedChange = typeof detectedChanges.$inferInsert;
 export type SyncLog = typeof syncLogs.$inferSelect;
 export type PriceRule = typeof priceRules.$inferSelect;
 export type TrackingSettings = typeof trackingSettings.$inferSelect;

@@ -2,6 +2,8 @@ import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Browser, Page, KeyInput } from 'puppeteer';
 import { puppeteerAllowed } from '@shared/deploy-runtime';
+import { buildLaunchOptions, resolveChromiumPath } from './puppeteer-config';
+import { getSessionBrowserFingerprint } from './browser-fingerprint';
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -16,7 +18,6 @@ interface BrowserState {
 }
 
 const VIEWPORT = { width: 1280, height: 800 };
-const CHROMIUM_PATH = '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser';
 
 let browser: Browser | null = null;
 let page: Page | null = null;
@@ -41,40 +42,33 @@ async function ensureBrowser(): Promise<Page> {
     }
   }
 
-  browser = await puppeteerExtra.launch({
-    headless: true,
-    executablePath: CHROMIUM_PATH,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-web-security',
-      '--disable-features=VizDisplayCompositor',
-      '--window-size=1280,800',
-      '--disable-background-networking',
-      '--disable-extensions',
-      '--disable-sync',
-      '--no-first-run',
-      '--lang=tr-TR',
-      '--disable-background-timer-throttling',
-      '--disable-renderer-backgrounding',
-    ],
-  });
+  browser = await puppeteerExtra.launch(
+    buildLaunchOptions({
+      headless: true,
+      args: [
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+        '--disable-background-networking',
+        '--disable-sync',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+      ],
+    }),
+  );
 
   page = await browser.newPage();
-  await page.setViewport(VIEWPORT);
-  await page.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-  );
+  const fp = getSessionBrowserFingerprint();
+  await page.setViewport(fp.viewport);
+  await page.setUserAgent(fp.userAgent);
   await page.setExtraHTTPHeaders({ 'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7' });
 
-  await page.evaluateOnNewDocument(() => {
+  await page.evaluateOnNewDocument((platform: string) => {
     Object.defineProperty(navigator, 'webdriver', { get: () => false });
     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
     Object.defineProperty(navigator, 'languages', { get: () => ['tr-TR', 'tr', 'en-US', 'en'] });
+    Object.defineProperty(navigator, 'platform', { get: () => platform });
     (window as any).chrome = { runtime: {} };
-  });
+  }, fp.platform);
 
   await page.setCookie(
     { name: 'platform', value: 'web', domain: '.trendyol.com' },
@@ -322,14 +316,19 @@ export async function prewarmBrowser() {
     console.info('ℹ️ Dahili tarayıcı ön ısıtma atlandı: puppeteer-disabled-in-cloud');
     return;
   }
+  const chromium = resolveChromiumPath();
+  if (!chromium.exists || !chromium.path) {
+    console.warn('ℹ️ Chromium prewarm skipped: executable not found');
+    return;
+  }
   try {
     console.log('🌐 Dahili tarayıcı motoru önceden başlatılıyor...');
     const p = await ensureBrowser();
     await p.goto('https://www.trendyol.com/sr?q=', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
     await sleep(600);
     await handleCountrySelect(p);
-    console.log('✅ Dahili tarayıcı hazır:', p.url());
+    console.log(`✅ Chromium prewarm ready: source=${chromium.source}, platform=${process.platform}`);
   } catch (err) {
-    console.warn('⚠️ Tarayıcı ön ısıtma başarısız:', (err as Error).message?.slice(0, 80));
+    console.warn('⚠️ Tarayıcı ön ısıtma başarısız:', (err as Error).message?.slice(0, 120));
   }
 }

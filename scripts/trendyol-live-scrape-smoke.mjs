@@ -15,19 +15,47 @@ const testUrl =
   process.argv[2] ||
   "https://www.trendyol.com/calliel/ton-esitleyici-aydinlik-verici-yogun-nemlendirici-50-spf-gunes-kremi-80-ml-p-951534808?boutiqueId=61&merchantId=830154";
 
-async function pollJob(jobId, deadlineMs = 120_000) {
+function resolvePollDeadlineMs(capabilities) {
+  const globalTimeoutMs =
+    typeof capabilities.globalTimeoutMs === "number" ? capabilities.globalTimeoutMs : 180_000;
+  return Math.max(globalTimeoutMs + 45_000, 240_000);
+}
+
+async function pollJob(jobId, deadlineMs) {
   const started = Date.now();
+  let lastStatus = "processing";
+  let lastBody = null;
+
   while (Date.now() - started < deadlineMs) {
     await new Promise((r) => setTimeout(r, 2500));
     const res = await fetch(`${base.replace(/\/$/, "")}/api/scrape-job/${jobId}`, {
       cache: "no-store",
       headers: noStoreHeaders,
     });
+
+    if (res.status === 404) {
+      const err = new Error("job not found; server may have restarted");
+      err.code = "job_not_found";
+      err.jobId = jobId;
+      err.elapsedMs = Date.now() - started;
+      err.deadlineMs = deadlineMs;
+      throw err;
+    }
+
     const data = await res.json();
+    lastBody = data;
+    lastStatus = data.status;
     if (data.status === "processing") continue;
     return { data, durationMs: Date.now() - started };
   }
-  throw new Error("job polling timeout");
+
+  const err = new Error("job polling timeout");
+  err.jobId = jobId;
+  err.lastStatus = lastStatus;
+  err.elapsedMs = Date.now() - started;
+  err.deadlineMs = deadlineMs;
+  err.lastResponse = lastBody;
+  throw err;
 }
 
 async function main() {
@@ -40,6 +68,9 @@ async function main() {
   });
   const capabilities = await capRes.json().catch(() => ({}));
   console.log("[smoke] capabilities:", JSON.stringify(capabilities, null, 2));
+
+  const pollDeadlineMs = resolvePollDeadlineMs(capabilities);
+  console.log(`[smoke] poll deadline: ${pollDeadlineMs}ms`);
 
   const pipelineStart = Date.now();
   const startRes = await fetch(`${base.replace(/\/$/, "")}/api/trendyol-scrape`, {
@@ -54,7 +85,7 @@ async function main() {
   }
 
   console.log(`[smoke] jobId=${startBody.jobId}`);
-  const { data: job, durationMs } = await pollJob(startBody.jobId);
+  const { data: job, durationMs } = await pollJob(startBody.jobId, pollDeadlineMs);
   const result = job.result || {};
   const summary = {
     finalStatus: job.status,
@@ -64,9 +95,13 @@ async function main() {
     price: result.price?.original ?? result.price,
     imageCount: Array.isArray(result.images) ? result.images.length : 0,
     variantCount: result.variants?.allVariants?.length ?? 0,
+    sizes: result.variants?.sizes,
+    sourceProductId: result.sourceProductId || result.urlProductId,
     stageErrors: result.stageErrors || job.stageErrors,
+    imageFetcherSkippedReason: result.imageFetcherSkippedReason || job.imageFetcherSkippedReason,
     partialSuccess: result.partialSuccess,
     previewOk: result.previewOk,
+    chromiumSource: capabilities.chromiumSource,
     selectedProviders: capabilities.selectedProviders,
   };
 
@@ -79,5 +114,12 @@ async function main() {
 
 main().catch((err) => {
   console.error("[smoke] failed:", err.message);
+  if (err.jobId) console.error("[smoke] jobId:", err.jobId);
+  if (err.lastStatus) console.error("[smoke] last status:", err.lastStatus);
+  if (err.elapsedMs != null) console.error("[smoke] elapsedMs:", err.elapsedMs);
+  if (err.deadlineMs != null) console.error("[smoke] deadlineMs:", err.deadlineMs);
+  if (err.lastResponse) {
+    console.error("[smoke] last job response:", JSON.stringify(err.lastResponse, null, 2));
+  }
   process.exit(1);
 });

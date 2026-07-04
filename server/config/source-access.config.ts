@@ -1,3 +1,5 @@
+import { isCloudRuntime } from "@shared/deploy-runtime";
+
 export type InternalProviderType =
   | "browser_worker"
   | "local_agent"
@@ -14,6 +16,11 @@ function envFlag(value: string | undefined): boolean {
   return Boolean(value?.trim());
 }
 
+function externalLocalAgentEnabled(): boolean {
+  if (isCloudRuntime()) return true;
+  return process.env.USE_EXTERNAL_LOCAL_AGENT === "true";
+}
+
 /** Sunucu tarafı kaynak erişim sağlayıcıları — kullanıcı arayüzünden yönetilmez */
 export function getSourceAccessProviderRegistry(): SourceAccessProviderConfig[] {
   const secrets = getInternalSourceAccessSecrets();
@@ -25,7 +32,10 @@ export function getSourceAccessProviderRegistry(): SourceAccessProviderConfig[] 
     },
     {
       type: "local_agent",
-      enabled: envFlag(secrets.localAgentEndpoint) && envFlag(secrets.localAgentToken),
+      enabled:
+        envFlag(secrets.localAgentEndpoint) &&
+        envFlag(secrets.localAgentToken) &&
+        externalLocalAgentEnabled(),
       priority: 1,
     },
     {
@@ -52,8 +62,12 @@ export function hasAnyInternalProvider(): boolean {
 }
 
 export function getInternalSourceAccessSecrets() {
+  const browserWorkerEndpoint =
+    process.env.BROWSER_WORKER_URL?.trim() ||
+    process.env.BROWSER_WORKER_ENDPOINT?.trim() ||
+    null;
   return {
-    browserWorkerEndpoint: process.env.BROWSER_WORKER_ENDPOINT?.trim() || null,
+    browserWorkerEndpoint,
     browserWorkerToken: process.env.BROWSER_WORKER_TOKEN?.trim() || null,
     proxyUrl: process.env.INTERNAL_PROXY_URL?.trim() || null,
     scrapingApiEndpoint: process.env.INTERNAL_SCRAPING_API_ENDPOINT?.trim() || null,

@@ -86,6 +86,9 @@ import { getShopifyConfig, getShopifyHealthSnapshot, saveShopifyCredentials, sav
 import { handleShopifyProductUpload } from './shopify-upload-service';
 import { handleShopifyProductsRoute } from './shopify-route-handler';
 import { registerTrackingRoutes } from './routes/tracking-routes';
+import { registerImportJobRoutes } from './routes/import-job-routes';
+import { registerControlCenterRoutes } from './routes/control-center-routes';
+import { registerTrackingApprovalRoutes } from './routes/tracking-approval-routes';
 import { registerSourceAccessRoutes } from './routes/source-access-routes';
 import { getRequestId } from './request-context';
 import { shopifyCredentials } from '@shared/schema';
@@ -1224,6 +1227,9 @@ export function registerRoutes(app: Express): Server {
 
   // ÃœrÃ¼n Takip Sistemi v2 + otomatik kaynak eriÅŸim â€” legacy /api/tracking/:id'den Ã–NCE kayÄ±t
   registerTrackingRoutes(app);
+  registerImportJobRoutes(app);
+  registerControlCenterRoutes(app);
+  registerTrackingApprovalRoutes(app);
   registerSourceAccessRoutes(app);
 
   // Initialize Canva OAuth on startup
