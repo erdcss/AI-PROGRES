@@ -1,6 +1,8 @@
 import { useMemo } from "react";
-import { useLocation } from "wouter";
+import { Link, useSearchParams } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Home } from "lucide-react";
 import { OverviewTab } from "@/features/control-center/components/OverviewTab";
 import { ImportJobsTab } from "@/features/control-center/components/ImportJobsTab";
 import { SystemHealthTab } from "@/features/control-center/components/SystemHealthTab";
@@ -23,32 +25,40 @@ const TAB_IDS = [
 
 type TabId = (typeof TAB_IDS)[number];
 
-function tabFromSearch(search: string): TabId {
-  const tab = new URLSearchParams(search).get("tab");
-  if (tab && TAB_IDS.includes(tab as TabId)) return tab as TabId;
-  return "overview";
-}
-
 export default function ControlCenterPage() {
-  const [location, setLocation] = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const activeTab = useMemo(() => {
-    const q = location.includes("?") ? location.split("?")[1] : "";
-    return tabFromSearch(q ? `?${q}` : "");
-  }, [location]);
+    const tab = searchParams.get("tab");
+    if (tab && TAB_IDS.includes(tab as TabId)) return tab as TabId;
+    return "overview";
+  }, [searchParams]);
 
   const setTab = (tab: string) => {
-    setLocation(`/control-center?tab=${tab}`);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tab);
+      return next;
+    });
   };
 
   return (
     <div className="container mx-auto max-w-7xl space-y-6 p-4 md:p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Ürün Aktarım ve Takip Kontrol Merkezi
-        </h1>
-        <p className="text-muted-foreground">
-          Çekim, doğrulama, Shopify aktarımı ve takip onaylarını tek yerden yönetin.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Ürün Aktarım ve Takip Kontrol Merkezi
+          </h1>
+          <p className="text-muted-foreground">
+            Çekim, doğrulama, Shopify aktarımı ve takip onaylarını tek yerden yönetin.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="shrink-0 self-start" asChild>
+          <Link href="/">
+            <Home className="w-4 h-4 mr-2" />
+            Ana sayfaya dön
+          </Link>
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setTab}>
@@ -64,7 +74,7 @@ export default function ControlCenterPage() {
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
-          <OverviewTab />
+          <OverviewTab onNavigate={setTab} active={activeTab === "overview"} />
         </TabsContent>
         <TabsContent value="import-jobs" className="mt-4">
           <ImportJobsTab active={activeTab === "import-jobs"} />
@@ -76,7 +86,7 @@ export default function ControlCenterPage() {
           <ShopifyTab active={activeTab === "shopify"} />
         </TabsContent>
         <TabsContent value="tracking" className="mt-4">
-          <TrackingProductsTab />
+          <TrackingProductsTab active={activeTab === "tracking"} />
         </TabsContent>
         <TabsContent value="changes" className="mt-4">
           <ChangeApprovalTab active={activeTab === "changes"} />

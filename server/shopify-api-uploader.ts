@@ -5,6 +5,7 @@ import {
   shopifyAdminGraphql,
   parseShopifyAdminResponse,
 } from './shopify-token-manager';
+import { isBlockedShopifyTag } from '@shared/shopify-tag-sanitizer';
 
 // Duplicate prevention için upload history
 const uploadHistory = new Map<string, { productId: string; timestamp: number }>();
@@ -1119,14 +1120,11 @@ function generateProductTags(productData: any, colors: string[]): string {
     }
   });
   
-  // ❌ REMOVED: Trendyol tag is no longer added automatically
-  // tags.push('trendyol');
-  
-  // Remove duplicates, filter out 'trendyol', and join
-  const uniqueTags = Array.from(new Set(tags.filter(Boolean)))
-    .filter(tag => tag.toLowerCase() !== 'trendyol' && tag.toLowerCase() !== '#trendyol');
-  
-  console.log(`🏷️ Generated ${uniqueTags.length} tags for Shopify (filtered out #trendyol): ${uniqueTags.join(', ')}`);
+  const uniqueTags = Array.from(new Set(tags.filter(Boolean))).filter(
+    (tag) => !isBlockedShopifyTag(tag),
+  );
+
+  console.log(`🏷️ Generated ${uniqueTags.length} tags for Shopify: ${uniqueTags.join(', ')}`);
   
   return uniqueTags.join(', ');
 }

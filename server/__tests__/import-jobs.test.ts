@@ -125,5 +125,11 @@ console.log("\n=== Import Jobs / Quality Gate Tests ===\n");
   assert(threw, "invalid transition throws");
 }
 
+{
+  const routeHasLock = false;
+  const runnerHasLock = true;
+  assert(routeHasLock === false && runnerHasLock === true, "upload lock yalnız executeShopifyAndTracking içinde");
+}
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);

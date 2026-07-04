@@ -204,6 +204,19 @@ async function probeShopToken(shopDomain: string, accessToken: string): Promise<
   }
 }
 
+async function invalidateDbToken(shopDomain: string, reason: string): Promise<void> {
+  try {
+    const cleanDomain = normalizeShopDomain(shopDomain);
+    await db
+      .update(shopifyCredentials)
+      .set({ accessToken: null as any, updatedAt: new Date() } as any)
+      .where(eq(shopifyCredentials.shopDomain, cleanDomain));
+    console.warn(`[SHOPIFY_TOKEN] Geçersiz DB token temizlendi (${reason})`);
+  } catch {
+    /* optional */
+  }
+}
+
 async function readDbToken(shopDomain: string): Promise<string | null> {
   try {
     const normalizedTarget = normalizeShopDomain(shopDomain);
@@ -214,12 +227,23 @@ async function readDbToken(shopDomain: string): Promise<string | null> {
       .orderBy(desc(shopifyCredentials.updatedAt));
 
     const cred = rows.find((row) => normalizeShopDomain(row.shopDomain || '') === normalizedTarget);
-    if (!cred?.accessToken || isDeprecatedToken(cred.accessToken)) return null;
-    const domain = normalizeShopDomain(cred.shopDomain || shopDomain);
-    const probe = await probeShopToken(domain, cred.accessToken);
-    if (probe.ok) {
-      return cred.accessToken;
+    const token = cred?.accessToken?.trim();
+    if (!token || isDeprecatedToken(token)) return null;
+    if (!token.startsWith('shpat_') && !token.startsWith('shpua_')) {
+      console.warn('[SHOPIFY_TOKEN] DB token formatı tanınmıyor — OAuth yenilemesi gerekli');
+      return null;
     }
+
+    const domain = normalizeShopDomain(cred!.shopDomain || shopDomain);
+    const probe = await probeShopToken(domain, token);
+    if (probe.ok) {
+      return token;
+    }
+
+    if (probe.status === 401 || probe.status === 403) {
+      await invalidateDbToken(domain, `HTTP ${probe.status}`);
+    }
+    lastRefreshError = probe.hint || mapShopifyProbeError(probe.status);
     return null;
   } catch (err: unknown) {
     if ((err as { code?: string })?.code !== '42P01') {
@@ -498,6 +522,38 @@ export function hasClientCredentialsConfigured(): boolean {
   return Boolean(getShopifyClientCredentials());
 }
 
+/** secret_key / SHOPIFY_APP_SHARED_SECRET (shpss_) — client_credentials için yeterli değil */
+export function secretLooksLikeSharedSecretOnly(): boolean {
+  const shared =
+    process.env.secret_key?.trim() ||
+    process.env.SHOPIFY_APP_SHARED_SECRET?.trim() ||
+    '';
+  return (
+    shared.startsWith('shpss_') &&
+    !process.env.SHOPIFY_CLIENT_SECRET?.trim() &&
+    !process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim()
+  );
+}
+
+/** ENV, önbellek veya DB'de geçerli token var mı */
+export async function hasStoredShopifyToken(): Promise<boolean> {
+  if (getTokenCacheStatus().cached) return true;
+
+  if (hasEnvAccessToken()) {
+    const token =
+      process.env.SHOPIFY_ACCESS_TOKEN?.trim() ||
+      process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim() ||
+      '';
+    if (token && !isDeprecatedToken(token)) return true;
+  }
+
+  const shopDomain = envShopDomain();
+  if (!shopDomain) return false;
+
+  const dbToken = await readDbToken(normalizeShopDomain(shopDomain));
+  return Boolean(dbToken);
+}
+
 export async function getShopifyHealthResponse(): Promise<{
   ok: boolean;
   shopDomain: string;
@@ -656,13 +712,18 @@ export function getTokenCacheStatus(): {
   };
 }
 
-export function getShopifyTokenLifecycleStatus(): {
+export function getShopifyTokenLifecycleStatus(overrides?: {
+  hasStoredToken?: boolean;
+}): {
   autoRefreshEnabled: boolean;
   lastRefreshTime: number;
   lastSuccessfulRefreshAt: number;
   isRefreshing: boolean;
   msUntilRefresh: number;
   hasClientCredentials: boolean;
+  clientCredentialsReady: boolean;
+  secretLooksLikeSharedSecret: boolean;
+  hasStoredToken: boolean;
   lastError: string | null;
   cache: ReturnType<typeof getTokenCacheStatus>;
 } {
@@ -671,16 +732,50 @@ export function getShopifyTokenLifecycleStatus(): {
     cache.expiresAt && cache.expiresAt > Date.now()
       ? Math.max(0, cache.expiresAt - REFRESH_BUFFER_MS - Date.now())
       : 0;
+  const clientCredentialsReady = hasClientCredentialsConfigured();
+  const hasStoredToken = overrides?.hasStoredToken ?? cache.cached;
 
   return {
-    autoRefreshEnabled: hasClientCredentialsConfigured() || hasEnvAccessToken(),
+    autoRefreshEnabled:
+      clientCredentialsReady || hasEnvAccessToken() || hasStoredToken || cache.cached,
     lastRefreshTime: lastSuccessfulRefreshAt,
     lastSuccessfulRefreshAt,
     isRefreshing: Boolean(refreshInFlight),
     msUntilRefresh: msUntil,
-    hasClientCredentials: hasClientCredentialsConfigured(),
+    hasClientCredentials: clientCredentialsReady,
+    clientCredentialsReady,
+    secretLooksLikeSharedSecret: secretLooksLikeSharedSecretOnly(),
+    hasStoredToken,
     lastError: lastRefreshError,
     cache,
+  };
+}
+
+export async function buildShopifyTokenStatusPayload(): Promise<{
+  status: ReturnType<typeof getShopifyTokenLifecycleStatus>;
+  hasActiveToken: boolean;
+  hasDbToken: boolean;
+  clientCredentialsReady: boolean;
+  secretLooksLikeSharedSecret: boolean;
+  shopDomain: string | null;
+  tokenExpiresAt: string | null;
+  lastError: string | null;
+}> {
+  const dbHasToken = await hasStoredShopifyToken();
+  const lifecycle = getShopifyTokenLifecycleStatus({ hasStoredToken: dbHasToken });
+  const shopDomain = lifecycle.cache.shopDomain || envShopDomain() || null;
+
+  return {
+    status: lifecycle,
+    hasActiveToken: lifecycle.cache.cached || dbHasToken,
+    hasDbToken: dbHasToken,
+    clientCredentialsReady: lifecycle.clientCredentialsReady,
+    secretLooksLikeSharedSecret: lifecycle.secretLooksLikeSharedSecret,
+    shopDomain,
+    tokenExpiresAt: lifecycle.cache.expiresAt
+      ? new Date(lifecycle.cache.expiresAt).toISOString()
+      : null,
+    lastError: lifecycle.lastError,
   };
 }
 
@@ -703,7 +798,12 @@ export async function proactiveRefreshShopifyToken(force = false): Promise<{
     const token = await getValidShopifyAccessToken({ forceRefresh: force });
     return { success: true, source: token.source };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Token yenileme başarısız';
+    let message = err instanceof Error ? err.message : 'Token yenileme başarısız';
+    if (secretLooksLikeSharedSecretOnly() && !hasEnvAccessToken()) {
+      message =
+        'secret_key (shpss_) OAuth imza anahtarıdır; otomatik yenileme için Admin Token kaydedin ' +
+        'veya SHOPIFY_CLIENT_SECRET (shpsec_...) tanımlayın.';
+    }
     lastRefreshError = message;
     return { success: false, error: message };
   }
@@ -712,11 +812,23 @@ export async function proactiveRefreshShopifyToken(force = false): Promise<{
 /** Sunucu başlangıcında non-blocking token warm-up + periyodik yenileme */
 let tokenRefreshIntervalStarted = false;
 
+/** Sunucu başlangıcında DB'deki aktif token'ı önbelleğe al */
+export async function hydrateShopifyTokenFromDatabase(): Promise<boolean> {
+  const { bootstrapShopifyConnectionFromEnv } = await import('./shopify-credentials');
+  const boot = await bootstrapShopifyConnectionFromEnv();
+  if (boot.hasAccessToken) {
+    console.log('[SHOPIFY_TOKEN] Bağlantı hazır', {
+      shopDomain: boot.shopDomain,
+      tokenSource: boot.tokenSource,
+    });
+    return true;
+  }
+  console.warn(`[SHOPIFY_TOKEN] ${boot.message}`);
+  return false;
+}
+
 export function warmUpShopifyToken(): void {
-  getValidShopifyAccessToken().catch((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn(`⚠️ SHOPIFY TOKEN: Başlangıç warm-up atlandı — ${message}`);
-  });
+  hydrateShopifyTokenFromDatabase().catch(() => undefined);
 
   if (tokenRefreshIntervalStarted) return;
   tokenRefreshIntervalStarted = true;

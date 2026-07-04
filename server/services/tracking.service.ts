@@ -10,8 +10,9 @@ import {
   type InsertTrackedProduct,
   type InsertTrackedVariant,
 } from "@shared/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { getTrackingSettings } from "./tracking-settings.service";
+import { generateTrackingUid, generateVariantUid } from "./tracking-uid.service";
 
 export type SyncLogMeta = Record<string, unknown>;
 
@@ -58,6 +59,22 @@ export class TrackingService {
     changeType?: string;
   }) {
     await this.assertEnabled();
+    return this.listChangesForPanel(filters);
+  }
+
+  /** Kontrol merkezi — takip kapalı olsa bile listeler */
+  async listProductsForPanel() {
+    return db
+      .select()
+      .from(trackedProducts)
+      .orderBy(desc(trackedProducts.updatedAt));
+  }
+
+  async listChangesForPanel(filters?: {
+    status?: string;
+    productId?: number;
+    changeType?: string;
+  }) {
     const conditions = [];
     if (filters?.status) conditions.push(eq(detectedChanges.status, filters.status));
     if (filters?.productId) conditions.push(eq(detectedChanges.trackedProductId, filters.productId));
@@ -66,6 +83,36 @@ export class TrackingService {
     const query = db.select().from(detectedChanges).orderBy(desc(detectedChanges.createdAt));
     if (conditions.length === 0) return query;
     return query.where(and(...conditions));
+  }
+
+  async listChangesWithProductForPanel(filters?: {
+    status?: string;
+    productId?: number;
+    changeType?: string;
+  }) {
+    const changes = await this.listChangesForPanel(filters);
+    if (changes.length === 0) return [];
+
+    const productIds = [...new Set(changes.map((c) => c.trackedProductId))];
+    const products = await db
+      .select({
+        id: trackedProducts.id,
+        sourceTitle: trackedProducts.sourceTitle,
+        sourceUrl: trackedProducts.sourceUrl,
+        shopifyProductId: trackedProducts.shopifyProductId,
+        trackingUid: trackedProducts.trackingUid,
+      })
+      .from(trackedProducts)
+      .where(inArray(trackedProducts.id, productIds));
+
+    const byId = new Map(products.map((p) => [p.id, p]));
+    return changes.map((c) => ({
+      ...c,
+      productTitle: byId.get(c.trackedProductId)?.sourceTitle ?? null,
+      productUrl: byId.get(c.trackedProductId)?.sourceUrl ?? null,
+      shopifyProductId: byId.get(c.trackedProductId)?.shopifyProductId ?? null,
+      trackingUid: byId.get(c.trackedProductId)?.trackingUid ?? null,
+    }));
   }
 
   async getLatestSnapshot(trackedProductId: number) {
@@ -135,6 +182,20 @@ export class TrackingService {
 
     const site = input.sourceUrl.includes("trendyol") ? "trendyol" : "other";
     const productIdMatch = input.sourceUrl.match(/p-(\d+)/);
+    const existing = await db
+      .select()
+      .from(trackedProducts)
+      .where(eq(trackedProducts.sourceUrl, input.sourceUrl))
+      .limit(1);
+
+    const trackingUid =
+      existing[0]?.trackingUid ??
+      generateTrackingUid({
+        sourceSite: site,
+        sourceProductId: productIdMatch?.[1] ?? null,
+        sourceUrl: input.sourceUrl,
+      });
+
     const payload: InsertTrackedProduct = {
       sourceUrl: input.sourceUrl,
       sourceSite: site,
@@ -143,17 +204,12 @@ export class TrackingService {
       shopifyProductId: input.shopifyProductId,
       shopifyHandle: input.shopifyHandle ?? null,
       shopifyProductGid: input.shopifyProductGid ?? null,
+      trackingUid,
       currentSourcePrice: String(input.price),
       currentStatus: "active",
       trackingEnabled: true,
       lastSuccessAt: new Date(),
     };
-
-    const existing = await db
-      .select()
-      .from(trackedProducts)
-      .where(eq(trackedProducts.sourceUrl, input.sourceUrl))
-      .limit(1);
 
     let productRow;
     if (existing[0]) {
@@ -172,6 +228,12 @@ export class TrackingService {
       const option2 = v.size?.trim() || null;
       const variantPayload: InsertTrackedVariant = {
         trackedProductId: productRow.id,
+        variantUid: generateVariantUid(
+          productRow.trackingUid ?? trackingUid,
+          option1,
+          option2,
+          v.sku,
+        ),
         sourceVariantTitle: [option1, option2].filter(Boolean).join(" / ") || v.sku || "unknown",
         option1,
         option2,
@@ -207,9 +269,11 @@ export class TrackingService {
             .limit(1);
 
       if (existingVar[0]) {
+        const patch = { ...variantPayload, updatedAt: new Date() };
+        if (existingVar[0].variantUid) delete (patch as { variantUid?: string }).variantUid;
         await db
           .update(trackedVariants)
-          .set({ ...variantPayload, updatedAt: new Date() })
+          .set(patch)
           .where(eq(trackedVariants.id, existingVar[0].id));
       } else {
         await db.insert(trackedVariants).values(variantPayload);

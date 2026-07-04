@@ -1,6 +1,7 @@
 import { normalizeTrendyolDisplayPrice } from "@/utils/price-utils";
 import { extractImagesFromCsv, resolveOriginalImageUrl } from "@/lib/product-image-url";
 import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
+import { deriveProductStockLabel, summarizeStockFromVariants } from "@shared/stock-status";
 import { filterValidProductImages, prioritizeProductImagesForPreview } from "@shared/trendyol-product-images";
 
 export class ScrapeFetchError extends Error {
@@ -405,6 +406,21 @@ export function buildCsvPreviewEntry(
           productCount: 1,
         }
       : undefined;
+  const stockSummary = canonicalVariants?.length
+    ? summarizeStockFromVariants(
+        canonicalVariants.map((v) => ({
+          inStock: v.inStock,
+          stockStatus:
+            (v as { stockConfidence?: string }).stockConfidence === "low" && !v.inStock
+              ? "unknown"
+              : v.inStock
+                ? "in_stock"
+                : "out_of_stock",
+        })),
+      )
+    : undefined;
+  const stockLabel = stockSummary ? deriveProductStockLabel(stockSummary) : undefined;
+
   return {
     id: `${idPrefix}-${urlSlug}-${Date.now()}`,
     productTitle: data.title,
@@ -413,9 +429,15 @@ export function buildCsvPreviewEntry(
     sourceUrl: url,
     scrapeRunId: data.scrapeRunId,
     canonicalProduct: data.canonicalProduct,
+    stockSummary,
+    stockLabel,
+    stockAnalysis: data.stockAnalysis,
+    manualReviewRequired: data.canonicalProduct?.manualReviewRequired,
+    shopifyUploadBlocked: data.canonicalProduct?.shopifyUploadBlocked,
     blockReason:
       (data as Record<string, unknown>).variantBlockReason as string | undefined ||
       data.canonicalProduct?.blockReason,
+    sourceProductId: data.canonicalProduct?.sourceProductId,
     usableForCsv: data.usableForCsv,
     csvInfo,
     titleSource: data.titleSource,

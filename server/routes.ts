@@ -1,4 +1,4 @@
-﻿// @ts-nocheck — legacy route handlers; scrape pipeline changes live in typed submodules.
+// @ts-nocheck — legacy route handlers; scrape pipeline changes live in typed submodules.
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { browserNavigate, browserClick, browserScroll, browserBack, browserForward, browserType, browserKeyPress, browserGetScreenshot, browserDoubleClick, browserRightClick, browserHover, browserDragScroll } from "./browser-session";
@@ -2367,45 +2367,53 @@ setTimeout(check, 1000);
         
         // ğŸ” ENHANCE VARIANTS WITH REAL STOCK DETECTION (only if needed)
         // Check if variants are already in correct format from scenario-based-scraper
+        const {
+          countValidSizesFromAnySource,
+          isLikelyApparelProduct,
+          applyFullVariantScrapeToResult,
+        } = await import('./trendyol-variant-probe');
+        const sizeCount = countValidSizesFromAnySource(result);
+        const sparseApparel = isLikelyApparelProduct(result, url) && sizeCount <= 1;
         const hasValidVariants = result.variants && 
                                 typeof result.variants === 'object' && 
                                 !Array.isArray(result.variants) &&
                                 'allVariants' in result.variants &&
                                 Array.isArray(result.variants.allVariants) &&
-                                result.variants.allVariants.length > 0;
+                                result.variants.allVariants.length > 0 &&
+                                !sparseApparel;
         
         if (hasValidVariants) {
-          console.log(`âœ… Variants already extracted by scenario-based-scraper: ${result.variants.allVariants.length} variants`);
-          console.log(`ğŸ¨ Colors: ${result.variants.colors?.length || 0}, Sizes: ${result.variants.sizes?.length || 0}`);
-        } else if (result.success && result.htmlContent) {
-          console.log('ğŸ” Enhancing variants with real stock detection...');
-          console.log('ğŸ” Current result.variants format:', typeof result.variants, Array.isArray(result.variants) ? 'array' : 'object');
-          
-          try {
-            // Create cheerio instance from htmlContent if not available
-            let $ = result.$;
-            if (!$) {
-              console.log('ğŸ”§ Creating cheerio instance from htmlContent...');
-              $ = cheerio.load(result.htmlContent);
+          console.log(`Variants already extracted: ${result.variants.allVariants.length} variants, sizes=${sizeCount}`);
+          console.log(`Colors: ${result.variants.colors?.length || 0}, Sizes: ${result.variants.sizes?.length || 0}`);
+        } else if (result.success) {
+          if (sparseApparel || sizeCount <= 1) {
+            console.log(`Sparse apparel variant detected (sizes=${sizeCount}) — full variant scrape retry`);
+            await applyFullVariantScrapeToResult(url, result, {
+              html: typeof result.htmlContent === 'string' ? result.htmlContent : null,
+              mode: 'routes-retry',
+            });
+          }
+
+          const htmlForStock =
+            typeof result.htmlContent === 'string' && result.htmlContent.length > 500
+              ? result.htmlContent
+              : typeof (result.domProbe as { html?: string } | undefined)?.html === 'string'
+                ? (result.domProbe as { html: string }).html
+                : null;
+
+          if (htmlForStock) {
+            try {
+              let $ = result.$;
+              if (!$) {
+                $ = cheerio.load(htmlForStock);
+              }
+              const realVariants = detectRealStockStatus($, htmlForStock);
+              if (realVariants.length > 1) {
+                result.variants = convertToLegacyFormat(realVariants);
+              }
+            } catch (error) {
+              console.log('Real stock detection failed:', error);
             }
-            
-            const realVariants = detectRealStockStatus($, result.htmlContent);
-            if (realVariants.length > 0) {
-              console.log('âš ï¸ result.variants empty or invalid, using realVariants');
-              result.variants = convertToLegacyFormat(realVariants);
-              
-              console.log(`âœ… Real stock detection: ${realVariants.filter(v => v.inStock).length}/${realVariants.length} in stock`);
-              
-              // Log stock status for each variant
-              realVariants.forEach(variant => {
-                console.log(`ğŸ“¦ ${variant.color} ${variant.size}: ${variant.inStock ? 'STOKTA' : 'TÃœKENDÄ°'} (${variant.method})`);
-              });
-            } else {
-              console.log('âš ï¸ Real stock detection returned no variants, keeping original');
-            }
-          } catch (error) {
-            console.log('âŒ Real stock detection failed:', error);
-            // Keep original variants if real detection fails
           }
         }
         
@@ -4210,6 +4218,36 @@ setTimeout(check, 1000);
     }
   });
 
+  app.post('/api/shopify/bulk-upload', async (req, res) => {
+    try {
+      const requestId = getRequestId(req);
+      const { ensureShopifyConnectionReady } = await import('./shopify-token-manager');
+      const conn = await ensureShopifyConnectionReady(requestId);
+      if (!conn.connected) {
+        return res.status(400).json({
+          success: false,
+          error: conn.message,
+          step: 'connection_check',
+        });
+      }
+
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+      if (items.length === 0) {
+        return res.status(400).json({ success: false, error: 'items dizisi boş' });
+      }
+
+      const { executeBulkShopifyUpload } = await import('./bulk-shopify-upload.service');
+      const result = await executeBulkShopifyUpload(items, { requestId, concurrency: 1 });
+      return res.json(result);
+    } catch (error) {
+      console.error('Bulk Shopify upload error:', error);
+      return res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Bulk upload failed',
+      });
+    }
+  });
+
   // Debug endpoint
   app.get('/api/debug-multi-url', async (req, res) => {
     try {
@@ -4276,17 +4314,32 @@ setTimeout(check, 1000);
   // Mevcut kimlik bilgilerini döndürür (token gizlenir, gerçek API probe ile)
   app.get('/api/shopify/credentials', async (_req, res) => {
     try {
-      const { resolveShopifyConfig } = await import('./shopify-credentials');
+      const { resolveShopifyConfig, bootstrapShopifyConnectionFromEnv } = await import('./shopify-credentials');
+      const boot = await bootstrapShopifyConnectionFromEnv();
       const config = await resolveShopifyConfig();
       return res.json({
         connected: config.ok,
-        shopDomain: config.shopDomain,
+        shopDomain: config.shopDomain || boot.shopDomain,
         apiKey: config.apiKey,
         hasToken: config.hasAccessToken,
-        tokenInvalid: !config.ok && config.hasAccessToken,
+        tokenInvalid: !config.ok && boot.hasAccessToken === false && config.hasAccessToken,
+        oauthReady: boot.oauthReady,
         source: config.tokenSource,
+        bootstrapMessage: boot.message,
         error: config.error,
       });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // ENV → DB senkron + token warm-up
+  app.post('/api/shopify/bootstrap', async (_req, res) => {
+    try {
+      const { bootstrapShopifyConnectionFromEnv } = await import('./shopify-credentials');
+      const boot = await bootstrapShopifyConnectionFromEnv();
+      invalidateShopifyCredentialCache();
+      res.json(boot);
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -4307,15 +4360,17 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify OAuth yetkilendirme URL'i Ã¼retir
+  // Shopify OAuth yetkilendirme URL'i üretir
   app.get('/api/shopify/auth-url', async (req, res) => {
     try {
-      const rows = await db.select().from(shopifyCredentials)
-        .where(eq(shopifyCredentials.isActive, true))
-        .orderBy(desc(shopifyCredentials.updatedAt))
-        .limit(1);
-      const cred = rows[0];
-      if (!cred) return res.status(400).json({ error: 'Ã–nce kimlik bilgilerini kaydedin.' });
+      const { resolveOAuthShopifyCredentials, syncEnvApiKeyToDB } = await import('./shopify-credentials');
+      await syncEnvApiKeyToDB();
+      const cred = await resolveOAuthShopifyCredentials();
+      if (!cred) {
+        return res.status(400).json({
+          error: 'OAuth kimlik bilgileri eksik. .env içinde SHOPIFY_client_id ve secret_key tanımlayın veya OAuth sekmesinden kaydedin.',
+        });
+      }
 
       const scopes = 'read_products,write_products,read_inventory,write_inventory,read_orders';
       const redirectUri = `${req.protocol}://${req.get('host')}/api/shopify/callback`;
@@ -4326,7 +4381,7 @@ setTimeout(check, 1000);
         `&scope=${encodeURIComponent(scopes)}` +
         `&redirect_uri=${encodeURIComponent(redirectUri)}` +
         `&state=${state}`;
-      res.json({ authUrl, redirectUri });
+      res.json({ authUrl, redirectUri, shopDomain: cred.shopDomain, credentialSource: cred.source });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -4355,6 +4410,15 @@ setTimeout(check, 1000);
       }
 
       await saveShopifyAccessToken(shop, tokenData.access_token);
+
+      const { setShopifyTokenCache } = await import('./shopify-token-manager');
+      setShopifyTokenCache({
+        accessToken: tokenData.access_token,
+        shopDomain: shop,
+        source: 'db',
+        expiresInSeconds: 23 * 3600,
+      });
+      invalidateShopifyCredentialCache();
       res.redirect('/?shopify=connected');
     } catch (err) {
       res.status(500).send(`OAuth hatasÄ±: ${err}`);
@@ -4384,19 +4448,27 @@ setTimeout(check, 1000);
       const { shopDomain } = req.body;
       if (!shopDomain) return res.status(400).json({ error: 'shopDomain zorunludur.' });
       await deleteShopifyCredentials(shopDomain);
+      const { invalidateShopifyTokenCache } = await import('./shopify-token-manager');
+      invalidateShopifyTokenCache();
+      invalidateShopifyCredentialCache();
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
   });
 
-  // Shopify token otomatik yenileme â€” manuel tetikleme
+  // Shopify token otomatik yenileme — manuel tetikleme
   app.post('/api/shopify/rotate-token', async (req, res) => {
     try {
-      const { proactiveRefreshShopifyToken, getShopifyTokenLifecycleStatus } = await import(
-        './shopify-token-manager'
-      );
+      const {
+        proactiveRefreshShopifyToken,
+        buildShopifyTokenStatusPayload,
+        secretLooksLikeSharedSecretOnly,
+        hasEnvAccessToken,
+      } = await import('./shopify-token-manager');
       const result = await proactiveRefreshShopifyToken(true);
+      const statusPayload = await buildShopifyTokenStatusPayload();
+
       if (!result.success) {
         const { getValidShopifyAccessToken } = await import('./shopify-token-manager');
         try {
@@ -4406,15 +4478,22 @@ setTimeout(check, 1000);
             success: true,
             method: token.source,
             message: `Mevcut token doğrulandı (${token.source})`,
-            status: getShopifyTokenLifecycleStatus(),
+            status: statusPayload.status,
+            ...statusPayload,
           });
         } catch {
+          let hint =
+            'Token yenileme başarısız. Admin Token sekmesinden shpat_... kaydedin veya SHOPIFY_CLIENT_SECRET (shpsec_...) tanımlayın.';
+          if (secretLooksLikeSharedSecretOnly() && !hasEnvAccessToken()) {
+            hint =
+              'secret_key (shpss_) yalnızca OAuth imzasıdır. Otomatik yenileme için Admin Token kaydedin veya Dev Dashboard Client Secret (shpsec_...) ekleyin.';
+          }
           return res.status(500).json({
             success: false,
             error: result.error,
-            message:
-              'Token yenileme başarısız. SHOPIFY_ACCESS_TOKEN veya SHOPIFY_CLIENT_SECRET (shpsec_...) kontrol edin.',
-            status: getShopifyTokenLifecycleStatus(),
+            message: hint,
+            status: statusPayload.status,
+            ...statusPayload,
           });
         }
       }
@@ -4423,7 +4502,8 @@ setTimeout(check, 1000);
         success: true,
         method: result.source,
         message: `Token başarıyla yenilendi (${result.source})`,
-        status: getShopifyTokenLifecycleStatus(),
+        status: statusPayload.status,
+        ...statusPayload,
       });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
@@ -4433,21 +4513,14 @@ setTimeout(check, 1000);
   // Shopify token durumu
   app.get('/api/shopify/token-status', async (_req, res) => {
     try {
-      const { getShopifyTokenLifecycleStatus } = await import('./shopify-token-manager');
+      const { buildShopifyTokenStatusPayload } = await import('./shopify-token-manager');
       const {
         resolveClientIdSource,
         resolveClientSecretSource,
-        envShopDomain,
       } = await import('./shopify-credentials');
-      const lifecycle = getShopifyTokenLifecycleStatus();
+      const payload = await buildShopifyTokenStatusPayload();
       res.json({
-        status: lifecycle,
-        hasActiveToken: lifecycle.cache.cached,
-        shopDomain: lifecycle.cache.shopDomain || envShopDomain() || null,
-        tokenExpiresAt: lifecycle.cache.expiresAt
-          ? new Date(lifecycle.cache.expiresAt).toISOString()
-          : null,
-        lastError: lifecycle.lastError,
+        ...payload,
         envVarsConfigured: {
           SHOPIFY_CLIENT_ID: resolveClientIdSource() !== 'missing',
           SHOPIFY_CLIENT_SECRET: resolveClientSecretSource() !== 'missing',
@@ -4537,7 +4610,7 @@ setTimeout(check, 1000);
       setShopifyTokenCache({
         accessToken,
         shopDomain: cleanDomain,
-        source: 'env',
+        source: 'db',
         expiresInSeconds: 23 * 3600,
       });
 
@@ -6611,16 +6684,12 @@ setTimeout(check, 1000);
       
       console.log(`ğŸ“Š Database'de ${allProducts.length} Ã¼rÃ¼n bulundu`);
       
-      // Manual cleanup: Mark products as inactive if needed
-      // TODO: Implement Shopify Admin API integration to check actual product status
-      // For now, this is a placeholder for manual cleanup
-      
-      res.json({
-        success: true,
-        message: 'Shopify Admin API entegrasyonu gerekiyor. Manuel temizleme iÃ§in Ã¼rÃ¼nleri tek tek silebilirsiniz.',
-        totalProducts: allProducts.length,
-        note: 'Shopify Admin API credentials eklendiÄŸinde otomatik senkronizasyon aktif olacak'
-      });
+      const { syncShopifyDeletedProducts } = await import('./services/shopify-deleted-sync.service');
+      const result = await syncShopifyDeletedProducts();
+      if (!result.success) {
+        return res.status(422).json({ success: false, ...result });
+      }
+      return res.json({ success: true, ...result });
     } catch (error) {
       console.error('âŒ Shopify sync hatasÄ±:', error);
       res.status(500).json({

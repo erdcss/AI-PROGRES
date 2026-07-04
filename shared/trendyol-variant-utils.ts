@@ -4,6 +4,7 @@ import {
   isClothingProduct,
   isStandardClothingSize,
 } from "./clothing-keywords";
+import { normalizeTrendyolColorName } from "./trendyol-color-normalizer";
 
 const PLACEHOLDER_SIZES = new Set([
   "tek beden",
@@ -45,8 +46,7 @@ export function isPlaceholderSize(size: unknown): boolean {
 
 export function isPlaceholderColor(color: unknown): boolean {
   if (color == null) return true;
-  const normalized = String(color).trim().toLowerCase();
-  return normalized === "" || PLACEHOLDER_COLORS.has(normalized);
+  return normalizeTrendyolColorName(color) === null;
 }
 
 export interface SanitizedVariant {
@@ -92,12 +92,13 @@ function toVariantRecord(
 ): SanitizedVariant | null {
   if (!raw || typeof raw !== "object") return null;
   const v = raw as Record<string, unknown>;
-  const color = String(v.color ?? v.colorName ?? v.name ?? "").trim();
+  const colorRaw = String(v.color ?? v.colorName ?? v.name ?? "").trim();
   const size = String(v.size ?? v.sizeName ?? v.value ?? "").trim();
+  const color = normalizeTrendyolColorName(colorRaw) ?? (colorRaw ? "" : "");
   const inStock = v.inStock !== false && v.inStock !== "false";
   const colorCode = v.colorCode ? String(v.colorCode) : undefined;
 
-  const fakeColor = isPlaceholderColor(color);
+  const fakeColor = !color;
   const fakeSize = isFakeSizeForProduct(size, productTitle);
   if (fakeColor && fakeSize) return null;
 
@@ -198,7 +199,9 @@ export function sanitizeTrendyolVariants(
         .map((v) => toVariantRecord(v, productTitle))
         .filter((v): v is SanitizedVariant => v !== null);
     } else {
-      const colors = (record.colors || []).filter((c) => !isPlaceholderColor(c));
+      const colors = normalizeStringList(record.colors)
+        .map((c) => normalizeTrendyolColorName(c))
+        .filter((c): c is string => Boolean(c));
       const sizes = (record.sizes || []).filter(
         (s) => !isFakeSizeForProduct(s, productTitle),
       );

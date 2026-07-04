@@ -193,6 +193,7 @@ const KNOWN_TURKISH_COLORS = new Set([
   'mor', 'pembe', 'gri', 'kahve', 'kahverengi', 'turuncu', 'lacivert', 'krem', 'bej',
   'bordo', 'füme', 'fume', 'antrasit', 'haki', 'mint', 'lila', 'ekru', 'vizon',
   'altın', 'altin', 'gümüş', 'gumus', 'hardal', 'taba', 'pudra', 'mercan',
+  'tek renk', 'varsayılan', 'varsayilan', 'standart', 'tek beden',
 ]);
 
 function isKnownTurkishColor(color: string): boolean {
@@ -201,10 +202,29 @@ function isKnownTurkishColor(color: string): boolean {
   return [...KNOWN_TURKISH_COLORS].some((known) => lc.includes(known));
 }
 
+function isGenericVariantLabel(color: string): boolean {
+  const lc = color.toLowerCase().trim();
+  return lc === 'tek renk' || lc === 'varsayılan' || lc === 'varsayilan' || lc === 'standart' || lc === 'tek beden';
+}
+
+function looksLikeProductTitle(color: string, productTitle: string): boolean {
+  const c = color.trim();
+  const t = productTitle.trim();
+  if (!c || !t || c.length < 20) return false;
+  const lc = c.toLowerCase();
+  const lt = t.toLowerCase();
+  if (lc === lt) return true;
+  if (c.length > 45 && (lt.includes(lc) || lc.includes(lt.substring(0, Math.min(40, lt.length))))) {
+    return true;
+  }
+  return false;
+}
+
 async function validateColorsWithAI(colors: string[], productTitle: string): Promise<string[]> {
   if (colors.length === 0) return [];
-  // No need for AI if only 1 color (handled by single-color strip later)
-  // Still validate to catch bad names
+  if (colors.every((c) => isKnownTurkishColor(c) || isGenericVariantLabel(c))) {
+    return colors;
+  }
   try {
     const prompt = `Aşağıdaki listeden sadece GERÇEK renk adlarını filtrele. Gerçek renk = müşterinin ürünü satın alırken seçebileceği bir renk seçeneği (Siyah, Mavi, Kırmızı, Açık Gri vb.). Renk OLMAYAN şeyleri çıkar: marka adları, model kodları, ürün açıklamaları, desen adları (Logo, Baskı, Çizgili vb.), malzeme adları.
 
@@ -235,14 +255,14 @@ Hiç geçerli renk yoksa: {"validColors": []}`;
     const valid: string[] = Array.isArray(parsed.validColors) ? parsed.validColors : [];
     console.log(`🤖 AI Color Validation: [${colors.join(', ')}] → [${valid.join(', ')}]`);
 
-    if (valid.length === 0 && colors.some(isKnownTurkishColor)) {
-      console.log('🤖 AI boş döndü — bilinen Türkçe renkler korunuyor');
+    if (valid.length === 0 && colors.some((c) => isKnownTurkishColor(c) || isGenericVariantLabel(c))) {
+      console.log('🤖 AI boş döndü — bilinen renk/etiketler korunuyor');
       return colors;
     }
     if (valid.length > 0) {
       const kept = colors.filter((c) => {
         const lc = c.toLowerCase().trim();
-        return valid.some((v) => v.toLowerCase().trim() === lc) || isKnownTurkishColor(c);
+        return valid.some((v) => v.toLowerCase().trim() === lc) || isKnownTurkishColor(c) || isGenericVariantLabel(c);
       });
       if (kept.length > 0) return kept;
     }
@@ -3405,29 +3425,52 @@ export async function scenarioBasedScrape(
       validatedVariants.allVariants.map(v => v.color).filter(c => c && c.trim() !== '')
     )];
     if (rawColorList.length > 0) {
-      const aiValidatedColors = await validateColorsWithAI(rawColorList, title || '');
-      const aiValidatedSet = new Set(aiValidatedColors.map(c => c.toLowerCase().trim()));
-      // Build a map for case-insensitive lookup: validated lowercase → proper AI name
+      const colorsForAi = rawColorList.filter((c) => !looksLikeProductTitle(c, title || ''));
+      const aiValidatedColors =
+        colorsForAi.length > 0
+          ? await validateColorsWithAI(colorsForAi, title || '')
+          : rawColorList;
+      const aiValidatedSet = new Set(aiValidatedColors.map((c) => c.toLowerCase().trim()));
       const aiColorMap = new Map<string, string>();
-      aiValidatedColors.forEach(c => aiColorMap.set(c.toLowerCase().trim(), c));
+      aiValidatedColors.forEach((c) => aiColorMap.set(c.toLowerCase().trim(), c));
 
-      // Filter variants: keep only those with AI-validated colors, using AI's corrected name
-      const beforeCount = validatedVariants.allVariants.length;
-      validatedVariants.allVariants = validatedVariants.allVariants.map(v => {
-        if (!v.color || !v.color.trim()) return v;
-        const lc = v.color.toLowerCase().trim();
-        if (!aiValidatedSet.has(lc)) {
-          console.log(`🤖 AI rejected color "${v.color}" → clearing from variant`);
-          return { ...v, color: '', colorCode: '' };
+      const variantMatchesAi = (color: string) => {
+        const lc = color.toLowerCase().trim();
+        return (
+          aiValidatedSet.has(lc) ||
+          isKnownTurkishColor(color) ||
+          isGenericVariantLabel(color)
+        );
+      };
+      const shouldApplyAiFilter =
+        aiValidatedColors.length > 0 &&
+        validatedVariants.allVariants.some((v) => v.color?.trim() && variantMatchesAi(v.color));
+
+      if (shouldApplyAiFilter) {
+        const beforeCount = validatedVariants.allVariants.length;
+        const originalVariants = validatedVariants.allVariants.map((v) => ({ ...v }));
+        validatedVariants.allVariants = validatedVariants.allVariants.map((v) => {
+          if (!v.color || !v.color.trim()) return v;
+          const lc = v.color.toLowerCase().trim();
+          if (!variantMatchesAi(v.color)) {
+            console.log(`🤖 AI rejected color "${v.color}" → clearing from variant`);
+            return { ...v, color: '', colorCode: '' };
+          }
+          const correctedName = aiColorMap.get(lc) || v.color;
+          return { ...v, color: correctedName, colorCode: getColorCode(correctedName) };
+        });
+        const afterCount = validatedVariants.allVariants.filter((v) => v.color && v.color.trim()).length;
+        if (afterCount === 0 && beforeCount > 0) {
+          console.log('🤖 AI validation would wipe all colors — reverting to original variant colors');
+          validatedVariants.allVariants = originalVariants;
+        } else if (beforeCount !== afterCount) {
+          console.log(`🤖 AI validation: ${beforeCount} → ${afterCount} variants with valid colors`);
         }
-        // Use AI's corrected/normalized name
-        const correctedName = aiColorMap.get(lc) || v.color;
-        return { ...v, color: correctedName, colorCode: getColorCode(correctedName) };
-      });
-      validatedVariants.colors = [...new Set(validatedVariants.allVariants.map(v => v.color).filter(c => c && c.trim() !== ''))];
-      const afterCount = validatedVariants.allVariants.filter(v => v.color && v.color.trim()).length;
-      if (beforeCount !== afterCount) {
-        console.log(`🤖 AI validation: ${beforeCount} → ${afterCount} variants with valid colors`);
+        validatedVariants.colors = [
+          ...new Set(validatedVariants.allVariants.map((v) => v.color).filter((c) => c && c.trim() !== '')),
+        ];
+      } else {
+        console.log('🤖 AI color validation skipped — preserving original variant colors');
       }
     }
 

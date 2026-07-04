@@ -22,6 +22,8 @@ interface CredentialsStatus {
   apiKey?: string;
   hasToken?: boolean;
   tokenInvalid?: boolean;
+  oauthReady?: boolean;
+  bootstrapMessage?: string;
   updatedAt?: string;
   source?: string;
 }
@@ -44,6 +46,9 @@ interface TokenRefreshStatus {
     isRefreshing: boolean;
     msUntilRefresh: number;
     lastError: string | null;
+    clientCredentialsReady?: boolean;
+    secretLooksLikeSharedSecret?: boolean;
+    hasStoredToken?: boolean;
     cache?: {
       expiresAt: number | null;
       expiresInMs: number | null;
@@ -51,6 +56,9 @@ interface TokenRefreshStatus {
     };
   };
   hasActiveToken: boolean;
+  hasDbToken?: boolean;
+  clientCredentialsReady?: boolean;
+  secretLooksLikeSharedSecret?: boolean;
   shopDomain: string | null;
   tokenExpiresAt?: string | null;
   lastError?: string | null;
@@ -131,16 +139,32 @@ export default function ShopifySettingsDialog() {
       toast({ title: "Canva Hatası ❌", description: params.get("canva_error") || "Bağlantı başarısız", variant: "destructive" });
       window.history.replaceState({}, "", window.location.pathname);
     }
+    if (params.get("shopify") === "connected") {
+      toast({ title: "Shopify Bağlandı ✅", description: "Token kaydedildi. Bağlantı test ediliyor..." });
+      fetch("/api/shopify/bootstrap", { method: "POST" })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
+        })
+        .catch(() => undefined);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
-  // Auto-test connection when dialog opens
+  // Bootstrap + auto-test when dialog opens
   useEffect(() => {
-    if (open && status?.hasToken) {
-      runLiveTest();
-    }
     if (!open) {
       setLiveTest(null);
+      return;
     }
+
+    fetch("/api/shopify/bootstrap", { method: "POST" })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
+      })
+      .catch(() => undefined)
+      .finally(() => runLiveTest());
   }, [open]);
 
   useEffect(() => {
@@ -254,11 +278,12 @@ export default function ShopifySettingsDialog() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
       setDirectToken("");
       setLiveTest({ success: true, message: `${data.storeName || data.shopDomain} mağazasına bağlanıldı.`, store: data.storeName });
       toast({
         title: "Bağlantı Başarılı ✅",
-        description: `${data.storeName || data.shopDomain} mağazasına bağlanıldı.`
+        description: `${data.storeName || data.shopDomain} mağazasına bağlanıldı. Token kalıcı olarak kaydedildi.`,
       });
     },
     onError: (err: Error) => {
@@ -412,9 +437,12 @@ export default function ShopifySettingsDialog() {
               const trs = tokenRefreshStatus;
               const clientIdOk =
                 trs?.envVarsConfigured?.SHOPIFY_CLIENT_ID ?? trs?.envVarsConfigured?.SHOPIFY_API_KEY;
-              const clientSecretOk =
-                trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET ??
-                trs?.envVarsConfigured?.SHOPIFY_APP_SHARED_SECRET;
+              const clientCredentialsReady =
+                trs?.clientCredentialsReady ?? trs?.status?.clientCredentialsReady ?? false;
+              const sharedSecretOnly =
+                trs?.secretLooksLikeSharedSecret ?? trs?.status?.secretLooksLikeSharedSecret ?? false;
+              const refreshActive =
+                trs?.status?.autoRefreshEnabled || trs?.hasActiveToken || trs?.hasDbToken;
               const lastMs = trs?.status?.lastSuccessfulRefreshAt || trs?.status?.lastRefreshTime || 0;
               const msLeft = trs?.status?.msUntilRefresh || 0;
               const hLeft = Math.floor(msLeft / 3600000);
@@ -435,7 +463,7 @@ export default function ShopifySettingsDialog() {
                       <Clock className="h-3 w-3" />
                       Otomatik Token Yenileme
                     </p>
-                    {trs?.status?.autoRefreshEnabled ? (
+                    {refreshActive ? (
                       <Badge className="bg-green-500 text-white text-xs px-1 py-0">Aktif</Badge>
                     ) : (
                       <Badge variant="destructive" className="text-xs px-1 py-0">Pasif</Badge>
@@ -468,11 +496,21 @@ export default function ShopifySettingsDialog() {
                     </div>
                     <div>
                       <span className="block text-foreground/70">Client Secret</span>
-                      <span className={clientSecretOk ? 'text-green-600' : 'text-red-500'}>
-                        {clientSecretOk ? '✅ Tanımlı' : '❌ Eksik'}
+                      <span className={clientCredentialsReady ? 'text-green-600' : sharedSecretOnly ? 'text-amber-600' : 'text-red-500'}>
+                        {clientCredentialsReady
+                          ? '✅ shpsec_ (OAuth yenileme)'
+                          : sharedSecretOnly
+                            ? '⚠️ shpss_ (yalnızca imza)'
+                            : '❌ Eksik'}
                       </span>
                     </div>
                   </div>
+                  {sharedSecretOnly && !clientCredentialsReady && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      secret_key (shpss_) otomatik token yenileme için yeterli değil. Admin Token kaydedin
+                      veya SHOPIFY_CLIENT_SECRET (shpsec_...) ekleyin.
+                    </p>
+                  )}
                   {lastErr && (
                     <p className="text-xs text-red-600 dark:text-red-400 line-clamp-3">{lastErr}</p>
                   )}
@@ -600,7 +638,7 @@ export default function ShopifySettingsDialog() {
                     variant="secondary"
                     className="w-full gap-2"
                     onClick={() => connectMutation.mutate()}
-                    disabled={!status?.shopDomain || connectMutation.isPending}
+                    disabled={!(status?.oauthReady || status?.shopDomain) || connectMutation.isPending}
                   >
                     {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                     Shopify'da Yetkilendir

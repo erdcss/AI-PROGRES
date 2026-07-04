@@ -864,6 +864,34 @@ export class ShopifyApiService {
   }
 
   /**
+   * 📝 Update product title
+   */
+  async updateProductTitle(productId: string, title: string) {
+    const updateData = {
+      product: {
+        id: parseInt(productId, 10),
+        title,
+      },
+    };
+    const result = await this.makeRequest(`products/${productId}.json`, "PUT", updateData);
+    return { success: true, data: result };
+  }
+
+  /**
+   * 📦 Update product status (active / draft / archived)
+   */
+  async updateProductStatus(productId: string, status: "active" | "draft" | "archived") {
+    const updateData = {
+      product: {
+        id: parseInt(productId, 10),
+        status,
+      },
+    };
+    const result = await this.makeRequest(`products/${productId}.json`, "PUT", updateData);
+    return { success: true, data: result };
+  }
+
+  /**
    * 🏷️ Update product category (product_type)
    * Used by ShopifySyncManager when category changes
    */

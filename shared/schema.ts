@@ -548,6 +548,7 @@ export const trackedProducts = pgTable('tracked_products', {
   shopifyProductId: text('shopify_product_id'),
   shopifyHandle: text('shopify_handle'),
   shopifyProductGid: text('shopify_product_gid'),
+  trackingUid: text('tracking_uid').unique(),
   currentSourcePrice: decimal('current_source_price', { precision: 10, scale: 2 }),
   currentSourceStock: integer('current_source_stock'),
   currentStatus: text('current_status').notNull().default('pending'), // active|disabled|error|pending
@@ -573,6 +574,7 @@ export const trackedVariants = pgTable('tracked_variants', {
   shopifyVariantId: text('shopify_variant_id'),
   shopifyVariantGid: text('shopify_variant_gid'),
   shopifySku: text('shopify_sku'),
+  variantUid: text('variant_uid').unique(),
   currentSourcePrice: decimal('current_source_price', { precision: 10, scale: 2 }),
   currentSourceStock: integer('current_source_stock'),
   currentAvailable: boolean('current_available'),

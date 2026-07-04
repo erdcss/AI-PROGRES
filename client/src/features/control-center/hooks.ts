@@ -5,6 +5,8 @@ import {
   fetchImportJobs,
   createImportJob,
   approveImportJob,
+  cancelImportJob,
+  retryImportJob,
 } from "./api";
 import { controlCenterKeys } from "./query-keys";
 
@@ -48,6 +50,26 @@ export function useApproveImportJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: approveImportJob,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: controlCenterKeys.all });
+    },
+  });
+}
+
+export function useCancelImportJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: cancelImportJob,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: controlCenterKeys.all });
+    },
+  });
+}
+
+export function useRetryImportJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: retryImportJob,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: controlCenterKeys.all });
     },

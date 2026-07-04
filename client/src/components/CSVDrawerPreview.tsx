@@ -9,6 +9,7 @@ import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmoun
 import { sanitizeTrendyolVariants, summarizeVariantStock } from '@shared/trendyol-variant-utils';
 import { resolvePreviewImagesForEntry, resolvePreviewProxyUrl } from '@/lib/product-image-url';
 import { PriceEditor } from '@/components/PriceEditor';
+import { isBlockedShopifyTag, sanitizeShopifyTags } from '@shared/shopify-tag-sanitizer';
 
 interface CSVDrawerPreviewProps {
   csvPreviews: CSVPreviewData[];
@@ -53,10 +54,10 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
 
   const addTag = (previewId: string) => {
     const newTag = newTagInputs[previewId]?.trim();
-    if (newTag && newTag.length > 0) {
+    if (newTag && newTag.length > 0 && !isBlockedShopifyTag(newTag)) {
       setIndividualTags(prev => ({
         ...prev,
-        [previewId]: [...(prev[previewId] || []), newTag]
+        [previewId]: sanitizeShopifyTags([...(prev[previewId] || []), newTag])
       }));
       setNewTagInputs(prev => ({
         ...prev,
@@ -91,7 +92,9 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
   };
 
   const addBulkTags = () => {
-    const tagsToAdd = bulkTagInput.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+    const tagsToAdd = sanitizeShopifyTags(
+      bulkTagInput.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
+    );
     
     if (tagsToAdd.length === 0) return;
     
@@ -188,10 +191,11 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
       // TÜM satırlara etiketleri ekle (multi-variant için kritik!)
       if (cells[tagsIndex] !== undefined) {
         const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
-        const allTags = existingTags 
-          ? `${existingTags}, ${manualTags.join(', ')}` 
-          : manualTags.join(', ');
-        cells[tagsIndex] = `"${allTags}"`;
+        const mergedTags = sanitizeShopifyTags([
+          ...existingTags.split(',').map((tag) => tag.trim()).filter(Boolean),
+          ...manualTags,
+        ]);
+        cells[tagsIndex] = `"${mergedTags.join(', ')}"`;
       }
       
       // Satırı yeniden oluştur (quoted values ile)
@@ -234,12 +238,12 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
   }
 
   return (
-    <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
+    <Card className="business-card">
       <CardHeader className="business-header pb-2">
         <div className="flex items-center gap-2">
-          <FileText className="w-4 h-4 text-cyan-400" />
-          <CardTitle className="text-white font-thin text-sm">CSV Dosya Önizlemeleri</CardTitle>
-          <Badge variant="secondary" className="bg-cyan-900/30 text-cyan-300 text-xs px-2 py-0 h-5">
+          <FileText className="w-4 h-4 text-zinc-500" />
+          <CardTitle className="text-zinc-100 font-thin text-sm">CSV Dosya Önizlemeleri</CardTitle>
+          <Badge variant="secondary" className="bg-zinc-800 text-zinc-400 text-xs px-2 py-0 h-5">
             {csvPreviews.length} dosya
           </Badge>
         </div>
@@ -247,17 +251,17 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
       
       <CardContent className="p-3 space-y-3">
         {/* Toplu Etiket Ekleme Alanı */}
-        <div className="bg-slate-800/50 border border-cyan-600/30 rounded-lg p-3 space-y-2">
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-3 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Tag className="w-4 h-4 text-cyan-400" />
-              <h4 className="text-sm font-medium text-cyan-300">Toplu Etiket Ekle</h4>
+              <Tag className="w-4 h-4 text-zinc-500" />
+              <h4 className="text-sm font-medium text-zinc-300">Toplu Etiket Ekle</h4>
             </div>
             <Button
               onClick={toggleSelectAll}
               size="sm"
               variant="outline"
-              className="h-6 text-xs border-slate-600 text-slate-300 hover:bg-cyan-900/20 hover:border-cyan-600 px-2"
+              className="h-6 text-xs border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:border-zinc-600 px-2"
             >
               {selectedPreviews.size === csvPreviews.length ? 'Hiçbirini Seçme' : 'Tümünü Seç'}
             </Button>
@@ -274,13 +278,13 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                 }
               }}
               placeholder="Etiketleri virgülle ayırın (örn: yeni, indirim, özel)"
-              className="flex-1 h-8 text-xs bg-slate-900/50 border border-slate-600/30 text-white placeholder:text-slate-500 focus:border-cyan-500/50"
+              className="flex-1 h-8 text-xs bg-zinc-950/80 border border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600"
               data-testid="input-bulk-tags"
             />
             <Button
               onClick={addBulkTags}
               size="sm"
-              className="h-8 px-3 bg-cyan-600/80 hover:bg-cyan-600 text-white text-xs"
+              className="h-8 px-3 bg-zinc-700 hover:bg-zinc-600 text-zinc-100 text-xs"
               data-testid="button-add-bulk-tags"
             >
               <Plus className="w-3 h-3 mr-1" />
@@ -326,16 +330,17 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                   setSelectedImageIndex((prev) => ({ ...prev, [preview.id]: index }))
                 }
                 onRemoveTag={(tagIndex) => removeTag(preview.id, tagIndex)}
-                onAddTag={(tag) =>
+                onAddTag={(tag) => {
+                  if (isBlockedShopifyTag(tag)) return;
                   setIndividualTags((prev) => ({
                     ...prev,
-                    [preview.id]: [...(prev[preview.id] || []), tag],
-                  }))
-                }
+                    [preview.id]: sanitizeShopifyTags([...(prev[preview.id] || []), tag]),
+                  }));
+                }}
               />
               
               {/* CSV Önizleme Kartı */}
-              <Card className="bg-slate-800/30 border border-slate-600/40 hover:border-cyan-600/50 transition-colors">
+              <Card className="bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
               <CardHeader className="pb-1 pt-2 px-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -343,10 +348,10 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                       type="checkbox"
                       checked={selectedPreviews.has(preview.id)}
                       onChange={() => toggleSelectPreview(preview.id)}
-                      className="w-4 h-4 rounded border-slate-600 text-cyan-600 focus:ring-cyan-500 focus:ring-offset-slate-900 cursor-pointer"
+                      className="w-4 h-4 rounded border-zinc-600 text-zinc-400 focus:ring-zinc-600 focus:ring-offset-zinc-900 cursor-pointer"
                       data-testid={`checkbox-select-${preview.id}`}
                     />
-                    <FileText className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                    <FileText className="w-4 h-4 text-zinc-500 flex-shrink-0" />
                     <div className="flex-1 min-w-0 overflow-hidden">
                       <CardTitle className="text-white font-medium text-xs truncate leading-tight mb-1">
                         {preview.productTitle.length > 40 ? preview.productTitle.substring(0, 40) + '...' : preview.productTitle}
@@ -367,7 +372,7 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                             {uniqueSizes.length} beden
                           </Badge>
                         )}
-                        <Badge variant="outline" className="text-cyan-300 border-cyan-800 text-[10px] px-1 py-0 h-4 leading-none">
+                        <Badge variant="outline" className="text-zinc-400 border-zinc-700 text-[10px] px-1 py-0 h-4 leading-none">
                           {variantCount} varyant
                         </Badge>
                       </div>
@@ -389,7 +394,7 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                       onClick={() => !uploadingId && onShopifyUpload(preview.id, individualTags[preview.id])}
                       size="sm"
                       disabled={!!uploadingId}
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-6 w-6 p-0 flex items-center justify-center disabled:opacity-60"
+                      className="bg-zinc-700 hover:bg-zinc-600 text-zinc-100 h-6 w-6 p-0 flex items-center justify-center disabled:opacity-60"
                       data-testid={`button-shopify-upload-${preview.id}`}
                       title={uploadingId === preview.id ? 'Yükleniyor...' : `${preview.productTitle} - Shopify'a Aktar`}
                     >
@@ -404,7 +409,7 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                       onClick={() => toggleExpanded(preview.id)}
                       variant="ghost"
                       size="sm"
-                      className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20 h-6 w-6 p-0 flex items-center justify-center"
+                      className="text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800 h-6 w-6 p-0 flex items-center justify-center"
                       title={isExpanded ? "Küçült" : "Genişlet"}
                     >
                       {isExpanded ? (
@@ -422,17 +427,17 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                       <div className="space-y-4">
                         {hasCsvTable ? (
                         <>
-                        <div className="overflow-x-auto bg-slate-800/30 rounded-lg border border-cyan-800/20">
+                        <div className="overflow-x-auto bg-zinc-900/40 rounded-lg border border-zinc-800/60">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="border-b border-cyan-800/20">
+                              <tr className="border-b border-zinc-800/60">
                                 {headers.slice(0, 6).map((header, index) => (
-                                  <th key={index} className="text-left p-3 text-cyan-300 font-medium">
+                                  <th key={index} className="text-left p-3 text-zinc-400 font-medium">
                                     {header}
                                   </th>
                                 ))}
                                 {headers.length > 6 && (
-                                  <th className="text-left p-3 text-cyan-300 font-medium">...</th>
+                                  <th className="text-left p-3 text-zinc-400 font-medium">...</th>
                                 )}
                               </tr>
                             </thead>
@@ -464,7 +469,7 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                             return (
                               <>
                                 <div className="space-y-2">
-                                  <h4 className="text-cyan-300 font-medium text-sm">Renkler ({stock.colors.length})</h4>
+                                  <h4 className="text-zinc-400 font-medium text-sm">Renkler ({stock.colors.length})</h4>
                                   <div className="flex flex-wrap gap-1">
                                     {stock.colors.slice(0, 6).map((entry, index) => (
                                       <Badge
@@ -492,7 +497,7 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                                 </div>
 
                                 <div className="space-y-2">
-                                  <h4 className="text-cyan-300 font-medium text-sm">Bedenler ({stock.sizes.length})</h4>
+                                  <h4 className="text-zinc-400 font-medium text-sm">Bedenler ({stock.sizes.length})</h4>
                                   <div className="flex flex-wrap gap-1">
                                     {stock.sizes.slice(0, 8).map((entry, index) => (
                                       <Badge
@@ -525,14 +530,14 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                                 </div>
                                 
                                 <div className="space-y-2">
-                                  <h4 className="text-cyan-300 font-medium text-sm">Görseller ({previewImageUrls.length})</h4>
+                                  <h4 className="text-zinc-400 font-medium text-sm">Görseller ({previewImageUrls.length})</h4>
                                   <div className="flex gap-2">
                                     {previewImageUrls.slice(0, 3).map((image, index) => (
                                       <img
                                         key={index}
                                         src={image}
                                         alt={`Product ${index + 1}`}
-                                        className="w-12 h-12 object-cover rounded border border-cyan-800/30"
+                                        className="w-12 h-12 object-cover rounded border border-zinc-700/60"
                                         loading="lazy"
                                         referrerPolicy="no-referrer"
                                         onError={(e) => {
@@ -548,7 +553,7 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                                       />
                                     ))}
                                     {previewImageUrls.length > 3 && (
-                                      <div className="w-12 h-12 bg-slate-700 rounded border border-cyan-800/30 flex items-center justify-center">
+                                      <div className="w-12 h-12 bg-zinc-800 rounded border border-zinc-700/60 flex items-center justify-center">
                                         <span className="text-xs text-slate-400">+{previewImageUrls.length - 3}</span>
                                       </div>
                                     )}

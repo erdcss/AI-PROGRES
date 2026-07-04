@@ -32,6 +32,7 @@ export interface DomSizeProbeResult {
   rawCount: number;
   sampleRawTexts: string[];
   filteredSizes: string[];
+  stateSizes?: string[];
   filteredButtons: DomSizeProbeButton[];
   html?: string;
 }
@@ -215,6 +216,110 @@ export function probeScriptVariantsFromHtml(html: string): ScriptVariantProbeRes
   };
 }
 
+/** page.evaluate — Trendyol JS state slicedAttributes beden listesi */
+export function stateSizeProbeEvaluateScript(): string[] {
+  const sizeRegex =
+    /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL|32|34|36|38|40|42|44|46|48|50|52|Standart|STD|Tek Ebat)$/i;
+  const sizes: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (raw: string) => {
+    const t = raw.trim();
+    if (!t || !sizeRegex.test(t)) return;
+    const norm = t.toUpperCase() === "STD" ? "Standart" : t;
+    const key = norm.toUpperCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    sizes.push(norm);
+  };
+
+  const win = window as unknown as {
+    __PRODUCT_DETAIL_APP_INITIAL_STATE__?: { product?: Record<string, unknown> };
+  };
+  const product = win.__PRODUCT_DETAIL_APP_INITIAL_STATE__?.product;
+  if (!product) return sizes;
+
+  const sliced = product.slicedAttributes;
+  if (Array.isArray(sliced)) {
+    for (const attr of sliced) {
+      if (!attr || typeof attr !== "object") continue;
+      const rec = attr as Record<string, unknown>;
+      const attrName = String(rec.attributeName ?? rec.name ?? "").toLowerCase();
+      const isSize =
+        attrName === "beden" ||
+        attrName === "size" ||
+        attrName.includes("yaş") ||
+        attrName.includes("yas");
+      if (!isSize) continue;
+      const items = rec.attributes ?? rec.items ?? rec.values;
+      if (!Array.isArray(items)) continue;
+      for (const item of items) {
+        if (!item || typeof item !== "object") continue;
+        const val = String(
+          (item as Record<string, unknown>).attributeValue ??
+            (item as Record<string, unknown>).value ??
+            "",
+        );
+        push(val);
+      }
+    }
+  }
+
+  const variants = product.variants;
+  if (Array.isArray(variants)) {
+    for (const v of variants) {
+      if (!v || typeof v !== "object") continue;
+      const rec = v as Record<string, unknown>;
+      if (rec.attributeType === 2 || rec.attributeType === "2") {
+        push(String(rec.attributeValue ?? rec.value ?? ""));
+      }
+    }
+  }
+
+  return sizes;
+}
+
+export function extractSizesFromPuppeteerSnapshot(snapshot: unknown): string[] {
+  if (!snapshot || typeof snapshot !== "object") return [];
+  const rec = snapshot as { sizesByColor?: Record<string, Array<{ name?: string }>> };
+  const sizes: string[] = [];
+  for (const list of Object.values(rec.sizesByColor ?? {})) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const name = String(item?.name ?? "").trim();
+      if (name && VALID_SIZE_LABEL.test(name)) sizes.push(name);
+    }
+  }
+  return uniqueValidSizes(sizes);
+}
+
+export async function collectSizesFromHtml(html: string): Promise<string[]> {
+  const sizes = new Set<string>();
+
+  const scriptProbe = probeScriptVariantsFromHtml(html);
+  for (const s of scriptProbe.extractedSizes) sizes.add(s);
+
+  const { parseSlicingAttributesFromHtml } = await import("./trendyol-slicing-parser");
+  const slicing = parseSlicingAttributesFromHtml(html);
+  for (const s of slicing.sizes) {
+    if (VALID_SIZE_LABEL.test(s.name)) sizes.add(s.name);
+  }
+
+  try {
+    const cheerio = await import("cheerio");
+    const { detectRealStockStatus } = await import("./real-stock-detector");
+    const $ = cheerio.load(html);
+    const real = detectRealStockStatus($, html);
+    for (const v of real) {
+      if (v.size && VALID_SIZE_LABEL.test(v.size)) sizes.add(v.size);
+    }
+  } catch {
+    /* optional */
+  }
+
+  return uniqueValidSizes([...sizes]);
+}
+
 /** page.evaluate içinde çalışır — tüm beden butonlarını tarar (sadece selected değil) */
 export function domSizeProbeEvaluateScript(): DomSizeProbeResult {
   const sizeRegex =
@@ -297,7 +402,20 @@ export async function probeTrendyolDomSizes(page: Page): Promise<DomSizeProbeRes
       /* hydrate timeout — still probe */
     }
     const result = await page.evaluate(domSizeProbeEvaluateScript);
-    return { ...result, started: true, success: result.filteredSizes.length > 0 };
+    let stateSizes: string[] = [];
+    try {
+      stateSizes = await page.evaluate(stateSizeProbeEvaluateScript);
+    } catch {
+      stateSizes = [];
+    }
+    const mergedFiltered = uniqueValidSizes([...result.filteredSizes, ...stateSizes]);
+    return {
+      ...result,
+      started: true,
+      success: mergedFiltered.length > 0,
+      filteredSizes: mergedFiltered,
+      stateSizes,
+    };
   } catch (err) {
     return {
       started: true,
@@ -439,9 +557,44 @@ export async function applyFullVariantScrapeToResult(
     domProbeError: domProbe.error,
     domSizeButtonsRaw: domProbe.sampleRawTexts.slice(0, 30).join("|") || "none",
     domSizeButtonsFiltered: domProbe.filteredSizes.join(",") || "none",
+    scriptSizes: domProbe.stateSizes?.join(",") ? `state:${domProbe.stateSizes.join(",")}` : undefined,
   });
 
-  const merged = uniqueValidSizes([...fastSizes, ...scriptSizes, ...domProbe.filteredSizes]);
+  const puppeteerSizes = extractSizesFromPuppeteerSnapshot(result.puppeteerStockSnapshot);
+
+  let htmlMergedSizes: string[] = [];
+  const htmlCandidates = [opts.html, domProbe.html].filter(
+    (h): h is string => typeof h === "string" && h.length > 500,
+  );
+  for (const html of htmlCandidates) {
+    const fromHtml = await collectSizesFromHtml(html);
+    htmlMergedSizes = uniqueValidSizes([...htmlMergedSizes, ...fromHtml]);
+    if (!result.htmlContent) result.htmlContent = html;
+  }
+
+  let apiSizes: string[] = [];
+  if (forcing || fastSizes.length <= 1 || domProbe.filteredSizes.length <= 1) {
+    try {
+      const { fetchTrendyolProductByUrl } = await import("./trendyol-product-api");
+      const apiProduct = await fetchTrendyolProductByUrl(url);
+      apiSizes = extractFastSizes({
+        variants: apiProduct?.variants,
+        title: apiProduct?.title || "",
+      });
+    } catch {
+      /* API fallback optional */
+    }
+  }
+
+  let merged = uniqueValidSizes([
+    ...fastSizes,
+    ...scriptSizes,
+    ...domProbe.filteredSizes,
+    ...(domProbe.stateSizes ?? []),
+    ...puppeteerSizes,
+    ...htmlMergedSizes,
+    ...apiSizes,
+  ]);
   result.domProbe = domProbe;
 
   if (merged.length > fastSizes.length || (forcing && merged.length > 0)) {
@@ -474,11 +627,17 @@ export async function applyFullVariantScrapeToResult(
     };
   }
 
-  if (opts.html && opts.html.length > 500) {
+  const stockHtml =
+    (typeof domProbe.html === "string" && domProbe.html.length > 500
+      ? domProbe.html
+      : null) ||
+    (opts.html && opts.html.length > 500 ? opts.html : null);
+
+  if (stockHtml) {
     const { applyStockNormalizationToScrapeResult } = await import(
       "./trendyol-variant-stock-normalizer"
     );
-    applyStockNormalizationToScrapeResult(result, { html: opts.html, url });
+    applyStockNormalizationToScrapeResult(result, { html: stockHtml, url });
   }
 
   const winner =

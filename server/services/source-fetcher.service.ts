@@ -1,5 +1,6 @@
 import { runTrendyolScrapePipeline } from "../trendyol-scrape-pipeline";
 import { validateTrackingSourceData, parseSourcePrice } from "@shared/scrape-validity";
+import { validateFetchedPrice } from "@shared/tracking-price-sanity";
 import { filterValidProductImages } from "../trendyol-image-utils";
 
 export type FetchedSourceSnapshot = {
@@ -33,11 +34,11 @@ function normalizeVariants(raw: unknown): FetchedSourceSnapshot["variants"] {
     allVariants?: Array<{ color?: string; size?: string; inStock?: boolean; sku?: string; price?: number }>;
   };
   const list = v.allVariants ?? [];
-  return list.map((item, idx) => {
+  return list.map((item) => {
     const color = item.color || "Varsayılan";
     const size = item.size || "Tek Beden";
     return {
-      key: `${color}::${size}::${idx}`,
+      key: `${color}::${size}`.toLowerCase(),
       color,
       size,
       inStock: item.inStock ?? true,
@@ -54,7 +55,10 @@ function totalStock(variants: FetchedSourceSnapshot["variants"]): number | null 
 }
 
 /** Güvenli pipeline ile kaynak veri çeker — scenarioBasedScrape kullanmaz */
-export async function fetchSourceForTracking(sourceUrl: string): Promise<SourceFetchResult> {
+export async function fetchSourceForTracking(
+  sourceUrl: string,
+  options?: { baselinePrice?: number | null },
+): Promise<SourceFetchResult> {
   try {
     const outcome = await runTrendyolScrapePipeline(sourceUrl, "auto-fast");
     const result = outcome.result ?? {};
@@ -102,6 +106,16 @@ export async function fetchSourceForTracking(sourceUrl: string): Promise<SourceF
     }
 
     const price = parseSourcePrice(result.price);
+    const priceSanity = validateFetchedPrice(price, options?.baselinePrice ?? null);
+    if (!priceSanity.ok) {
+      return {
+        valid: false,
+        reason: "unreliable_price",
+        message: priceSanity.reason ?? "Fiyat doğrulanamadı",
+        quality: { ...quality, priceSanityReason: priceSanity.reason },
+      };
+    }
+
     const images = filterValidProductImages(result.images);
     const variants = normalizeVariants(result.variants);
     const stock = totalStock(variants);

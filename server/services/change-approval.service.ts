@@ -11,6 +11,7 @@ import {
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { getRequestId } from "../request-context";
+import { applyDetectedChangeToShopify } from "./change-shopify-apply.service";
 
 export const CHANGE_STATUSES = [
   "pending",
@@ -169,6 +170,8 @@ export async function ignoreChange(id: number, actor = "user") {
 export type ApplyDryRunItem = {
   changeId: number;
   productId: number;
+  trackingUid: string | null;
+  shopifyProductId: string | null;
   variantId: number | null;
   field: string;
   shopifyOldValue: unknown;
@@ -201,6 +204,9 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
   if (!product[0]?.shopifyProductId) {
     warnings.push("Shopify ürün ID kayıtlı değil");
   }
+  if (!product[0]?.trackingUid) {
+    warnings.push("Benzersiz takip UID eksik");
+  }
 
   const safeToApply =
     warnings.length === 0 &&
@@ -209,6 +215,8 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
   return {
     changeId,
     productId: change.trackedProductId,
+    trackingUid: product[0]?.trackingUid ?? null,
+    shopifyProductId: product[0]?.shopifyProductId ?? null,
     variantId: change.trackedVariantId,
     field: change.fieldName,
     shopifyOldValue: change.oldValue,
@@ -244,6 +252,8 @@ export async function applyChange(changeId: number, actor = "user", dryRun = fal
     .where(eq(detectedChanges.id, changeId));
 
   try {
+    const shopifyResult = await applyDetectedChangeToShopify(changeId);
+
     const [updated] = await db
       .update(detectedChanges)
       .set(
@@ -264,10 +274,10 @@ export async function applyChange(changeId: number, actor = "user", dryRun = fal
       action: "change.apply",
       entityType: "detected_change",
       entityId: String(changeId),
-      newValue: { status: "applied", dryRun: dryRunResult },
+      newValue: { status: "applied", dryRun: dryRunResult, shopifyResult },
     });
 
-    return { change: updated, dryRun: dryRunResult };
+    return { change: updated, dryRun: dryRunResult, shopify: shopifyResult };
   } catch (err) {
     const message = (err as Error).message;
     await db
@@ -323,7 +333,7 @@ export async function getChangeGroup(groupId: string) {
 
 export async function bulkChangeAction(
   ids: number[],
-  action: "approve" | "reject" | "ignore" | "apply",
+  action: "approve" | "reject" | "ignore" | "apply" | "shopify-sync",
   actor = "user",
 ) {
   if (ids.length === 0) throw new Error("En az bir kayıt seçin");
@@ -337,6 +347,7 @@ export async function bulkChangeAction(
       if (action === "approve") await approveChange(id, actor);
       else if (action === "reject") await rejectChange(id, actor);
       else if (action === "ignore") await ignoreChange(id, actor);
+      else if (action === "shopify-sync") await shopifySyncChange(id, actor);
       else await applyChange(id, actor, false);
       results.push({ id, success: true });
     } catch (err) {
@@ -344,6 +355,18 @@ export async function bulkChangeAction(
     }
   }
   return results;
+}
+
+/** Onayla + Shopify'da uygula (tek adım) */
+export async function shopifySyncChange(id: number, actor = "user") {
+  const row = await getChangeOrThrow(id);
+  if (row.status === "applied") {
+    throw new Error("Bu değişiklik zaten Shopify'a uygulanmış");
+  }
+  if (row.status === "pending" || row.status === "manual_review") {
+    await approveChange(id, actor);
+  }
+  return applyChange(id, actor, false);
 }
 
 export async function listAuditLogs(page = 1, pageSize = 50) {

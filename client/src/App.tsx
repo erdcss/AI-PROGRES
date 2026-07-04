@@ -40,7 +40,6 @@ import UrunTakipPage from "@/pages/urun-takip";
 import ControlCenterPage from "@/pages/control-center";
 import TelegramManagementPage from "@/pages/TelegramManagementPage";
 import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
-import { TBotAssistant } from "@/components/TBotAssistant";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import MemoryDashboard from "@/pages/memory-dashboard";
 import ShopifySystemPage from "@/pages/ShopifySystemPage";
@@ -404,7 +403,9 @@ function Router() {
         <Redirect to="/control-center?tab=tracking" />
       </Route>
       <Route path="/urun-takip">
-        <Redirect to="/control-center?tab=tracking" />
+        <PageTransition>
+          <UrunTakipPage />
+        </PageTransition>
       </Route>
       <Route path="/memory-dashboard">
         <MemoryDashboard />
@@ -436,7 +437,6 @@ function AppShell() {
         <AppErrorBoundary>
           <MobileNavigation />
           <Router />
-          <TBotAssistant />
         </AppErrorBoundary>
       </div>
     </div>

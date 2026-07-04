@@ -47,3 +47,50 @@ export async function approveImportJob(jobId: string) {
   if (!res.ok) throw new Error(data.message || "Onay başarısız");
   return data;
 }
+
+export async function cancelImportJob(jobId: string) {
+  const res = await fetch(`/api/import-jobs/${jobId}/cancel`, { method: "POST" });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "İptal başarısız");
+  return data;
+}
+
+export async function retryImportJob(jobId: string) {
+  const res = await fetch(`/api/import-jobs/${jobId}/retry`, { method: "POST" });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Yeniden deneme başarısız");
+  return data;
+}
+
+export async function fetchImportJobDetail(jobId: string) {
+  const res = await fetch(`/api/import-jobs/${jobId}`, { cache: "no-store" });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "İş detayı alınamadı");
+  return data as {
+    job: ImportJobRow;
+    events: Array<{
+      stage: string;
+      level: string;
+      message: string;
+      createdAt: string;
+    }>;
+  };
+}
+
+export async function fetchImportActivity(page = 1) {
+  const res = await fetch(`/api/control-center/activity?page=${page}&pageSize=30`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Aktivite yüklenemedi");
+  return res.json() as Promise<{
+    items: Array<{
+      type: string;
+      id: string;
+      status: string;
+      message: string | null;
+      createdAt: string;
+    }>;
+    page: number;
+    totalPages: number;
+  }>;
+}

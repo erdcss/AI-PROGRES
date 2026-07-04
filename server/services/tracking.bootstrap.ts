@@ -2,11 +2,24 @@ import { logProductTrackingV2Startup } from "@shared/deploy-runtime";
 import {
   runProductTrackingMigration,
   refreshProductTrackingTableStatus,
+  ensureTrackingUidColumns,
 } from "../migrations/run-product-tracking-migration";
 import { ensureTrackingSettings } from "./tracking-settings.service";
 import { ensureScrapeGatewaySettings } from "./scrape-gateway-settings.service";
 import { seedInternalSourceAccessFromEnv } from "./source-access-manager.service";
-import { startTrackingScheduler, releaseStaleCheckLocks } from "./tracking.scheduler";
+import {
+  startTrackingScheduler,
+  releaseStaleCheckLocks,
+  triggerImmediateSchedulerCycle,
+  isTrackingSchedulerRunning,
+} from "./tracking.scheduler";
+import {
+  ensureLocalTrackingAutoStart,
+  syncTransferredProductsToTracking,
+} from "./tracking-sync.service";
+import { backfillTrackingUids } from "./tracking-uid-backfill.service";
+import { reconcileUnreliablePriceChanges } from "./tracking-reconcile.service";
+import { isCloudRuntime } from "@shared/deploy-runtime";
 import { trackingService } from "./tracking.service";
 import { runControlCenterMigration } from "../migrations/run-control-center-migration";
 import { resumePendingImportJobs } from "./import-job-runner.service";
@@ -32,7 +45,9 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
   }
 
   try {
+    await ensureTrackingUidColumns();
     await ensureTrackingSettings();
+    await ensureLocalTrackingAutoStart();
     await ensureScrapeGatewaySettings();
     await seedInternalSourceAccessFromEnv();
     releaseStaleCheckLocks();
@@ -43,7 +58,26 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
       console.warn("⚠️ Startup cleanup atlandı:", err);
     }
 
-    startTrackingScheduler();
+    try {
+      await syncTransferredProductsToTracking();
+    } catch (err) {
+      console.warn("⚠️ Shopify → v2 takip senkronu atlandı:", err);
+    }
+
+    try {
+      await backfillTrackingUids();
+    } catch (err) {
+      console.warn("⚠️ Takip UID backfill atlandı:", err);
+    }
+
+    try {
+      await reconcileUnreliablePriceChanges();
+    } catch (err) {
+      console.warn("⚠️ Güvenilmez fiyat temizliği atlandı:", err);
+    }
+
+    await startTrackingScheduler();
+    triggerImmediateSchedulerCycle(isCloudRuntime() ? 15_000 : 5_000);
 
     if (controlCenterOk) {
       void resumePendingImportJobs();
@@ -51,7 +85,7 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
 
     const settings = await ensureTrackingSettings();
     logProductTrackingV2Startup({
-      safeSchedulerRunning: settings.schedulerEnabled,
+      safeSchedulerRunning: isTrackingSchedulerRunning(),
       trackingEnabled: settings.trackingEnabled,
     });
   } catch (err) {

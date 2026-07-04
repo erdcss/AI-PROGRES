@@ -17,16 +17,16 @@ import {
   Package,
   GitCompare,
   Settings,
-  Eye,
-  EyeOff,
   Clock,
 } from "lucide-react";
+import { TrackingChangeCard } from "@/features/tracking/TrackingChangeCard";
 
 type TrackedProduct = {
   id: number;
   sourceUrl: string;
   sourceTitle: string;
   shopifyProductId: string | null;
+  trackingUid: string | null;
   currentSourcePrice: string | null;
   currentSourceStock: number | null;
   currentStatus: string;
@@ -48,6 +48,10 @@ type DetectedChange = {
   status: string;
   reason: string | null;
   createdAt: string;
+  productTitle?: string | null;
+  productUrl?: string | null;
+  shopifyProductId?: string | null;
+  trackingUid?: string | null;
 };
 
 type SchedulerStatus = {
@@ -77,36 +81,20 @@ type TrackingSettings = {
   maxErrorsBeforePause: number;
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Bekliyor",
-  manual_review: "Manuel İnceleme",
-  approved: "Onaylandı",
-  rejected: "Reddedildi",
-  applied: "Uygulandı",
-  ignored: "Yok Sayıldı",
-};
-
-const CHANGE_LABELS: Record<string, string> = {
-  price_changed: "Fiyat Değişimi",
-  stock_changed: "Stok Değişimi",
-  variant_added: "Varyant Eklendi",
-  variant_removed: "Varyant Kaldırıldı",
-  variant_price_changed: "Varyant Fiyat",
-  variant_stock_changed: "Varyant Stok",
-  title_changed: "Başlık Değişimi",
-  image_changed: "Görsel Değişimi",
-  price: "Fiyat Değişimi",
-  stock: "Stok Değişimi",
-  title: "Başlık Değişimi",
-  image: "Görsel Değişimi",
-};
+const CHANGE_FILTERS = [
+  { value: "", label: "Tümü" },
+  { value: "pending", label: "Bekleyen" },
+  { value: "manual_review", label: "Manuel" },
+  { value: "approved", label: "Onaylı" },
+  { value: "applied", label: "Uygulanmış" },
+] as const;
 
 function formatDate(value: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleString("tr-TR");
 }
 
-export default function UrunTakipPage() {
+export default function UrunTakipPage({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -136,22 +124,26 @@ export default function UrunTakipPage() {
   const productsQuery = useQuery({
     queryKey: ["tracking-products"],
     queryFn: async () => {
-      const res = await fetch("/api/tracking/products");
+      const res = await fetch("/api/tracking/products", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Liste alınamadı");
       return (data.products || []) as TrackedProduct[];
     },
+    refetchInterval: 15_000,
+    retry: 2,
   });
 
   const changesQuery = useQuery({
     queryKey: ["tracking-changes", statusFilter],
     queryFn: async () => {
       const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : "";
-      const res = await fetch(`/api/tracking/changes${qs}`);
+      const res = await fetch(`/api/tracking/changes${qs}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Değişiklikler alınamadı");
       return (data.changes || []) as DetectedChange[];
     },
+    refetchInterval: 15_000,
+    retry: 2,
   });
 
   const saveSettingsMutation = useMutation({
@@ -219,7 +211,7 @@ export default function UrunTakipPage() {
   });
 
   const changeActionMutation = useMutation({
-    mutationFn: async ({ id, action }: { id: number; action: "mark-seen" | "ignore" }) => {
+    mutationFn: async ({ id, action }: { id: number; action: "mark-seen" | "ignore" | "approve" | "reject" }) => {
       const res = await fetch(`/api/tracking/changes/${id}/${action}`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "İşlem başarısız");
@@ -232,12 +224,64 @@ export default function UrunTakipPage() {
     },
   });
 
+  const shopifySyncMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/tracking/changes/${id}/shopify-sync`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "Shopify güncellemesi başarısız");
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Shopify güncellendi",
+        description: data.shopify?.message || "Değişiklik uygulandı",
+      });
+      queryClient.invalidateQueries({ queryKey: ["tracking-changes"] });
+      queryClient.invalidateQueries({ queryKey: ["tracking-products"] });
+      queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Shopify hatası", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const bulkApproveMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const res = await fetch("/api/tracking/bulk/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Toplu onay başarısız");
+      return data as { summary: { total: number; succeeded: number; failed: number } };
+    },
+    onSuccess: (data) => {
+      const s = data.summary;
+      toast({
+        title: "Toplu onay tamam",
+        description: `${s.succeeded}/${s.total} değişiklik onaylandı`,
+        variant: s.failed > 0 ? "destructive" : "default",
+      });
+      queryClient.invalidateQueries({ queryKey: ["tracking-changes"] });
+      queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Toplu onay hatası", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const approvableIds =
+    changesQuery.data?.filter((c) => c.status === "pending" || c.status === "manual_review").map((c) => c.id) ??
+    [];
+
   const st = statusQuery.data;
   const settings = { ...settingsQuery.data, ...settingsForm } as TrackingSettings | undefined;
   const trackingOff = settings && !settings.trackingEnabled;
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-7xl">
+    <div className={embedded ? "space-y-6" : "container mx-auto p-4 md:p-6 space-y-6 max-w-7xl"}>
+      {!embedded && (
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
@@ -259,6 +303,7 @@ export default function UrunTakipPage() {
           )}
         </div>
       </div>
+      )}
 
       {trackingOff && (
         <Card className="border-amber-500/50 bg-amber-500/5">
@@ -301,9 +346,9 @@ export default function UrunTakipPage() {
           <TabsTrigger value="products">Takip Edilen Ürünler</TabsTrigger>
           <TabsTrigger value="changes">
             Değişiklikler
-            {(st?.pendingChangesCount ?? 0) > 0 && (
+            {((st?.pendingChangesCount ?? 0) + (st?.manualReviewCount ?? 0)) > 0 && (
               <Badge className="ml-2 h-5 px-1.5" variant="destructive">
-                {st?.pendingChangesCount}
+                {(st?.pendingChangesCount ?? 0) + (st?.manualReviewCount ?? 0)}
               </Badge>
             )}
           </TabsTrigger>
@@ -322,8 +367,15 @@ export default function UrunTakipPage() {
           </div>
 
           {productsQuery.isLoading && <p className="text-muted-foreground text-center py-8">Yükleniyor...</p>}
+          {productsQuery.error && (
+            <Card className="border-destructive/50">
+              <CardContent className="py-4 text-destructive text-sm text-center">
+                {(productsQuery.error as Error).message}
+              </CardContent>
+            </Card>
+          )}
 
-          {!productsQuery.isLoading && (productsQuery.data?.length ?? 0) === 0 && (
+          {!productsQuery.isLoading && !productsQuery.error && (productsQuery.data?.length ?? 0) === 0 && (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
                 Henüz takip edilen ürün yok. Shopify&apos;a başarılı aktarım sonrası otomatik eklenir.
@@ -354,6 +406,10 @@ export default function UrunTakipPage() {
                     </div>
                     <div>
                       <span className="text-muted-foreground">Shopify ID:</span> {p.shopifyProductId || "—"}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Takip UID:</span>{" "}
+                      <code className="text-xs">{p.trackingUid || "—"}</code>
                     </div>
                   </div>
                   {p.lastErrorMessage && (
@@ -393,23 +449,47 @@ export default function UrunTakipPage() {
 
         <TabsContent value="changes" className="mt-4 space-y-4">
           <div className="flex flex-wrap gap-2 items-center">
-            <select
-              className="border rounded-md px-3 py-2 text-sm bg-background"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">Tüm durumlar</option>
-              <option value="pending">Bekliyor</option>
-              <option value="manual_review">Manuel İnceleme</option>
-              <option value="ignored">Yok Sayıldı</option>
-            </select>
-            <Button variant="outline" size="sm" onClick={() => changesQuery.refetch()}>
-              <RefreshCw className="w-4 h-4 mr-2" />
+            {CHANGE_FILTERS.map((f) => (
+              <Button
+                key={f.value || "all"}
+                size="sm"
+                variant={statusFilter === f.value ? "default" : "outline"}
+                onClick={() => setStatusFilter(f.value)}
+              >
+                {f.label}
+              </Button>
+            ))}
+            <Button variant="ghost" size="sm" onClick={() => changesQuery.refetch()}>
+              <RefreshCw className={`w-4 h-4 mr-1 ${changesQuery.isFetching ? "animate-spin" : ""}`} />
               Yenile
             </Button>
+            {approvableIds.length > 0 && (
+              <Button
+                size="sm"
+                variant="default"
+                disabled={bulkApproveMutation.isPending}
+                onClick={() => bulkApproveMutation.mutate(approvableIds)}
+              >
+                Toplu Onayla ({approvableIds.length})
+              </Button>
+            )}
           </div>
 
-          {(changesQuery.data?.length ?? 0) === 0 && !changesQuery.isLoading && (
+          {changesQuery.isLoading && (
+            <p className="text-muted-foreground text-sm">Değişiklikler yükleniyor…</p>
+          )}
+          {changesQuery.error && (
+            <Card className="border-destructive/50">
+              <CardContent className="py-4 text-destructive text-sm">
+                {(changesQuery.error as Error).message}
+                <Button variant="outline" size="sm" className="ml-3" onClick={() => changesQuery.refetch()}>
+                  Tekrar dene
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!changesQuery.isLoading && !changesQuery.error && (changesQuery.data?.length ?? 0) === 0 && (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
                 <GitCompare className="w-10 h-10 mx-auto mb-3 opacity-40" />
@@ -420,45 +500,23 @@ export default function UrunTakipPage() {
 
           <div className="grid gap-3">
             {changesQuery.data?.map((c) => (
-              <Card key={c.id}>
-                <CardContent className="pt-4 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{CHANGE_LABELS[c.changeType] || c.changeType}</Badge>
-                    <Badge variant="outline">{STATUS_LABELS[c.status] || c.status}</Badge>
-                    <span className="text-xs text-muted-foreground">Güven: {c.confidence}%</span>
-                  </div>
-                  <div className="text-sm grid md:grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-muted-foreground">Eski:</span>{" "}
-                      <code className="text-xs">{JSON.stringify(c.oldValue)}</code>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Yeni:</span>{" "}
-                      <code className="text-xs">{JSON.stringify(c.newValue)}</code>
-                    </div>
-                  </div>
-                  {c.reason && (
-                    <p className="text-sm text-amber-600 flex items-center gap-1">
-                      <AlertTriangle className="w-4 h-4" />
-                      {c.reason}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">{formatDate(c.createdAt)}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => changeActionMutation.mutate({ id: c.id, action: "mark-seen" })}>
-                      <Eye className="w-4 h-4 mr-1" />
-                      Görüldü
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => changeActionMutation.mutate({ id: c.id, action: "ignore" })}>
-                      <EyeOff className="w-4 h-4 mr-1" />
-                      Yok Say
-                    </Button>
-                    <Button size="sm" variant="secondary" disabled title="Yakında">
-                      Shopify Güncelle (Yakında)
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <TrackingChangeCard
+                key={c.id}
+                change={c}
+                busy={changeActionMutation.isPending || shopifySyncMutation.isPending}
+                onMarkSeen={() => changeActionMutation.mutate({ id: c.id, action: "mark-seen" })}
+                onIgnore={() => changeActionMutation.mutate({ id: c.id, action: "ignore" })}
+                onApprove={
+                  c.status === "pending" || c.status === "manual_review"
+                    ? () => changeActionMutation.mutate({ id: c.id, action: "approve" })
+                    : undefined
+                }
+                onShopifySync={
+                  c.status !== "applied" && c.status !== "ignored" && c.status !== "rejected"
+                    ? () => shopifySyncMutation.mutate(c.id)
+                    : undefined
+                }
+              />
             ))}
           </div>
         </TabsContent>

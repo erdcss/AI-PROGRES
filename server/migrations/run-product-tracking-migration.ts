@@ -6,6 +6,7 @@ import {
   PRODUCT_TRACKING_MIGRATION_SQL,
   PRODUCT_TRACKING_SETTINGS_SQL,
   PRODUCT_TRACKING_TABLES,
+  TRACKING_SCHEMA_PATCHES_SQL,
   augmentMigrationSql,
   migrationSqlIncludesSettingsTables,
 } from "./product-tracking-sql";
@@ -103,10 +104,63 @@ export function getProductTrackingMigrationStatus(): ProductTrackingMigrationSta
   };
 }
 
-export async function isMissingRelationError(err: unknown, table?: string): boolean {
+export function isMissingRelationError(err: unknown, table?: string): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   if (!msg.includes("does not exist")) return false;
+  if (msg.includes('column "') || msg.includes("column ")) return false;
   return table ? msg.includes(table) : true;
+}
+
+export function isMissingColumnError(err: unknown, column?: string): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (!msg.includes("does not exist")) return false;
+  if (!msg.includes("column")) return false;
+  return column ? msg.includes(column) : true;
+}
+
+async function trackingUidColumnsReady(): Promise<boolean> {
+  if (!pool) return false;
+  const q = await pool.query<{ tracking_uid: boolean; variant_uid: boolean }>(`
+    SELECT
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tracked_products' AND column_name = 'tracking_uid'
+      ) AS tracking_uid,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tracked_variants' AND column_name = 'variant_uid'
+      ) AS variant_uid
+  `);
+  const row = q.rows[0];
+  return Boolean(row?.tracking_uid && row?.variant_uid);
+}
+
+/** tracking_uid / variant_uid sütunlarını mevcut DB'ye ekler */
+export async function applyTrackingSchemaPatches(): Promise<boolean> {
+  if (!pool) return false;
+  try {
+    if (await trackingUidColumnsReady()) {
+      return true;
+    }
+    await pool.query(TRACKING_SCHEMA_PATCHES_SQL);
+    const ready = await trackingUidColumnsReady();
+    if (ready) {
+      console.log("✅ Tracking schema patch uygulandı (tracking_uid, variant_uid)");
+    } else {
+      console.error("❌ Tracking schema patch sonrası sütunlar hâlâ eksik");
+    }
+    return ready;
+  } catch (err) {
+    console.error("❌ Tracking schema patch hatası:", err);
+    return false;
+  }
+}
+
+/** Eksik UID sütunları varsa patch uygular — bootstrap/scheduler için */
+export async function ensureTrackingUidColumns(): Promise<boolean> {
+  if (!pool) return false;
+  if (await trackingUidColumnsReady()) return true;
+  return applyTrackingSchemaPatches();
 }
 
 export async function tableExists(tableName: string): Promise<boolean> {
@@ -143,6 +197,7 @@ export async function runProductTrackingMigration(force = false): Promise<boolea
   }
 
   if (!force && migrationRan && lastStatus?.allTablesReady) {
+    await applyTrackingSchemaPatches();
     return true;
   }
 
@@ -160,6 +215,8 @@ export async function runProductTrackingMigration(force = false): Promise<boolea
       await applySql(PRODUCT_TRACKING_SETTINGS_SQL);
       tables = await verifyTables();
     }
+
+    await applyTrackingSchemaPatches();
 
     migrationRan = true;
     const allTablesReady = PRODUCT_TRACKING_TABLES.every((t) => tables[t]);
@@ -191,6 +248,7 @@ export async function runProductTrackingMigration(force = false): Promise<boolea
 
     try {
       await applySql(PRODUCT_TRACKING_SETTINGS_SQL);
+      await applyTrackingSchemaPatches();
     } catch (supplementErr) {
       console.error("❌ Settings supplement SQL hatası:", supplementErr);
     }

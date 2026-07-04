@@ -1,7 +1,13 @@
 import { db } from "../db";
-import { detectedChanges, type ProductSnapshot } from "@shared/schema";
+import { detectedChanges, trackedVariants, type ProductSnapshot } from "@shared/schema";
 import { and, eq, gte } from "drizzle-orm";
 import type { FetchedSourceSnapshot } from "./source-fetcher.service";
+import {
+  assessPriceChange,
+  isPlausibleProductPrice,
+  resolveReliableBaselinePrice,
+  stableVariantKey,
+} from "@shared/tracking-price-sanity";
 
 export type DiffResult = {
   changes: Array<{
@@ -16,22 +22,41 @@ export type DiffResult = {
   }>;
 };
 
+export type CompareContext = {
+  knownGoodPrice?: number | null;
+};
+
 function snapshotVariants(snapshot: ProductSnapshot): Array<Record<string, unknown>> {
   const v = snapshot.variants;
   return Array.isArray(v) ? (v as Array<Record<string, unknown>>) : [];
 }
 
 function variantKey(v: Record<string, unknown>): string {
-  const c = String(v.color ?? v.option1 ?? "");
-  const s = String(v.size ?? v.option2 ?? "");
-  const k = String(v.key ?? "");
-  return k || `${c}::${s}`;
+  return stableVariantKey({
+    color: v.color as string | undefined,
+    size: v.size as string | undefined,
+    option1: v.option1 as string | undefined,
+    option2: v.option2 as string | undefined,
+    key: v.key as string | undefined,
+  });
 }
 
 function numPrice(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Stok sayısı varyant sayısından geliyorsa küçük farkları yok say */
+function looksLikeStockOnlyNoise(
+  oldStock: number,
+  newStock: number,
+  oldPrice: number | null,
+  newPrice: number,
+): boolean {
+  if (oldPrice == null || !isPlausibleProductPrice(oldPrice)) return false;
+  if (Math.abs(oldPrice - newPrice) > 0.009) return false;
+  return oldStock <= 30 && newStock <= 30 && Math.abs(oldStock - newStock) <= 2;
 }
 
 async function isDuplicateChange(input: {
@@ -84,6 +109,7 @@ export async function compareSnapshots(
   trackedProductId: number,
   previous: ProductSnapshot | null,
   current: FetchedSourceSnapshot,
+  context?: CompareContext,
 ): Promise<DiffResult> {
   const changes: DiffResult["changes"] = [];
 
@@ -91,23 +117,37 @@ export async function compareSnapshots(
     return { changes };
   }
 
-  const oldPrice = numPrice(previous.price);
+  const knownGood = context?.knownGoodPrice ?? null;
+  const oldPrice = resolveReliableBaselinePrice(numPrice(previous.price), knownGood);
   const newPrice = current.price;
 
-  if (oldPrice != null && newPrice > 0 && Math.abs(oldPrice - newPrice) > 0.009) {
-    changes.push({
-      changeType: "price_changed",
-      fieldName: "price",
-      oldValue: oldPrice,
-      newValue: newPrice,
-      confidence: 95,
-      status: "pending",
-    });
+  if (
+    oldPrice != null &&
+    newPrice > 0 &&
+    Math.abs(oldPrice - newPrice) > 0.009
+  ) {
+    const assessment = assessPriceChange(oldPrice, newPrice);
+    if (assessment.shouldRecord) {
+      changes.push({
+        changeType: "price_changed",
+        fieldName: "price",
+        oldValue: oldPrice,
+        newValue: newPrice,
+        confidence: assessment.confidence,
+        status: assessment.status,
+        reason: assessment.reason,
+      });
+    }
   }
 
   const oldStock = previous.stock;
   const newStock = current.stock;
-  if (oldStock != null && newStock != null && oldStock !== newStock) {
+  if (
+    oldStock != null &&
+    newStock != null &&
+    oldStock !== newStock &&
+    !(looksLikeStockOnlyNoise(oldStock, newStock, oldPrice, newPrice))
+  ) {
     changes.push({
       changeType: "stock_changed",
       fieldName: "stock",
@@ -231,6 +271,32 @@ export async function compareSnapshots(
   return { changes: deduped };
 }
 
+async function resolveTrackedVariantId(
+  trackedProductId: number,
+  change: DiffResult["changes"][number],
+): Promise<number | null> {
+  const meta = change.newValue ?? change.oldValue;
+  if (!meta || typeof meta !== "object") return null;
+  const o = meta as Record<string, unknown>;
+  const color = o.color ? String(o.color) : o.option1 ? String(o.option1) : null;
+  const size = o.size ? String(o.size) : o.option2 ? String(o.option2) : null;
+  const sku = o.sku ? String(o.sku) : null;
+
+  const conditions = [eq(trackedVariants.trackedProductId, trackedProductId)];
+  if (color) conditions.push(eq(trackedVariants.option1, color));
+  if (size) conditions.push(eq(trackedVariants.option2, size));
+  if (sku) conditions.push(eq(trackedVariants.sourceSku, sku));
+
+  if (conditions.length <= 1) return null;
+
+  const rows = await db
+    .select({ id: trackedVariants.id })
+    .from(trackedVariants)
+    .where(and(...conditions))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
 export async function persistDetectedChanges(input: {
   trackedProductId: number;
   sourceSnapshotId: number;
@@ -239,10 +305,12 @@ export async function persistDetectedChanges(input: {
 }) {
   const rows = [];
   for (const c of input.diff.changes) {
+    const trackedVariantId = await resolveTrackedVariantId(input.trackedProductId, c);
     const [row] = await db
       .insert(detectedChanges)
       .values({
         trackedProductId: input.trackedProductId,
+        trackedVariantId,
         changeType: c.changeType,
         fieldName: c.fieldName,
         oldValue: c.oldValue as never,

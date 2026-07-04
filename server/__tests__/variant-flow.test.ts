@@ -5,9 +5,17 @@
 import {
   buildCanonicalProductForShopify,
   isValidSizeLabel,
+  normalizeColorValue,
   validateCanonicalForShopifyUpload,
 } from "../variant-shape-normalizer";
 import { resolveTrendyolSourceIds } from "../shopify-source-key";
+import {
+  buildAutomaticProductTags,
+  isBlockedShopifyTag,
+  joinShopifyTags,
+  sanitizeShopifyTags,
+} from "@shared/shopify-tag-sanitizer";
+import { generateCanonicalShopifyCSV } from "../shopify-canonical-export";
 
 let passed = 0;
 let failed = 0;
@@ -41,8 +49,12 @@ console.log("\n=== Variant Flow Tests ===\n");
       variantDiagnostics: { domSizeButtons: ["S", "M", "L", "XL"], rawDomSizeCount: 4 },
     },
   });
-  const sizes = [...new Set(canonical?.variants.map((v) => v.size) ?? [])];
-  assert(sizes.join(",") === "S,M,L,XL", "DOM merge: 4 beden çıkar");
+  const allSizes = [
+    ...new Set(
+      [...(canonical?.variants ?? []), ...(canonical?.outOfStockVariants ?? [])].map((v) => v.size),
+    ),
+  ];
+  assert(allSizes.join(",") === "S,M,L,XL", "DOM merge: 4 beden çıkar");
   assert((canonical?.stockSummary.totalVariants ?? 0) === 4, "totalVariants=4");
 }
 
@@ -122,6 +134,27 @@ console.log("\n=== Variant Flow Tests ===\n");
   assert(canonical?.shopifyUploadBlocked === true, "apparel one-size upload blocked");
 }
 
+// Test — tek SKU, bedensiz ürün (kozmetik / aksesuar)
+{
+  const canonical = buildCanonicalProductForShopify({
+    sourceUrl: "https://www.trendyol.com/muvicado/parazit-damla-p-948906937",
+    scrapeResult: {
+      title: "Parazit Damla",
+      brand: "Muvicado",
+      price: { original: 170 },
+      variants: {
+        colors: ["Tek Renk"],
+        sizes: [],
+        allVariants: [{ color: "Tek Renk", size: "", inStock: false }],
+      },
+    },
+  });
+  assert((canonical?.variants.length ?? 0) + (canonical?.outOfStockVariants.length ?? 0) >= 1, "single-SKU no-size yields 1 variant");
+  const csv = generateCanonicalShopifyCSV(canonical!);
+  assert(csv.includes("Parazit Damla"), "CSV contains product title");
+  assert(!csv.split("\n")[1]?.startsWith(",") || csv.includes("Default Title"), "CSV has variant row not image-only");
+}
+
 // Test — mismatch validation message
 {
   const canonicalOne = buildCanonicalProductForShopify({
@@ -139,6 +172,55 @@ console.log("\n=== Variant Flow Tests ===\n");
   if (!validation.ok) {
     assert(/beden/i.test(validation.error), "mismatch error mentions beden");
   }
+}
+
+// Renk normalizasyonu — DOM gürültüsünü filtreler
+{
+  assert(normalizeColorValue("Gri26") === "Gri", "Gri26 -> Gri");
+  assert(normalizeColorValue("pembe") === "Pembe", "pembe -> Pembe");
+  assert(normalizeColorValue("Slicing Attribute Product") === null, "UI gürültüsü reddedilir");
+  assert(normalizeColorValue("KOLSUZBEYAZSİYAHVYAK5") === null, "slug renk reddedilir");
+  const canonical = buildCanonicalProductForShopify({
+    sourceUrl: "https://www.trendyol.com/mercoledi/tisort-p-896261234",
+    scrapeResult: {
+      title: "mercoledi Kadın V Yaka Tişört",
+      brand: "mercoledi",
+      price: { original: 349 },
+      variants: {
+        colors: ["Gri26", "Beyaz20", "Siyah21", "pembe", "Slicing Attribute Product"],
+        sizes: ["S", "M", "L", "XL"],
+        allVariants: [],
+      },
+    },
+  });
+  const allRows = [...(canonical?.variants ?? []), ...(canonical?.outOfStockVariants ?? [])];
+  const colors = [...new Set(allRows.map((v) => v.color))];
+  assert(colors.includes("Gri") && colors.includes("Pembe"), "temiz renkler korunur");
+  assert(!colors.some((c) => /slicing|kolsuz|26$/i.test(c)), "kirli renkler filtrelenir");
+}
+
+// Etiketlerde trendyol kelimesi engellenir
+{
+  assert(isBlockedShopifyTag("trendyol-import"), "trendyol-import engellenir");
+  assert(isBlockedShopifyTag("source:trendyol"), "source:trendyol engellenir");
+  assert(!isBlockedShopifyTag("import"), "import etiketi serbest");
+  const auto = buildAutomaticProductTags("930888886");
+  assert(!auto.some((t) => /trendyol/i.test(t)), "otomatik etiketler trendyol içermez");
+  assert(auto.includes("src:930888886"), "src:{id} etiketi kullanılır");
+
+  const canonical = buildCanonicalProductForShopify({
+    sourceUrl: "https://www.trendyol.com/test-p-930888886",
+    scrapeResult: {
+      title: "Test Ürün",
+      brand: "Test",
+      price: { original: 100 },
+      variants: { items: [{ color: "Siyah", size: "M", inStock: true }] },
+    },
+  });
+  const csv = generateCanonicalShopifyCSV(canonical!);
+  assert(!/trendyol/i.test(csv), "CSV Tags kolonunda trendyol yok");
+  const sanitized = sanitizeShopifyTags(["indirim", "trendyol-import", "src:123"]);
+  assert(sanitized.join(",") === "indirim,src:123", "sanitizeShopifyTags trendyol etiketlerini çıkarır");
 }
 
 console.log(`\n=== Sonuç: ${passed} geçti, ${failed} başarısız ===\n`);

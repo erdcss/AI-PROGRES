@@ -13,6 +13,7 @@ import {
   formatSalePrice,
   formatProfitPercentage,
 } from "@/utils/price-utils";
+import { isBlockedShopifyTag, sanitizeShopifyTags } from "@shared/shopify-tag-sanitizer";
 
 function PreviewCarouselImage({
   directUrl,
@@ -673,10 +674,12 @@ export const ProductPreview = memo(function ProductPreview({
                         const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
                         
                         if (tagsIndex !== -1 && firstDataRow[tagsIndex]) {
-                          const productTags = firstDataRow[tagsIndex]
-                            .split(',')
-                            .map(tag => tag.trim())
-                            .filter(tag => tag.length > 0);
+                          const productTags = sanitizeShopifyTags(
+                            firstDataRow[tagsIndex]
+                              .split(',')
+                              .map(tag => tag.trim())
+                              .filter(tag => tag.length > 0),
+                          );
                           
                           return productTags.map((tag, index) => (
                             <Badge 
@@ -731,7 +734,7 @@ export const ProductPreview = memo(function ProductPreview({
                           e.preventDefault();
                           const input = e.target as HTMLInputElement;
                           const newTag = input.value.trim();
-                          if (newTag) {
+                          if (newTag && !isBlockedShopifyTag(newTag)) {
                             onAddTag(newTag);
                             input.value = '';
                           }

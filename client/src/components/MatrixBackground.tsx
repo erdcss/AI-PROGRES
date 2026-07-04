@@ -85,7 +85,7 @@ function MatrixBase() {
         height: "100vh",
         zIndex: 0,
         pointerEvents: "none",
-        opacity: 0.45,
+        opacity: 0.06,
       }}
     />
   );
@@ -110,7 +110,7 @@ function MatrixOverlay() {
         height: "100vh",
         zIndex: 9999,
         pointerEvents: "none",
-        opacity: 0.06,
+        opacity: 0.02,
         mixBlendMode: "screen",
       }}
     />

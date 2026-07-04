@@ -470,6 +470,12 @@ export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {
   if (scrapeResult?.extractionMethod) {
     merged.extractionMethod = scrapeResult.extractionMethod;
   }
+  if (scrapeResult?.htmlContent && typeof scrapeResult.htmlContent === 'string') {
+    merged.htmlContent = scrapeResult.htmlContent;
+  }
+  if (scrapeResult?.puppeteerStockSnapshot) {
+    merged.puppeteerStockSnapshot = scrapeResult.puppeteerStockSnapshot;
+  }
 
   return merged;
 }

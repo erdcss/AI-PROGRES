@@ -12,6 +12,8 @@ import { compareSnapshots, persistDetectedChanges } from "./product-diff.service
 import {
   getProductTrackingMigrationStatus,
   refreshProductTrackingTableStatus,
+  ensureTrackingUidColumns,
+  isMissingColumnError,
 } from "../migrations/run-product-tracking-migration";
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
@@ -31,6 +33,12 @@ export function releaseStaleCheckLocks(): void {
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function numPrice(value: unknown): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 export async function runManualProductCheck(trackedProductId: number) {
@@ -60,9 +68,42 @@ export async function runManualProductCheck(trackedProductId: number) {
     }
 
     const previousSnapshot = await trackingService.getLatestSnapshot(trackedProductId);
-    const fetchResult = await fetchSourceForTracking(product.sourceUrl);
+    const baselinePrice = numPrice(product.currentSourcePrice);
+    const fetchResult = await fetchSourceForTracking(product.sourceUrl, {
+      baselinePrice,
+    });
 
     if (!fetchResult.valid) {
+      const isPriceIssue = fetchResult.reason === "unreliable_price";
+      if (isPriceIssue) {
+        await trackingService.writeSyncLog({
+          trackedProductId,
+          action: "source_fetch",
+          status: "warning",
+          message: `Güvenilir fiyat alınamadı — baseline korundu: ${fetchResult.message}`,
+          meta: {
+            sourceUrl: product.sourceUrl,
+            trackedProductId,
+            stage: "price_sanity",
+            skippedReason: fetchResult.reason,
+          },
+        });
+        await db
+          .update(trackedProducts)
+          .set({ lastCheckedAt: new Date(), updatedAt: new Date() })
+          .where(eq(trackedProducts.id, trackedProductId));
+        return {
+          success: false,
+          skipped: true,
+          checked: true,
+          validSource: false,
+          changesCreated: 0,
+          userMessage: fetchResult.message,
+          error: fetchResult.message,
+          reason: fetchResult.reason,
+        };
+      }
+
       await trackingService.markCheckError(trackedProductId, fetchResult.message);
       await trackingService.writeSyncLog({
         trackedProductId,
@@ -115,7 +156,9 @@ export async function runManualProductCheck(trackedProductId: number) {
 
     let changesCreated = 0;
     if (previousSnapshot) {
-      const diff = await compareSnapshots(trackedProductId, previousSnapshot, data);
+      const diff = await compareSnapshots(trackedProductId, previousSnapshot, data, {
+        knownGoodPrice: baselinePrice,
+      });
       if (diff.changes.length > 0) {
         const rows = await persistDetectedChanges({
           trackedProductId,
@@ -164,7 +207,7 @@ export async function runManualProductCheck(trackedProductId: number) {
   }
 }
 
-async function runSchedulerCycle() {
+async function runSchedulerCycle(allowSchemaRetry = true) {
   const runId = `run-${Date.now()}`;
   schedulerState.lastRunId = runId;
 
@@ -216,31 +259,42 @@ async function runSchedulerCycle() {
       meta: { schedulerRunId: runId, changeCount: batch.length },
     });
   } catch (err) {
+    if (
+      allowSchemaRetry &&
+      (isMissingColumnError(err, "tracking_uid") || isMissingColumnError(err, "variant_uid"))
+    ) {
+      const patched = await ensureTrackingUidColumns().catch(() => false);
+      if (patched) {
+        console.info("ℹ️ Tracking schema patch uygulandı — scheduler döngüsü yeniden deneniyor");
+        await runSchedulerCycle(false);
+        return;
+      }
+    }
     schedulerState.lastRunStatus = "error";
     schedulerState.lastRunAt = new Date();
     console.warn("Tracking scheduler cycle error:", err);
   }
 }
 
-export function startTrackingScheduler(): void {
+export async function startTrackingScheduler(): Promise<void> {
   if (intervalHandle) return;
 
-  void (async () => {
-    const settings = await getTrackingSettings();
-    if (!settings.schedulerEnabled) {
-      console.info("ℹ️ Tracking scheduler kapalı (program ayarı: scheduler_enabled=false)");
-      return;
-    }
+  const settings = await getTrackingSettings();
+  if (!settings.schedulerEnabled) {
+    console.info("ℹ️ Tracking scheduler kapalı (program ayarı: scheduler_enabled=false)");
+    return;
+  }
 
-    console.log("⏰ Ürün Takip v2 scheduler başlatılıyor (Shopify auto-sync KAPALI)");
-    schedulerState.nextRunAt = new Date(Date.now() + 60_000);
+  console.log("⏰ Ürün Takip v2 scheduler başlatılıyor (Shopify auto-sync KAPALI)");
+  schedulerState.nextRunAt = new Date(Date.now() + 60_000);
 
-    intervalHandle = setInterval(() => {
-      void runSchedulerCycle();
-    }, 60_000);
+  intervalHandle = setInterval(() => {
+    void runSchedulerCycle();
+  }, 60_000);
+}
 
-    setTimeout(() => void runSchedulerCycle(), 15_000);
-  })();
+export function triggerImmediateSchedulerCycle(delayMs = 15_000): void {
+  setTimeout(() => void runSchedulerCycle(), delayMs);
 }
 
 export function stopTrackingScheduler(): void {

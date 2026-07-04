@@ -1,6 +1,8 @@
 import { getShopifyInventoryConfig } from "@shared/shopify-inventory-config";
 import { isConfirmedClothingProduct } from "@shared/clothing-keywords";
+import { normalizeTrendyolColorName } from "@shared/trendyol-color-normalizer";
 import { resolveInventoryQty } from "./shopify-inventory-qty";
+import { resolveVariantAvailability } from "@shared/stock-status";
 import {
   buildCanonicalHandle,
   buildCanonicalSku,
@@ -70,15 +72,6 @@ function isLikelyApparelForCanonical(
 const DEFAULT_COLOR = "Tek Renk";
 const DEFAULT_SIZE = "Standart";
 
-const INVALID_COLOR_LABELS = new Set([
-  "renk bilgisi yok",
-  "renk yok",
-  "bilinmiyor",
-  "n/a",
-  "none",
-  "",
-]);
-
 const REJECTED_SIZE_TEXT =
   /sepete ekle|son \d+ ürün|kupon|popüler|yorum|marka|açıklama|fiyat|favori|kargo|tl$|tüm bedenler|beden seç|adetten az stok/i;
 
@@ -120,31 +113,34 @@ export function normalizeSizeValue(input: unknown): string | null {
 }
 
 export function normalizeColorValue(input: unknown): string | null {
-  if (typeof input === "string") {
-    const t = input.trim();
-    if (!t || INVALID_COLOR_LABELS.has(t.toLowerCase())) return null;
-    return t;
-  }
-  if (input && typeof input === "object") {
-    const o = input as Record<string, unknown>;
-    for (const key of ["name", "color", "colorName", "value", "attributeValue"]) {
-      if (typeof o[key] === "string") {
-        const cleaned = normalizeColorValue(o[key]);
-        if (cleaned) return cleaned;
-      }
-    }
-  }
-  return null;
+  return normalizeTrendyolColorName(input);
 }
 
-function normalizeStringArray(items: unknown): string[] {
+function normalizeSizeArray(items: unknown): string[] {
   if (!Array.isArray(items)) return [];
   const out: string[] = [];
   for (const item of items) {
-    const v = normalizeSizeValue(item) ?? normalizeColorValue(item);
+    const v = normalizeSizeValue(item);
     if (v && !out.includes(v)) out.push(v);
   }
   return out;
+}
+
+function normalizeColorArray(items: unknown): string[] {
+  if (!Array.isArray(items)) return [];
+  const out: string[] = [];
+  for (const item of items) {
+    const v = normalizeColorValue(item);
+    if (v && !out.some((x) => x.toLocaleLowerCase("tr-TR") === v.toLocaleLowerCase("tr-TR"))) {
+      out.push(v);
+    }
+  }
+  return out;
+}
+
+/** @deprecated size-only — renkler için normalizeColorArray kullanın */
+function normalizeStringArray(items: unknown): string[] {
+  return normalizeSizeArray(items);
 }
 
 function variantKey(color: string, size: string): string {
@@ -175,6 +171,15 @@ interface RawVariantRow {
   sourceProductId?: string | null;
 }
 
+function resolveRowInStock(o: Record<string, unknown>): boolean {
+  const available = resolveVariantAvailability(o);
+  return available === true;
+}
+
+function resolveRowStockUnknown(o: Record<string, unknown>): boolean {
+  return resolveVariantAvailability(o) == null;
+}
+
 function collectFromItems(variants: Record<string, unknown>): RawVariantRow[] {
   const items = variants.items;
   if (!Array.isArray(items) || items.length === 0) return [];
@@ -183,10 +188,11 @@ function collectFromItems(variants: Record<string, unknown>): RawVariantRow[] {
     const o = item as Record<string, unknown>;
     const color = normalizeColorValue(o.color ?? o.colorName) || DEFAULT_COLOR;
     const size = normalizeSizeValue(o.size ?? o.sizeName) || DEFAULT_SIZE;
+    const unknown = resolveRowStockUnknown(o);
     return {
       color,
       size,
-      inStock: o.inStock !== false,
+      inStock: unknown ? false : resolveRowInStock(o),
       stockCount:
         typeof o.stockCount === "number"
           ? o.stockCount
@@ -196,7 +202,7 @@ function collectFromItems(variants: Record<string, unknown>): RawVariantRow[] {
       price: String(o.price ?? ""),
       image: typeof o.image === "string" ? o.image : undefined,
       disabledReason: typeof o.disabledReason === "string" ? o.disabledReason : undefined,
-      confidence: "high" as const,
+      confidence: unknown ? ("low" as const) : ("high" as const),
       evidenceSource: "api_listing",
     };
   });
@@ -235,9 +241,9 @@ function collectFromStockMatrix(stockMatrix: Record<string, unknown>): RawVarian
     rows.push({
       color,
       size,
-      inStock: o.inStock !== false,
+      inStock: resolveRowStockUnknown(o) ? false : resolveRowInStock(o),
       stockCount: typeof o.stockCount === "number" ? o.stockCount : null,
-      confidence: "high",
+      confidence: resolveRowStockUnknown(o) ? "low" : "high",
       evidenceSource: "stock_map",
     });
   }
@@ -245,22 +251,28 @@ function collectFromStockMatrix(stockMatrix: Record<string, unknown>): RawVarian
 }
 
 function collectFromAllVariants(allVariants: unknown[]): RawVariantRow[] {
-  return allVariants.map((item) => {
+  const rows: RawVariantRow[] = [];
+  for (const item of allVariants) {
     const o = item as Record<string, unknown>;
-    const color = normalizeColorValue(o.color ?? o.colorName) || DEFAULT_COLOR;
+    const rawColor = o.color ?? o.colorName;
+    const normalizedColor = normalizeColorValue(rawColor);
+    if (!normalizedColor && rawColor != null && String(rawColor).trim()) {
+      continue;
+    }
+    const color = normalizedColor || DEFAULT_COLOR;
     const size = normalizeSizeValue(o.size ?? o.sizeName) || DEFAULT_SIZE;
-    return {
+    rows.push({
       color,
       size,
-      inStock: o.inStock !== false,
+      inStock: resolveRowStockUnknown(o) ? false : resolveRowInStock(o),
       stockCount: typeof o.stockCount === "number" ? o.stockCount : null,
-      image: typeof o.image === "string" ? o.image : undefined,
-      confidence: "high" as const,
+      confidence: resolveRowStockUnknown(o) ? "low" : "high",
       evidenceSource: "all_variants" as const,
       sourceListingId: typeof o.listingId === "string" ? o.listingId : null,
       sourceProductId: typeof o.productId === "string" ? o.productId : null,
-    };
-  });
+    });
+  }
+  return rows;
 }
 
 function collectFromColorSizeCross(
@@ -274,8 +286,16 @@ function collectFromColorSizeCross(
   for (const color of c) {
     for (const size of s) {
       const key = `${color}-${size}`;
-      const inStock = stockMap ? stockMap[key] !== false : true;
-      rows.push({ color, size, inStock, confidence: "low", evidenceSource: "color_size_cross" });
+      const inStock = stockMap
+        ? stockMap[key] === true
+        : false;
+      rows.push({
+        color,
+        size,
+        inStock,
+        confidence: stockMap ? "medium" : "low",
+        evidenceSource: "color_size_cross",
+      });
     }
   }
   return rows;
@@ -334,8 +354,7 @@ function mergeAllVariantSources(
     sizeSources[source] = sizes;
     for (const row of rows) {
       const color = normalizeColorValue(row.color) || DEFAULT_COLOR;
-      const size = normalizeSizeValue(row.size);
-      if (!size) continue;
+      const size = normalizeSizeValue(row.size) || DEFAULT_SIZE;
       const key = variantKey(color, size);
       const existing = rowMap.get(key);
       if (!existing || (row.confidence === "high" && existing.confidence !== "high")) {
@@ -344,8 +363,8 @@ function mergeAllVariantSources(
     }
   };
 
-  const colors = normalizeStringArray(v.colors);
-  const sizes = normalizeStringArray(v.sizes ?? v.availableSizes);
+  const colors = normalizeColorArray(v.colors);
+  const sizes = normalizeSizeArray(v.sizes ?? v.availableSizes);
   const stockMap =
     v.stockMap && typeof v.stockMap === "object"
       ? (v.stockMap as Record<string, boolean>)
@@ -373,8 +392,8 @@ function mergeAllVariantSources(
         slicingSizes.map((size) => ({
           color: DEFAULT_COLOR,
           size,
-          inStock: true,
-          confidence: "high" as const,
+          inStock: false,
+          confidence: "low" as const,
           evidenceSource: "script_state" as const,
         })),
         "slicingAttributes",
@@ -386,8 +405,8 @@ function mergeAllVariantSources(
       extras.scriptSizes.map((size) => ({
         color: DEFAULT_COLOR,
         size,
-        inStock: true,
-        confidence: "high" as const,
+        inStock: false,
+        confidence: "low" as const,
         evidenceSource: "script_state" as const,
       })),
       "scriptJson",
@@ -398,12 +417,16 @@ function mergeAllVariantSources(
       extras.domSizeButtons.map((size) => ({
         color: DEFAULT_COLOR,
         size,
-        inStock: true,
-        confidence: "high" as const,
+        inStock: false,
+        confidence: "low" as const,
         evidenceSource: "dom_buttons" as const,
       })),
       "domButtons",
     );
+  }
+
+  if (colors.length > 0 && sizes.length > 0 && rowMap.size === 0) {
+    ingest(collectFromColorSizeCross(colors, sizes, stockMap), "color_size_cross");
   }
 
   if (colors.length === 0 && sizes.length > 0 && rowMap.size === 0) {
@@ -477,6 +500,23 @@ function extractVariantsFromScrape(
   let rows = mergedRows;
 
   if (rows.length === 0) {
+    const allVariants = Array.isArray(v.allVariants) ? (v.allVariants as unknown[]) : [];
+    if (allVariants.length > 0) {
+      rows = allVariants.map((item) => {
+        const o = item as Record<string, unknown>;
+        return {
+          color: normalizeColorValue(o.color ?? o.colorName) || DEFAULT_COLOR,
+          size: normalizeSizeValue(o.size ?? o.sizeName) || DEFAULT_SIZE,
+          inStock: resolveRowStockUnknown(o) ? false : resolveRowInStock(o),
+          stockCount: typeof o.stockCount === "number" ? o.stockCount : null,
+          confidence: resolveRowStockUnknown(o) ? ("low" as const) : ("medium" as const),
+          evidenceSource: "allVariants" as const,
+        };
+      });
+    }
+  }
+
+  if (rows.length === 0) {
     return {
       rows: [],
       inputShape,
@@ -490,8 +530,7 @@ function extractVariantsFromScrape(
   const deduped = new Map<string, RawVariantRow>();
   for (const row of rows) {
     const color = normalizeColorValue(row.color) || DEFAULT_COLOR;
-    const size = normalizeSizeValue(row.size);
-    if (!size) continue;
+    const size = normalizeSizeValue(row.size) || DEFAULT_SIZE;
     const key = variantKey(color, size);
     if (!deduped.has(key)) deduped.set(key, { ...row, color, size });
   }

@@ -80,14 +80,17 @@ const URL_STATUS_LABEL: Record<UrlQueueStatus, string> = {
 };
 
 function resolvePreviewCsvContent(
-  preview: { csvContent?: string; productTitle?: string },
-  product?: { csvContent?: string; title?: string } | null,
+  preview: {
+    csvContent?: string;
+    productTitle?: string;
+    sourceUrl?: string;
+    canonicalProduct?: Product["canonicalProduct"];
+    productData?: Record<string, unknown>;
+  },
 ): string {
-  const fromPreview = preview.csvContent?.trim() || '';
+  const fromPreview = preview.csvContent?.trim() || "";
   if (fromPreview.length >= 50) return fromPreview;
-  const fromProduct = product?.csvContent?.trim() || '';
-  if (fromProduct.length >= 50) return fromProduct;
-  return fromPreview;
+  return "";
 }
 
 function buildCsvShopifyUploadBody(
@@ -217,7 +220,17 @@ function ScraperPage() {
   const [bulkProgress, setBulkProgress] = useState<{current: number; total: number} | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{current: number; total: number; successCount: number; failCount: number; currentTitle: string} | null>(null);
   const [failedUploads, setFailedUploads] = useState<{title: string; error: string}[]>([]);
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [bulkScrapeSummary, setBulkScrapeSummary] = useState<{
+    totalProducts: number;
+    inStockProducts: number;
+    outOfStockProducts: number;
+    unknownStockProducts: number;
+    totalVariants: number;
+    inStockVariants: number;
+    outOfStockVariants: number;
+    unknownStockVariants: number;
+    failedScrapes: number;
+  } | null>(null);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [scrapeErrorMeta, setScrapeErrorMeta] = useState<ScrapeErrorMeta | null>(null);
   const [localAgentWarningDetail, setLocalAgentWarningDetail] = useState<string | null>(null);
@@ -535,7 +548,7 @@ function ScraperPage() {
           });
           
           // ✅ MANUEL ETİKETLERİ CSV'YE EKLE (handleCSVShopifyUpload'dan kopyalandı)
-          let csvToUpload = resolvePreviewCsvContent(preview, product);
+          let csvToUpload = resolvePreviewCsvContent(preview);
           const manualTags = allTags;
           
           if (manualTags.length > 0) {
@@ -972,18 +985,52 @@ function ScraperPage() {
 
     let successCount = 0;
     let failCount = 0;
+    let inStockProducts = 0;
+    let outOfStockProducts = 0;
+    let unknownStockProducts = 0;
+    let totalVariants = 0;
+    let inStockVariants = 0;
+    let outOfStockVariants = 0;
+    let unknownStockVariants = 0;
+
+    const BULK_SCRAPE_DELAY_MS = 1500;
+    const BULK_SCRAPE_RETRY_DELAY_MS = 2500;
 
     for (let i = 0; i < queue.length; i++) {
       const { url } = queue[i];
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, BULK_SCRAPE_DELAY_MS));
+      }
       setBulkProgress({ current: i + 1, total: queue.length });
       updateUrlQueueItem(url, { status: "processing", error: undefined });
 
       try {
-        const scraped = await fetchScenarioScrapeResult(url, true);
+        let scraped: Awaited<ReturnType<typeof fetchScenarioScrapeResult>>;
+        try {
+          scraped = await fetchScenarioScrapeResult(url, true);
+        } catch (firstError) {
+          await new Promise((resolve) => setTimeout(resolve, BULK_SCRAPE_RETRY_DELAY_MS));
+          scraped = await fetchScenarioScrapeResult(url, true);
+        }
         const newPreview = buildCsvPreviewEntry(scraped, url, "bulk");
         setCsvPreviews((prev) => [newPreview, ...prev]);
         updateUrlQueueItem(url, { status: "success", error: undefined });
         successCount++;
+
+        const summary = newPreview.stockSummary as
+          | { totalVariants?: number; inStockVariants?: number; outOfStockVariants?: number; unknownStockVariants?: number }
+          | undefined;
+        if (summary) {
+          totalVariants += summary.totalVariants ?? 0;
+          inStockVariants += summary.inStockVariants ?? 0;
+          outOfStockVariants += summary.outOfStockVariants ?? 0;
+          unknownStockVariants += summary.unknownStockVariants ?? 0;
+        }
+        const label = newPreview.stockLabel as string | undefined;
+        if (label === "in_stock") inStockProducts++;
+        else if (label === "out_of_stock") outOfStockProducts++;
+        else if (label === "partial_stock") inStockProducts++;
+        else unknownStockProducts++;
 
         toast({
           title: `✅ ${i + 1}/${queue.length} tamamlandı`,
@@ -1007,11 +1054,22 @@ function ScraperPage() {
 
     setIsBulkProcessing(false);
     setBulkProgress(null);
+    setBulkScrapeSummary({
+      totalProducts: successCount,
+      inStockProducts,
+      outOfStockProducts,
+      unknownStockProducts,
+      totalVariants,
+      inStockVariants,
+      outOfStockVariants,
+      unknownStockVariants,
+      failedScrapes: failCount,
+    });
 
     toast({
       title: "Toplu İşlem Tamamlandı",
-      description: `✅ Başarılı: ${successCount}, ❌ Hatalı: ${failCount}`,
-      duration: 8000,
+      description: `✅ ${successCount} ürün | Stokta: ${inStockProducts} | Stok yok: ${outOfStockProducts} | Bilinmiyor: ${unknownStockProducts} | ❌ Hata: ${failCount}`,
+      duration: 10000,
     });
   };
 
@@ -1409,129 +1467,127 @@ function ScraperPage() {
       toast({ title: "Hata", description: "Yüklenecek CSV dosyası bulunamadı", variant: "destructive" });
       return;
     }
-    if (uploadProgress) return; // zaten çalışıyor
+    if (uploadProgress) return;
 
     const total = csvPreviews.length;
-    setUploadProgress({ current: 0, total, successCount: 0, failCount: 0, currentTitle: '' });
+    setUploadProgress({ current: 0, total, successCount: 0, failCount: 0, currentTitle: "Bağlantı kontrol ediliyor..." });
     setFailedUploads([]);
 
-    let successCount = 0;
-    let failCount = 0;
-    const failedList: {title: string; error: string}[] = [];
+    try {
+      const connRes = await fetch("/api/shopify/token-status");
+      const connData = await connRes.json().catch(() => ({}));
+      if (!connData?.connected && connData?.hasToken !== true) {
+        toast({
+          title: "Shopify bağlantısı yok",
+          description: "Yükleme başlamadan önce Shopify bağlantısını doğrulayın",
+          variant: "destructive",
+        });
+        setUploadProgress(null);
+        return;
+      }
 
-    const pushProgress = (next: NonNullable<typeof uploadProgress>) => {
-      startTransition(() => setUploadProgress(next));
-    };
+      const items = csvPreviews.map((preview) => {
+        const tags = individualTags[preview.id] || [];
+        const csvRaw = resolvePreviewCsvContent(preview);
+        const csvToUpload = csvRaw ? applyTagsToCSV(csvRaw, tags) : "";
+        return {
+          clientItemId: preview.id,
+          sourceUrl: preview.sourceUrl,
+          productData: {
+            title: preview.productTitle,
+            brand: preview.brand,
+            description: preview.description,
+            category: preview.category,
+            price: preview.price,
+            images: preview.images,
+            sourceUrl: preview.sourceUrl,
+            variants: preview.variants,
+            features: preview.features,
+            titleSource: preview.titleSource,
+            scrapeRunId: preview.scrapeRunId,
+          },
+          canonicalProduct: preview.canonicalProduct,
+          csvContent: csvToUpload,
+          individualTags: tags,
+          idempotencyKey: `${preview.sourceUrl || preview.id}-${preview.scrapeRunId || preview.id}`,
+          approvedForShopify: preview.approvedForShopify === true,
+        };
+      });
 
-    for (let i = 0; i < csvPreviews.length; i++) {
-      const preview = csvPreviews[i];
-      pushProgress({ current: i + 1, total, successCount, failCount, currentTitle: preview.productTitle });
+      setUploadProgress({ current: 0, total, successCount: 0, failCount: 0, currentTitle: "Toplu yükleme başlatılıyor..." });
+
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 15 * 60 * 1000);
+      let bulkResult: {
+        successCount: number;
+        failureCount: number;
+        unknownCount: number;
+        results: Array<{
+          clientItemId: string;
+          success: boolean;
+          status: string;
+          error?: string;
+          errorCode?: string;
+          requestId?: string;
+          productId?: string;
+        }>;
+      };
 
       try {
-        const tags = individualTags[preview.id] || [];
-        const csvToUpload = applyTagsToCSV(
-          resolvePreviewCsvContent(preview, product),
-          tags,
-        );
-        const body = JSON.stringify(
-          buildCsvShopifyUploadBody(preview, csvToUpload, tags),
-        );
-
-        // Retry up to 3 attempts total for 502/503/504 gateway errors
-        const MAX_ATTEMPTS = 3;
-        let lastErrMsg = '';
-        let uploaded = false;
-
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-          if (attempt > 1) {
-            const retryDelay = attempt * 6000; // 12s, 18s
-            pushProgress({ current: i + 1, total, successCount, failCount, currentTitle: `${preview.productTitle} (deneme ${attempt}/${MAX_ATTEMPTS}...)` });
-            await new Promise(r => setTimeout(r, retryDelay));
-          }
-
-          let response: Response;
-          try {
-            const controller = new AbortController();
-            const tid = setTimeout(() => controller.abort(), 3 * 60 * 1000);
-            try {
-              response = await fetch("/api/shopify/upload-csv-product", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                signal: controller.signal,
-                body,
-              });
-            } finally { clearTimeout(tid); }
-          } catch (fetchErr: any) {
-            if (fetchErr?.name === 'AbortError') { successCount++; uploaded = true; break; }
-            lastErrMsg = fetchErr?.message || 'Bağlantı hatası';
-            continue;
-          }
-
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success || result.shopifyId || result.productId || result.error?.includes('yakın zamanda')) {
-              successCount++;
-            } else {
-              lastErrMsg = result.error || result.message || 'Bilinmeyen hata';
-              failCount++;
-              failedList.push({ title: preview.productTitle, error: lastErrMsg });
-            }
-            uploaded = true;
-            break;
-          } else if (response.status === 409) {
-            successCount++;
-            uploaded = true;
-            break;
-          } else if (response.status === 502 || response.status === 503 || response.status === 504) {
-            // Gateway errors — worth retrying
-            lastErrMsg = `HTTP ${response.status}`;
-            continue;
-          } else {
-            try {
-              const errData = await response.json();
-              const errMsg = errData.error || errData.message || '';
-              if (errMsg.includes('yakın zamanda') || errMsg.includes('already')) {
-                successCount++;
-                uploaded = true;
-                break;
-              }
-              lastErrMsg = errMsg || `HTTP ${response.status}`;
-            } catch {
-              lastErrMsg = `HTTP ${response.status}`;
-            }
-            failCount++;
-            failedList.push({ title: preview.productTitle, error: lastErrMsg });
-            uploaded = true;
-            break;
-          }
+        const response = await fetch("/api/shopify/bulk-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ items }),
+        });
+        bulkResult = await response.json();
+        if (!response.ok && !bulkResult?.results) {
+          throw new Error(bulkResult?.error || `HTTP ${response.status}`);
         }
+      } finally {
+        clearTimeout(tid);
+      }
 
-        // If all retry attempts were gateway errors
-        if (!uploaded) {
-          failCount++;
-          failedList.push({ title: preview.productTitle, error: `${lastErrMsg} (${MAX_ATTEMPTS} denemede başarısız)` });
-        }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
-          successCount++;
-        } else {
-          failCount++;
-          failedList.push({ title: preview.productTitle, error: err?.message || 'Bağlantı hatası' });
+      const failedList: { title: string; error: string }[] = [];
+      let processed = 0;
+      for (const preview of csvPreviews) {
+        processed++;
+        const row = bulkResult.results?.find((r) => r.clientItemId === preview.id);
+        setUploadProgress({
+          current: processed,
+          total,
+          successCount: bulkResult.successCount ?? 0,
+          failCount: (bulkResult.failureCount ?? 0) + (bulkResult.unknownCount ?? 0),
+          currentTitle: preview.productTitle,
+        });
+        if (row && !row.success && row.status !== "already_exists") {
+          failedList.push({
+            title: preview.productTitle,
+            error: `[${row.errorCode || row.status}] ${row.error || "Bilinmeyen hata"}${row.requestId ? ` (${row.requestId})` : ""}`,
+          });
         }
       }
 
-      pushProgress({ current: i + 1, total, successCount, failCount, currentTitle: preview.productTitle });
-    }
-
-    startTransition(() => setUploadProgress(null));
-    setFailedUploads(failedList);
-    window.setTimeout(() => {
+      setUploadProgress(null);
+      setFailedUploads(failedList);
       toast({
         title: "Toplu Yükleme Tamamlandı",
-        description: `✅ Başarılı: ${successCount}, ❌ Hatalı: ${failCount}`,
-        duration: 8000,
+        description: `✅ Başarılı: ${bulkResult.successCount ?? 0}, ❌ Hatalı: ${bulkResult.failureCount ?? 0}, ❓ Doğrulanamadı: ${bulkResult.unknownCount ?? 0}`,
+        duration: 10000,
       });
-    }, 50);
+    } catch (err: unknown) {
+      setUploadProgress(null);
+      const msg = err instanceof Error ? err.message : "Toplu yükleme hatası";
+      if (err instanceof Error && err.name === "AbortError") {
+        toast({
+          title: "Yükleme zaman aşımı",
+          description: "Sonuç doğrulanamadı — Shopify admin panelinden kontrol edin",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Toplu yükleme hatası", description: msg, variant: "destructive" });
+      }
+    }
   };
 
   const onMultiSubmit = multiForm.handleSubmit((data) => {
@@ -1745,7 +1801,7 @@ function ScraperPage() {
     setUploadingId(id);
     try {
       const csvToUpload = applyTagsToCSV(
-        resolvePreviewCsvContent(preview, product),
+        resolvePreviewCsvContent(preview),
         individualTags || [],
       );
       const controller = new AbortController();
@@ -1882,9 +1938,9 @@ function ScraperPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-cyan-900">
+    <div className="min-h-screen bg-zinc-950/80">
       {/* Header */}
-      <div className="bg-gradient-to-r from-black/95 via-slate-900/90 to-cyan-900/80 backdrop-blur-sm border-b border-cyan-800/30">
+      <div className="bg-zinc-950/95 border-b border-zinc-800/80">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -1900,7 +1956,7 @@ function ScraperPage() {
               <Button
                 onClick={() => setLocation('/telegram-notifications')}
                 variant="outline"
-                className="bg-blue-600/10 border-blue-600/30 text-blue-400 hover:bg-blue-600/20 hover:border-blue-600/50 px-4 py-2"
+                className="bg-zinc-800/40 border-zinc-700/60 text-zinc-400 hover:bg-zinc-800/70 hover:border-zinc-600 hover:text-zinc-200 px-4 py-2"
                 data-testid="button-telegram-notifications"
               >
                 <Bell className="w-4 h-4 mr-2" />
@@ -1910,7 +1966,7 @@ function ScraperPage() {
               <Button
                 onClick={clearScraperWorkspace}
                 variant="outline"
-                className="bg-red-600/10 border-red-600/30 text-red-400 hover:bg-red-600/20 hover:border-red-600/50 px-4 py-2"
+                className="bg-zinc-800/40 border-zinc-700/60 text-zinc-500 hover:bg-zinc-800/70 hover:border-zinc-600 hover:text-zinc-300 px-4 py-2"
                 disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
                 data-testid="button-clear-all"
               >
@@ -1941,8 +1997,8 @@ function ScraperPage() {
                   </svg>
                 </div>
                 <div>
-                  <h1 className="text-white font-thin text-xl tracking-wider">TRENDYOL</h1>
-                  <p className="text-cyan-400/80 text-sm font-thin">Ürün Çıkarıcı</p>
+                  <h1 className="text-zinc-100 font-thin text-xl tracking-wider">TRENDYOL</h1>
+                  <p className="text-zinc-500 text-sm font-thin">Ürün Çıkarıcı</p>
                 </div>
               </div>
             </div>
@@ -1960,12 +2016,12 @@ function ScraperPage() {
 
             {/* Single Mode Form */}
             <div>
-              <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
+              <Card className="business-card">
                 <CardHeader className={`business-header ${isMobile ? 'px-4 py-4' : 'px-6 py-4'}`}>
-                  <CardTitle className={`text-white font-thin flex items-center gap-2 ${
+                  <CardTitle className={`text-zinc-100 font-thin flex items-center gap-2 ${
                     isMobile ? 'text-lg' : 'text-lg'
                   }`}>
-                    <Package className={`text-cyan-400/70 ${isMobile ? 'w-5 h-5' : 'w-5 h-5'}`} />
+                    <Package className={`text-zinc-500 ${isMobile ? 'w-5 h-5' : 'w-5 h-5'}`} />
                     <span className="leading-tight">Tek Varyant Ürün</span>
                   </CardTitle>
                 </CardHeader>
@@ -1976,7 +2032,7 @@ function ScraperPage() {
                   >
                     {/* Sürükle-Bırak Alanı */}
                     <div className={`${isMobile ? 'space-y-4' : 'space-y-3'}`}>
-                      <label className={`text-white font-thin block ${
+                      <label className={`text-zinc-300 font-thin block ${
                         isMobile ? 'text-base mb-2' : 'text-sm'
                       }`}>
                         Ürün URL'leri - Sürükle Bırak veya Manuel Ekle
@@ -1986,8 +2042,8 @@ function ScraperPage() {
                       <div
                         className={`border-2 border-dashed transition-all duration-200 rounded-lg flex items-center justify-center select-none ${
                           isDragOver
-                            ? "border-cyan-400 bg-cyan-900/20"
-                            : "border-slate-600 bg-slate-800/50"
+                            ? "border-zinc-500 bg-zinc-800/60"
+                            : "border-zinc-700 bg-zinc-900/50"
                         } ${isMobile ? "min-h-[72px] px-4 py-5" : "min-h-[80px] px-6 py-6"}`}
                         onDragEnter={handleDragEnter}
                         onDragOver={handleDragOver}
@@ -1997,7 +2053,7 @@ function ScraperPage() {
                       >
                         <p
                           className={`font-medium leading-none ${
-                            isDragOver ? "text-cyan-300" : "text-slate-300"
+                            isDragOver ? "text-zinc-300" : "text-zinc-500"
                           } ${isMobile ? "text-base" : "text-lg"}`}
                         >
                           url sürükle
@@ -2023,7 +2079,7 @@ function ScraperPage() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-white hover:bg-blue-800 transition-all duration-200 active:scale-95 rounded-md ${
+                            className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:bg-zinc-800 transition-all duration-200 active:scale-95 rounded-md ${
                               isMobile ? 'h-10 w-10 p-0' : 'h-8 w-8 p-0'
                             }`}
                             onClick={() => {
@@ -2044,7 +2100,7 @@ function ScraperPage() {
                           type="button"
                           onClick={addUrlManually}
                           disabled={singleScrapeMutation.isPending}
-                          className={`bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 active:scale-95 rounded-lg ${
+                          className={`bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-all duration-200 active:scale-95 rounded-lg ${
                             isMobile 
                               ? 'w-full h-14 text-base font-semibold px-4 flex items-center justify-center' 
                               : 'px-4 h-12 flex items-center'
@@ -2059,7 +2115,7 @@ function ScraperPage() {
                       {/* Eklenen URL listesi — hemen görünür */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <label className="text-white font-thin text-sm">
+                          <label className="text-zinc-300 font-thin text-sm">
                             Eklenmiş URL&apos;ler ({urlQueue.length})
                           </label>
                           {urlQueue.length > 0 && (
@@ -2067,32 +2123,32 @@ function ScraperPage() {
                               type="button"
                               onClick={clearAllUrls}
                               variant="ghost"
-                              className="text-red-400 hover:text-red-300 text-xs h-6 px-2"
+                              className="text-zinc-500 hover:text-zinc-400 text-xs h-6 px-2"
                             >
                               Tümünü Sil
                             </Button>
                           )}
                         </div>
                         {urlQueue.length > 0 ? (
-                          <div className="max-h-44 overflow-y-auto space-y-2 rounded-lg border border-cyan-800/30 bg-slate-800/40 p-3">
+                          <div className="max-h-44 overflow-y-auto space-y-2 rounded-lg border border-zinc-800/80 bg-zinc-900/50 p-3">
                             {urlQueue.map((item, index) => (
                               <div
                                 key={item.url}
-                                className="flex items-center gap-2 rounded-md bg-slate-700/50 px-3 py-2"
+                                className="flex items-center gap-2 rounded-md bg-zinc-800/50 px-3 py-2"
                               >
-                                <span className="text-cyan-400 text-xs font-mono">#{index + 1}</span>
-                                <span className="text-white text-xs flex-1 truncate" title={item.url}>
+                                <span className="text-zinc-500 text-xs font-mono">#{index + 1}</span>
+                                <span className="text-zinc-300 text-xs flex-1 truncate" title={item.url}>
                                   {item.url}
                                 </span>
                                 <span
                                   className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${
                                     item.status === "pending"
-                                      ? "bg-slate-600/60 text-slate-300"
+                                      ? "bg-zinc-700/60 text-zinc-400"
                                       : item.status === "processing"
-                                        ? "bg-amber-900/50 text-amber-300"
+                                        ? "bg-zinc-700/80 text-zinc-300"
                                         : item.status === "success"
-                                          ? "bg-emerald-900/50 text-emerald-300"
-                                          : "bg-red-900/50 text-red-300"
+                                          ? "bg-zinc-700 text-zinc-200"
+                                          : "bg-zinc-800 text-zinc-400"
                                   }`}
                                   title={item.error}
                                 >
@@ -2102,7 +2158,7 @@ function ScraperPage() {
                                   type="button"
                                   onClick={() => removeUrl(index)}
                                   variant="ghost"
-                                  className="h-6 w-6 p-0 text-red-400 hover:text-red-300"
+                                  className="h-6 w-6 p-0 text-zinc-500 hover:text-zinc-400"
                                 >
                                   <X className="w-3 h-3" />
                                 </Button>
@@ -2110,7 +2166,7 @@ function ScraperPage() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-slate-500 text-xs px-1">
+                          <p className="text-zinc-600 text-xs px-1">
                             Henüz URL eklenmedi. Sürükleyin veya alttan ekleyin.
                           </p>
                         )}
@@ -2134,36 +2190,30 @@ function ScraperPage() {
                     <div className="space-y-3">
                       {/* Toplu çekim yükleme banner'ı */}
                       {isBulkProcessing && (
-                        <div className="relative overflow-hidden rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-900/60 via-green-900/60 to-emerald-900/60 p-4">
-                          {/* Hareketli arka plan dalgası */}
-                          <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-emerald-400/10 to-transparent pointer-events-none" />
+                        <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/80 p-4">
                           <div className="flex items-center gap-3">
-                            {/* Dönen ikon */}
                             <div className="relative w-10 h-10 shrink-0">
-                              <span className="absolute inset-0 rounded-full border-2 border-emerald-400/30 border-t-emerald-400 animate-spin" />
-                              <span className="absolute inset-2 rounded-full bg-emerald-500/20 animate-pulse" />
-                              <Package className="absolute inset-0 m-auto w-4 h-4 text-emerald-300" />
+                              <span className="absolute inset-0 rounded-full border-2 border-zinc-600/40 border-t-zinc-400 animate-spin" />
+                              <Package className="absolute inset-0 m-auto w-4 h-4 text-zinc-400" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-emerald-300 font-semibold text-sm">
+                              <p className="text-zinc-300 font-medium text-sm">
                                 {bulkProgress ? `${bulkProgress.current}. ürün işleniyor...` : 'Başlatılıyor...'}
                               </p>
-                              <p className="text-emerald-400/70 text-xs mt-0.5">
+                              <p className="text-zinc-500 text-xs mt-0.5">
                                 Lütfen sayfayı kapatmayın
                               </p>
                             </div>
-                            {/* Adet göstergesi */}
                             <div className="shrink-0 text-right">
-                              <span className="text-2xl font-bold text-emerald-300">
+                              <span className="text-2xl font-bold text-zinc-300">
                                 {bulkProgress ? bulkProgress.current : 0}
                               </span>
-                              <span className="text-xs text-emerald-400/70 block">/ {urlQueue.length}</span>
+                              <span className="text-xs text-zinc-500 block">/ {urlQueue.length}</span>
                             </div>
                           </div>
-                          {/* Alt ilerleme çubuğu */}
-                          <div className="mt-3 h-1.5 rounded-full bg-emerald-900/60 overflow-hidden">
+                          <div className="mt-3 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                             <div
-                              className="h-full bg-gradient-to-r from-emerald-500 to-green-400 transition-all duration-700"
+                              className="h-full bg-zinc-500 transition-all duration-700"
                               style={{width: bulkProgress ? `${(bulkProgress.current / bulkProgress.total) * 100}%` : '5%'}}
                             />
                           </div>
@@ -2172,12 +2222,6 @@ function ScraperPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="relative">
-                          {(singleScrapeMutation.isPending || isBulkProcessing) && (
-                            <>
-                              <span className="absolute inset-0 rounded-md animate-ping bg-green-400 opacity-20 pointer-events-none" />
-                              <span className="absolute inset-0 rounded-md animate-pulse bg-green-300 opacity-10 pointer-events-none" />
-                            </>
-                          )}
                           <Button
                             type="button"
                             onClick={() => void handleFetchProducts()}
@@ -2187,16 +2231,12 @@ function ScraperPage() {
                               shopifyTransferMutation.isPending ||
                               !canStartScrape
                             }
-                            className={`relative w-full overflow-hidden bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium transition-all duration-300 ${singleScrapeMutation.isPending || isBulkProcessing ? "shadow-lg shadow-green-500/40 scale-[1.01]" : ""}`}
+                            className={`relative w-full bg-zinc-700 hover:bg-zinc-600 text-zinc-100 h-14 text-lg font-medium transition-colors duration-200 disabled:opacity-50 ${singleScrapeMutation.isPending || isBulkProcessing ? "opacity-90" : ""}`}
                           >
-                            {(singleScrapeMutation.isPending || isBulkProcessing) && (
-                              <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-                            )}
                             {singleScrapeMutation.isPending || isBulkProcessing ? (
                               <div className="flex items-center gap-3">
                                 <div className="relative w-5 h-5 shrink-0">
-                                  <span className="absolute inset-0 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                                  <span className="absolute inset-1 rounded-full bg-white/20 animate-pulse" />
+                                  <span className="absolute inset-0 rounded-full border-2 border-zinc-400/30 border-t-zinc-200 animate-spin" />
                                 </div>
                                 <span className="flex flex-col items-start leading-tight">
                                   <span className="text-sm font-semibold">Veriler Çekiliyor...</span>
@@ -2227,7 +2267,7 @@ function ScraperPage() {
                             !canShopifyUpload
                           }
                           title={shopifyUploadBlockedReason ?? undefined}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 text-lg font-medium disabled:opacity-50"
+                          className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 h-14 text-lg font-medium disabled:opacity-50 border border-zinc-700"
                         >
                           {shopifyTransferMutation.isPending ? (
                             <div className="flex items-center gap-2">
@@ -2247,8 +2287,8 @@ function ScraperPage() {
                         <div
                           className={`rounded-lg border px-4 py-3 text-sm ${
                             shopifyUploadBlockedReason
-                              ? "border-amber-500/40 bg-amber-900/20 text-amber-100"
-                              : "border-cyan-500/30 bg-cyan-900/10 text-cyan-100"
+                              ? "border-zinc-600/50 bg-zinc-900/60 text-zinc-300"
+                              : "border-zinc-700/50 bg-zinc-900/40 text-zinc-400"
                           }`}
                         >
                           {shopifyUploadBlockedReason || shopifyUploadWarning}
@@ -2289,16 +2329,16 @@ function ScraperPage() {
         {/* Workflow / error status — never blank */}
         {(singleScrapeMutation.isPending || workflowStep || scrapeError || lastShopifyResult) && (
           <div className="mt-6">
-            <Card className="border border-slate-700/50 bg-slate-900/80">
+            <Card className="border border-zinc-800/80 bg-zinc-900/80">
               <CardContent className="p-4 space-y-2">
                 {singleScrapeMutation.isPending && (
-                  <div className="flex items-center gap-2 text-cyan-300 text-sm">
+                  <div className="flex items-center gap-2 text-zinc-400 text-sm">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>{workflowStep || 'İşlem devam ediyor...'}</span>
                   </div>
                 )}
                 {!singleScrapeMutation.isPending && workflowStep && (
-                  <p className="text-sm text-green-400">✓ {workflowStep}</p>
+                  <p className="text-sm text-zinc-400">✓ {workflowStep}</p>
                 )}
                 {scrapeError && (
                   <ScrapeSourceErrorAlert
@@ -2309,7 +2349,7 @@ function ScraperPage() {
                   />
                 )}
                 {lastShopifyResult?.adminUrl && (
-                  <p className="text-sm text-green-400">
+                  <p className="text-sm text-zinc-400">
                     Shopify:{' '}
                     <a href={lastShopifyResult.adminUrl} target="_blank" rel="noreferrer" className="underline">
                       Admin panelinde aç
@@ -2326,10 +2366,10 @@ function ScraperPage() {
 
         {singleScrapeMutation.isPending && (
           <div className="mt-8">
-            <Card className="business-card border border-cyan-800/30">
+            <Card className="business-card">
               <CardContent className="p-8 flex flex-col items-center gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
-                <p className="text-white text-sm">{workflowStep || "Ürün verisi çekiliyor..."}</p>
+                <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
+                <p className="text-zinc-300 text-sm">{workflowStep || "Ürün verisi çekiliyor..."}</p>
               </CardContent>
             </Card>
           </div>
@@ -2338,6 +2378,15 @@ function ScraperPage() {
         {/* CSV Drawer Preview - Tüm CSV'ler */}
         {(csvPreviews.length > 0 || (product && hasCsvPreviewData(product))) && (
           <div className="mt-8 space-y-4">
+            {bulkScrapeSummary && (
+              <Card className="business-card">
+                <CardContent className="p-4 text-sm text-zinc-400 space-y-1">
+                  <p className="text-zinc-200 font-medium">Toplu Çekim Özeti</p>
+                  <p>Toplam ürün: {bulkScrapeSummary.totalProducts} | Stokta: {bulkScrapeSummary.inStockProducts} | Stokta yok: {bulkScrapeSummary.outOfStockProducts} | Bilinmiyor: {bulkScrapeSummary.unknownStockProducts} | Hata: {bulkScrapeSummary.failedScrapes}</p>
+                  <p>Varyant: {bulkScrapeSummary.totalVariants} | Stokta: {bulkScrapeSummary.inStockVariants} | Stok dışı: {bulkScrapeSummary.outOfStockVariants} | Bilinmiyor: {bulkScrapeSummary.unknownStockVariants}</p>
+                </CardContent>
+              </Card>
+            )}
             {product?.partialSuccess && (
               <Card className="border-amber-500/50 bg-amber-950/20">
                 <CardContent className="p-3 text-sm text-amber-200">
@@ -2367,42 +2416,40 @@ function ScraperPage() {
             
             {/* Toplu Yükleme Progress Banner */}
             {uploadProgress && (
-              <div className="mt-4 relative overflow-hidden rounded-xl border border-blue-500/40 bg-gradient-to-r from-blue-900/60 via-purple-900/60 to-blue-900/60 p-4">
-                <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-blue-400/10 to-transparent pointer-events-none" />
+              <div className="mt-4 rounded-xl border border-zinc-700/60 bg-zinc-900/80 p-4">
                 <div className="flex items-center gap-3">
                   <div className="relative w-10 h-10 shrink-0">
-                    <span className="absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400 animate-spin" />
-                    <span className="absolute inset-2 rounded-full bg-blue-500/20 animate-pulse" />
-                    <ShoppingCart className="absolute inset-0 m-auto w-4 h-4 text-blue-300" />
+                    <span className="absolute inset-0 rounded-full border-2 border-zinc-600/40 border-t-zinc-400 animate-spin" />
+                    <ShoppingCart className="absolute inset-0 m-auto w-4 h-4 text-zinc-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-blue-300 font-semibold text-sm">
+                    <p className="text-zinc-300 font-medium text-sm">
                       {uploadProgress.current}. ürün yükleniyor...
                     </p>
-                    <p className="text-blue-400/70 text-xs mt-0.5 truncate">
+                    <p className="text-zinc-500 text-xs mt-0.5 truncate">
                       {uploadProgress.currentTitle || 'Shopify\'a aktarılıyor'}
                     </p>
                   </div>
                   <div className="shrink-0 flex gap-3 text-right">
                     <div>
-                      <span className="text-xl font-bold text-emerald-400">{uploadProgress.successCount}</span>
-                      <span className="text-xs text-emerald-400/70 block">başarılı</span>
+                      <span className="text-xl font-bold text-zinc-300">{uploadProgress.successCount}</span>
+                      <span className="text-xs text-zinc-500 block">başarılı</span>
                     </div>
                     {uploadProgress.failCount > 0 && (
                       <div>
-                        <span className="text-xl font-bold text-red-400">{uploadProgress.failCount}</span>
-                        <span className="text-xs text-red-400/70 block">hatalı</span>
+                        <span className="text-xl font-bold text-zinc-400">{uploadProgress.failCount}</span>
+                        <span className="text-xs text-zinc-500 block">hatalı</span>
                       </div>
                     )}
                     <div>
-                      <span className="text-xl font-bold text-blue-300">{uploadProgress.current}</span>
-                      <span className="text-xs text-blue-400/70 block">/ {uploadProgress.total}</span>
+                      <span className="text-xl font-bold text-zinc-300">{uploadProgress.current}</span>
+                      <span className="text-xs text-zinc-500 block">/ {uploadProgress.total}</span>
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 h-1.5 rounded-full bg-blue-900/60 overflow-hidden">
+                <div className="mt-3 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-purple-400 transition-all duration-700"
+                    className="h-full bg-zinc-500 transition-all duration-700"
                     style={{width: `${(uploadProgress.current / uploadProgress.total) * 100}%`}}
                   />
                 </div>
@@ -2411,23 +2458,23 @@ function ScraperPage() {
 
             {/* Hatalı Yüklemeler Listesi */}
             {failedUploads.length > 0 && (
-              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-900/10 p-4">
+              <div className="mt-4 rounded-xl border border-zinc-700/50 bg-zinc-900/60 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-red-400 font-bold text-sm flex items-center gap-1.5">
+                  <span className="text-zinc-400 font-medium text-sm flex items-center gap-1.5">
                     <span>❌</span> {failedUploads.length} Ürün Yüklenemedi
                   </span>
                   <button
                     onClick={() => setFailedUploads([])}
-                    className="text-red-400/50 hover:text-red-400 text-xs"
+                    className="text-zinc-500 hover:text-zinc-400 text-xs"
                   >kapat</button>
                 </div>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {failedUploads.map((f, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs bg-red-900/20 rounded-lg px-3 py-2">
-                      <span className="text-red-400 shrink-0 mt-0.5">•</span>
+                    <div key={i} className="flex items-start gap-2 text-xs bg-zinc-800/50 rounded-lg px-3 py-2">
+                      <span className="text-zinc-500 shrink-0 mt-0.5">•</span>
                       <div className="min-w-0">
-                        <p className="text-red-300 font-medium truncate">{f.title}</p>
-                        <p className="text-red-400/70 mt-0.5 break-words">{f.error}</p>
+                        <p className="text-zinc-300 font-medium truncate">{f.title}</p>
+                        <p className="text-zinc-500 mt-0.5 break-words">{f.error}</p>
                       </div>
                     </div>
                   ))}
@@ -2439,7 +2486,7 @@ function ScraperPage() {
             <div className="mt-4 flex flex-wrap justify-center gap-3">
               <Button
                 onClick={handleExportAllCSV}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium px-8 py-3"
+                className="bg-zinc-700 hover:bg-zinc-600 text-zinc-100 font-medium px-8 py-3"
               >
                 <div className="flex items-center gap-2">
                   <Download className="w-5 h-5" />
@@ -2449,7 +2496,7 @@ function ScraperPage() {
               <Button
                 onClick={uploadAllCSVsToShopify}
                 disabled={!!uploadProgress}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium px-8 py-3"
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-medium px-8 py-3 border border-zinc-700"
               >
                 {uploadProgress ? (
                   <div className="flex items-center gap-2">
@@ -2469,8 +2516,8 @@ function ScraperPage() {
                         <div
                           className={`rounded-lg border px-4 py-3 text-sm ${
                             shopifyUploadBlockedReason
-                              ? "border-amber-500/40 bg-amber-900/20 text-amber-100"
-                              : "border-cyan-500/30 bg-cyan-900/10 text-cyan-100"
+                              ? "border-zinc-600/50 bg-zinc-900/60 text-zinc-300"
+                              : "border-zinc-700/50 bg-zinc-900/40 text-zinc-400"
                           }`}
                         >
                           {shopifyUploadBlockedReason || shopifyUploadWarning}
@@ -2594,7 +2641,7 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
               </div>
             )}
             {/* Sıra Numarası */}
-            <div className="absolute top-1 left-1 bg-blue-600 text-white px-1 py-0.5 rounded text-xs font-bold">
+            <div className="absolute top-1 left-1 bg-zinc-700 text-zinc-200 px-1 py-0.5 rounded text-xs font-bold">
               #{index + 1}
             </div>
           </div>
@@ -2615,7 +2662,7 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
 
             {/* Tespit Edilen Renkler */}
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-zinc-500 rounded-full"></div>
               <span className="text-slate-300 text-xs font-medium truncate">
                 {previewVariants.colors.length > 0 
                   ? `${previewVariants.colors.length} Renk: ${previewVariants.colors.slice(0, 2).join(', ')}${previewVariants.colors.length > 2 ? '...' : ''}`

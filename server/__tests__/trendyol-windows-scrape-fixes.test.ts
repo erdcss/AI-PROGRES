@@ -77,6 +77,27 @@ console.log("\n=== Trendyol Windows Scrape Fixes ===\n");
   );
   assert((target.price as { original: number }).original > 0, "merge sets price");
   assert(Array.isArray(target.images) && target.images.length > 0, "merge sets images");
+
+  const richTarget: Record<string, unknown> = {
+    variants: {
+      allVariants: [
+        { color: "Bej", size: "S", inStock: true },
+        { color: "Bej", size: "M", inStock: true },
+        { color: "Bej", size: "L", inStock: false },
+      ],
+      colors: ["Bej"],
+      sizes: ["S", "M", "L"],
+    },
+  };
+  const emptyVariantParsed = {
+    ...parsed!,
+    variants: { allVariants: [], colors: [], sizes: [] },
+  };
+  mergeTrendyolHtmlCoreIntoResult(richTarget, emptyVariantParsed, TEST_URL);
+  assert(
+    (richTarget.variants as { allVariants?: unknown[] }).allVariants?.length === 3,
+    "merge does not wipe existing variants with empty html-parser variants",
+  );
 }
 
 {

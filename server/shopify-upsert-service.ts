@@ -7,6 +7,12 @@ import {
 import { buildUploadLockKey } from "./shopify-source-key";
 import type { CanonicalProductForShopify } from "./variant-shape-normalizer";
 import { fetchShopifyVariantMappings } from "./services/shopify-variant-fetch.service";
+import {
+  buildAutomaticProductTags,
+  buildLegacySourceLookupTag,
+  buildSourceLookupTag,
+  joinShopifyTags,
+} from "@shared/shopify-tag-sanitizer";
 
 export type UpsertMode = "created" | "updated" | "skipped";
 
@@ -66,9 +72,13 @@ export async function findExistingShopifyProduct(opts: {
   handle?: string;
   skuPrefix?: string;
 }): Promise<ExistingProductMatch | null> {
-  const tag = `trendyol:${opts.sourceProductId}`;
+  const lookupTags = [
+    buildSourceLookupTag(opts.sourceProductId),
+    buildLegacySourceLookupTag(opts.sourceProductId),
+  ];
 
-  const gqlByTag = `{
+  for (const tag of lookupTags) {
+    const gqlByTag = `{
     products(first: 3, query: "tag:${tag}") {
       edges {
         node {
@@ -83,14 +93,15 @@ export async function findExistingShopifyProduct(opts: {
     }
   }`;
 
-  try {
-    const tagResult = await shopifyAdminGraphql(gqlByTag);
-    const edges = tagResult?.data?.products?.edges ?? [];
-    if (edges.length > 0) {
-      return mapGraphqlProduct(edges[0].node);
+    try {
+      const tagResult = await shopifyAdminGraphql(gqlByTag);
+      const edges = tagResult?.data?.products?.edges ?? [];
+      if (edges.length > 0) {
+        return mapGraphqlProduct(edges[0].node);
+      }
+    } catch (err) {
+      console.warn(`[ShopifyUpsert] tag search failed (${tag}):`, err);
     }
-  } catch (err) {
-    console.warn("[ShopifyUpsert] tag search failed:", err);
   }
 
   if (opts.handle) {
@@ -286,19 +297,17 @@ export async function upsertProductFromSource(
       skuPrefix,
     });
 
-    const sourceTags = [
-      "source:trendyol",
-      `trendyol:${canonical.sourceProductId}`,
+    const sourceTags = joinShopifyTags([
+      ...buildAutomaticProductTags(canonical.sourceProductId),
       ...(parsed.tags ? parsed.tags.split(",").map((t) => t.trim()) : []),
-    ];
-    const tagsString = [...new Set(sourceTags)].filter(Boolean).join(", ");
+    ]);
 
     if (existing) {
       console.log(`[ShopifyUpsert] existingProductId=${existing.id}`);
       const updateResult = await updateExistingProduct(
         existing,
         parsed,
-        tagsString,
+        sourceTags,
         canonical,
       );
       await setSourceMetafields(existing.id, canonical);
@@ -306,7 +315,7 @@ export async function upsertProductFromSource(
       return updateResult;
     }
 
-    const createResult = await createNewProduct(parsed, tagsString, canonical);
+    const createResult = await createNewProduct(parsed, sourceTags, canonical);
     if (createResult.productId) {
       await setSourceMetafields(createResult.productId, canonical);
     }

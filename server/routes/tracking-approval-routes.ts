@@ -12,6 +12,7 @@ import {
   listChangeGroups,
   rejectChange,
   retryChangeApply,
+  shopifySyncChange,
 } from "../services/change-approval.service";
 import { trackingService } from "../services/tracking.service";
 import { db } from "../db";
@@ -134,6 +135,20 @@ export function registerTrackingApprovalRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/tracking/changes/:id/shopify-sync", async (req, res) => {
+    try {
+      const id = parsePositiveInt(req.params.id);
+      if (id === null) return res.status(400).json({ success: false, error: "Geçersiz ID" });
+
+      const result = await shopifySyncChange(id, req.body?.actor ?? "user");
+      return res.json({ success: true, ...result });
+    } catch (err) {
+      const msg = (err as Error).message;
+      const code = msg.includes("zaten uygulanmış") ? 409 : 422;
+      return res.status(code).json({ success: false, error: msg });
+    }
+  });
+
   app.post("/api/tracking/changes/:id/retry", async (req, res) => {
     try {
       const id = parsePositiveInt(req.params.id);
@@ -160,6 +175,7 @@ export function registerTrackingApprovalRoutes(app: Express): void {
   app.post("/api/tracking/bulk/reject", bulkHandler("reject"));
   app.post("/api/tracking/bulk/ignore", bulkHandler("ignore"));
   app.post("/api/tracking/bulk/apply", bulkHandler("apply"));
+  app.post("/api/tracking/bulk/shopify-sync", bulkHandler("shopify-sync"));
 
   app.get("/api/control-center/audit-logs", async (req, res) => {
     try {
@@ -173,7 +189,7 @@ export function registerTrackingApprovalRoutes(app: Express): void {
   });
 }
 
-function bulkHandler(action: "approve" | "reject" | "ignore" | "apply") {
+function bulkHandler(action: "approve" | "reject" | "ignore" | "apply" | "shopify-sync") {
   return async (req: Request, res: Response) => {
     try {
       const parsed = bulkSchema.safeParse(req.body);

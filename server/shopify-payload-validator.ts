@@ -1,5 +1,6 @@
 import { sanitizeTrendyolVariants } from '@shared/trendyol-variant-utils';
 import { buildShopifyBodyHtml } from './shopify-description-builder';
+import { sanitizeShopifyTags } from '@shared/shopify-tag-sanitizer';
 
 export interface NormalizedShopifyProductInput {
   title: string;
@@ -232,11 +233,13 @@ export function buildShopifyProductApiPayload(
   const sizes = [...new Set(allVariants.map((v) => v.size).filter(Boolean))];
   const hasOptions = colors.length > 0 || sizes.length > 0;
 
-  const automaticTags = ['trendyol-import'];
-  const allTags = [...automaticTags, ...(opts.customTags ?? []), ...input.tags]
-    .map((tag) => String(tag).trim())
-    .filter(Boolean);
-  const tagsString = [...new Set(allTags)].join(', ');
+  const automaticTags: string[] = [];
+  const allTags = sanitizeShopifyTags([
+    ...automaticTags,
+    ...(opts.customTags ?? []),
+    ...input.tags,
+  ]);
+  const tagsString = allTags.join(', ');
 
   const images = input.images.map((src, index) => ({
     src,

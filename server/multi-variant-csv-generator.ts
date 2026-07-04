@@ -235,7 +235,7 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
 
   // Tags
   const filteredTags = (product.tags && Array.isArray(product.tags))
-    ? product.tags.filter(t => t.toLowerCase() !== 'trendyol' && t.toLowerCase() !== '#trendyol')
+    ? product.tags.filter((t) => !/trendyol/i.test(String(t ?? '').trim()))
     : [];
   const tagsStr = filteredTags.join(', ');
 

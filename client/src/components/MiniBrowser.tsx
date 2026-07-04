@@ -429,14 +429,14 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
         type="button"
         variant="outline"
         onClick={() => setIsOpen(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-800/50 border-cyan-700/40 hover:border-cyan-500/60 hover:bg-slate-700/50 text-cyan-300 hover:text-cyan-200 transition-all"
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-zinc-900/50 border-zinc-700/60 hover:border-zinc-600 hover:bg-zinc-800/50 text-zinc-400 hover:text-zinc-300 transition-all"
       >
         <div className="flex items-center gap-2">
           <Globe className="w-4 h-4" />
           <span className="font-medium text-sm">Dahili Tarayıcı</span>
           <span className="text-xs text-slate-400 hidden sm:inline">— Gerçek Chromium motoru</span>
           {isOpen && isProduct && (
-            <span className="text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded-full">Ürün</span>
+            <span className="text-xs bg-zinc-800 text-zinc-400 border border-zinc-700 px-1.5 py-0.5 rounded-full">Ürün</span>
           )}
         </div>
         {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -450,11 +450,11 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
           {isProgressing && (
             <div className="relative h-0.5 w-full overflow-hidden">
               <div
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-400 via-blue-400 to-cyan-400 transition-all"
+                className="absolute top-0 left-0 h-full bg-zinc-500 transition-all"
                 style={{ width: `${progress}%`, transition: progress === 100 ? "width 0.15s ease" : "width 0.12s linear" }}
               />
               {progress < 100 && (
-                <div className="absolute top-0 right-0 w-24 h-full bg-gradient-to-r from-transparent to-cyan-300/40 animate-pulse" />
+                <div className="absolute top-0 right-0 w-24 h-full bg-zinc-400/20 animate-pulse" />
               )}
             </div>
           )}
@@ -467,7 +467,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
               <span className="text-slate-300 truncate">
                 {state?.title || domain || "Yeni Sekme"}
               </span>
-              {isLoading && <Loader2 className="w-2.5 h-2.5 text-cyan-400 animate-spin ml-auto shrink-0" />}
+              {isLoading && <Loader2 className="w-2.5 h-2.5 text-zinc-400 animate-spin ml-auto shrink-0" />}
             </div>
             <div className="flex-1" />
           </div>
@@ -497,7 +497,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
               disabled={isLoading}
               title="Yenile (Ctrl+R)">
               {isLoading
-                ? <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                ? <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
                 : <RotateCw className="w-4 h-4" />}
             </button>
             <button
@@ -512,7 +512,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
             {/* Adres çubuğu */}
             <div
               className={`flex-1 flex items-center gap-1.5 bg-[#2a2b2f] border rounded-full px-3 h-8 mx-1.5 cursor-text transition-all
-                ${isAddressEditing ? "border-cyan-500/70 bg-[#2e2f35]" : "border-slate-700/50 hover:border-slate-600/70"}`}
+                ${isAddressEditing ? "border-zinc-600 bg-[#2e2f35]" : "border-slate-700/50 hover:border-slate-600/70"}`}
               onClick={() => { if (!isAddressEditing) { setIsAddressEditing(true); setAddressBar(state?.url || addressBar); } }}>
               {isAddressEditing ? (
                 <Search className="w-3 h-3 text-slate-500 shrink-0" />
@@ -550,13 +550,13 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
                 </span>
               )}
               {!isAddressEditing && isProduct && (
-                <Star className="w-3 h-3 text-cyan-400/70 shrink-0" />
+                <Star className="w-3 h-3 text-zinc-400/70 shrink-0" />
               )}
             </div>
 
             <button
               type="button"
-              className="h-7 w-7 flex items-center justify-center rounded-md text-slate-500 hover:text-cyan-400 hover:bg-slate-700/60 transition-colors"
+              className="h-7 w-7 flex items-center justify-center rounded-md text-slate-500 hover:text-zinc-400 hover:bg-slate-700/60 transition-colors"
               onClick={() => { setSearchOpen(s => !s); setSearchQuery(""); }}
               disabled={isLoading}
               title="Trendyol'da Ara (Ctrl+F)">
@@ -582,7 +582,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
           {searchOpen && (
             <div className="px-3 py-2 bg-[#16171a] border-b border-slate-800/60">
               <form onSubmit={handleSearchSubmit} className="flex gap-2">
-                <div className="flex-1 flex items-center gap-2 bg-[#2a2b2f] border border-slate-600/50 rounded-lg px-3 py-1.5 focus-within:border-cyan-500/60">
+                <div className="flex-1 flex items-center gap-2 bg-[#2a2b2f] border border-slate-600/50 rounded-lg px-3 py-1.5 focus-within:border-zinc-500/60">
                   <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                   <input
                     ref={searchRef}
@@ -595,7 +595,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
                     spellCheck={false}
                   />
                 </div>
-                <Button type="submit" size="sm" className="bg-cyan-600 hover:bg-cyan-500 text-white h-8 px-3 text-xs rounded-lg">
+                <Button type="submit" size="sm" className="bg-zinc-700 hover:bg-zinc-600 text-zinc-100 h-8 px-3 text-xs rounded-lg">
                   Git
                 </Button>
                 <button type="button" onClick={() => setSearchOpen(false)} className="text-slate-500 hover:text-slate-300 px-1">
@@ -616,12 +616,12 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
 
           {/* Klavye modu banner */}
           {keyboardMode && !isLoading && (
-            <div className="flex items-center justify-between px-3 py-1 bg-cyan-900/20 border-b border-cyan-700/20">
-              <div className="flex items-center gap-2 text-xs text-cyan-400/80">
+            <div className="flex items-center justify-between px-3 py-1 bg-zinc-900/40 border-b border-zinc-800/60">
+              <div className="flex items-center gap-2 text-xs text-zinc-400/80">
                 <Keyboard className="w-3 h-3" />
                 <span>Klavye aktif</span>
                 {pendingText && (
-                  <span className="font-mono bg-slate-800 px-1.5 py-0.5 rounded text-cyan-300 border border-slate-700/50">
+                  <span className="font-mono bg-slate-800 px-1.5 py-0.5 rounded text-zinc-300 border border-slate-700/50">
                     "{pendingText}"
                   </span>
                 )}
@@ -642,10 +642,10 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
               {!state && isLoading && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-[#0e0f11]">
                   <div className="relative">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-blue-600/10 border border-cyan-500/20 flex items-center justify-center">
-                      <Globe className="w-8 h-8 text-cyan-500/60" />
+                    <div className="w-16 h-16 rounded-2xl bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center">
+                      <Globe className="w-8 h-8 text-zinc-500/60" />
                     </div>
-                    <div className="absolute inset-0 rounded-2xl border border-cyan-500/30 animate-ping opacity-40" />
+                    <div className="absolute inset-0 rounded-2xl border border-zinc-600/30 animate-ping opacity-20" />
                   </div>
                   <div className="text-center space-y-1">
                     <p className="text-sm text-slate-300 font-medium">
@@ -657,7 +657,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
                   </div>
                   <div className="flex gap-1.5">
                     {[0, 1, 2, 3, 4].map(i => (
-                      <div key={i} className="w-1.5 h-1.5 rounded-full bg-cyan-500/40 animate-bounce"
+                      <div key={i} className="w-1.5 h-1.5 rounded-full bg-zinc-500/50 animate-bounce"
                         style={{ animationDelay: `${i * 0.1}s` }} />
                     ))}
                   </div>
@@ -674,7 +674,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
                   </div>
                   <div className="flex gap-2">
                     <Button type="button" size="sm"
-                      className="bg-cyan-600/90 hover:bg-cyan-500 text-white text-xs"
+                      className="bg-zinc-700 hover:bg-zinc-600 text-zinc-100 text-xs"
                       onClick={() => navigate(state?.url || HOME_URL)}>Tekrar Dene</Button>
                     <Button type="button" size="sm" variant="outline"
                       className="border-slate-700 text-slate-400 text-xs"
@@ -724,9 +724,9 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
                     <div key={r.id}
                       className="absolute pointer-events-none"
                       style={{ left: r.x, top: r.y, transform: "translate(-50%, -50%)" }}>
-                      <div className="w-8 h-8 rounded-full border-2 border-cyan-400/70 animate-ping opacity-0"
+                      <div className="w-8 h-8 rounded-full border-2 border-zinc-500/50 animate-ping opacity-0"
                         style={{ animationDuration: "0.5s" }} />
-                      <div className="absolute inset-0 w-2 h-2 m-auto rounded-full bg-cyan-400/50" />
+                      <div className="absolute inset-0 w-2 h-2 m-auto rounded-full bg-zinc-500/40" />
                     </div>
                   ))}
 
@@ -743,9 +743,9 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
                   {/* Klavye modu göstergesi */}
                   {keyboardMode && !isLoading && (
                     <div className="absolute top-2 right-14 pointer-events-none">
-                      <div className="flex items-center gap-1 bg-cyan-900/90 border border-cyan-600/40 rounded-full px-2 py-0.5">
-                        <Keyboard className="w-2.5 h-2.5 text-cyan-400" />
-                        <span className="text-xs text-cyan-300">Yazın</span>
+                      <div className="flex items-center gap-1 bg-zinc-800/90 border border-zinc-700/60 rounded-full px-2 py-0.5">
+                        <Keyboard className="w-2.5 h-2.5 text-zinc-400" />
+                        <span className="text-xs text-zinc-300">Yazın</span>
                       </div>
                     </div>
                   )}
@@ -754,7 +754,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
                   {isLoading && (
                     <div className="absolute inset-0 flex items-end justify-center pb-4 pointer-events-none">
                       <div className="flex items-center gap-2 bg-slate-900/95 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-700/50 shadow-xl">
-                        <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
+                        <Loader2 className="w-3 h-3 animate-spin text-zinc-400" />
                         <span className="text-xs text-slate-300">Yükleniyor...</span>
                       </div>
                     </div>
@@ -789,7 +789,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
                         disabled={isLoading}
                         className={`h-7 px-3 text-xs font-semibold rounded-full gap-1.5 transition-all ${
                           isProduct
-                            ? "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
+                            ? "bg-zinc-600 hover:bg-zinc-500 text-zinc-100"
                             : "bg-slate-700/80 hover:bg-slate-600 text-slate-300"
                         }`}>
                         <Zap className="w-3 h-3" />
@@ -810,7 +810,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
                         null,
                         { icon: <ExternalLink className="w-3.5 h-3.5" />, label: "Yeni Sekmede Aç", action: () => { setContextMenu(null); window.open(state.url, "_blank"); } },
                         { icon: <Copy className="w-3.5 h-3.5" />, label: "URL'yi Kopyala", action: () => { setContextMenu(null); navigator.clipboard.writeText(state.url); } },
-                        ...(isProduct ? [null, { icon: <Zap className="w-3.5 h-3.5 text-cyan-400" />, label: "Bu Ürünü Çek!", action: () => { setContextMenu(null); onExtract(state.url); }, className: "text-cyan-400 font-semibold" }] : []),
+                        ...(isProduct ? [null, { icon: <Zap className="w-3.5 h-3.5 text-zinc-400" />, label: "Bu Ürünü Çek!", action: () => { setContextMenu(null); onExtract(state.url); }, className: "text-zinc-400 font-semibold" }] : []),
                       ].map((item, i) =>
                         item === null ? (
                           <div key={i} className="my-1 border-t border-slate-700/40" />
@@ -834,7 +834,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
           <div className="px-3 py-1.5 bg-[#16171a] border-t border-slate-800/60 flex items-center justify-between">
             <span className="text-xs flex items-center gap-1.5">
               {isProduct ? (
-                <span className="text-cyan-400 flex items-center gap-1">
+                <span className="text-zinc-400 flex items-center gap-1">
                   <Zap className="w-3 h-3" />
                   Ürün sayfası algılandı
                 </span>

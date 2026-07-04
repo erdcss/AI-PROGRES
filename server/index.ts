@@ -287,12 +287,14 @@ app.use(pendingChangesRoutes);
   // ── Replit Importer API (/api/health, /api/import) ──────────────────────────
   app.use('/api', importerRouter);
   startTokenRefreshScheduler();
-  syncEnvApiKeyToDB()
-    .then(async () => {
+  import('./shopify-credentials')
+    .then(({ bootstrapShopifyConnectionFromEnv }) => bootstrapShopifyConnectionFromEnv())
+    .then(async (boot) => {
+      console.log(`[SHOPIFY] Bootstrap: ${boot.message}`);
       const { warmUpShopifyToken } = await import('./shopify-token-manager');
       warmUpShopifyToken();
     })
-    .catch((err) => console.error('syncEnvApiKeyToDB error:', err));
+    .catch((err) => console.error('Shopify bootstrap error:', err));
   
   // Test enhanced extraction endpoint - Direct registration
   app.post('/api/test-enhanced', async (req, res) => {

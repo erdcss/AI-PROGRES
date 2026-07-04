@@ -6,6 +6,7 @@ import { getTrackingSchedulerStatus } from "../services/tracking.scheduler";
 import { getScrapeEnvironmentPolicy } from "../services/scrape-environment.service";
 import { resolveChromiumPath } from "../puppeteer-config";
 import { verifyControlCenterTables } from "../migrations/run-control-center-migration";
+import { syncShopifyDeletedProducts } from "../services/shopify-deleted-sync.service";
 import { pool } from "../db";
 
 export function registerControlCenterRoutes(app: Express): void {
@@ -13,17 +14,6 @@ export function registerControlCenterRoutes(app: Express): void {
     try {
       const jobs = await importJobService.listJobs(1, 500);
       const byStatus = (status: string) => jobs.items.filter((j) => j.status === status).length;
-
-      let trackedCount = 0;
-      let pendingChanges = 0;
-      try {
-        const products = await trackingService.listProducts();
-        trackedCount = products.length;
-        const changes = await trackingService.listChanges({ status: "pending" });
-        pendingChanges = changes.length;
-      } catch {
-        /* tracking disabled */
-      }
 
       const scheduler = await getTrackingSchedulerStatus().catch(() => null);
 
@@ -40,14 +30,62 @@ export function registerControlCenterRoutes(app: Express): void {
           completed: byStatus("completed") + byStatus("completed_with_warning"),
         },
         tracking: {
-          trackedProducts: trackedCount,
-          pendingChanges,
-          schedulerRunning: scheduler?.running ?? false,
+          trackedProducts: scheduler?.trackedProductsCount ?? 0,
+          activeTrackedProducts: scheduler?.activeTrackedProductsCount ?? 0,
+          pendingChanges: scheduler?.pendingChangesCount ?? 0,
+          manualReview: scheduler?.manualReviewCount ?? 0,
+          schedulerRunning: scheduler?.safeSchedulerRunning ?? false,
+          schedulerEnabled: scheduler?.schedulerEnabled ?? false,
+          trackingEnabled: scheduler?.trackingEnabled ?? false,
           lastRunAt: scheduler?.lastRunAt ?? null,
+          nextRunAt: scheduler?.nextRunAt ?? null,
         },
       });
     } catch (err) {
       res.status(500).json({ message: (err as Error).message });
+    }
+  });
+
+  app.get("/api/control-center/tracking/products", async (_req: Request, res: Response) => {
+    try {
+      const products = await trackingService.listProductsForPanel();
+      const pendingByProduct = new Map<number, number>();
+
+      const pendingChanges = await trackingService.listChangesForPanel({ status: "pending" });
+      for (const change of pendingChanges) {
+        pendingByProduct.set(
+          change.trackedProductId,
+          (pendingByProduct.get(change.trackedProductId) ?? 0) + 1,
+        );
+      }
+
+      const items = products
+        .map((p) => ({
+          ...p,
+          pendingChangeCount: pendingByProduct.get(p.id) ?? 0,
+        }))
+        .sort((a, b) => {
+          if (b.pendingChangeCount !== a.pendingChangeCount) {
+            return b.pendingChangeCount - a.pendingChangeCount;
+          }
+          const aChecked = a.lastCheckedAt ? new Date(a.lastCheckedAt).getTime() : 0;
+          const bChecked = b.lastCheckedAt ? new Date(b.lastCheckedAt).getTime() : 0;
+          return bChecked - aChecked;
+        });
+
+      res.json({ success: true, products: items, total: items.length });
+    } catch (err) {
+      res.status(500).json({ success: false, error: (err as Error).message });
+    }
+  });
+
+  app.get("/api/control-center/tracking/changes", async (req: Request, res: Response) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : "pending";
+      const changes = await trackingService.listChangesWithProductForPanel({ status });
+      res.json({ success: true, changes, total: changes.length });
+    } catch (err) {
+      res.status(500).json({ success: false, error: (err as Error).message });
     }
   });
 
@@ -62,6 +100,8 @@ export function registerControlCenterRoutes(app: Express): void {
     } catch {
       shopify = { ok: false };
     }
+
+    const scheduler = await getTrackingSchedulerStatus().catch(() => null);
 
     res.json({
       database: {
@@ -82,6 +122,8 @@ export function registerControlCenterRoutes(app: Express): void {
       },
       tracking: {
         status: policy.isCloud ? "cloud" : "local",
+        schedulerRunning: scheduler?.safeSchedulerRunning ?? false,
+        pendingChanges: scheduler?.pendingChangesCount ?? 0,
       },
     });
   });
@@ -120,5 +162,17 @@ export function registerControlCenterRoutes(app: Express): void {
     if (!job) return res.status(404).json({ message: "İş bulunamadı" });
     const events = await importJobService.getEvents(job.id);
     res.json({ items: events, total: events.length });
+  });
+
+  app.post("/api/control-center/shopify/sync-deleted", async (_req: Request, res: Response) => {
+    try {
+      const result = await syncShopifyDeletedProducts();
+      if (!result.success) {
+        return res.status(422).json({ success: false, ...result });
+      }
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: (err as Error).message });
+    }
   });
 }

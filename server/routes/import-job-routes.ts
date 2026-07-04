@@ -544,31 +544,12 @@ export function registerImportJobRoutes(app: Express): void {
 
 
 
-    const locked = await importJobService.acquireJobLock(job.id, `upload:${idempotencyKey}`);
-
-    if (!locked) {
-
-      return res.status(409).json({ success: false, message: "İş kilitli veya eşzamanlı upload" });
-
-    }
-
-
-
     await importJobService.updateStatus(job.id, { idempotencyKey });
 
-
-
     const scrapeResult = (canonical as unknown as Record<string, unknown>) || {};
-
-    void executeShopifyAndTracking(job.id, job.jobId, canonical, scrapeResult).catch(async (err) => {
-
-      await importJobService.releaseJobLock(job.id);
-
+    void executeShopifyAndTracking(job.id, job.jobId, canonical, scrapeResult).catch((err) => {
       console.error("Upload hatası:", err);
-
     });
-
-
 
     res.json({ success: true, message: "Shopify aktarımı başlatıldı", jobId: job.jobId });
 

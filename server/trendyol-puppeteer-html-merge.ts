@@ -51,6 +51,13 @@ export function parseTrendyolCoreFromHtml(
   return { ...parsed, title };
 }
 
+function countTrendyolVariants(v: unknown): number {
+  if (!v || typeof v !== "object") return 0;
+  const o = v as { allVariants?: unknown[]; sizes?: unknown[]; colors?: unknown[] };
+  if (Array.isArray(o.allVariants) && o.allVariants.length > 0) return o.allVariants.length;
+  return Math.max(o.sizes?.length ?? 0, o.colors?.length ?? 0);
+}
+
 export function mergeTrendyolHtmlCoreIntoResult(
   target: Record<string, unknown>,
   parsed: ParsedHtmlCore,
@@ -71,7 +78,11 @@ export function mergeTrendyolHtmlCoreIntoResult(
     target.images = images;
   }
   if (parsed.variants) {
-    target.variants = parsed.variants;
+    const existingCount = countTrendyolVariants(target.variants);
+    const incomingCount = countTrendyolVariants(parsed.variants);
+    if (incomingCount > existingCount) {
+      target.variants = parsed.variants;
+    }
   }
   target.extractionMethod = `${String(target.extractionMethod || "scenario")}+html-parser`;
   target.sourceProductId = extractTrendyolProductId(url);

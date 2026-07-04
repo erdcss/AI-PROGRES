@@ -30,6 +30,8 @@
     "test:price-rules": "tsx server/__tests__/import-e2e.test.ts",
     "test:import-e2e": "node scripts/import-job-live-e2e.mjs",
     "test:hardcoded-variants": "tsx server/__tests__/hardcoded-variants.test.ts",
+    "test:bulk-stock": "tsx server/__tests__/bulk-stock-detection.test.ts",
+    "test:bulk-upload": "tsx server/__tests__/bulk-upload-result-classification.test.ts && tsx server/__tests__/unknown-stock-gate.test.ts",
     "scrape:capabilities": "node scripts/scrape-capabilities-check.mjs",
     "scrape:live-smoke": "node scripts/trendyol-live-scrape-smoke.mjs",
     "agent": "tsx local-agent/server.ts",

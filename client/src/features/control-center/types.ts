@@ -8,9 +8,14 @@ export type ControlCenterSummary = {
   };
   tracking: {
     trackedProducts: number;
+    activeTrackedProducts: number;
     pendingChanges: number;
+    manualReview: number;
     schedulerRunning: boolean;
+    schedulerEnabled: boolean;
+    trackingEnabled: boolean;
     lastRunAt: string | null;
+    nextRunAt: string | null;
   };
 };
 
@@ -21,6 +26,8 @@ export type ImportJobRow = {
   currentStage: string | null;
   progressPercentage: number;
   qualityScore: number | null;
+  qualityResult?: unknown;
+  canonicalProduct?: unknown;
   variantCount?: number;
   imageCount?: number;
   errorMessage?: string | null;

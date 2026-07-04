@@ -12,7 +12,7 @@ import {
 import { db } from "../db";
 import { detectedChanges } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { isMissingRelationError } from "../migrations/run-product-tracking-migration";
+import { isMissingRelationError, isMissingColumnError } from "../migrations/run-product-tracking-migration";
 
 function parsePositiveInt(value: string): number | null {
   const id = Number(value);
@@ -21,6 +21,14 @@ function parsePositiveInt(value: string): number | null {
 }
 
 function migrationErrorResponse(res: Response, err: unknown) {
+  const msg = (err as Error).message ?? String(err);
+  if (isMissingColumnError(err, "tracking_uid") || isMissingColumnError(err, "variant_uid")) {
+    return res.status(503).json({
+      success: false,
+      error: "Veritabanı şeması güncelleniyor — sunucuyu yeniden başlatın",
+      code: "schema-patch-required",
+    });
+  }
   if (isMissingRelationError(err, "tracking_settings")) {
     return res.status(503).json({
       success: false,
@@ -28,7 +36,7 @@ function migrationErrorResponse(res: Response, err: unknown) {
       code: "migration-config-error",
     });
   }
-  return res.status(500).json({ success: false, error: (err as Error).message });
+  return res.status(500).json({ success: false, error: msg });
 }
 
 export function registerTrackingRoutes(app: Express): void {
@@ -52,7 +60,7 @@ export function registerTrackingRoutes(app: Express): void {
 
   app.get("/api/tracking/products", async (_req, res) => {
     try {
-      const products = await trackingService.listProducts();
+      const products = await trackingService.listProductsForPanel();
       return res.json({ success: true, products });
     } catch (err) {
       return migrationErrorResponse(res, err);
@@ -68,7 +76,11 @@ export function registerTrackingRoutes(app: Express): void {
           ? productIdRaw
           : undefined;
       const changeType = typeof req.query.changeType === "string" ? req.query.changeType : undefined;
-      const changes = await trackingService.listChanges({ status, productId, changeType });
+      const changes = await trackingService.listChangesWithProductForPanel({
+        status,
+        productId,
+        changeType,
+      });
       return res.json({ success: true, changes });
     } catch (err) {
       return migrationErrorResponse(res, err);

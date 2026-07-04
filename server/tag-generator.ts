@@ -4,6 +4,7 @@
  */
 
 import * as cheerio from 'cheerio';
+import { isBlockedShopifyTag } from '@shared/shopify-tag-sanitizer';
 
 export async function generateAdvancedTags($: cheerio.CheerioAPI, htmlContent: string): Promise<string[]> {
   console.log('🏷️ Generating advanced tags...');
@@ -89,11 +90,10 @@ export async function generateAdvancedTags($: cheerio.CheerioAPI, htmlContent: s
     // tags.push('Trendyol');
     
     // Remove duplicates, filter out 'trendyol', and limit to reasonable number
-    const uniqueTags = [...new Set(tags)]
-      .filter(tag => tag.toLowerCase() !== 'trendyol' && tag.toLowerCase() !== '#trendyol');
+    const uniqueTags = [...new Set(tags)].filter((tag) => !isBlockedShopifyTag(tag));
     const finalTags = uniqueTags.slice(0, 10); // Limit to 10 tags
     
-    console.log(`🏷️ Generated ${finalTags.length} tags (filtered out #trendyol): [${finalTags.join(', ')}]`);
+    console.log(`🏷️ Generated ${finalTags.length} tags: [${finalTags.join(', ')}]`);
     return finalTags;
     
   } catch (error: any) {

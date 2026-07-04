@@ -5,6 +5,7 @@ import {
 } from "./shopify-csv-headers";
 import type { CanonicalProductForShopify } from "./variant-shape-normalizer";
 import { getShopifyInventoryConfig } from "@shared/shopify-inventory-config";
+import { joinShopifyTags, buildAutomaticProductTags } from "@shared/shopify-tag-sanitizer";
 
 const COL = {
   TITLE: 0,
@@ -49,12 +50,7 @@ function escapeCsvCell(cell: string): string {
 }
 
 function buildTags(product: CanonicalProductForShopify): string {
-  const base = [
-    "trendyol-import",
-    "source:trendyol",
-    `trendyol:${product.sourceProductId}`,
-  ];
-  return base.join(", ");
+  return joinShopifyTags(buildAutomaticProductTags(product.sourceProductId));
 }
 
 function buildBodyHtml(product: CanonicalProductForShopify): string {
@@ -128,7 +124,22 @@ export function generateCanonicalShopifyCSV(
   let imagePosition = 1;
   const addedImages = new Set<string>();
 
-  product.variants.forEach((variant, index) => {
+  const exportVariants =
+    product.variants.length > 0
+      ? product.variants
+      : [
+          {
+            color: "Tek Renk",
+            size: "Standart",
+            sku: `${product.sourceProductId}-default`,
+            inStock: true,
+            inventoryQty: config.defaultInStockQty,
+            option1Name: "Title" as const,
+            option1Value: "Default Title",
+          },
+        ];
+
+  exportVariants.forEach((variant, index) => {
     const isFirst = index === 0;
     const row: string[] = Array(TOTAL_COLUMNS).fill("");
 
