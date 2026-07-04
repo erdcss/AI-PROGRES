@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * Live import-job E2E — scrape only, no Shopify upload.
- * Usage: node scripts/import-job-live-e2e.mjs [baseUrl]
+ * Live import-job E2E v2 — scrape only, no Shopify upload.
  */
 const BASE = process.argv[2] || "http://127.0.0.1:5000";
 const TEST_URL =
@@ -15,11 +14,11 @@ async function sleep(ms) {
 }
 
 async function main() {
-  console.log(`\n🧪 Import job live E2E → ${BASE}\n`);
+  console.log(`\n🧪 Import job live E2E v2 → ${BASE}\n`);
 
   const createRes = await fetch(`${BASE}/api/import-jobs`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-request-id": `e2e-${Date.now()}` },
+    headers: { "Content-Type": "application/json", "x-request-id": `e2e-v2-${Date.now()}` },
     body: JSON.stringify({
       sourceUrl: TEST_URL,
       uploadMode: "manual_approval",
@@ -32,7 +31,7 @@ async function main() {
     process.exit(1);
   }
   const jobId = createBody.jobId;
-  console.log(`✓ Job created: ${jobId}`);
+  console.log(`✓ New job created: ${jobId}`);
 
   const deadline = Date.now() + TIMEOUT_MS;
   let lastStatus = "";
@@ -51,41 +50,67 @@ async function main() {
   const finalRes = await fetch(`${BASE}/api/import-jobs/${jobId}`);
   const final = await finalRes.json();
   const job = final.job;
-  const events = final.events || [];
+  const canonical = job?.canonicalProduct;
+  const quality = job?.qualityResult;
 
   console.log("\n--- Sonuç ---");
+  console.log("jobId:", job?.jobId);
   console.log("status:", job?.status);
-  console.log("sourceProductId:", job?.sourceProductId);
-  console.log("title:", job?.canonicalProduct?.title);
-  console.log("price:", job?.canonicalProduct?.originalPrice);
+  console.log("quality:", quality?.status, quality?.score);
+  console.log("titleSource:", quality?.provenance?.title?.source ?? canonical?.diagnostics?.titleSource);
   console.log("variants:", job?.variantCount);
-  console.log("images:", job?.imageCount);
-  console.log("quality:", job?.qualityStatus, job?.qualityScore);
-  console.log("events:", events.length);
+  console.log("unique images:", quality?.provenance?.images?.uniqueCount ?? canonical?.diagnostics?.uniqueImageCount);
+  console.log("raw images:", quality?.provenance?.images?.rawCount ?? canonical?.diagnostics?.rawImageCount);
+  console.log("sourcePrice:", canonical?.sourcePrice);
+  console.log("blockers:", quality?.blockers?.join(", ") || "none");
+  console.log("pipelineMs:", canonical?.diagnostics?.pipelineDurationMs);
 
-  const sizes = (job?.canonicalProduct?.variants || []).map((v) => v.size).filter(Boolean);
-  console.log("sizes:", sizes.join(", "));
+  const sizes = (canonical?.variants || [])
+    .map((v) => v.option2Value || v.option1Value)
+    .filter(Boolean);
+  console.log("variant sizes:", [...new Set(sizes)].join(", "));
 
-  const ok =
-    job?.status === "awaiting_approval" &&
-    job?.sourceProductId === "1158681520" &&
-    (job?.canonicalProduct?.originalPrice || 0) > 0 &&
-    job?.variantCount >= 5 &&
-    job?.imageCount >= 1 &&
-    job?.qualityScore != null;
+  const hardcodedStock = (canonical?.variants || []).filter((v) => v.stockQuantity === 10).length;
+  const tekRenkWithNamed = (canonical?.variants || []).some(
+    (v) => /tek\s*renk/i.test(v.option1Value || "") || /tek\s*renk/i.test(v.option2Value || ""),
+  );
+  const namedColors = (canonical?.variants || []).filter(
+    (v) => v.option1Value && !/tek\s*renk/i.test(v.option1Value),
+  ).length;
 
+  const dryRes = await fetch(`${BASE}/api/import-jobs/${jobId}/dry-run`, { method: "POST" });
+  const dry = await dryRes.json();
+  console.log("\ndry-run mode:", dry.result?.mode);
+  console.log("approvalState:", dry.result?.approvalState);
+  console.log("safeToApply:", dry.result?.safeToApply);
+  console.log("variantChanges.create:", dry.result?.variantChanges?.create?.length ?? 0);
+  console.log("canonicalHash:", dry.canonicalHash);
+  console.log("shopifySnapshotHash:", dry.shopifySnapshotHash);
+  console.log("hash equal:", dry.canonicalHash === dry.shopifySnapshotHash);
+
+  const checks = {
+    awaiting: job?.status === "awaiting_approval",
+    notApproved100: quality?.status !== "approved" || quality?.score < 100,
+    noHardcodedStock: hardcodedStock === 0,
+    variantCountReasonable: job?.variantCount <= 15,
+    noTekRenkConflict: !(tekRenkWithNamed && namedColors > 0),
+    dryRunModeOk: dry.result?.mode === "create" || dry.result?.mode === "update",
+    hashSeparated: dry.shopifySnapshotHash == null || dry.canonicalHash !== dry.shopifySnapshotHash,
+    sourceProductId: job?.sourceProductId === "1158681520",
+  };
+
+  console.log("\n--- Kontroller ---");
+  for (const [k, v] of Object.entries(checks)) {
+    console.log(`${v ? "✓" : "✗"} ${k}`);
+  }
+
+  const ok = Object.values(checks).every(Boolean);
   if (!ok) {
-    console.error("\n❌ E2E FAILED");
+    console.error("\n❌ E2E v2 FAILED");
     process.exit(1);
   }
 
-  // dry-run (read-only Shopify)
-  const dryRes = await fetch(`${BASE}/api/import-jobs/${jobId}/dry-run`, { method: "POST" });
-  const dry = await dryRes.json();
-  console.log("\ndry-run mode:", dry.result?.mode || dry.mode);
-  console.log("safeToApply:", dry.result?.safeToApply);
-
-  console.log("\n✅ E2E PASSED (no Shopify upload)\n");
+  console.log("\n✅ E2E v2 PASSED (no Shopify upload)\n");
 }
 
 main().catch((err) => {
