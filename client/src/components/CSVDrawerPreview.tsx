@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
-import { sanitizeTrendyolVariants } from '@shared/trendyol-variant-utils';
+import { sanitizeTrendyolVariants, summarizeVariantStock } from '@shared/trendyol-variant-utils';
 import { resolvePreviewImagesForEntry, resolvePreviewProxyUrl } from '@/lib/product-image-url';
 import { PriceEditor } from '@/components/PriceEditor';
 
@@ -459,47 +459,69 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({ csvPreviews, on
                             const variants = sanitizeTrendyolVariants(preview.variants, {
                               productTitle: preview.productTitle,
                             });
-                            const uniqueColors = variants.colors;
-                            const uniqueSizes = variants.sizes;
+                            const stock = summarizeVariantStock(variants);
                             
                             return (
                               <>
                                 <div className="space-y-2">
-                                  <h4 className="text-cyan-300 font-medium text-sm">Renkler ({uniqueColors.length})</h4>
+                                  <h4 className="text-cyan-300 font-medium text-sm">Renkler ({stock.colors.length})</h4>
                                   <div className="flex flex-wrap gap-1">
-                                    {uniqueColors.slice(0, 4).map((color, index) => (
-                                      <Badge key={index} variant="secondary" className="text-xs bg-blue-900/20 text-blue-300">
-                                        {color}
+                                    {stock.colors.slice(0, 6).map((entry, index) => (
+                                      <Badge
+                                        key={index}
+                                        variant="secondary"
+                                        title={entry.inStock ? 'Stokta' : 'Stokta yok — CSV\'ye eklenmez'}
+                                        className={
+                                          entry.inStock
+                                            ? 'text-xs bg-blue-900/20 text-blue-300'
+                                            : 'text-xs bg-slate-800/40 text-gray-500 line-through opacity-70'
+                                        }
+                                      >
+                                        {entry.name}
                                       </Badge>
                                     ))}
-                                    {uniqueColors.length > 4 && (
+                                    {stock.colors.length > 6 && (
                                       <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-300">
-                                        +{uniqueColors.length - 4}
+                                        +{stock.colors.length - 6}
                                       </Badge>
                                     )}
-                                    {uniqueColors.length === 0 && (
+                                    {stock.colors.length === 0 && (
                                       <span className="text-slate-500 text-xs">Renk bilgisi yok</span>
                                     )}
                                   </div>
                                 </div>
 
                                 <div className="space-y-2">
-                                  <h4 className="text-cyan-300 font-medium text-sm">Bedenler ({uniqueSizes.length})</h4>
+                                  <h4 className="text-cyan-300 font-medium text-sm">Bedenler ({stock.sizes.length})</h4>
                                   <div className="flex flex-wrap gap-1">
-                                    {uniqueSizes.slice(0, 4).map((size, index) => (
-                                      <Badge key={index} variant="secondary" className="text-xs bg-green-900/20 text-green-300">
-                                        {size}
+                                    {stock.sizes.slice(0, 8).map((entry, index) => (
+                                      <Badge
+                                        key={index}
+                                        variant="secondary"
+                                        title={entry.inStock ? 'Stokta' : 'Stokta yok — CSV\'ye eklenmez'}
+                                        className={
+                                          entry.inStock
+                                            ? 'text-xs bg-green-900/20 text-green-300'
+                                            : 'text-xs bg-slate-800/40 text-gray-500 line-through opacity-70'
+                                        }
+                                      >
+                                        {entry.name}
                                       </Badge>
                                     ))}
-                                    {uniqueSizes.length > 4 && (
+                                    {stock.sizes.length > 8 && (
                                       <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-300">
-                                        +{uniqueSizes.length - 4}
+                                        +{stock.sizes.length - 8}
                                       </Badge>
                                     )}
-                                    {uniqueSizes.length === 0 && (
+                                    {stock.sizes.length === 0 && (
                                       <span className="text-slate-500 text-xs">Beden bilgisi yok</span>
                                     )}
                                   </div>
+                                  {stock.outOfStockCount > 0 && (
+                                    <p className="text-[10px] text-slate-500">
+                                      {stock.inStockCount}/{stock.totalCount} varyant CSV&apos;ye dahil
+                                    </p>
+                                  )}
                                 </div>
                                 
                                 <div className="space-y-2">

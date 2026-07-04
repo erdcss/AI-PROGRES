@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { resolvePreviewImagesForEntry, resolvePreviewProxyUrl } from "@/lib/product-image-url";
-import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
+import { resolvePreviewVariants } from "@/lib/preview-variants";
+import { sanitizeTrendyolVariants, pickVariantsForPreview, summarizeVariantStock } from "@shared/trendyol-variant-utils";
 import { getTrendyolImageFallbackUrls } from "@shared/trendyol-product-images";
 import {
   normalizeTrendyolDisplayPrice,
@@ -80,6 +81,14 @@ export interface CSVPreviewData {
   productTitle: string;
   csvContent: string;
   sourceUrl?: string;
+  canonicalProduct?: {
+    variants?: Array<{ color: string; size: string; inStock: boolean }>;
+    manualReviewRequired?: boolean;
+    shopifyUploadBlocked?: boolean;
+    blockReason?: string;
+  };
+  variantBlockReason?: string;
+  scrapeRunId?: string;
   variants: {
     colors: string[];
     sizes: string[];
@@ -89,6 +98,22 @@ export interface CSVPreviewData {
       size: string;
       inStock: boolean;
     }>;
+    items?: Array<{
+      color: string;
+      size: string;
+      key: string;
+      inStock: boolean;
+      disabledReason?: string;
+      source?: string;
+    }>;
+    stockMap?: Record<string, boolean>;
+  };
+  stockSummary?: {
+    productInStock: boolean;
+    totalVariants: number;
+    inStockVariants: number;
+    outOfStockVariants: number;
+    confidence: "high" | "medium" | "low";
   };
   images: string[];
   price?: {
@@ -139,6 +164,11 @@ export const ProductPreview = memo(function ProductPreview({
       return result;
     };
 
+    const canonicalPreview = resolvePreviewVariants({
+      canonicalProduct: preview.canonicalProduct,
+      variants: preview.variants,
+    });
+
     const variantsFromCsv = (() => {
       const lines = preview.csvContent.split("\n").filter((line) => line.trim());
       if (lines.length < 2) {
@@ -188,16 +218,25 @@ export const ProductPreview = memo(function ProductPreview({
       };
     })();
 
-    const sanitizedFromPayload = sanitizeTrendyolVariants(preview.variants, {
-      productTitle: preview.productTitle,
-    });
+    const sanitizedFromPayload =
+      canonicalPreview.variants.length > 0
+        ? sanitizeTrendyolVariants(
+            {
+              colors: [...new Set(canonicalPreview.variants.map((v) => v.color))],
+              sizes: canonicalPreview.sizes,
+              allVariants: canonicalPreview.variants,
+              items: canonicalPreview.variants,
+            },
+            { productTitle: preview.productTitle },
+          )
+        : sanitizeTrendyolVariants(preview.variants, {
+            productTitle: preview.productTitle,
+          });
     const sanitizedFromCsv = sanitizeTrendyolVariants(variantsFromCsv, {
       productTitle: preview.productTitle,
     });
-    const sanitizedVariants =
-      sanitizedFromCsv.allVariants.length > sanitizedFromPayload.allVariants.length
-        ? sanitizedFromCsv
-        : sanitizedFromPayload;
+    const sanitizedVariants = pickVariantsForPreview(sanitizedFromPayload, sanitizedFromCsv);
+    const stockSummary = summarizeVariantStock(sanitizedVariants);
     const { urls: previewImages } = resolvePreviewImagesForEntry({
       images: preview.images,
       csvContent: preview.csvContent,
@@ -370,14 +409,8 @@ export const ProductPreview = memo(function ProductPreview({
       );
     })();
 
-    const sizeCount =
-      sanitizedVariants.sizes.length > 0
-        ? sanitizedVariants.sizes.length
-        : [...new Set(sanitizedVariants.allVariants.map((v) => v.size).filter(Boolean))].length;
-    const colorCount =
-      sanitizedVariants.colors.length > 0
-        ? sanitizedVariants.colors.length
-        : [...new Set(sanitizedVariants.allVariants.map((v) => v.color).filter(Boolean))].length;
+    const sizeCount = stockSummary.sizes.length;
+    const colorCount = stockSummary.colors.length;
     const variantCount = sanitizedVariants.allVariants.length;
     const imageCount = previewImages.length;
 
@@ -503,23 +536,53 @@ export const ProductPreview = memo(function ProductPreview({
               
               {/* Varyant detayları */}
               <div className="space-y-1.5 pt-2 border-t border-slate-700/30">
-                {/* Renk Seçenekleri — her zaman göster */}
+                {(stockSummary.outOfStockCount > 0 || stockSummary.colors.some((c) => !c.inStock) || stockSummary.sizes.some((s) => !s.inStock)) && (
+                  <p className="text-[10px] text-slate-500 leading-snug">
+                    Gri etiketler stokta yok — yalnızca önizlemede gösterilir, CSV/Shopify dosyasına eklenmez.
+                  </p>
+                )}
+                {preview.stockSummary && (
+                  <p className="text-[10px] text-slate-500">
+                    Stok güveni: <span className="text-slate-300">{preview.stockSummary.confidence}</span>
+                    {" · "}
+                    {preview.stockSummary.inStockVariants}/{preview.stockSummary.totalVariants} Shopify&apos;a aktarılacak
+                  </p>
+                )}
+                {preview.variants?.items && preview.variants.items.filter((i) => !i.inStock).length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {preview.variants.items
+                      .filter((i) => !i.inStock)
+                      .map((item) => (
+                        <Badge
+                          key={item.key}
+                          variant="outline"
+                          className="border-red-700/40 text-red-400 text-[10px] px-1.5 py-0 h-4"
+                          title={item.disabledReason || "Shopify'a aktarılmayacak"}
+                        >
+                          {item.key} — Shopify&apos;a aktarılmayacak
+                        </Badge>
+                      ))}
+                  </div>
+                )}
+                {/* Renk Seçenekleri — stok durumu ile */}
                 <div className="flex items-start gap-1.5">
                   <span className="text-slate-400 text-xs flex-shrink-0 mt-0.5">
                     Renkler ({colorCount}):
                   </span>
                   {colorCount > 0 ? (
                     <div className="flex flex-wrap gap-1">
-                      {(sanitizedVariants.colors.length > 0
-                        ? sanitizedVariants.colors
-                        : [...new Set(sanitizedVariants.allVariants.map((v) => v.color).filter(Boolean))]
-                      ).map((color, idx) => (
+                      {stockSummary.colors.map((entry, idx) => (
                         <Badge
                           key={idx}
                           variant="outline"
-                          className="border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4"
+                          title={entry.inStock ? "Stokta" : "Stokta yok"}
+                          className={
+                            entry.inStock
+                              ? "border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4"
+                              : "border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 opacity-60 line-through decoration-gray-600"
+                          }
                         >
-                          {color}
+                          {entry.name}
                         </Badge>
                       ))}
                     </div>
@@ -528,53 +591,45 @@ export const ProductPreview = memo(function ProductPreview({
                   )}
                 </div>
 
-                {/* Beden Seçenekleri — her zaman göster */}
+                {/* Beden Seçenekleri — stok durumu ile */}
                 <div className="flex items-start gap-1.5">
                   <span className="text-slate-400 text-xs flex-shrink-0 mt-0.5">
                     Bedenler ({sizeCount}):
                   </span>
                   {sizeCount > 0 ? (
                     <div className="flex flex-wrap gap-1">
-                      {(() => {
-                        const inStockSizes = new Set<string>();
-                        const outOfStockSizes = new Set<string>();
-                        sanitizedVariants.allVariants.forEach((v) => {
-                          if (!v.size) return;
-                          if (v.inStock) inStockSizes.add(v.size);
-                          else if (!inStockSizes.has(v.size)) outOfStockSizes.add(v.size);
-                        });
-                        const sizeList =
-                          sanitizedVariants.sizes.length > 0
-                            ? sanitizedVariants.sizes
-                            : [...new Set(sanitizedVariants.allVariants.map((v) => v.size).filter(Boolean))];
-                        return sizeList.map((size, idx) => {
-                          const inStock = inStockSizes.has(size);
-                          return (
-                            <Badge
-                              key={idx}
-                              variant="outline"
-                              className={
-                                inStock
-                                  ? "border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4"
-                                  : "border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 opacity-60"
-                              }
-                            >
-                              {size}
-                            </Badge>
-                          );
-                        });
-                      })()}
+                      {stockSummary.sizes.map((entry, idx) => (
+                        <Badge
+                          key={idx}
+                          variant="outline"
+                          title={entry.inStock ? "Stokta" : "Stokta yok"}
+                          className={
+                            entry.inStock
+                              ? "border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4"
+                              : "border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 opacity-60 line-through decoration-gray-600"
+                          }
+                        >
+                          {entry.name}
+                        </Badge>
+                      ))}
                     </div>
                   ) : (
                     <span className="text-slate-500 text-xs">Beden bilgisi yok</span>
                   )}
                 </div>
 
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   {variantCount > 0 ? (
-                    <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-1.5 py-0 h-4">
-                      {sanitizedVariants.allVariants.filter((v) => v.inStock).length}/{variantCount} stokta
-                    </Badge>
+                    <>
+                      <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-1.5 py-0 h-4">
+                        {stockSummary.inStockCount}/{variantCount} varyant stokta
+                      </Badge>
+                      {stockSummary.outOfStockCount > 0 && (
+                        <Badge variant="outline" className="border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4">
+                          {stockSummary.outOfStockCount} stok dışı
+                        </Badge>
+                      )}
+                    </>
                   ) : colorCount === 0 && sizeCount === 0 ? (
                     <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-1.5 py-0 h-4">
                       Tek ürün

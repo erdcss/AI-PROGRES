@@ -331,27 +331,36 @@ async function acquireFreshToken(forceRefresh = false): Promise<TokenCacheEntry>
 
   const normalizedDomain = normalizeShopDomain(shopDomain);
 
-  if (!forceRefresh) {
-    const envCandidates: Array<{ token?: string; source: ShopifyTokenSource }> = [
-      { token: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN, source: 'env' },
-      { token: process.env.SHOPIFY_ACCESS_TOKEN, source: 'env' },
-    ];
+  if (forceRefresh) {
+    invalidateShopifyTokenCache();
+  }
 
-    for (const candidate of envCandidates) {
-      const token = candidate.token?.trim();
-      if (!token || isDeprecatedToken(token)) continue;
-      const probe = await probeShopToken(normalizedDomain, token);
-      if (probe.ok) {
-        await persistTokenToRuntime(normalizedDomain, token, candidate.source);
-        return tokenCache!;
-      }
-    }
+  const envCandidates: Array<{ token?: string; source: ShopifyTokenSource }> = [
+    { token: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN, source: 'env' },
+    { token: process.env.SHOPIFY_ACCESS_TOKEN, source: 'env' },
+  ];
 
-    const dbToken = await readDbToken(normalizedDomain);
-    if (dbToken) {
-      await persistTokenToRuntime(normalizedDomain, dbToken, 'db');
+  for (const candidate of envCandidates) {
+    const token = candidate.token?.trim();
+    if (!token || isDeprecatedToken(token)) continue;
+    const probe = await probeShopToken(normalizedDomain, token);
+    if (probe.ok) {
+      await persistTokenToRuntime(normalizedDomain, token, candidate.source);
       return tokenCache!;
     }
+    if (!forceRefresh) {
+      console.warn('[SHOPIFY_TOKEN] ENV token geçersiz, sonraki kaynak deneniyor', {
+        source: candidate.source,
+        status: probe.status,
+        hint: probe.hint,
+      });
+    }
+  }
+
+  const dbToken = await readDbToken(normalizedDomain);
+  if (dbToken) {
+    await persistTokenToRuntime(normalizedDomain, dbToken, 'db');
+    return tokenCache!;
   }
 
   const exchanged = await exchangeClientCredentialsToken(normalizedDomain);
@@ -700,12 +709,27 @@ export async function proactiveRefreshShopifyToken(force = false): Promise<{
   }
 }
 
-/** Sunucu başlangıcında non-blocking token warm-up */
+/** Sunucu başlangıcında non-blocking token warm-up + periyodik yenileme */
+let tokenRefreshIntervalStarted = false;
+
 export function warmUpShopifyToken(): void {
   getValidShopifyAccessToken().catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(`⚠️ SHOPIFY TOKEN: Başlangıç warm-up atlandı — ${message}`);
   });
+
+  if (tokenRefreshIntervalStarted) return;
+  tokenRefreshIntervalStarted = true;
+
+  const REFRESH_CHECK_MS = 15 * 60 * 1000;
+  setInterval(() => {
+    proactiveRefreshShopifyToken(false).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[SHOPIFY_TOKEN] Periyodik yenileme atlandı: ${message}`);
+    });
+  }, REFRESH_CHECK_MS);
+
+  console.log('[SHOPIFY_TOKEN] Periyodik yenileme aktif (15 dk aralık)');
 }
 
 /** Upload öncesi bağlantıyı garanti et */

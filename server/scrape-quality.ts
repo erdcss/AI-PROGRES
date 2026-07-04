@@ -4,7 +4,7 @@ import {
 } from "./trendyol-title-utils";
 import { filterValidProductImages } from "./trendyol-image-utils";
 import { resolveProductTitle } from "./trendyol-result-normalizer";
-import { isClothingProduct } from "@shared/clothing-keywords";
+import { isClothingProduct, isConfirmedClothingProduct } from "@shared/clothing-keywords";
 import {
   hasRealTrendyolVariants,
   sanitizeTrendyolVariants,
@@ -159,7 +159,7 @@ export function assessTrendyolVariantGaps(
   const missingFeatures = features.length === 0;
   const sparseVariants =
     colors.length <= 1 && sizes.length <= 1 && allVariants.length <= 1;
-  const clothing = isClothingProduct(title);
+  const clothing = isConfirmedClothingProduct(title, url);
 
   const likelyIncomplete =
     !hasRealTrendyolVariants(sanitized) ||
@@ -216,8 +216,7 @@ export function evaluateScrapeQuality(
   const usableForCsv = csvCheck.exportable;
   const warnings = csvCheck.warnings;
 
-  const usableForShopify =
-    hasValidPrice && titleSource !== "url-slug" && isValidTrendyolProductTitle(title);
+  const usableForShopify = csvCheck.exportable;
 
   const blockedForExport = !usableForCsv;
 
@@ -354,7 +353,7 @@ export function evaluateScrapeQuality(
   const partialSuccess =
     browserWorkerDrivenPartial ||
     variantDrivenPartial ||
-    (previewOk && (!usableForCsv || titleSource === "url-slug"));
+    (previewOk && !usableForCsv);
 
   return {
     titleSource,

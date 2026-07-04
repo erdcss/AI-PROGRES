@@ -1,5 +1,7 @@
 import { isClothingProduct } from './clothing-keywords';
 import { sanitizeTrendyolVariants } from '@shared/trendyol-variant-utils';
+import { shouldExportOutOfStockVariants } from '@shared/trendyol-export-config';
+import { resolveInventoryQty } from './shopify-inventory-qty';
 import {
   SHOPIFY_NEW_TEMPLATE_HEADERS,
   SHOPIFY_NEW_TEMPLATE_COLUMN_COUNT,
@@ -326,9 +328,14 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   });
   const deduped = Array.from(uniqueVariantsMap.values());
 
-  // In-stock only
-  const inStockVariants = deduped.filter(v => v.inStock !== false);
-  console.log(`✅ STOCK FILTER: ${deduped.length} total → ${inStockVariants.length} in-stock`);
+  const exportOutOfStock = shouldExportOutOfStockVariants();
+  const inStockVariants = exportOutOfStock
+    ? deduped
+    : deduped.filter((v) => v.inStock !== false);
+  console.log(
+    `✅ STOCK FILTER: ${deduped.length} total → ${inStockVariants.length} for CSV` +
+      (exportOutOfStock ? ' (OOS export enabled)' : ' (in-stock only)'),
+  );
 
   const htmlVariantsInStock = inStockVariants.filter(v => v.color && v.color.trim() !== '');
   if (htmlVariantsInStock.length > 0) {
@@ -378,7 +385,7 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row[COL.TYPE] = productCategoryStr;
       row[COL.TAGS] = tagsStr;
       row[COL.PUBLISHED] = 'TRUE';
-      row[COL.STATUS] = 'active';
+      row[COL.STATUS] = variant.inStock === false && exportOutOfStock ? 'draft' : 'active';
       row[COL.GIFT_CARD] = 'FALSE';
       row[COL.SEO_TITLE] = seoTitle;
       row[COL.SEO_DESCRIPTION] = seoDescription;
@@ -386,7 +393,7 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row[COL.GOOGLE_CONDITION] = 'New';
       row[COL.GOOGLE_CUSTOM_PRODUCT] = 'FALSE';
     } else {
-      row[COL.STATUS] = 'active';
+      row[COL.STATUS] = variant.inStock === false && exportOutOfStock ? 'draft' : 'active';
     }
 
     // Options — geçerli renk/beden değerleri CSV ve Shopify'a yazılır
@@ -426,8 +433,16 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     row[COL.COMPARE_AT_PRICE] = compareAtPrice.toString();
     row[COL.CHARGE_TAX] = 'TRUE';
     row[COL.INVENTORY_TRACKER] = 'shopify';
-    row[COL.INVENTORY_QUANTITY] = '0';
-    row[COL.CONTINUE_SELLING] = 'CONTINUE';
+    row[COL.INVENTORY_QUANTITY] = String(
+      resolveInventoryQty(
+        {
+          inStock: variant.inStock !== false,
+          stockCount: (variant as { stockCount?: number }).stockCount,
+        },
+        (product as { stockText?: string }).stockText,
+      ),
+    );
+    row[COL.CONTINUE_SELLING] = variant.inStock === false ? 'DENY' : 'CONTINUE';
     row[COL.WEIGHT_UNIT] = 'g';
     row[COL.REQUIRES_SHIPPING] = 'TRUE';
     row[COL.FULFILLMENT_SERVICE] = 'manual';

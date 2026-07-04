@@ -7,7 +7,6 @@ import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Pale
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CSVPreview } from "@/components/CSVPreview";
 import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
@@ -80,6 +79,17 @@ const URL_STATUS_LABEL: Record<UrlQueueStatus, string> = {
   error: 'Hata',
 };
 
+function resolvePreviewCsvContent(
+  preview: { csvContent?: string; productTitle?: string },
+  product?: { csvContent?: string; title?: string } | null,
+): string {
+  const fromPreview = preview.csvContent?.trim() || '';
+  if (fromPreview.length >= 50) return fromPreview;
+  const fromProduct = product?.csvContent?.trim() || '';
+  if (fromProduct.length >= 50) return fromProduct;
+  return fromPreview;
+}
+
 function buildCsvShopifyUploadBody(
   preview: {
     productTitle?: string;
@@ -93,10 +103,18 @@ function buildCsvShopifyUploadBody(
     category?: string;
     csvInfo?: unknown;
     csvPreview?: unknown;
+    titleSource?: string;
   },
   csvContent: string,
   individualTags: string[],
 ) {
+  const hasCsv = csvContent.trim().length >= 50;
+  const csvInfo =
+    preview.csvInfo ??
+    (hasCsv
+      ? { ready: true, productCount: 1, filename: 'shopify-urunler.csv', downloadUrl: '/api/download/shopify-urunler.csv' }
+      : { ready: false, productCount: 0, filename: 'shopify-urunler.csv', downloadUrl: '/api/download/shopify-urunler.csv' });
+
   return {
     productData: {
       title: preview.productTitle,
@@ -109,14 +127,18 @@ function buildCsvShopifyUploadBody(
       variants: preview.variants,
       features: preview.features || [],
       csvContent,
-      csvInfo: preview.csvInfo,
+      csvInfo,
       csvPreview: preview.csvPreview,
+      titleSource: preview.titleSource,
     },
     csvContent,
-    csvInfo: preview.csvInfo,
+    csvInfo,
     productTitle: preview.productTitle,
     sourceUrl: preview.sourceUrl,
     individualTags,
+    approvedForShopify: true,
+    titleSource: preview.titleSource,
+    scrapedTitle: preview.productTitle,
   };
 }
 
@@ -170,6 +192,13 @@ interface Product {
   warnings?: string[];
   sourceUrl?: string;
   originalUrl?: string;
+  scrapeRunId?: string;
+  canonicalProduct?: ScrapedUrlPayload["canonicalProduct"];
+  stockSummary?: {
+    totalVariants: number;
+    inStockVariants: number;
+    outOfStockVariants: number;
+  };
 }
 
 function ScraperPage() {
@@ -201,11 +230,11 @@ function ScraperPage() {
     error?: string;
   } | null>(null);
   const [scrapedOriginalTitle, setScrapedOriginalTitle] = useState<string | null>(null);
-  const [titleApproved, setTitleApproved] = useState(false);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<ScrapeCapabilities | null>(null);
   const isMobile = useIsMobile();
   const urlQueueRef = useRef<UrlQueueItem[]>([]);
   const lastUrlIngestRef = useRef<{ fingerprint: string; at: number } | null>(null);
+  const shopifyUploadInFlightRef = useRef(false);
   urlQueueRef.current = urlQueue;
   
   const singleForm = useForm<ScrapeFormData>({
@@ -235,6 +264,10 @@ function ScraperPage() {
       setScrapeErrorMeta(null);
       setLocalAgentWarningDetail(null);
       setScrapeSourceWarning(null);
+      setProduct(null);
+      setCsvPreviews([]);
+      clearScraperUiStorage();
+      console.log("[CacheGuard] cleared previous preview state");
       setWorkflowStep('URL alındı → Ürün çekiliyor...');
       toast({
         title: "⚙️ Arka Planda Çalışıyor",
@@ -311,9 +344,17 @@ function ScraperPage() {
       );
 
       let csvInfo = scraped.csvInfo as Product["csvInfo"];
+      const hasInlineCsv = Boolean(scraped.csvContent?.trim().length > 50);
       try {
         const csvStatus = await fetchShopifyCsvStatus();
-        if (csvStatus.ready) {
+        if (hasInlineCsv) {
+          csvInfo = {
+            filename: csvInfo?.filename || "shopify-urunler.csv",
+            downloadUrl: csvInfo?.downloadUrl || "/api/download/shopify-urunler.csv",
+            ready: true,
+            productCount: 1,
+          };
+        } else if (csvStatus.ready) {
           csvInfo = {
             filename: csvStatus.filename || "shopify-urunler.csv",
             downloadUrl: csvStatus.downloadUrl || "/api/download/shopify-urunler.csv",
@@ -330,23 +371,48 @@ function ScraperPage() {
         }
       } catch (statusError) {
         console.warn("CSV status doğrulaması başarısız:", statusError);
+        if (hasInlineCsv) {
+          csvInfo = {
+            filename: csvInfo?.filename || "shopify-urunler.csv",
+            downloadUrl: csvInfo?.downloadUrl || "/api/download/shopify-urunler.csv",
+            ready: true,
+            productCount: 1,
+          };
+        }
       }
 
-      const csvReady = csvInfo?.ready === true;
+      const csvReady = hasInlineCsv || csvInfo?.ready === true;
       const sourceUrl =
         scraped.sourceUrl || scraped.originalUrl || singleForm.getValues("url");
 
       const transformedProduct: Product = {
         id: `product-${Date.now()}`,
+        scrapeRunId: scraped.scrapeRunId,
         title: scraped.title,
         brand: scraped.brand || "",
         price: scraped.price,
         description: scraped.description || "",
         images: scraped.images,
-        variants: scraped.variants,
+        variants: scraped.canonicalProduct
+          ? {
+              colors: [...new Set(scraped.canonicalProduct.variants.map((v: { color: string }) => v.color))],
+              sizes: [...new Set(scraped.canonicalProduct.variants.map((v: { size: string }) => v.size))],
+              allVariants: scraped.canonicalProduct.variants.map((v: { color: string; size: string; inStock: boolean }) => ({
+                color: v.color,
+                size: v.size,
+                inStock: v.inStock,
+              })),
+              items: scraped.canonicalProduct.variants,
+            }
+          : scraped.variants,
         features: scraped.features || [],
         stockAnalysis: scraped.stockAnalysis,
-        tags: scraped.tags || [],
+        stockSummary: scraped.canonicalProduct?.stockSummary ?? scraped.stockSummary,
+        canonicalProduct: scraped.canonicalProduct,
+        tags:
+          scraped.canonicalProduct?.sourceKey
+            ? [scraped.canonicalProduct.sourceKey]
+            : scraped.tags || [],
         category: scraped.category || "",
         success: scraped.success !== false,
         partialSuccess: scraped.partialSuccess,
@@ -366,7 +432,26 @@ function ScraperPage() {
 
       setProduct(transformedProduct);
       setScrapedOriginalTitle(scraped.title);
-      setTitleApproved(false);
+
+      const variantBlockReason =
+        scraped.variantBlockReason || scraped.canonicalProduct?.blockReason;
+      if (
+        scraped.variantExtractionFailed ||
+        scraped.shopifyUploadBlocked ||
+        scraped.canonicalProduct?.shopifyUploadBlocked
+      ) {
+        const variantMsg =
+          variantBlockReason ||
+          "Varyant doğrulaması başarısız: Bu kıyafet ürünü için sadece 1 beden bulundu. Shopify'a otomatik aktarım engellendi.";
+        setScrapeError(variantMsg);
+        toast({
+          title: "⚠️ Varyant doğrulaması başarısız",
+          description: variantMsg,
+          variant: "destructive",
+          duration: 10000,
+        });
+      }
+
       if (sourceUrl) {
         addRecentUrl(sourceUrl);
       }
@@ -389,7 +474,6 @@ function ScraperPage() {
       const missingParts: string[] = [];
       if (!scraped.price?.original || scraped.price.original <= 0) missingParts.push("fiyat yok");
       if (!scraped.images?.length) missingParts.push("görsel yok");
-      if (scraped.titleSource === "url-slug") missingParts.push("başlık yalnızca URL'den");
       if (sourceWarning) missingParts.push("HTML/varyant eksik — Worker/Agent kontrol edin");
 
       toast({
@@ -451,7 +535,7 @@ function ScraperPage() {
           });
           
           // ✅ MANUEL ETİKETLERİ CSV'YE EKLE (handleCSVShopifyUpload'dan kopyalandı)
-          let csvToUpload = preview.csvContent;
+          let csvToUpload = resolvePreviewCsvContent(preview, product);
           const manualTags = allTags;
           
           if (manualTags.length > 0) {
@@ -637,7 +721,7 @@ function ScraperPage() {
             productTitle: product.title,
             sourceUrl: product.sourceUrl || product.originalUrl,
             individualTags: product.tags,
-            approvedForShopify: titleApproved || titleEdited,
+            approvedForShopify: true,
             titleEdited,
             titleSource: product.titleSource,
             scrapedTitle: scrapedOriginalTitle,
@@ -1021,19 +1105,11 @@ function ScraperPage() {
       return "Başlık çok kısa (en az 8 karakter gerekli)";
     }
 
-    if (
-      product.titleSource === "url-slug" &&
-      !titleApproved &&
-      !titleEdited
-    ) {
-      return "Başlık URL'den üretildi, Shopify'a göndermeden önce başlığı onaylayın.";
-    }
-
     return null;
   })();
 
   const shopifyUploadWarning =
-    product?.titleSource === "url-slug" && !shopifyUploadBlockedReason
+    product?.titleSource === "url-slug"
       ? "Başlık URL slug'ından türetildi — Shopify'da yayınlamadan önce başlığı kontrol etmeniz önerilir."
       : null;
 
@@ -1042,6 +1118,12 @@ function ScraperPage() {
   // Shopify transfer mutation
   const shopifyTransferMutation = useMutation({
     mutationFn: async () => {
+      if (shopifyUploadInFlightRef.current) {
+        throw new Error('Shopify aktarımı zaten devam ediyor');
+      }
+      shopifyUploadInFlightRef.current = true;
+
+      try {
       if (!product) throw new Error('Önce ürün verisi çekilmelidir');
       if (shopifyUploadBlockedReason) {
         throw new Error(shopifyUploadBlockedReason);
@@ -1073,7 +1155,7 @@ function ScraperPage() {
           },
           sourceUrl,
           productTitle: product.title,
-          approvedForShopify: titleApproved,
+          approvedForShopify: true,
           titleEdited,
           titleSource: product.titleSource,
           scrapedTitle: scrapedOriginalTitle || product.title,
@@ -1091,6 +1173,9 @@ function ScraperPage() {
         throw err;
       }
       return result;
+      } finally {
+        shopifyUploadInFlightRef.current = false;
+      }
     },
     onSuccess: (data) => {
       setLastShopifyResult({
@@ -1124,6 +1209,9 @@ function ScraperPage() {
   });
 
   const onShopifyTransfer = () => {
+    if (shopifyUploadInFlightRef.current || shopifyTransferMutation.isPending) {
+      return;
+    }
     if (!product) {
       toast({ title: 'Ürün yok', description: 'Önce ürün verilerini çekin', variant: 'destructive' });
       return;
@@ -1261,7 +1349,6 @@ function ScraperPage() {
     setUrlQueue([]);
     urlQueueRef.current = [];
     setScrapedOriginalTitle(null);
-    setTitleApproved(false);
     setWorkflowStep(null);
     setLastScrapeUrl(null);
     setLastShopifyResult(null);
@@ -1342,7 +1429,10 @@ function ScraperPage() {
 
       try {
         const tags = individualTags[preview.id] || [];
-        const csvToUpload = applyTagsToCSV(preview.csvContent, tags);
+        const csvToUpload = applyTagsToCSV(
+          resolvePreviewCsvContent(preview, product),
+          tags,
+        );
         const body = JSON.stringify(
           buildCsvShopifyUploadBody(preview, csvToUpload, tags),
         );
@@ -1654,7 +1744,10 @@ function ScraperPage() {
 
     setUploadingId(id);
     try {
-      const csvToUpload = applyTagsToCSV(preview.csvContent, individualTags || []);
+      const csvToUpload = applyTagsToCSV(
+        resolvePreviewCsvContent(preview, product),
+        individualTags || [],
+      );
       const controller = new AbortController();
       const tid = setTimeout(() => controller.abort(), 3 * 60 * 1000);
       let response: Response;
@@ -1701,7 +1794,7 @@ function ScraperPage() {
     } finally {
       setUploadingId(null);
     }
-  }, [csvPreviews, applyTagsToCSV]);
+  }, [csvPreviews, applyTagsToCSV, product]);
 
   const uploadToShopify = async (csvContent: string, productTitle: string, preview?: { sourceUrl?: string; images?: string[]; price?: { original?: number; withProfit?: number }; brand?: string }) => {
     try {

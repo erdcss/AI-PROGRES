@@ -61,10 +61,15 @@ interface ShopifyProductData {
   }>;
 }
 
-export async function uploadProductToShopify(csvContent: string, productTitle: string): Promise<{ 
+export async function uploadProductToShopify(
+  csvContent: string,
+  productTitle: string,
+  uploadContext?: { sourceUrl?: string; scrapeResult?: Record<string, unknown> },
+): Promise<{ 
   success: boolean; 
   productId?: string;
   handle?: string;
+  mode?: 'created' | 'updated' | 'skipped';
   variants?: Array<{
     shopifyVariantId: string;
     color: string;
@@ -73,21 +78,12 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     price: string;
   }>;
   message: string;
+  httpStatus?: number;
 }> {
   try {
     console.log('🛒 Shopify upload başlatılıyor...');
     console.log('CSV Content Length:', csvContent.length);
     console.log('Product Title:', productTitle);
-    
-    // Duplicate check for CSV uploads too
-    const duplicateCheck = isDuplicateProduct(productTitle);
-    if (duplicateCheck.isDuplicate) {
-      console.log('🚫 DUPLICATE CSV PRODUCT DETECTED - Blocking upload');
-      return {
-        success: false,
-        message: `Bu ürün yakın zamanda yüklendi (Product ID: ${duplicateCheck.existingProductId}). Lütfen birkaç dakika bekleyin.`
-      };
-    }
     
     // Parse CSV content
     const records = parse(csvContent, {
@@ -154,6 +150,59 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
       };
     }
 
+    // Idempotent upsert — canonical source key ile
+    const sourceUrl = uploadContext?.sourceUrl;
+    if (sourceUrl || uploadContext?.scrapeResult) {
+      const { buildCanonicalProductForShopify } = await import('./variant-shape-normalizer');
+      const canonical =
+        uploadContext?.scrapeResult
+          ? buildCanonicalProductForShopify({
+              scrapeResult: uploadContext.scrapeResult,
+              sourceUrl,
+            })
+          : null;
+
+      const canonicalFromUrl = canonical ?? (sourceUrl
+        ? buildCanonicalProductForShopify({
+            scrapeResult: {
+              title: productTitle,
+              brand: productData.vendor,
+              price: productData.variants[0]?.price,
+              variants: productData.variants.map((v) => ({
+                color: v.option1,
+                size: v.option2,
+                inStock: v.inventory_quantity > 0,
+                stockCount: v.inventory_quantity,
+              })),
+            },
+            sourceUrl,
+          })
+        : null);
+
+      if (canonicalFromUrl) {
+        const { upsertProductFromSource } = await import('./shopify-upsert-service');
+        const upsertResult = await upsertProductFromSource(csvContent, canonicalFromUrl);
+        if (upsertResult.success && upsertResult.productId) {
+          recordUpload(productTitle, upsertResult.productId);
+          return {
+            success: true,
+            productId: upsertResult.productId,
+            handle: upsertResult.handle,
+            mode: upsertResult.mode,
+            message: upsertResult.message,
+          };
+        }
+        if (upsertResult.httpStatus === 409) {
+          return {
+            success: false,
+            message: upsertResult.message,
+            httpStatus: 409,
+          };
+        }
+        console.warn('[ShopifyUpsert] upsert failed, legacy create deneniyor:', upsertResult.message);
+      }
+    }
+
     // ✅ 100+ varyant için GraphQL API'ye yönlendir
     if (productData.variants.length > 100) {
       console.log(`🔀 ${productData.variants.length} varyant > 100 — GraphQL API kullanılıyor`);
@@ -204,22 +253,22 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     const validOption2Values = Array.from(
       new Set(productData.variants.map((v) => v.option2).filter((v) => v && v.trim() && v !== 'Default Title')),
     );
-    const options: Array<{ name: string; values: string[] }> = [];
+    const shopifyProductOptions: Array<{ name: string; values: string[] }> = [];
     if (
       validOption1Values.length > 0 &&
       productData.option1Name &&
       !isDefaultTitleOption(productData.option1Name, validOption1Values)
     ) {
-      options.push({ name: productData.option1Name, values: validOption1Values });
+      shopifyProductOptions.push({ name: productData.option1Name, values: validOption1Values });
     }
     if (
       validOption2Values.length > 0 &&
       productData.option2Name &&
       !isDefaultTitleOption(productData.option2Name, validOption2Values)
     ) {
-      options.push({ name: productData.option2Name, values: validOption2Values });
+      shopifyProductOptions.push({ name: productData.option2Name, values: validOption2Values });
     }
-    if (options.length > 0) productPayload.options = options;
+    if (shopifyProductOptions.length > 0) productPayload.options = shopifyProductOptions;
 
     const { response: shopifyResponse, shopDomain: shopifyStore } = await shopifyAdminFetch('/products.json', {
       method: 'POST',
@@ -611,13 +660,16 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
     })
     .map(record => {
       const compareAtRaw = col(record, 'Compare-at price', 'Variant Compare At Price');
+      const qtyRaw = col(record, 'Inventory quantity', 'Variant Inventory Qty');
+      const parsedQty = parseInt(qtyRaw, 10);
+      const inventoryQty = Number.isFinite(parsedQty) && parsedQty >= 0 ? parsedQty : 0;
       const variant = {
         option1: col(record, 'Option1 value', 'Option1 Value'),
         option2: col(record, 'Option2 value', 'Option2 Value'),
         price: col(record, 'Price', 'Variant Price') || '0',
         compareAtPrice: compareAtRaw && parseFloat(compareAtRaw) > 0 ? compareAtRaw : undefined,
         sku: col(record, 'SKU', 'Variant SKU'),
-        inventory_quantity: 0,
+        inventory_quantity: inventoryQty,
         image: col(record, 'Variant image URL', 'Variant Image', 'Product image URL', 'Image Src')
       };
       console.log('📦 Parsed variant:', variant);

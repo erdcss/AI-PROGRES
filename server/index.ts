@@ -29,6 +29,8 @@ console.error("=========================================");
 console.error("🚀 SERVER INDEX.TS BAŞLADI 🚀");
 console.error("=========================================");
 console.log("Uygulama başlatılıyor...");
+console.log("[FlowTrace] activeRoute=routes.ts (registerRoutes from server/routes.ts)");
+console.log("[FlowTrace] UI button -> POST /api/scrape -> scenario-based-scraper -> trendyol-variant-stock-normalizer -> variant-shape-normalizer -> shopify-canonical-export -> POST /api/shopify/upload-csv-product|/api/shopify/products -> shopify-upsert-service");
 
 const app = express();
 app.use(requestIdMiddleware);

@@ -115,19 +115,11 @@ export async function handleShopifyProductUpload(
         .from(shopifyTransferredProducts)
         .where(eq(shopifyTransferredProducts.sourceUrl, sourceUrl))
         .limit(1);
+
       if (existing[0]?.shopifyProductId) {
-        return {
-          success: false,
-          duplicate: true,
-          step: 'duplicate_check',
-          error: 'Bu kaynak URL daha önce Shopify\'a aktarıldı',
+        logStep(rid, 'duplicate_check', 'Mevcut ürün bulundu — upsert moduna geçiliyor', {
           shopifyProductId: existing[0].shopifyProductId,
-          adminUrl: conn.shopDomain
-            ? `https://${conn.shopDomain}/admin/products/${existing[0].shopifyProductId}`
-            : undefined,
-          hint: 'Güncelleme için Shopify panelinden düzenleyin veya farklı URL deneyin',
-          httpStatus: 409,
-        };
+        });
       }
     } catch (dbErr) {
       logStep(rid, 'duplicate_check', 'DB kontrolü atlandı', { reason: String(dbErr) });
@@ -161,16 +153,80 @@ export async function handleShopifyProductUpload(
     };
   }
 
-  logStep(rid, 'shopify_upload', 'Shopify API çağrısı', { title: normalized.title });
+  logStep(rid, 'shopify_upload', 'Shopify API çağrısı (canonical upsert)', { title: normalized.title });
 
-  let uploadResult = await createShopifyProductFromNormalized(normalized, {
-    customTags: req.customTags || normalized.tags,
-    status: 'draft',
-    tokenSource: conn.tokenSource,
-  });
+  let csvContent = req.csvContent;
+  if (!csvContent || csvContent.length < 50) {
+    const { buildScrapeCsvContent } = await import('./scrape-csv-builder');
+    const merged = { ...req.productData, title: normalized.title };
+    csvContent = (await buildScrapeCsvContent(merged, sourceUrl)) ?? undefined;
+  }
+
+  let uploadResult: {
+    success: boolean;
+    productId?: string;
+    handle?: string;
+    message: string;
+    mode?: string;
+    httpStatus?: number;
+    shopifyErrors?: unknown;
+    status?: string;
+    adminUrl?: string;
+  };
+
+  if (csvContent && csvContent.length > 50 && sourceUrl) {
+    const { buildCanonicalProductForShopify } = await import('./variant-shape-normalizer');
+    const { upsertProductFromSource } = await import('./shopify-upsert-service');
+    const canonical = buildCanonicalProductForShopify({
+      scrapeResult: req.productData || {},
+      sourceUrl,
+    });
+    if (canonical) {
+      const { validateCanonicalForShopifyUpload } = await import('./variant-shape-normalizer');
+      const gate = validateCanonicalForShopifyUpload(canonical);
+      if (!gate.ok) {
+        return {
+          success: false,
+          error: gate.error,
+          step: gate.step,
+          httpStatus: 400,
+        };
+      }
+
+      const upsert = await upsertProductFromSource(csvContent, canonical);
+      uploadResult = {
+        success: upsert.success,
+        productId: upsert.productId,
+        handle: upsert.handle,
+        message: upsert.message,
+        mode: upsert.mode,
+        httpStatus: upsert.httpStatus,
+        status: 'active',
+        adminUrl:
+          conn.shopDomain && upsert.productId
+            ? `https://${conn.shopDomain}/admin/products/${upsert.productId}`
+            : undefined,
+      };
+    } else {
+      uploadResult = await createShopifyProductFromNormalized(normalized, {
+        customTags: req.customTags || normalized.tags,
+        status: 'draft',
+        tokenSource: conn.tokenSource,
+      });
+    }
+  } else {
+    uploadResult = await createShopifyProductFromNormalized(normalized, {
+      customTags: req.customTags || normalized.tags,
+      status: 'draft',
+      tokenSource: conn.tokenSource,
+    });
+  }
 
   if (!uploadResult.success && req.csvContent && req.csvContent.length > 50) {
-    const csvResult = await uploadProductToShopify(req.csvContent, normalized.title);
+    const csvResult = await uploadProductToShopify(req.csvContent, normalized.title, {
+      sourceUrl,
+      scrapeResult: req.productData,
+    });
     if (csvResult.success) {
       uploadResult = {
         success: true,
@@ -259,6 +315,7 @@ export async function handleShopifyProductUpload(
     shopifyId: productId,
     shopifyProductId: productId,
     handle,
+    mode: uploadResult.mode,
     status: uploadResult.status || 'draft',
     adminUrl,
     storeUrl: handle && conn.shopDomain ? `https://${conn.shopDomain}/products/${handle}` : undefined,

@@ -3,6 +3,7 @@
  */
 import * as cheerio from "cheerio";
 import {
+  buildVariantMatrixFromSlicingData,
   buildVariantsFromSlicing,
   extractVariantsFromJsonLd,
   extractVariantsFromSlicingRegex,
@@ -85,39 +86,9 @@ export function unwrapTrendyolApiProductRoot(data: unknown): Record<string, unkn
 
 function buildMatrixFromSlicing(
   slicing: ReturnType<typeof parseSlicingAttributesFromProduct>,
+  skuVariants: SlicingVariant[] = [],
 ): SlicingVariant[] {
-  const variants: SlicingVariant[] = [];
-  if (slicing.colors.length > 0 && slicing.sizes.length > 0) {
-    for (const color of slicing.colors) {
-      for (const size of slicing.sizes) {
-        variants.push({
-          color: color.name,
-          colorCode: "",
-          size: size.name,
-          inStock: color.inStock && size.inStock,
-        });
-      }
-    }
-  } else if (slicing.sizes.length > 0) {
-    for (const size of slicing.sizes) {
-      variants.push({
-        color: "",
-        colorCode: "",
-        size: size.name,
-        inStock: size.inStock,
-      });
-    }
-  } else if (slicing.colors.length > 0) {
-    for (const color of slicing.colors) {
-      variants.push({
-        color: color.name,
-        colorCode: "",
-        size: "",
-        inStock: color.inStock,
-      });
-    }
-  }
-  return variants;
+  return buildVariantMatrixFromSlicingData(slicing, skuVariants);
 }
 
 function applyUrlColorToVariants(
@@ -193,11 +164,20 @@ export function resolveTrendyolVariants(input: {
       candidates.push(toSanitizedVariants(skuVariants, title));
     }
 
-    const matrixVariants = buildMatrixFromSlicing(
-      parseSlicingAttributesFromProduct(product),
-    );
+    const slicingAttrs = parseSlicingAttributesFromProduct(product);
+    const matrixVariants = buildMatrixFromSlicing(slicingAttrs, skuVariants);
     if (matrixVariants.length > 0) {
       candidates.push(toSanitizedVariants(matrixVariants, title));
+    }
+
+    const ml = product.merchantListing;
+    if (ml && typeof ml === "object") {
+      const mlSlicing = parseSlicingAttributesFromProduct(ml);
+      const mlSku = parseSkuComboVariantsFromProduct(ml);
+      const mlMatrix = buildMatrixFromSlicing(mlSlicing, mlSku);
+      if (mlMatrix.length > 0) {
+        candidates.push(toSanitizedVariants(mlMatrix, title));
+      }
     }
   }
 

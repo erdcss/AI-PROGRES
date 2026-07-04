@@ -84,6 +84,37 @@ export type ScrapedUrlPayload = {
   stageErrors?: string[];
   originalUrl: string;
   sourceUrl: string;
+  canonicalProduct?: {
+    sourceKey: string;
+    sourceProductId: string;
+    variants: Array<{
+      color: string;
+      size: string;
+      inStock: boolean;
+      inventoryQty?: number;
+    }>;
+    stockSummary?: {
+      totalVariants: number;
+      inStockVariants: number;
+      outOfStockVariants: number;
+    };
+    manualReviewRequired?: boolean;
+    shopifyUploadBlocked?: boolean;
+    blockReason?: string;
+  };
+  scrapeRunId?: string;
+  variantBlockReason?: string;
+  variantExtractionFailed?: boolean;
+  manualReviewRequired?: boolean;
+  shopifyUploadBlocked?: boolean;
+  urlProductId?: string | null;
+  selectedSourceProductId?: string;
+  createdAt?: string;
+  stockSummary?: {
+    totalVariants: number;
+    inStockVariants: number;
+    outOfStockVariants: number;
+  };
 };
 
 function normalizeImageList(images: unknown): string[] {
@@ -134,6 +165,26 @@ export function normalizeScrapedPayload(
     Boolean(csvContent) ||
     Boolean(csvPreview?.rows?.length);
 
+  const canonicalProduct = raw.canonicalProduct as ScrapedUrlPayload["canonicalProduct"];
+  const sourceTags = canonicalProduct?.sourceKey
+    ? [canonicalProduct.sourceKey]
+    : (raw.tags as string[]) || [];
+
+  const variantSource = canonicalProduct?.variants?.length
+    ? {
+        colors: [...new Set(canonicalProduct.variants.map((v) => v.color))],
+        sizes: [...new Set(canonicalProduct.variants.map((v) => v.size))],
+        allVariants: canonicalProduct.variants.map((v) => ({
+          color: v.color,
+          size: v.size,
+          inStock: v.inStock,
+        })),
+        items: canonicalProduct.variants,
+      }
+    : sanitizeTrendyolVariants(raw.variants, {
+        productTitle: String(raw.title || "Ürün"),
+      });
+
   return {
     title: String(raw.title || "Ürün"),
     brand: raw.brand ? String(raw.brand) : "",
@@ -147,12 +198,11 @@ export function normalizeScrapedPayload(
       currency: "TRY",
     },
     images,
-    variants: sanitizeTrendyolVariants(raw.variants, {
-      productTitle: String(raw.title || "Ürün"),
-    }),
+    variants: variantSource,
     features: (raw.features as ScrapedUrlPayload["features"]) || [],
     stockAnalysis: raw.stockAnalysis as ScrapedUrlPayload["stockAnalysis"],
-    tags: (raw.tags as string[]) || [],
+    stockSummary: canonicalProduct?.stockSummary ?? (raw.stockSummary as ScrapedUrlPayload["stockSummary"]),
+    tags: sourceTags,
     csvContent,
     csvPreview,
     csvInfo: csvInfoRaw
@@ -180,6 +230,16 @@ export function normalizeScrapedPayload(
     stageErrors: Array.isArray(raw.stageErrors) ? (raw.stageErrors as string[]) : undefined,
     originalUrl: url,
     sourceUrl: url,
+    canonicalProduct,
+    scrapeRunId: raw.scrapeRunId ? String(raw.scrapeRunId) : undefined,
+    variantBlockReason: raw.variantBlockReason ? String(raw.variantBlockReason) : undefined,
+    variantExtractionFailed: raw.variantExtractionFailed === true,
+    manualReviewRequired: raw.manualReviewRequired === true,
+    shopifyUploadBlocked: raw.shopifyUploadBlocked === true,
+    urlProductId: raw.urlProductId != null ? String(raw.urlProductId) : undefined,
+    selectedSourceProductId:
+      raw.selectedSourceProductId != null ? String(raw.selectedSourceProductId) : undefined,
+    createdAt: raw.createdAt ? String(raw.createdAt) : undefined,
   };
 }
 
@@ -302,21 +362,55 @@ export function buildCsvPreviewEntry(
   idPrefix = "csv",
 ) {
   const urlSlug = url.split("/").pop()?.split("?")[0] || `url-${Date.now()}`;
-  const sanitizedVariants = sanitizeTrendyolVariants(data.variants, {
-    productTitle: data.title,
-  });
+  const canonicalVariants = data.canonicalProduct?.variants;
+  const sanitizedVariants = canonicalVariants?.length
+    ? sanitizeTrendyolVariants(
+        {
+          colors: [...new Set(canonicalVariants.map((v) => v.color))],
+          sizes: [...new Set(canonicalVariants.map((v) => v.size))],
+          allVariants: canonicalVariants,
+          items: canonicalVariants,
+        },
+        { productTitle: data.title },
+      )
+    : sanitizeTrendyolVariants(data.variants, {
+        productTitle: data.title,
+      });
+  const hasCsv = (data.csvContent || "").trim().length > 50;
+  const baseCsvInfo = data.csvInfo;
+  const csvInfo = baseCsvInfo
+    ? {
+        ...baseCsvInfo,
+        ready: baseCsvInfo.ready === true || hasCsv,
+        productCount: Math.max(baseCsvInfo.productCount ?? 0, hasCsv ? 1 : 0),
+      }
+    : hasCsv
+      ? {
+          filename: "shopify-urunler.csv",
+          downloadUrl: "/api/download/shopify-urunler.csv",
+          ready: true,
+          productCount: 1,
+        }
+      : undefined;
   return {
     id: `${idPrefix}-${urlSlug}-${Date.now()}`,
     productTitle: data.title,
     csvContent: data.csvContent || "",
     csvPreview: data.csvPreview,
     sourceUrl: url,
+    scrapeRunId: data.scrapeRunId,
+    canonicalProduct: data.canonicalProduct,
+    blockReason:
+      (data as Record<string, unknown>).variantBlockReason as string | undefined ||
+      data.canonicalProduct?.blockReason,
     usableForCsv: data.usableForCsv,
-    csvInfo: data.csvInfo,
+    csvInfo,
+    titleSource: data.titleSource,
     variants: {
       colors: sanitizedVariants.colors,
       sizes: sanitizedVariants.sizes,
       allVariants: sanitizedVariants.allVariants,
+      items: canonicalVariants,
     },
     images: data.images,
     price: {

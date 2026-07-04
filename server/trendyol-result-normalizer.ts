@@ -407,6 +407,17 @@ export async function ensureTrendyolVariantsOnResult(
       `✅ Varyant zenginleştirme: ${resolved.colors.length} renk, ${resolved.sizes.length} beden, ${resolved.allVariants.length} kombinasyon`,
     );
   }
+
+  if (opts?.html && opts.html.length >= 500) {
+    const { applyStockNormalizationToScrapeResult } = await import(
+      "./trendyol-variant-stock-normalizer"
+    );
+    applyStockNormalizationToScrapeResult(result, {
+      html: opts.html,
+      url,
+      rawProduct: opts.rawProduct ?? undefined,
+    });
+  }
 }
 
 export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {

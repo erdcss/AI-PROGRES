@@ -1843,22 +1843,32 @@ setTimeout(check, 1000);
         
         if (scenarioResult.success) {
           console.log(`ğŸ¯ Scenario-Based Scraper SUCCESS - Scenario: ${scenarioResult.scenario}, Confidence: ${scenarioResult.confidence}%`);
-          
-          // Ã–zelliklerden gerÃ§ek varyant verisi oluÅŸtur - with clothing check
-          let processedVariants = processVariantsFromFeatures(scenarioResult.features || [], scenarioResult.variants || [], scenarioResult.title || '');
-          
-          // ğŸš« CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
-          // Use centralized isClothingProduct() which covers all footwear (babet, loafer, etc.)
-          const isClothing = isClothingProduct(scenarioResult.title || '');
-          
-          if (!isClothing && processedVariants) {
-            console.log(`ğŸš« FALLBACK FINAL GATE: "${scenarioResult.title?.substring(0, 40)}..." is NOT clothing - stripping sizes`);
-            if (processedVariants.sizes) processedVariants.sizes = [];
-            if (processedVariants.allVariants) {
-              processedVariants.allVariants = processedVariants.allVariants.map((v: any) => ({ ...v, size: '' }));
-            }
+
+          const scenarioVariants = scenarioResult.variants;
+          const sv = scenarioVariants as { allVariants?: unknown[]; items?: unknown[] } | null;
+          const hasValidScenarioVariants =
+            scenarioVariants &&
+            typeof scenarioVariants === "object" &&
+            !Array.isArray(scenarioVariants) &&
+            ((Array.isArray(sv?.allVariants) && sv!.allVariants!.length > 0) ||
+              (Array.isArray(sv?.items) && sv!.items!.length > 0));
+
+          let processedVariants: unknown = hasValidScenarioVariants
+            ? scenarioVariants
+            : processVariantsFromFeatures(
+                scenarioResult.features || [],
+                scenarioResult.variants || [],
+                scenarioResult.title || "",
+              );
+
+          if (Array.isArray(processedVariants)) {
+            processedVariants = {
+              colors: [...new Set(processedVariants.map((v: { color?: string }) => v.color).filter(Boolean))],
+              sizes: [...new Set(processedVariants.map((v: { size?: string }) => v.size).filter(Boolean))],
+              allVariants: processedVariants,
+            };
           }
-          
+
           return sendScrapeJson({
             success: true,
             extractionMethod: 'scenario-based-scraper',
@@ -1870,6 +1880,7 @@ setTimeout(check, 1000);
             images: scenarioResult.images,
             features: scenarioResult.features,
             variants: processedVariants,
+            stockSummary: scenarioResult.stockSummary,
             extractionDetails: scenarioResult.extractionDetails
           });
         }
@@ -2155,6 +2166,19 @@ setTimeout(check, 1000);
         (async () => {
           try {
         const scrapeStartTime = Date.now();
+        const scrapeRunId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+        const { resolveTrendyolSourceIds } = await import("./shopify-source-key");
+        const { invalidateStaleCsvCache } = await import("./scrape-csv-builder");
+        const { logFlowTrace } = await import("./flow-trace");
+        const previewSourceIds = resolveTrendyolSourceIds(url);
+        invalidateStaleCsvCache(url, previewSourceIds.selectedSourceProductId, scrapeRunId);
+        logFlowTrace({
+          activeRoute: "routes.ts",
+          scrapeEndpoint: "/api/trendyol-scrape",
+          scraperModule: "trendyol-scrape-pipeline",
+          variantExtractor: "trendyol-variant-stock-normalizer",
+          normalizer: "variant-shape-normalizer",
+        });
         console.log("âš¡ FAST EXTRACTION baÅŸlÄ±yor...");
 
         const selectedScrapeMode =
@@ -2380,10 +2404,45 @@ setTimeout(check, 1000);
         }
         
         if (result && (result.usableForCsv === true || result.previewOk === true)) {
-          const attached = await attachCsvToScrapeResult(result, url, "/api/trendyol-scrape");
-          result.csvContent = attached.csvContent;
-          result.csvInfo = attached.csvInfo;
-          result.csvPreview = attached.csvPreview;
+          const sourceIds = resolveTrendyolSourceIds(
+            url,
+            result.id ?? result.productId ?? result.contentId,
+          );
+          result.tags = [sourceIds.sourceKey];
+          result.scrapeRunId = scrapeRunId;
+          result.sourceUrl = url;
+          result.urlProductId = sourceIds.urlProductId;
+          result.selectedSourceProductId = sourceIds.selectedSourceProductId;
+          result.createdAt = new Date().toISOString();
+
+          const { enrichScrapeResponseWithCsv } = await import("./scrape-csv-builder");
+          const enriched = await enrichScrapeResponseWithCsv(
+            result,
+            url,
+            "/api/trendyol-scrape",
+          );
+          result = enriched;
+          result.csvContent = enriched.csvContent;
+          result.csvInfo = enriched.csvInfo;
+          result.csvPreview = enriched.csvPreview;
+          result.canonicalProduct = enriched.canonicalProduct;
+
+          logFlowTrace({
+            activeRoute: "routes.ts",
+            scrapeEndpoint: "/api/trendyol-scrape",
+            scraperModule: "trendyol-scrape-pipeline",
+            variantExtractor: "trendyol-variant-stock-normalizer",
+            normalizer: "variant-shape-normalizer",
+            previewSource: enriched.canonicalProduct ? "canonicalProduct" : "legacyVariants",
+            csvSource: enriched.csvContent ? "fresh" : "cached",
+          });
+
+          if (enriched.canonicalProduct) {
+            const cp = enriched.canonicalProduct;
+            console.log(
+              `[VariantTrace:preview] displayedSizes=${[...new Set(cp.variants.map((v) => v.size))].join(",")}`,
+            );
+          }
         } else if (result) {
           result.csvInfo = emptyScrapeCsvInfo();
         }
@@ -2507,6 +2566,30 @@ setTimeout(check, 1000);
             };
           }
 
+          if (result.canonicalProduct?.variants?.length) {
+            const cp = result.canonicalProduct;
+            const cpVariants = cp.variants;
+            normalizedVariants = {
+              colors: [...new Set(cpVariants.map((v: { color: string }) => v.color))],
+              sizes: [...new Set(cpVariants.map((v: { size: string }) => v.size))],
+              allVariants: cpVariants.map((v: { color: string; size: string; inStock: boolean }) => ({
+                color: v.color,
+                size: v.size,
+                inStock: v.inStock,
+              })),
+              items: cpVariants,
+              stockMap: Object.fromEntries(
+                cpVariants.map((v: { color: string; size: string; inStock: boolean }) => [
+                  `${v.color}-${v.size}`,
+                  v.inStock,
+                ]),
+              ),
+            };
+            console.log(
+              `[VariantTrace:preview] displayedSizes=${normalizedVariants.sizes?.join(",") ?? "none"}`,
+            );
+          }
+
           // âœ… DEBUG: Log images before sending to frontend
           console.log(`ğŸ“¸ ROUTES: Sending ${result.images?.length || 0} images to frontend`);
           console.log(`ğŸ“¸ ROUTES: Images format:`, JSON.stringify(result.images?.slice(0, 2)));
@@ -2594,6 +2677,26 @@ setTimeout(check, 1000);
               images: result.images,
               features: result.features,
               variants: normalizedVariants,
+              canonicalProduct: result.canonicalProduct,
+              variantDiagnostics: result.variantDiagnostics,
+              variantExtractionFailed: result.variantExtractionFailed === true,
+              variantBlockReason:
+                result.variantBlockReason ||
+                result.canonicalProduct?.blockReason ||
+                undefined,
+              manualReviewRequired:
+                result.manualReviewRequired ||
+                result.canonicalProduct?.manualReviewRequired ||
+                false,
+              shopifyUploadBlocked:
+                result.shopifyUploadBlocked ||
+                result.canonicalProduct?.shopifyUploadBlocked ||
+                false,
+              scrapeRunId: result.scrapeRunId ?? scrapeRunId,
+              sourceUrl: url,
+              urlProductId: result.urlProductId,
+              selectedSourceProductId: result.selectedSourceProductId,
+              createdAt: result.createdAt,
               tags: result.tags,
               csvContent: csvContent,
               csvInfo,
@@ -2652,6 +2755,24 @@ setTimeout(check, 1000);
 
   app.post('/api/trendyol-scrape', postTrendyolScrapeHandler);
   app.post('/api/scenario-scrape', postTrendyolScrapeHandler);
+
+  app.get('/api/debug/trendyol-variant-sources', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      const rawUrl = String(req.query.url || '').trim();
+      if (!rawUrl || !rawUrl.includes('trendyol.com')) {
+        return res.status(400).json({ error: 'Geçerli Trendyol URL gerekli' });
+      }
+      const { collectTrendyolVariantSources } = await import('./trendyol-variant-probe');
+      const payload = await collectTrendyolVariantSources(rawUrl);
+      return res.json(payload);
+    } catch (err) {
+      console.error('[debug/trendyol-variant-sources]', err);
+      return res.status(500).json({
+        error: err instanceof Error ? err.message : 'Debug probe failed',
+      });
+    }
+  });
 
   // URL Ã§Ã¶zÃ¼mleyici fonksiyonu
   const resolveShortUrl = async (url: string): Promise<string> => {
@@ -3761,7 +3882,31 @@ setTimeout(check, 1000);
       console.log('ğŸ” DEBUG: Product title:', req.body.productTitle);
       console.log('ğŸ” DEBUG: Individual tags:', req.body.individualTags);
       
-      const { csvContent, productTitle, individualTags, productData, csvInfo } = req.body;
+      const { csvContent: rawCsvContent, productTitle, individualTags, productData, csvInfo } = req.body;
+      const sourceUrl =
+        req.body.sourceUrl || req.body.trendyolUrl || productData?.sourceUrl || productData?.originalUrl;
+
+      const { resolveUploadCsvContent, assertCsvUploadReady } = await import(
+        './shopify-csv-upload-validation'
+      );
+      const resolvedCsv = await resolveUploadCsvContent(rawCsvContent, productData, {
+        sourceUrl,
+        productTitle,
+      });
+      if (!resolvedCsv.ok) {
+        return res.status(400).json({
+          success: false,
+          error: resolvedCsv.error,
+          step: resolvedCsv.step,
+        });
+      }
+      let csvContent = resolvedCsv.csvContent;
+      if (resolvedCsv.generated) {
+        console.log('[CSV] upload-csv-product server-side CSV üretildi', {
+          length: csvContent.length,
+          title: productTitle,
+        });
+      }
 
       const normalizePriceNumber = (value: unknown): number => {
         const raw = String(value ?? '').replace(/[^\d.,-]/g, '').trim();
@@ -3865,19 +4010,16 @@ setTimeout(check, 1000);
         });
       }
 
-      if (csvInfo?.ready === false || csvInfo?.productCount === 0) {
+      const csvReadyCheck = assertCsvUploadReady(csvContent, {
+        ready: true,
+        productCount: 1,
+        ...(typeof csvInfo === 'object' && csvInfo !== null ? csvInfo : {}),
+      });
+      if (!csvReadyCheck.ok) {
         return res.status(400).json({
           success: false,
-          error: 'CSV hazÄ±r deÄŸil â€” Ã¶nce geÃ§erli fiyatlÄ± Ã¼rÃ¼n verisi Ã§ekin.',
-          step: 'csv_not_ready',
-        });
-      }
-      
-      if (!csvContent || csvContent.trim().length < 50) {
-        console.log('âŒ CSV content is missing or empty');
-        return res.status(400).json({
-          success: false,
-          error: 'CSV content is required'
+          error: csvReadyCheck.error,
+          step: csvReadyCheck.step,
         });
       }
 
@@ -3906,7 +4048,10 @@ setTimeout(check, 1000);
       }
       
       console.log(`ğŸ›’ CSV Shopify Upload: ${productTitle}`);
-      const uploadResult = await uploadProductToShopify(csvContent, productTitle);
+      const uploadResult = await uploadProductToShopify(csvContent, productTitle, {
+        sourceUrl,
+        scrapeResult: req.body.productData,
+      });
       
       if (uploadResult.success) {
         // âœ… Register product in shopifyTransferredProducts table for MemoryTrackingPage
@@ -4034,6 +4179,8 @@ setTimeout(check, 1000);
         return res.json({
           success: true,
           shopifyId: uploadResult.productId,
+          productId: uploadResult.productId,
+          mode: (uploadResult as { mode?: string }).mode,
           message: uploadResult.message,
           tracking: trackingResult
         });
@@ -4244,20 +4391,32 @@ setTimeout(check, 1000);
         './shopify-token-manager'
       );
       const result = await proactiveRefreshShopifyToken(true);
-      if (result.success) {
-        invalidateShopifyCredentialCache();
-        return res.json({
-          success: true,
-          method: result.source,
-          message: `Token başarıyla yenilendi (${result.source})`,
-          status: getShopifyTokenLifecycleStatus(),
-        });
+      if (!result.success) {
+        const { getValidShopifyAccessToken } = await import('./shopify-token-manager');
+        try {
+          const token = await getValidShopifyAccessToken();
+          invalidateShopifyCredentialCache();
+          return res.json({
+            success: true,
+            method: token.source,
+            message: `Mevcut token doğrulandı (${token.source})`,
+            status: getShopifyTokenLifecycleStatus(),
+          });
+        } catch {
+          return res.status(500).json({
+            success: false,
+            error: result.error,
+            message:
+              'Token yenileme başarısız. SHOPIFY_ACCESS_TOKEN veya SHOPIFY_CLIENT_SECRET (shpsec_...) kontrol edin.',
+            status: getShopifyTokenLifecycleStatus(),
+          });
+        }
       }
-      return res.status(500).json({
-        success: false,
-        error: result.error,
-        message:
-          'Token yenileme başarısız. SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (shpsec_...) veya Admin Token kullanın.',
+      invalidateShopifyCredentialCache();
+      return res.json({
+        success: true,
+        method: result.source,
+        message: `Token başarıyla yenilendi (${result.source})`,
         status: getShopifyTokenLifecycleStatus(),
       });
     } catch (err: any) {

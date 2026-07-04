@@ -248,6 +248,15 @@ async function finalizeTrendyolPipelineWithVariants(
   forcedGlobalTimeout: boolean,
   variantOpts?: { html?: string | null; rawProduct?: Record<string, unknown> | null },
 ): Promise<PipelineOutcome> {
+  const { applyFullVariantScrapeToResult } = await import("./trendyol-variant-probe");
+  const policy = getScrapeEnvironmentPolicy();
+
+  await applyFullVariantScrapeToResult(url, result, {
+    html: variantOpts?.html ?? result.htmlContent ?? null,
+    mode: String(result.scrapeMode ?? "auto-fast"),
+    browserWorkerEnabled: policy.browserWorkerConfigured && policy.browserWorkerHealthy,
+  });
+
   const { ensureTrendyolVariantsOnResult } = await import("./trendyol-result-normalizer");
   await ensureTrendyolVariantsOnResult(url, result, variantOpts);
   return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
@@ -768,6 +777,9 @@ export async function runTrendyolScrapePipeline(
 
   // ── 6) Scenario — yalnızca eksik veri + Puppeteer izinliyse ──
   const fieldsBeforeScenario = evaluateFields(result, url);
+  const { applySparseApparelPolicy } = await import("./trendyol-variant-probe");
+  applySparseApparelPolicy(result, url);
+  const variantGaps = assessTrendyolVariantGaps(url, (result ?? {}) as Record<string, unknown>);
   const missingVariantOrFeatureData =
     !hasRealTrendyolVariants(result?.variants) ||
     !(Array.isArray(result?.features) && result.features.length > 0);
@@ -776,7 +788,9 @@ export async function runTrendyolScrapePipeline(
     fieldsBeforeScenario.hasTitle &&
     fieldsBeforeScenario.hasPrice &&
     fieldsBeforeScenario.hasImages &&
-    !missingVariantOrFeatureData;
+    !missingVariantOrFeatureData &&
+    !variantGaps.likelyIncomplete &&
+    !result?.requiresFullVariantScrape;
 
   const scenarioNeeded =
     !skipHeavyStages &&
@@ -784,7 +798,9 @@ export async function runTrendyolScrapePipeline(
     !forcedGlobalTimeout &&
     !isPastDeadline() &&
     (!hasMinimumScrapeData(fieldsBeforeScenario) ||
-      !isCompleteScrapeData(fieldsBeforeScenario));
+      !isCompleteScrapeData(fieldsBeforeScenario) ||
+      variantGaps.likelyIncomplete ||
+      result?.requiresFullVariantScrape === true);
 
   if (!scenarioNeeded) {
     diagnostics.scenarioSkippedReason = coreDataFromHtml
@@ -801,7 +817,9 @@ export async function runTrendyolScrapePipeline(
   } else if (
     modes.effective === "auto-fast" &&
     hasMinimumScrapeData(fieldsBeforeScenario) &&
-    hasRealTrendyolVariants(result?.variants)
+    hasRealTrendyolVariants(result?.variants) &&
+    !variantGaps.likelyIncomplete &&
+    !result?.requiresFullVariantScrape
   ) {
     diagnostics.scenarioSkippedReason = "auto-fast-core-data-present";
   } else if (!isPastDeadline() && !forcedGlobalTimeout) {

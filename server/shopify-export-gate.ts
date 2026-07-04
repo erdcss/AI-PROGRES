@@ -71,17 +71,7 @@ export function evaluateShopifyExportGate(
     return { allowed: false, reason: "Başlık çok kısa (en az 8 karakter gerekli)" };
   }
 
-  if (titleSource === "url-slug" && !input.approvedForShopify && !titleEdited) {
-    return {
-      allowed: false,
-      needsTitleApproval: true,
-      warning: "title_from_url_slug_review_recommended",
-      reason:
-        "Başlık URL'den üretildi, Shopify'a göndermeden önce başlığı onaylayın.",
-    };
-  }
-
-  if (titleSource === "url-slug" && (input.approvedForShopify || titleEdited)) {
+  if (titleSource === "url-slug") {
     return {
       allowed: true,
       warning: "title_from_url_slug_review_recommended",

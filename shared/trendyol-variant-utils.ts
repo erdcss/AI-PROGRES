@@ -26,6 +26,7 @@ const PLACEHOLDER_COLORS = new Set([
   "standard",
   "tek renk",
   "renksiz",
+  "renk bilgisi yok",
   "varsayılan",
   "default",
   "none",
@@ -61,6 +62,22 @@ export interface SanitizedVariants {
   allVariants: SanitizedVariant[];
 }
 
+function normalizeStringList(items: unknown): string[] {
+  if (!Array.isArray(items)) return [];
+  const out: string[] = [];
+  for (const item of items) {
+    if (typeof item === "string") {
+      const t = item.trim();
+      if (t) out.push(t);
+    } else if (item && typeof item === "object") {
+      const o = item as Record<string, unknown>;
+      const v = o.name ?? o.size ?? o.value ?? o.attributeValue;
+      if (typeof v === "string" && v.trim()) out.push(v.trim());
+    }
+  }
+  return [...new Set(out)];
+}
+
 function isFakeSizeForProduct(size: unknown, productTitle?: string): boolean {
   if (isPlaceholderSize(size)) return true;
   if (productTitle && !isClothingProduct(productTitle) && isStandardClothingSize(size)) {
@@ -75,8 +92,8 @@ function toVariantRecord(
 ): SanitizedVariant | null {
   if (!raw || typeof raw !== "object") return null;
   const v = raw as Record<string, unknown>;
-  const color = String(v.color ?? v.name ?? "").trim();
-  const size = String(v.size ?? v.value ?? "").trim();
+  const color = String(v.color ?? v.colorName ?? v.name ?? "").trim();
+  const size = String(v.size ?? v.sizeName ?? v.value ?? "").trim();
   const inStock = v.inStock !== false && v.inStock !== "false";
   const colorCode = v.colorCode ? String(v.colorCode) : undefined;
 
@@ -143,12 +160,40 @@ export function sanitizeTrendyolVariants(
       .filter((v): v is SanitizedVariant => v !== null);
   } else if (typeof variants === "object") {
     const record = variants as {
-      colors?: string[];
-      sizes?: string[];
+      colors?: unknown[];
+      sizes?: unknown[];
+      availableSizes?: unknown[];
       allVariants?: unknown[];
+      items?: unknown[];
+      stockMap?: Record<string, boolean>;
     };
 
-    if (Array.isArray(record.allVariants) && record.allVariants.length > 0) {
+    if (Array.isArray(record.items) && record.items.length > 0) {
+      rawList = record.items
+        .map((v) => toVariantRecord(v, productTitle))
+        .filter((v): v is SanitizedVariant => v !== null);
+    } else if (record.stockMap && typeof record.stockMap === "object") {
+      const colors = normalizeStringList(record.colors);
+      const sizes = normalizeStringList(record.sizes ?? record.availableSizes);
+      for (const [key, inStock] of Object.entries(record.stockMap)) {
+        const parts = key.split("-");
+        let color = "";
+        let size = "";
+        if (parts.length >= 2) {
+          color = parts.slice(0, -1).join("-");
+          size = parts[parts.length - 1];
+        } else if (sizes.includes(key)) {
+          size = key;
+        } else {
+          color = key;
+        }
+        const rec = toVariantRecord(
+          { color: color || undefined, size: size || undefined, inStock },
+          productTitle,
+        );
+        if (rec) rawList.push(rec);
+      }
+    } else if (Array.isArray(record.allVariants) && record.allVariants.length > 0) {
       rawList = record.allVariants
         .map((v) => toVariantRecord(v, productTitle))
         .filter((v): v is SanitizedVariant => v !== null);
@@ -223,4 +268,87 @@ export function filterInStockVariantsForCsv(
 ): SanitizedVariants {
   const allVariants = variants.allVariants.filter((v) => v.inStock !== false);
   return finalizeVariants(allVariants, undefined);
+}
+
+export type VariantStockEntry = { name: string; inStock: boolean };
+
+export type VariantStockSummary = {
+  colors: VariantStockEntry[];
+  sizes: VariantStockEntry[];
+  inStockCount: number;
+  outOfStockCount: number;
+  totalCount: number;
+};
+
+/** UI önizlemesi — renk/beden bazında stok özeti */
+export function summarizeVariantStock(variants: SanitizedVariants): VariantStockSummary {
+  const colorStock = new Map<string, { name: string; inStock: boolean }>();
+  const sizeStock = new Map<string, { name: string; inStock: boolean }>();
+
+  const upsert = (
+    map: Map<string, { name: string; inStock: boolean }>,
+    name: string,
+    inStock: boolean,
+  ) => {
+    const key = name.toLowerCase();
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { name, inStock });
+      return;
+    }
+    existing.inStock = existing.inStock || inStock;
+  };
+
+  for (const v of variants.allVariants) {
+    if (v.color?.trim()) {
+      upsert(colorStock, v.color.trim(), v.inStock !== false);
+    }
+    if (v.size?.trim()) {
+      upsert(sizeStock, v.size.trim(), v.inStock !== false);
+    }
+  }
+
+  for (const c of variants.colors) {
+    if (!c?.trim()) continue;
+    const key = c.trim().toLowerCase();
+    if (!colorStock.has(key)) {
+      colorStock.set(key, { name: c.trim(), inStock: true });
+    }
+  }
+  for (const s of variants.sizes) {
+    if (!s?.trim()) continue;
+    const key = s.trim().toLowerCase();
+    if (!sizeStock.has(key)) {
+      sizeStock.set(key, { name: s.trim(), inStock: true });
+    }
+  }
+
+  const inStockCount = variants.allVariants.filter((v) => v.inStock !== false).length;
+  const totalCount = variants.allVariants.length;
+
+  return {
+    colors: [...colorStock.values()],
+    sizes: [...sizeStock.values()],
+    inStockCount,
+    outOfStockCount: Math.max(0, totalCount - inStockCount),
+    totalCount,
+  };
+}
+
+/**
+ * CSV yalnızca stoktaki varyantları içerir; önizleme scrape payload'ını kullanır.
+ */
+export function pickVariantsForPreview(
+  payloadVariants: SanitizedVariants,
+  csvDerivedVariants: SanitizedVariants,
+): SanitizedVariants {
+  const payloadHasMatrix = payloadVariants.allVariants.some((v) => v.color || v.size);
+  if (!payloadHasMatrix) return csvDerivedVariants;
+
+  const payloadHasStockFlags = payloadVariants.allVariants.some((v) => v.inStock === false);
+  if (payloadHasStockFlags || payloadVariants.allVariants.length >= csvDerivedVariants.allVariants.length) {
+    return payloadVariants;
+  }
+
+  return payloadVariants.allVariants.length > 0 ? payloadVariants : csvDerivedVariants;
 }

@@ -1,11 +1,16 @@
-import { generateMultiVariantShopifyCSV } from "./multi-variant-csv-generator";
+import { generateCanonicalShopifyCSV } from "./shopify-canonical-export";
+import { buildCanonicalProductForShopify } from "./variant-shape-normalizer";
 import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
+import fs from "fs";
+import path from "path";
 import {
   SHOPIFY_CSV_FILENAME,
   getCsvDownloadInfo,
   parseCSVRow,
+  resolveCsvOutputDirectory,
   saveShopifyCsv,
 } from "./csv-paths";
+import { logCacheGuard } from "./flow-trace";
 
 interface ScrapeProductShape {
   id: string;
@@ -223,13 +228,26 @@ export async function buildScrapeCsvContent(
   result: Record<string, unknown>,
   sourceUrl?: string,
 ): Promise<string | null> {
-  const product = normalizeScrapeProduct(result, sourceUrl);
-  if (!product) return null;
+  console.log("[FlowTrace] activeRoute=routes.ts CSV=shopify-canonical-export.ts");
+
+  const canonical = buildCanonicalProductForShopify({ scrapeResult: result, sourceUrl });
+  if (!canonical) {
+    const product = normalizeScrapeProduct(result, sourceUrl);
+    if (!product) return null;
+    console.error("[CSV] canonical normalize başarısız, title/price eksik", { sourceUrl });
+    return null;
+  }
+
+  if (canonical.manualReviewRequired) {
+    console.warn("[CSV] manualReviewRequired — düşük güven, CSV yine üretiliyor", {
+      title: canonical.title,
+    });
+  }
 
   try {
-    const csvContent = await generateMultiVariantShopifyCSV(product);
+    const csvContent = generateCanonicalShopifyCSV(canonical);
     if (!csvContent?.trim()) {
-      console.error("[CSV] generateMultiVariantShopifyCSV boş içerik döndü", { title: product.title });
+      console.error("[CSV] generateCanonicalShopifyCSV boş içerik döndü", { title: canonical.title });
       return null;
     }
     const { validateCsvContent } = await import("./shopify-csv-headers");
@@ -291,15 +309,26 @@ export async function attachCsvToScrapeResult<T extends Record<string, unknown>>
 ): Promise<
   T & { csvContent?: string; csvInfo: ScrapeCsvInfo; csvPreview?: ScrapeCsvPreview }
 > {
-  const blocked =
-    result.usableForCsv === false ||
-    (result.blockedForExport === true && result.usableForCsv !== true);
+  const normalized = normalizeScrapeProduct(result, sourceUrl);
+  const explicitlyBlocked =
+    result.usableForCsv === false &&
+    result.blockedForExport === true &&
+    !normalized;
 
-  if (blocked) {
-    console.log("[CSV] attach skipped — usableForCsv=false", {
+  if (explicitlyBlocked) {
+    console.log("[CSV] attach skipped — export blocked", {
       title: result.title,
       titleSource: result.titleSource,
       previewOk: result.previewOk,
+      endpoint,
+    });
+    return { ...result, csvInfo: emptyScrapeCsvInfo() };
+  }
+
+  if (!normalized) {
+    console.log("[CSV] attach skipped — normalize failed", {
+      title: result.title,
+      titleSource: result.titleSource,
       endpoint,
     });
     return { ...result, csvInfo: emptyScrapeCsvInfo() };
@@ -326,14 +355,62 @@ export async function attachCsvToScrapeResult<T extends Record<string, unknown>>
   return { ...result, csvInfo };
 }
 
+/** Yeni scrape başladığında eski CSV önizlemesini geçersiz kılar */
+export function invalidateStaleCsvCache(
+  sourceUrl: string,
+  expectedProductId: string,
+  scrapeRunId: string,
+): { oldCsvDeleted: boolean } {
+  let oldCsvDeleted = false;
+  try {
+    const csvDir = resolveCsvOutputDirectory();
+    const csvPath = path.join(csvDir, SHOPIFY_CSV_FILENAME);
+    const metaPath = path.join(csvDir, "csv-data.json");
+
+    for (const filePath of [csvPath, metaPath]) {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        oldCsvDeleted = true;
+      }
+    }
+
+    logCacheGuard({
+      cleared: true,
+      oldCsvDeleted,
+      localPreviewInvalidated: true,
+      scrapeRunId,
+      previewSourceProductId: expectedProductId,
+      sourceUrl,
+    });
+  } catch (err) {
+    console.warn("[CacheGuard] CSV invalidation failed:", err);
+  }
+  return { oldCsvDeleted };
+}
+
 export async function enrichScrapeResponseWithCsv<T extends Record<string, unknown>>(
   payload: T,
   sourceUrl?: string,
   endpoint = "/api/scrape",
-): Promise<T & { csvContent?: string; csvInfo: ScrapeCsvInfo }> {
-  if (payload.success === false) {
+): Promise<
+  T & {
+    csvContent?: string;
+    csvInfo: ScrapeCsvInfo;
+    canonicalProduct?: import("./variant-shape-normalizer").CanonicalProductForShopify;
+  }
+> {
+  if (payload.success === false && payload.previewOk !== true) {
     return { ...payload, csvInfo: emptyScrapeCsvInfo() };
   }
 
-  return attachCsvToScrapeResult(payload, sourceUrl, endpoint);
+  const enriched = await attachCsvToScrapeResult(payload, sourceUrl, endpoint);
+  const { buildCanonicalProductForShopify } = await import("./variant-shape-normalizer");
+  const canonical = buildCanonicalProductForShopify({
+    scrapeResult: enriched,
+    sourceUrl,
+  });
+  if (canonical) {
+    return { ...enriched, canonicalProduct: canonical };
+  }
+  return enriched;
 }

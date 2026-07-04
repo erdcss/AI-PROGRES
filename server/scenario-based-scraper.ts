@@ -43,7 +43,7 @@ import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './
 import { buildLaunchOptions } from './puppeteer-config';
 import { puppeteerAllowed as isPuppeteerAllowedInRuntime } from '@shared/deploy-runtime';
 import { generateAdvancedTags } from './tag-generator';
-import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
+import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isConfirmedClothingProduct } from './clothing-keywords';
 import {
   buildVariantsFromSlicing,
   extractColorsFromSlicingDom,
@@ -188,6 +188,19 @@ function normalizeColorName(raw: string): string | null {
  * Sends extracted color names to GPT and gets back only the real ones.
  * Returns cleaned/corrected color names. Non-blocking — falls back gracefully.
  */
+const KNOWN_TURKISH_COLORS = new Set([
+  'beyaz', 'siyah', 'mavi', 'kırmızı', 'kirmizi', 'yeşil', 'yesil', 'sarı', 'sari',
+  'mor', 'pembe', 'gri', 'kahve', 'kahverengi', 'turuncu', 'lacivert', 'krem', 'bej',
+  'bordo', 'füme', 'fume', 'antrasit', 'haki', 'mint', 'lila', 'ekru', 'vizon',
+  'altın', 'altin', 'gümüş', 'gumus', 'hardal', 'taba', 'pudra', 'mercan',
+]);
+
+function isKnownTurkishColor(color: string): boolean {
+  const lc = color.toLowerCase().trim();
+  if (KNOWN_TURKISH_COLORS.has(lc)) return true;
+  return [...KNOWN_TURKISH_COLORS].some((known) => lc.includes(known));
+}
+
 async function validateColorsWithAI(colors: string[], productTitle: string): Promise<string[]> {
   if (colors.length === 0) return [];
   // No need for AI if only 1 color (handled by single-color strip later)
@@ -221,7 +234,19 @@ Hiç geçerli renk yoksa: {"validColors": []}`;
     const parsed = JSON.parse(response.choices[0].message.content || '{}');
     const valid: string[] = Array.isArray(parsed.validColors) ? parsed.validColors : [];
     console.log(`🤖 AI Color Validation: [${colors.join(', ')}] → [${valid.join(', ')}]`);
-    return valid;
+
+    if (valid.length === 0 && colors.some(isKnownTurkishColor)) {
+      console.log('🤖 AI boş döndü — bilinen Türkçe renkler korunuyor');
+      return colors;
+    }
+    if (valid.length > 0) {
+      const kept = colors.filter((c) => {
+        const lc = c.toLowerCase().trim();
+        return valid.some((v) => v.toLowerCase().trim() === lc) || isKnownTurkishColor(c);
+      });
+      if (kept.length > 0) return kept;
+    }
+    return valid.length > 0 ? valid : colors;
   } catch (err: any) {
     console.log(`⚠️ AI color validation failed (using rule-based): ${err.message}`);
     return colors; // fallback: keep original
@@ -268,6 +293,7 @@ function extractColorFromTitle(title: string): string {
 
 // ⚡ ULTRA-FAST CACHING SYSTEM with configurable duration
 export const extractionCache = new Map<string, {data: any, timestamp: number}>();
+const EXTRACTION_CACHE_VARIANT_VERSION = 2;
 
 function getCacheDuration(): number {
   return getPerformanceConfig().cache.duration;
@@ -1181,7 +1207,19 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
       console.log('⚠️ Color extraction failed:', (colorError as any).message);
     }
     
-    // Get page content
+    // Get page content — gerçek DOM stok snapshot
+    let puppeteerStockSnapshot = null;
+    try {
+      const { extractPuppeteerStockSnapshot } = await import('./trendyol-puppeteer-stock-extractor');
+      puppeteerStockSnapshot = await extractPuppeteerStockSnapshot(page);
+      console.log(
+        `📦 Puppeteer stock snapshot: ${puppeteerStockSnapshot.colors.length} renk, ` +
+          `${Object.values(puppeteerStockSnapshot.sizesByColor).flat().length} beden kaydı`,
+      );
+    } catch (stockSnapErr: any) {
+      console.log(`⚠️ Puppeteer stock snapshot failed: ${stockSnapErr?.message || stockSnapErr}`);
+    }
+
     const htmlContent = await page.content();
     
     // Inject extracted colors and sizes into HTML
@@ -1211,7 +1249,8 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
       success: true,
       htmlContent: finalHtml,
       colors: extractedColors,
-      colorVariantUrls: colorVariantUrlsFromPuppeteer
+      colorVariantUrls: colorVariantUrlsFromPuppeteer,
+      puppeteerStockSnapshot,
     };
   } catch (error) {
     console.log('❌ Puppeteer extraction failed:', (error as any).message);
@@ -1343,6 +1382,7 @@ export async function scenarioBasedScrape(
     let hasExtractableSizesInHtml = false; // Set in speed mode block; used to skip Puppeteer
     // Size-level stock from Puppeteer rendering (for current URL's color)
     let puppeteerSizeStockForCurrentColor: Map<string, boolean> = new Map();
+    let savedPuppeteerStockSnapshot: import('./trendyol-variant-stock-normalizer').PuppeteerStockSnapshot | null = null;
     
     try {
       // ⚡ SPEED OPTIMIZATION: Try direct scraping FIRST (fastest method)
@@ -1674,6 +1714,9 @@ export async function scenarioBasedScrape(
                 if ((puppeteerResult as any).colorVariantUrls?.length > 0) {
                   detectedColorVariantUrls = (puppeteerResult as any).colorVariantUrls;
                   console.log(`🌈 Captured ${detectedColorVariantUrls.length} color variant URLs from Puppeteer`);
+                }
+                if ((puppeteerResult as any).puppeteerStockSnapshot) {
+                  savedPuppeteerStockSnapshot = (puppeteerResult as any).puppeteerStockSnapshot;
                 }
                 // FIX: Extract size-level stock from Puppeteer-rendered HTML using __PRODUCT_DETAIL_APP_INITIAL_STATE__
                 // DOM button parsing is unreliable (Trendyol uses CSS opacity, not disabled attr).
@@ -2655,8 +2698,33 @@ export async function scenarioBasedScrape(
       }
       
       if (hasRealData) {
-        console.log(`✅ Using ${enhancedVariants.length} JSON-LD variants with real color data`);
-        variants = enhancedVariants;
+        const slicingVariants = buildVariantsFromSlicing($, htmlContent);
+        const {
+          pickRicherTrendyolVariants,
+          sanitizeTrendyolVariants,
+          variantRichnessScore,
+        } = await import('@shared/trendyol-variant-utils');
+
+        const enhancedSanitized = sanitizeTrendyolVariants(
+          { allVariants: enhancedVariants },
+          { productTitle: title },
+        );
+        const slicingSanitized = sanitizeTrendyolVariants(
+          { allVariants: slicingVariants },
+          { productTitle: title },
+        );
+        const bestSanitized = pickRicherTrendyolVariants(enhancedSanitized, slicingSanitized);
+
+        variants = bestSanitized.allVariants.map((v) => ({
+          color: v.color,
+          colorCode: v.colorCode || getColorCode(v.color) || '',
+          size: v.size,
+          inStock: v.inStock !== false,
+        }));
+
+        console.log(
+          `✅ Using ${variants.length} variants (enhanced=${variantRichnessScore(enhancedSanitized)}, slicing=${variantRichnessScore(slicingSanitized)})`,
+        );
         
         // ✅ UPDATE SCENARIO: Update detection based on JSON-LD data
         const uniqueSizes = [...new Set(variants.map(v => v.size).filter(s => s))];
@@ -3214,26 +3282,11 @@ export async function scenarioBasedScrape(
     
     // 🚫 CRITICAL: STRICT SIZE EXTRACTION CONTROL - Apply BEFORE variant validation
     // This is the FINAL GATE to prevent fake sizes on non-clothing products
-    const clothingUrlPatterns = [
-      '/giyim/', '/ayakkabi/', '/tisort/', '/pantolon/', '/elbise/', '/gomlek/',
-      '/ceket/', '/mont/', '/etek/', '/sort/', '/esofman/', '/pijama/',
-      '/ic-giyim/', '/kazak/', '/sweatshirt/', '/hirka/'
-    ];
+    const clothingConfirmed = isConfirmedClothingProduct(title || '', url);
     
-    const titleLower = title?.toLowerCase() || '';
-    const urlLower = url.toLowerCase();
-    
-    // Use centralized isClothingProduct() which covers all footwear (babet, loafer, etc.)
-    // Also check URL slug for clothing keywords (e.g. "tokali-babet" in URL slug)
-    const hasClothingKeyword = isClothingProduct(title || '');
-    const hasClothingUrlPattern = clothingUrlPatterns.some(pattern => urlLower.includes(pattern))
-      || (titleLower !== urlLower && isClothingProduct(url.replace(/-/g, ' ')));
-    const isConfirmedClothingProduct = hasClothingKeyword || hasClothingUrlPattern;
-    
-    if (!isConfirmedClothingProduct) {
+    if (!clothingConfirmed) {
       // NON-CLOTHING PRODUCT - STRIP ALL SIZE DATA
       console.log(`🚫 FINAL GATE: Product is NOT confirmed clothing`);
-      console.log(`🚫 Title keywords: ${hasClothingKeyword}, URL pattern: ${hasClothingUrlPattern}`);
       console.log(`🚫 STRIPPING ALL SIZE DATA from variants and sizes array`);
       
       // Clear size from all variants
@@ -3246,7 +3299,50 @@ export async function scenarioBasedScrape(
       // Note: sizes array will be recalculated in validateAndSanitizeVariants, 
       // but the variants no longer have size data
     } else {
-      console.log(`✅ FINAL GATE: Product IS confirmed clothing (keyword: ${hasClothingKeyword}, url: ${hasClothingUrlPattern})`);
+      console.log(`✅ FINAL GATE: Product IS confirmed clothing — size extraction allowed`);
+    }
+
+    // Varyant zenginleştirme: slicedAttributes + SKU stok matrisi (önizleme için OOS dahil)
+    try {
+      const { resolveTrendyolVariants } = await import('./trendyol-variant-resolver');
+      const {
+        pickRicherTrendyolVariants,
+        sanitizeTrendyolVariants,
+        variantRichnessScore,
+      } = await import('@shared/trendyol-variant-utils');
+
+      const currentSanitized = sanitizeTrendyolVariants(
+        {
+          allVariants: variants.map((v: any) => ({
+            color: v.color || '',
+            size: v.size || '',
+            inStock: v.inStock !== false,
+            colorCode: v.colorCode,
+          })),
+        },
+        { productTitle: title },
+      );
+      const enriched = resolveTrendyolVariants({
+        html: htmlContent,
+        url,
+        productTitle: title,
+      });
+      const best = pickRicherTrendyolVariants(currentSanitized, enriched);
+
+      if (variantRichnessScore(best) > variantRichnessScore(currentSanitized)) {
+        variants = best.allVariants.map((v) => ({
+          color: v.color,
+          colorCode: v.colorCode || getColorCode(v.color) || '',
+          size: v.size,
+          inStock: v.inStock !== false,
+        }));
+        colors = best.colors;
+        console.log(
+          `✅ VARIANT ENRICHMENT: ${best.colors.length} renk, ${best.sizes.length} beden, ${best.allVariants.length} kombinasyon (${best.allVariants.filter((v) => v.inStock === false).length} tükendi — yalnızca önizleme)`,
+        );
+      }
+    } catch (enrichErr: any) {
+      console.log(`⚠️ Variant enrichment failed (non-fatal): ${enrichErr?.message || enrichErr}`);
     }
     
     // ✅ ENHANCED: Validate and sanitize variants before saving (keep ALL colors)
@@ -3305,6 +3401,44 @@ export async function scenarioBasedScrape(
       // Leave variants empty - don't add fake "Tek Beden" or "Standart"
     }
     
+    // Merkezi stok normalizasyonu — stockMap boş kalmamalı
+    let stockSummaryPayload: import('./trendyol-variant-stock-normalizer').StockSummaryPayload | null = null;
+    let variantStockItems: import('./trendyol-variant-stock-normalizer').TrendyolVariantStockItem[] = [];
+    try {
+      const {
+        normalizeTrendyolVariantStock,
+        logTrendyolStockResult,
+        toLegacyVariantsPayload,
+        buildStockSummary,
+      } = await import('./trendyol-variant-stock-normalizer');
+
+      const stockNorm = normalizeTrendyolVariantStock({
+        html: htmlContent,
+        $,
+        url,
+        productTitle: title,
+        puppeteerSnapshot: savedPuppeteerStockSnapshot,
+      });
+      logTrendyolStockResult(url, stockNorm);
+
+      if (stockNorm.variants.length > 0) {
+        const legacy = toLegacyVariantsPayload(stockNorm);
+        validatedVariants.colors = legacy.colors;
+        validatedVariants.sizes = legacy.sizes;
+        validatedVariants.stockMap = legacy.stockMap;
+        validatedVariants.allVariants = legacy.allVariants.map((v) => ({
+          color: v.color,
+          colorCode: getColorCode(v.color) || '',
+          size: v.size,
+          inStock: v.inStock,
+        }));
+        variantStockItems = legacy.items;
+        stockSummaryPayload = buildStockSummary(stockNorm);
+      }
+    } catch (stockNormErr: any) {
+      console.log(`⚠️ Stock normalization failed (non-fatal): ${stockNormErr?.message || stockNormErr}`);
+    }
+
     // Filter other color URLs: remove current URL and deduplicate
     const currentItemMatch = url.match(/p-(\d+)/);
     const currentItemNumber = currentItemMatch ? currentItemMatch[1] : '';
@@ -3333,8 +3467,10 @@ export async function scenarioBasedScrape(
         colors: validatedVariants.colors,
         sizes: validatedVariants.sizes,
         stockMap: validatedVariants.stockMap,
-        allVariants: validatedVariants.allVariants
+        allVariants: validatedVariants.allVariants,
+        items: variantStockItems,
       },
+      stockSummary: stockSummaryPayload ?? undefined,
       tags: advancedTags, // Added advanced tags
       otherColorUrls: otherColorUrls.length > 0 ? otherColorUrls : undefined,
       extractionDetails: {
@@ -3350,7 +3486,10 @@ export async function scenarioBasedScrape(
     console.log('🔧 RESULT.VARIANTS.allVariants length:', result.variants.allVariants?.length || 0);
     
     // Cache the successful result
-    extractionCache.set(url, { data: result, timestamp: Date.now() });
+    extractionCache.set(url, {
+      data: { ...result, _variantCacheVersion: EXTRACTION_CACHE_VARIANT_VERSION },
+      timestamp: Date.now(),
+    });
     console.log('✅ Result cached for future use:', url);
     
     return applyScrapeSafetyGate(result);
@@ -3414,23 +3553,9 @@ function validateAndSanitizeVariants(
 } {
   console.log(`🔍 VARIANT VALIDATION: Input ${rawVariants.length} variants, ${rawColors.length} colors`);
   
-  // 🚫 CRITICAL: CLOTHING CHECK - Strip all size data for non-clothing products
-  const clothingUrlPatterns = [
-    '/giyim/', '/ayakkabi/', '/tisort/', '/pantolon/', '/elbise/', '/gomlek/',
-    '/ceket/', '/mont/', '/etek/', '/sort/', '/esofman/', '/pijama/',
-    '/ic-giyim/', '/kazak/', '/sweatshirt/', '/hirka/'
-  ];
+  const clothingConfirmed = isConfirmedClothingProduct(title || '', url || '');
   
-  const titleLower = (title || '').toLowerCase();
-  const urlLower = (url || '').toLowerCase();
-  
-  // Use centralized isClothingProduct() which covers all footwear (babet, loafer, etc.)
-  const hasClothingKeyword = isClothingProduct(title || '');
-  const hasClothingUrlPattern = clothingUrlPatterns.some(pattern => urlLower.includes(pattern))
-    || (titleLower !== urlLower && isClothingProduct((url || '').replace(/-/g, ' ')));
-  const isConfirmedClothingProduct = hasClothingKeyword || hasClothingUrlPattern;
-  
-  if (!isConfirmedClothingProduct) {
+  if (!clothingConfirmed) {
     console.log(`🚫 VALIDATION GATE: Product is NOT clothing (title: "${title?.substring(0, 50)}...")`);
     console.log(`🚫 Stripping ALL size data - returning color-only or empty variants`);
     
@@ -5001,60 +5126,14 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     return regex.test(text);
   };
   
-  // Check if product has clothing keywords - these ALWAYS get size extraction
-  const hasLongClothingKeyword = clothingKeywords.some(keyword => titleLower.includes(keyword));
-  const hasShortClothingKeyword = shortClothingKeywords.some(keyword => hasWordBoundary(titleLower, keyword));
-  const hasClothingKeyword = hasLongClothingKeyword || hasShortClothingKeyword;
-  
-  // Strong non-clothing detection - requires phrase match OR electronic device combination
-  const hasPhraseMatch = nonClothingPhrases.some(phrase => combinedText.includes(phrase));
-  
-  // Food & Beverage detection - these products NEVER have clothing sizes
-  const hasFoodPhrase = foodBeveragePhrases.some(phrase => titleLower.includes(phrase));
-  const hasStrongFoodKeyword = strongFoodKeywords.some(keyword => titleLower.includes(keyword));
-  const isFoodBeverageProduct = hasFoodPhrase || hasStrongFoodKeyword;
-  
-  // 🔥 DEBUG: Log food detection results for debugging
-  console.log(`🔍 FOOD DETECTION DEBUG - Title: "${title}"`);
-  console.log(`🔍 titleLower: "${titleLower}"`);
-  console.log(`🔍 hasFoodPhrase: ${hasFoodPhrase}, hasStrongFoodKeyword: ${hasStrongFoodKeyword}`);
-  console.log(`🔍 isFoodBeverageProduct: ${isFoodBeverageProduct}`);
-  
-  // Electronic device detection: Must have BOTH a device keyword AND a modifier
-  // This prevents "dijital baskılı tişört" from being blocked while catching "dijital bebek kamerası"
-  const hasElectronicDevice = electronicDeviceKeywords.some(device => titleLower.includes(device));
-  const hasElectronicModifier = electronicModifiers.some(modifier => titleLower.includes(modifier));
-  const isElectronicProduct = hasElectronicDevice && hasElectronicModifier;
-  
-  // 🔥🔥🔥 STRICT RULE: REVERSE THE DEFAULT LOGIC 🔥🔥🔥
-  // OLD APPROACH: Extract sizes by default, block only known non-clothing → FAILED (too many false positives)
-  // NEW APPROACH: BLOCK sizes by default, allow ONLY confirmed clothing products → STRICT ENFORCEMENT
-  
-  if (isFoodBeverageProduct) {
-    console.log(`🍵 FOOD/BEVERAGE PRODUCT DETECTED: "${title}"`);
-  }
-  
-  // Check URL category path for clothing categories
-  const clothingUrlPatterns = [
-    '/giyim/', '/kadin-giyim/', '/erkek-giyim/', '/cocuk-giyim/',
-    '/tisort/', '/gomlek/', '/elbise/', '/pantolon/', '/etek/',
-    '/ayakkabi/', '/canta/', '/aksesuar/', '/spor-giyim/',
-    '/ic-giyim/', '/mayo/', '/pijama/', '/mont/', '/ceket/'
-  ];
-  const hasClothingUrl = clothingUrlPatterns.some(pattern => urlLower.includes(pattern));
-  
-  // 🚨 STRICT RULE: Product is ONLY considered clothing if it has EXPLICIT clothing evidence
-  // Evidence required: Clothing keyword in title OR clothing category in URL
-  const isConfirmedClothing = hasClothingKeyword || hasClothingUrl;
+  // Check if product is clothing — title, URL slug, or typo-normalized match
+  const clothingConfirmed = isConfirmedClothingProduct(title, url);
   
   // 🔥 STRICT DEFAULT: Skip size extraction UNLESS product is CONFIRMED clothing
-  // This prevents fake S/M/L variants from appearing on cosmetics, electronics, home goods, etc.
-  const skipSizeExtraction = !isConfirmedClothing;
+  const skipSizeExtraction = !clothingConfirmed;
   
   console.log(`🔍 STRICT SIZE VALIDATION:`);
-  console.log(`   hasClothingKeyword: ${hasClothingKeyword}`);
-  console.log(`   hasClothingUrl: ${hasClothingUrl}`);
-  console.log(`   isConfirmedClothing: ${isConfirmedClothing}`);
+  console.log(`   clothingConfirmed: ${clothingConfirmed}`);
   console.log(`   skipSizeExtraction: ${skipSizeExtraction}`);
   
   if (skipSizeExtraction) {
