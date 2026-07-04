@@ -221,7 +221,7 @@ export function buildMinimalShopifyCsvRow(input: {
   row[23] = "TRUE";
   row[29] = "shopify";
   row[30] = "0";
-  row[31] = "CONTINUE";
+  row[31] = "DENY";
   row[33] = "g";
   row[34] = "TRUE";
   row[35] = "manual";

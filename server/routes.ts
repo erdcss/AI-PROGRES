@@ -50,7 +50,7 @@ import { generateComprehensiveShopifyCSV, generateFeatureSummary, type Comprehen
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import { scrapeMultipleUrls } from './multi-url-scraper';
 import { generateMultiVariantShopifyCSV } from './multi-variant-csv-generator';
-import { emptyScrapeCsvInfo, attachCsvToScrapeResult } from './scrape-csv-builder';
+import { emptyScrapeCsvInfo, attachCsvToScrapeResult, hasCsvEligibleScrapeData } from './scrape-csv-builder';
 import { uploadProductToShopify, testShopifyConnection } from './shopify-api-uploader';
 import { runShopifyConnectionTest } from './connection-test';
 import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
@@ -2417,7 +2417,12 @@ setTimeout(check, 1000);
           }
         }
         
-        if (result && (result.usableForCsv === true || result.previewOk === true)) {
+        if (result && (
+          result.usableForCsv === true ||
+          result.previewOk === true ||
+          result.partialSuccess === true ||
+          hasCsvEligibleScrapeData(result)
+        )) {
           const sourceIds = resolveTrendyolSourceIds(
             url,
             result.id ?? result.productId ?? result.contentId,
@@ -2440,6 +2445,8 @@ setTimeout(check, 1000);
           result.csvInfo = enriched.csvInfo;
           result.csvPreview = enriched.csvPreview;
           result.canonicalProduct = enriched.canonicalProduct;
+          result.csvErrorCode = enriched.csvErrorCode;
+          result.csvDiagnostics = enriched.csvDiagnostics;
 
           logFlowTrace({
             activeRoute: "routes.ts",
@@ -2660,6 +2667,11 @@ setTimeout(check, 1000);
             result.csvContent = csvContent;
             result.csvInfo = csvInfo;
             result.csvPreview = attached.csvPreview;
+            result.csvErrorCode = attached.csvErrorCode;
+            result.csvDiagnostics = attached.csvDiagnostics;
+            if (attached.canonicalProduct) {
+              result.canonicalProduct = attached.canonicalProduct;
+            }
           }
           
           scrapeJobs.set(jobId, {
@@ -2715,6 +2727,8 @@ setTimeout(check, 1000);
               csvContent: csvContent,
               csvInfo,
               csvPreview: result.csvPreview,
+              csvErrorCode: result.csvErrorCode,
+              csvDiagnostics: result.csvDiagnostics,
               trackingActive: false,
               extractionDetails: result.extractionDetails,
               scrapeDiagnostics,

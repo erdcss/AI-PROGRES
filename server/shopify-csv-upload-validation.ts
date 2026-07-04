@@ -47,8 +47,8 @@ export async function resolveUploadCsvContent(
       (typeof record.originalUrl === 'string' ? record.originalUrl : undefined);
 
     const generated = await buildScrapeCsvContent(merged, sourceUrl);
-    if (generated && generated.trim().length >= 50) {
-      return { ok: true, csvContent: generated, generated: true };
+    if (generated.csvContent && generated.csvContent.trim().length >= 50) {
+      return { ok: true, csvContent: generated.csvContent, generated: true };
     }
   }
 

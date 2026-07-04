@@ -16,6 +16,12 @@ import {
   sanitizeShopifyTags,
 } from "@shared/shopify-tag-sanitizer";
 import { generateCanonicalShopifyCSV } from "../shopify-canonical-export";
+import {
+  attachCsvToScrapeResult,
+  normalizeScrapeProduct,
+} from "../scrape-csv-builder";
+import { parseCSVRow } from "../csv-paths";
+import { analyzeShopifyCsvContent } from "../csv-paths";
 
 let passed = 0;
 let failed = 0;
@@ -28,6 +34,23 @@ function assert(condition: boolean, message: string) {
     failed++;
     console.error(`  ✗ ${message}`);
   }
+}
+
+function assertCsvProductRow(csvContent: string, expectedTitle: string) {
+  const lines = csvContent.replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim());
+  assert(lines.length >= 2, "CSV has header + data row");
+  const headers = parseCSVRow(lines[0]);
+  const row = parseCSVRow(lines[1]);
+  const titleIdx = headers.findIndex((h) => h.toLowerCase() === "title");
+  const handleIdx = headers.findIndex((h) => h.toLowerCase() === "url handle");
+  const priceIdx = headers.findIndex((h) => h.toLowerCase() === "price");
+  const title = titleIdx >= 0 ? row[titleIdx] : "";
+  const handle = handleIdx >= 0 ? row[handleIdx] : "";
+  const price = priceIdx >= 0 ? Number.parseFloat(row[priceIdx].replace(",", ".")) : 0;
+  assert(title === expectedTitle, `CSV Title=${expectedTitle}`);
+  assert(Boolean(handle), "CSV URL handle dolu");
+  assert(Number.isFinite(price) && price > 0, "CSV Price pozitif");
+  assert(!lines[1].startsWith(",") || Boolean(title), "CSV yalnızca görsel satırı değil");
 }
 
 console.log("\n=== Variant Flow Tests ===\n");
@@ -151,8 +174,8 @@ console.log("\n=== Variant Flow Tests ===\n");
   });
   assert((canonical?.variants.length ?? 0) + (canonical?.outOfStockVariants.length ?? 0) >= 1, "single-SKU no-size yields 1 variant");
   const csv = generateCanonicalShopifyCSV(canonical!);
-  assert(csv.includes("Parazit Damla"), "CSV contains product title");
-  assert(!csv.split("\n")[1]?.startsWith(",") || csv.includes("Default Title"), "CSV has variant row not image-only");
+  assert(csv != null && csv.includes("Parazit Damla"), "CSV contains product title");
+  assert(csv != null && (!csv.split("\n")[1]?.startsWith(",") || csv.includes("Default Title")), "CSV has variant row not image-only");
 }
 
 // Test — mismatch validation message
@@ -218,10 +241,181 @@ console.log("\n=== Variant Flow Tests ===\n");
     },
   });
   const csv = generateCanonicalShopifyCSV(canonical!);
-  assert(!/trendyol/i.test(csv), "CSV Tags kolonunda trendyol yok");
+  assert(csv != null && !/trendyol/i.test(csv), "CSV Tags kolonunda trendyol yok");
   const sanitized = sanitizeShopifyTags(["indirim", "trendyol-import", "src:123"]);
   assert(sanitized.join(",") === "indirim,src:123", "sanitizeShopifyTags trendyol etiketlerini çıkarır");
 }
+
+// Shopify CSV fiyat politikası — withProfit satış, compare-at boş, DENY
+{
+  const canonical = buildCanonicalProductForShopify({
+    sourceUrl: "https://www.trendyol.com/test/canli-p-123456789",
+    scrapeResult: {
+      title: "Canlı Test Ürün",
+      brand: "Marka",
+      price: { original: 492, withProfit: 541.2 },
+      images: ["https://cdn.dsmcdn.com/a.jpg"],
+      variants: { items: [{ color: "Siyah", size: "M", inStock: true }] },
+    },
+  });
+  const csv = generateCanonicalShopifyCSV(canonical!);
+  assert(csv != null, "CSV oluşur");
+  const lines = csv!.replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+  const headers = parseCSVRow(lines[0]);
+  const row = parseCSVRow(lines[1]);
+  const priceIdx = headers.findIndex((h) => h.toLowerCase() === "price");
+  const compareIdx = headers.findIndex((h) => h.toLowerCase() === "compare-at price");
+  const continueIdx = headers.findIndex((h) =>
+    h.toLowerCase().includes("continue selling when out of stock"),
+  );
+  assert(row[priceIdx] === "541.20", "Price = withProfit (541.20)");
+  assert(!row[compareIdx]?.trim(), "Compare-at price boş");
+  assert(row[continueIdx] === "DENY", "Continue selling when out of stock = DENY");
+}
+
+// CSV satır istatistikleri — 49 varyant + görsel satırları
+{
+  const colors = ["Siyah", "Beyaz", "Mavi", "Kırmızı", "Gri", "Pembe", "Lacivert"];
+  const sizes = ["34", "36", "38", "40", "42", "44", "XS"];
+  const allVariants: Array<{ color: string; size: string; inStock: boolean }> = [];
+  for (const color of colors) {
+    for (const size of sizes) {
+      allVariants.push({ color, size, inStock: true });
+    }
+  }
+  const images = Array.from({ length: 33 }, (_, i) => `https://cdn.dsmcdn.com/extra-${i + 1}.jpg`);
+  const canonical = buildCanonicalProductForShopify({
+    sourceUrl: "https://www.trendyol.com/test/stats-p-987654321",
+    scrapeResult: {
+      title: "Çok Varyantlı Ürün",
+      brand: "Marka",
+      price: { original: 492, withProfit: 541.2 },
+      images,
+      variants: { allVariants, sizes: allVariants.map((v) => v.size) },
+    },
+  });
+  const csv = generateCanonicalShopifyCSV(canonical!);
+  assert(csv != null, "Çok varyantlı CSV oluşur");
+  const stats = analyzeShopifyCsvContent(csv!);
+  assert(stats != null, "stats hesaplanır");
+  assert(stats!.productCount === 1, "productCount = 1");
+  assert(stats!.variantRowCount === 49, "variantRowCount = 49");
+  assert(stats!.rowCount > 49, "rowCount > variantRowCount (görsel satırları dahil)");
+  assert(stats!.rowCount === stats!.variantRowCount + stats!.imageRowCount, "rowCount = varyant + görsel");
+}
+
+async function runAttachCsvTests() {
+  const baseUrl = "https://www.trendyol.com/test/urun-p-123456789";
+  const images = Array.from({ length: 19 }, (_, i) => `https://cdn.dsmcdn.com/img-${i + 1}.jpg`);
+
+  {
+    const attached = await attachCsvToScrapeResult(
+      {
+        title: "Root Başlık",
+        price: { original: 499.9 },
+        images,
+        productInfo: { title: "", price: 0 },
+        product: { title: "", price: { original: 0 } },
+      },
+      baseUrl,
+      "test-A",
+    );
+    const normalized = normalizeScrapeProduct(attached as Record<string, unknown>, baseUrl);
+    assert(normalized?.title === "Root Başlık", "A: root title kullanılır");
+    assert((normalized?.price.original ?? 0) > 0, "A: root price kullanılır");
+    assert(Boolean(attached.csvContent && attached.csvContent.length > 50), "A: csvContent dolu");
+    assert(attached.csvInfo?.ready === true, "A: csvInfo.ready=true");
+    assert(attached.csvDiagnostics?.selectedTitleSource === "root", "A: selectedTitleSource=root");
+    assert(attached.csvDiagnostics?.selectedPriceSource === "root", "A: selectedPriceSource=root");
+    if (attached.csvContent) assertCsvProductRow(attached.csvContent, "Root Başlık");
+  }
+
+  {
+    const attached = await attachCsvToScrapeResult(
+      { title: "Fiyat B", price: { currentPrice: 499.9 }, images },
+      baseUrl,
+      "test-B",
+    );
+    assert(attached.csvInfo?.ready === true, "B: csvInfo.ready=true");
+    if (attached.csvContent) assertCsvProductRow(attached.csvContent, "Fiyat B");
+  }
+
+  {
+    const attached = await attachCsvToScrapeResult(
+      { title: "Fiyat C", price: { originalPrice: 499.9 }, images },
+      baseUrl,
+      "test-C",
+    );
+    assert(attached.csvInfo?.ready === true, "C: csvInfo.ready=true");
+    if (attached.csvContent) assertCsvProductRow(attached.csvContent, "Fiyat C");
+  }
+
+  {
+    const attached = await attachCsvToScrapeResult(
+      {
+        title: "Fiyat D",
+        price: { sellingPrice: { value: 49990 } },
+        images,
+      },
+      baseUrl,
+      "test-D",
+    );
+    assert(attached.csvInfo?.ready === true, "D: csvInfo.ready=true");
+    if (attached.csvContent) assertCsvProductRow(attached.csvContent, "Fiyat D");
+  }
+
+  {
+    const attached = await attachCsvToScrapeResult(
+      {
+        title: "Tek SKU Ürün",
+        brand: "Marka",
+        price: { original: 170 },
+        images,
+        variants: {
+          colors: ["Tek Renk"],
+          sizes: [],
+          allVariants: [{ color: "Tek Renk", size: "", inStock: true }],
+        },
+      },
+      baseUrl,
+      "test-E",
+    );
+    assert(attached.csvInfo?.ready === true, "E: csvInfo.ready=true");
+    assert(Boolean(attached.csvContent && attached.csvContent.length > 100), "E: csvContent dolu");
+    if (attached.csvContent) assertCsvProductRow(attached.csvContent, "Tek SKU Ürün");
+  }
+
+  {
+    const attached = await attachCsvToScrapeResult(
+      {
+        success: false,
+        partialSuccess: true,
+        previewOk: true,
+        title: "Kısmi Ürün",
+        price: { original: 299.9 },
+        images: ["https://cdn.dsmcdn.com/a.jpg"],
+        stageErrors: ["api-null-response"],
+      },
+      baseUrl,
+      "test-partial-job",
+    );
+    assert(attached.csvInfo?.ready === true, "partialSuccess job: csvInfo.ready=true");
+    assert(Boolean(attached.csvContent), "partialSuccess job: csvContent taşınıyor");
+    assert(Boolean(attached.csvPreview?.rows?.length), "partialSuccess job: csvPreview taşınıyor");
+  }
+
+  console.log("\n  csvDiagnostics örnek:", JSON.stringify({
+    selectedTitleSource: "root",
+    selectedPriceSource: "root",
+    rawPriceShape: "object{original}",
+    canonicalCreated: true,
+    normalizedCreated: true,
+    csvLength: 842,
+    csvReady: true,
+  }));
+}
+
+await runAttachCsvTests();
 
 console.log(`\n=== Sonuç: ${passed} geçti, ${failed} başarısız ===\n`);
 if (failed > 0) process.exit(1);

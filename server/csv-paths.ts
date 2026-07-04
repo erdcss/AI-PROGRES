@@ -161,10 +161,73 @@ export function computeCsvReady(headers: string[], productCount: number, csvExis
   return hasValidShopifyCsvHeaders(headers);
 }
 
+export interface ShopifyCsvRowStats {
+  rowCount: number;
+  productCount: number;
+  variantRowCount: number;
+  imageRowCount: number;
+}
+
+function findHeaderIndex(headers: string[], names: string[]): number {
+  const lower = headers.map((h) => h.trim().toLowerCase());
+  for (const name of names) {
+    const idx = lower.indexOf(name.toLowerCase());
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+export function analyzeShopifyCsvRows(
+  headers: string[],
+  dataRows: string[][],
+): ShopifyCsvRowStats {
+  const handleIdx = findHeaderIndex(headers, ["url handle", "handle"]);
+  const skuIdx = findHeaderIndex(headers, ["sku", "variant sku"]);
+  const imageIdx = findHeaderIndex(headers, ["product image url", "image src"]);
+
+  const handles = new Set<string>();
+  let variantRowCount = 0;
+  let imageRowCount = 0;
+
+  for (const row of dataRows) {
+    const handle = handleIdx >= 0 ? (row[handleIdx] ?? "").trim() : "";
+    const sku = skuIdx >= 0 ? (row[skuIdx] ?? "").trim() : "";
+    const image = imageIdx >= 0 ? (row[imageIdx] ?? "").trim() : "";
+
+    if (handle) handles.add(handle);
+    if (sku) {
+      variantRowCount++;
+    } else if (image) {
+      imageRowCount++;
+    }
+  }
+
+  return {
+    rowCount: dataRows.length,
+    productCount: handles.size,
+    variantRowCount,
+    imageRowCount,
+  };
+}
+
+export function analyzeShopifyCsvContent(csvContent: string): ShopifyCsvRowStats | null {
+  const lines = csvContent
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  if (lines.length < 2) return null;
+  const headers = parseCSVRow(lines[0]);
+  const dataRows = lines.slice(1).map(parseCSVRow);
+  return analyzeShopifyCsvRows(headers, dataRows);
+}
+
 export interface ShopifyCsvParseResult {
   headers: string[];
   dataRows: string[][];
+  rowCount: number;
   productCount: number;
+  variantRowCount: number;
+  imageRowCount: number;
   ready: boolean;
   filePath: string;
 }
@@ -179,7 +242,10 @@ export function parseShopifyCsvFile(filePath?: string | null): ShopifyCsvParseRe
     return {
       headers: [],
       dataRows: [],
+      rowCount: 0,
       productCount: 0,
+      variantRowCount: 0,
+      imageRowCount: 0,
       ready: false,
       filePath: resolved,
     };
@@ -192,13 +258,16 @@ export function parseShopifyCsvFile(filePath?: string | null): ShopifyCsvParseRe
       : parsedHeaderFields;
 
   const dataRows = lines.slice(1).map(parseCSVRow);
-  const productCount = dataRows.length;
+  const stats = analyzeShopifyCsvRows(headers, dataRows);
 
   return {
     headers,
     dataRows,
-    productCount,
-    ready: computeCsvReady(headers, productCount, true),
+    rowCount: stats.rowCount,
+    productCount: stats.productCount,
+    variantRowCount: stats.variantRowCount,
+    imageRowCount: stats.imageRowCount,
+    ready: computeCsvReady(headers, stats.productCount, true),
     filePath: resolved,
   };
 }
@@ -217,7 +286,10 @@ export function getCsvDownloadInfo() {
     ready: parsed?.ready ?? false,
     csvExists,
     csvSize,
+    rowCount: parsed?.rowCount ?? 0,
     productCount: parsed?.productCount ?? 0,
+    variantRowCount: parsed?.variantRowCount ?? 0,
+    imageRowCount: parsed?.imageRowCount ?? 0,
     filePath: filePath || null,
     headers: parsed?.headers ?? [],
   };

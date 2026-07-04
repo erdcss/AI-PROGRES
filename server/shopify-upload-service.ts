@@ -159,7 +159,8 @@ export async function handleShopifyProductUpload(
   if (!csvContent || csvContent.length < 50) {
     const { buildScrapeCsvContent } = await import('./scrape-csv-builder');
     const merged = { ...req.productData, title: normalized.title };
-    csvContent = (await buildScrapeCsvContent(merged, sourceUrl)) ?? undefined;
+    const csvOutcome = await buildScrapeCsvContent(merged, sourceUrl);
+    csvContent = csvOutcome.csvContent ?? undefined;
   }
 
   let uploadResult: {

@@ -103,18 +103,37 @@ function resolveCsvVariantOptions(variant: CanonicalProductForShopify["variants"
   return { option1Name, option1Value, option2Name, option2Value };
 }
 
+function resolveVariantCsvSalePrice(
+  variant: CanonicalProductForShopify["variants"][number],
+  product: CanonicalProductForShopify,
+): string {
+  const variantPrice = Number.parseFloat(variant.price);
+  if (Number.isFinite(variantPrice) && variantPrice > 0) {
+    return variantPrice.toFixed(2);
+  }
+  const productPrice = Number.parseFloat(product.price);
+  if (Number.isFinite(productPrice) && productPrice > 0) {
+    return productPrice.toFixed(2);
+  }
+  return "";
+}
+
 /** Canonical üründen Shopify CSV üretir — her varyant satırında Handle dolu */
 export function generateCanonicalShopifyCSV(
   product: CanonicalProductForShopify,
-): string {
+): string | null {
   const config = getShopifyInventoryConfig();
-  const salePrice =
-    product.price && product.price !== "0"
-      ? product.price
-      : "29.90";
-  const compareAt = product.price
-    ? (Math.round(parseFloat(product.price) * 1.2 * 100) / 100).toString()
-    : "0";
+  const defaultSalePrice = resolveVariantCsvSalePrice(
+    { price: product.price } as CanonicalProductForShopify["variants"][number],
+    product,
+  );
+  if (!defaultSalePrice) {
+    console.error("[CSV] generateCanonicalShopifyCSV — csv_missing_price", {
+      title: product.title,
+      price: product.price,
+    });
+    return null;
+  }
 
   const headers = [...SHOPIFY_NEW_TEMPLATE_HEADERS];
   const rows: string[][] = [headers];
@@ -123,6 +142,7 @@ export function generateCanonicalShopifyCSV(
   const tags = buildTags(product);
   let imagePosition = 1;
   const addedImages = new Set<string>();
+  const continueSelling = config.allowOverselling ? "CONTINUE" : "DENY";
 
   const exportVariants =
     product.variants.length > 0
@@ -136,12 +156,14 @@ export function generateCanonicalShopifyCSV(
             inventoryQty: config.defaultInStockQty,
             option1Name: "Title" as const,
             option1Value: "Default Title",
+            price: product.price,
           },
         ];
 
   exportVariants.forEach((variant, index) => {
     const isFirst = index === 0;
     const row: string[] = Array(TOTAL_COLUMNS).fill("");
+    const salePrice = resolveVariantCsvSalePrice(variant, product);
 
     row[COL.URL_HANDLE] = handle;
 
@@ -168,14 +190,13 @@ export function generateCanonicalShopifyCSV(
 
     row[COL.SKU] = variant.sku;
     row[COL.PRICE] = salePrice;
-    row[COL.COMPARE_AT_PRICE] = compareAt;
+    row[COL.COMPARE_AT_PRICE] = product.compareAtPrice ?? "";
     row[COL.CHARGE_TAX] = "TRUE";
     row[COL.INVENTORY_TRACKER] = "shopify";
     row[COL.INVENTORY_QUANTITY] = String(
       variant.inStock ? variant.inventoryQty : config.exportOutOfStockVariants ? 0 : 0,
     );
-    row[COL.CONTINUE_SELLING] =
-      variant.inStock || !config.exportOutOfStockVariants ? "CONTINUE" : "DENY";
+    row[COL.CONTINUE_SELLING] = continueSelling;
     row[COL.WEIGHT_UNIT] = "g";
     row[COL.REQUIRES_SHIPPING] = "TRUE";
     row[COL.FULFILLMENT_SERVICE] = "manual";

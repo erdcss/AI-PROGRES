@@ -10,6 +10,8 @@ import {
   resolveTrendyolSourceIds,
   type TrendyolSourceIdentity,
 } from "./shopify-source-key";
+import { mergeScrapeFields, collectScrapeSourceLayers } from "./scrape-field-merge";
+import { normalizeTrendyolPriceValue } from "./trendyol-price-utils";
 
 export interface CanonicalVariantItem {
   sourceProductId: string;
@@ -39,7 +41,10 @@ export interface CanonicalProductForShopify {
   handle: string;
   title: string;
   brand: string;
+  /** Shopify CSV satış fiyatı (withProfit) */
   price: string;
+  /** Gerçek liste/indirim öncesi fiyat — yoksa boş */
+  compareAtPrice?: string;
   images: string[];
   variants: CanonicalVariantItem[];
   outOfStockVariants: CanonicalVariantItem[];
@@ -549,24 +554,7 @@ function extractVariantsFromScrape(
   return { rows: Array.from(deduped.values()), inputShape, diagnostics };
 }
 
-function extractPrice(raw: unknown): string {
-  if (typeof raw === "number" && raw > 0) return raw.toFixed(2);
-  if (typeof raw === "string") {
-    const m = raw.match(/[\d.,]+/);
-    if (m) return m[0].replace(",", ".");
-  }
-  if (raw && typeof raw === "object") {
-    const o = raw as Record<string, unknown>;
-    for (const key of ["original", "sale", "value", "withProfit"]) {
-      const p = extractPrice(o[key]);
-      if (p && p !== "0.00") return p;
-    }
-  }
-  return "0";
-}
-
-function extractImages(source: Record<string, unknown>): string[] {
-  const raw = source.images;
+function extractImagesFromList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const urls: string[] = [];
   for (const img of raw) {
@@ -579,6 +567,34 @@ function extractImages(source: Record<string, unknown>): string[] {
   return [...new Set(urls)];
 }
 
+function pickExplicitCompareAtPrice(priceRaw: unknown, salePrice: number): string | undefined {
+  if (!priceRaw || typeof priceRaw !== "object" || salePrice <= 0) return undefined;
+  const record = priceRaw as Record<string, unknown>;
+  for (const key of ["compareAtPrice", "compareAt", "listPrice"]) {
+    const candidate = normalizeTrendyolPriceValue(record[key]);
+    if (candidate > salePrice) return candidate.toFixed(2);
+  }
+  return undefined;
+}
+
+function resolveVariantSalePrice(
+  variantOriginalPrice: string | undefined,
+  productSalePrice: string,
+  profitRatio: number,
+): string {
+  if (variantOriginalPrice) {
+    const parsed = normalizeTrendyolPriceValue(variantOriginalPrice);
+    if (parsed > 0) {
+      return (Math.round(parsed * profitRatio * 100) / 100).toFixed(2);
+    }
+  }
+  return productSalePrice;
+}
+
+function extractImages(source: Record<string, unknown>): string[] {
+  return extractImagesFromList(source.images);
+}
+
 export interface BuildCanonicalInput {
   scrapeResult: Record<string, unknown>;
   sourceUrl?: string;
@@ -588,21 +604,22 @@ export interface BuildCanonicalInput {
 export function buildCanonicalProductForShopify(
   input: BuildCanonicalInput,
 ): CanonicalProductForShopify | null {
-  const source =
-    (input.scrapeResult.productInfo as Record<string, unknown> | undefined) ??
-    (input.scrapeResult.product as Record<string, unknown> | undefined) ??
-    input.scrapeResult;
+  const merged = mergeScrapeFields(input.scrapeResult);
+  const layers = collectScrapeSourceLayers(input.scrapeResult);
+  const rootLayer = layers.find((layer) => layer.key === "root")?.data ?? input.scrapeResult;
 
   const sourceUrl =
     input.sourceUrl ||
-    String(source.sourceUrl ?? source.originalUrl ?? source.url ?? "").trim();
+    String(
+      rootLayer.sourceUrl ?? rootLayer.originalUrl ?? rootLayer.url ?? "",
+    ).trim();
 
   const identity: TrendyolSourceIdentity | null = sourceUrl
     ? buildTrendyolSourceIdentity(sourceUrl)
     : null;
 
   const scrapedId =
-    source.id ?? source.productId ?? source.contentId ?? input.scrapeResult.id;
+    rootLayer.id ?? rootLayer.productId ?? rootLayer.contentId ?? input.scrapeResult.id;
   const sourceIds = sourceUrl
     ? resolveTrendyolSourceIds(sourceUrl, scrapedId as string | number | undefined)
     : null;
@@ -613,16 +630,24 @@ export function buildCanonicalProductForShopify(
     String(scrapedId ?? "").replace(/\D/g, "") ||
     `unknown-${Date.now()}`;
 
-  const title = String(source.title ?? input.scrapeResult.title ?? "").trim();
+  const title = merged.title.trim();
   if (!title) return null;
 
-  const brand = String(source.brand ?? input.scrapeResult.brand ?? "Generic").trim();
-  const price = extractPrice(source.price ?? input.scrapeResult.price);
+  const brand = merged.brand.trim() || "Generic";
+  const salePriceNum =
+    merged.priceWithProfit > 0 ? merged.priceWithProfit : merged.priceOriginal;
+  if (salePriceNum <= 0) return null;
+  const price = salePriceNum.toFixed(2);
+  const compareAtPrice = pickExplicitCompareAtPrice(rootLayer.price, salePriceNum);
+  const profitRatio =
+    merged.priceOriginal > 0 && merged.priceWithProfit > 0
+      ? merged.priceWithProfit / merged.priceOriginal
+      : 1;
   const stockText = String(
-    source.stockText ?? source.stockStatus ?? input.scrapeResult.stockText ?? "",
+    rootLayer.stockText ?? rootLayer.stockStatus ?? input.scrapeResult.stockText ?? "",
   );
 
-  const variantsRaw = source.variants ?? input.scrapeResult.variants;
+  const variantsRaw = merged.variants ?? rootLayer.variants ?? input.scrapeResult.variants;
   const variantDiagnostics =
     (input.scrapeResult.variantDiagnostics as VariantDiagnostics | undefined) ?? {};
   const domSizeButtons =
@@ -632,7 +657,7 @@ export function buildCanonicalProductForShopify(
       : undefined);
   const scriptSizes = variantDiagnostics.scriptSizes;
   const slicingAttributes =
-    source.slicingAttributes ?? input.scrapeResult.slicingAttributes ?? source.attributes;
+    rootLayer.slicingAttributes ?? input.scrapeResult.slicingAttributes ?? rootLayer.attributes;
 
   const { rows, inputShape, diagnostics: extractDiag } = extractVariantsFromScrape(
     variantsRaw,
@@ -653,7 +678,8 @@ export function buildCanonicalProductForShopify(
       title,
       brand,
       price,
-      images: extractImages(source),
+      compareAtPrice,
+      images: extractImagesFromList(merged.images),
       variants: [],
       outOfStockVariants: [],
       stockSummary: {
@@ -711,7 +737,11 @@ export function buildCanonicalProductForShopify(
       sourceStockQty: row.stockCount ?? null,
       stockConfidence: row.confidence,
       disabledReason: row.disabledReason,
-      price,
+      price: resolveVariantSalePrice(
+        row.price ? String(row.price) : undefined,
+        price,
+        profitRatio,
+      ),
       image: row.image,
     };
   });
@@ -792,7 +822,8 @@ export function buildCanonicalProductForShopify(
     title,
     brand,
     price,
-    images: extractImages(source),
+    compareAtPrice,
+    images: extractImagesFromList(merged.images),
     variants: exportVariants,
     outOfStockVariants: outOfStock,
     stockSummary: {

@@ -117,7 +117,10 @@ app.get('/api/csv/status', (_req, res) => {
       csvExists: info.csvExists,
       csvSize: info.csvSize,
       csvModified,
+      rowCount: info.rowCount,
       productCount: info.productCount,
+      variantRowCount: info.variantRowCount,
+      imageRowCount: info.imageRowCount,
       ready: info.ready,
       filename: info.filename,
       downloadUrl: info.downloadUrl,
@@ -165,15 +168,18 @@ app.get('/api/csv/preview', (req, res) => {
     return res.json({
       headers: parsed.headers,
       rows: uniqueProducts,
-      totalRows: parsed.productCount,
+      rowCount: parsed.rowCount,
+      totalRows: parsed.rowCount,
       uniqueProducts: uniqueProducts.length,
       filename: SHOPIFY_CSV_FILENAME,
       ready: parsed.ready,
       productCount: parsed.productCount,
+      variantRowCount: parsed.variantRowCount,
+      imageRowCount: parsed.imageRowCount,
       debug: {
         filePath: parsed.filePath,
         rawHeaders: parsed.headers.length,
-        rawRows: parsed.productCount,
+        rawRows: parsed.rowCount,
       },
     });
   } catch (error) {

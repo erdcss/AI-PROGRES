@@ -298,7 +298,8 @@ export async function executeShopifyAndTracking(
     });
 
     const { buildScrapeCsvContent } = await import("../scrape-csv-builder");
-    const csvContent = await buildScrapeCsvContent(scrapeResult, canonical.sourceUrl);
+    const csvOutcome = await buildScrapeCsvContent(scrapeResult, canonical.sourceUrl);
+    const csvContent = csvOutcome.csvContent;
     const { buildCanonicalProductForShopify, validateCanonicalForShopifyUpload } = await import(
       "../variant-shape-normalizer"
     );

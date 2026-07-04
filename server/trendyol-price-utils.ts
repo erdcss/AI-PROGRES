@@ -216,11 +216,16 @@ export function normalizeTrendyolPriceValue(raw: unknown): number {
     for (const key of [
       "original",
       "originalPrice",
+      "withProfit",
+      "sale",
       "value",
+      "amount",
+      "current",
+      "currentPrice",
       "sellingPrice",
       "discountedPrice",
-      "currentPrice",
-      "withProfit",
+      "formatted",
+      "profitFormatted",
     ]) {
       if (record[key] != null) {
         const parsed = normalizeTrendyolPriceValue(record[key]);
@@ -230,6 +235,12 @@ export function normalizeTrendyolPriceValue(raw: unknown): number {
   }
 
   return 0;
+}
+
+/** Pozitif fiyat yoksa 0 döner — csv_missing_price teşhisi için */
+export function resolvePositiveTrendyolPrice(raw: unknown): number {
+  const price = normalizeTrendyolPriceValue(raw);
+  return Number.isFinite(price) && price > 0 ? price : 0;
 }
 
 export function pickPlausibleTrendyolPrice(a: number, b: number): number {
