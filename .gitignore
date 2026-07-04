@@ -21,3 +21,6 @@ logs.txt
 # Generated CSV/debug files
 temp/
 scrape-result.json
+
+scrape-out.json
+trendyol-page.html
