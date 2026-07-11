@@ -14,7 +14,7 @@ import AIEnhancedScraper from "@/pages/ai-enhanced-scraper";
 import PriceMovementTest from "@/pages/price-movement-test";
 // Removed auto-csv page import
 // Removed bulk-csv page import
-import { useState, useEffect, useSyncExternalStore, Component, type ReactNode } from "react";
+import { useState, useEffect, useSyncExternalStore, Component, type ReactNode, type ErrorInfo } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -211,15 +211,15 @@ class AppErrorBoundary extends Component<
   state = { error: null as Error | null };
 
   static getDerivedStateFromError(error: Error) {
-    if (import.meta.env.DEV) {
-      console.error("[AppErrorBoundary]", error);
-    }
-    // UI'ı kilitleme — hatayı logla, çocukları render etmeye devam et
-    return { error: null };
+    return { error };
   }
 
-  componentDidCatch(error: Error) {
-    console.error("[AppErrorBoundary] recovered:", error.message);
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("[AppErrorBoundary]", {
+      message: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   private resetError = () => {
@@ -234,8 +234,8 @@ class AppErrorBoundary extends Component<
             <h1 className="text-xl font-semibold">Sayfa yüklenemedi</h1>
             <p className="text-slate-400 text-sm">{this.state.error.message}</p>
             <div className="flex flex-wrap justify-center gap-3">
-              <Button onClick={this.resetError}>Devam Et</Button>
-              <Button variant="outline" onClick={() => { markUserInitiatedReload(); window.location.reload(); }}>Sayfayı Yenile</Button>
+              <Button type="button" onClick={this.resetError}>Tekrar Dene</Button>
+              <Button type="button" variant="outline" onClick={() => { markUserInitiatedReload(); window.location.reload(); }}>Sayfayı Yenile</Button>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { upsertProductFromSource } from "./shopify-upsert-service";
+import { upsertProductFromSource, type UpsertResult } from "./shopify-upsert-service";
 import {
   classifyUploadHttpResult,
   validateBulkUploadItem,
@@ -7,11 +7,146 @@ import {
 } from "./bulk-upload-validator";
 import { findExistingShopifyProduct } from "./shopify-upsert-service";
 import { sanitizeShopifyTags } from "@shared/shopify-tag-sanitizer";
+import type { CanonicalProductForShopify } from "./variant-shape-normalizer";
 
 const DEFAULT_CONCURRENCY = 1;
 
+function extractTrackingPrice(
+  item: BulkUploadItemInput,
+  canonical: CanonicalProductForShopify,
+): number {
+  const price = item.productData?.price;
+  if (typeof price === "number" && price > 0) return price;
+  if (price && typeof price === "object") {
+    const p = price as { original?: number; withProfit?: number };
+    const candidate = Number(p.original ?? p.withProfit ?? 0);
+    if (candidate > 0) return candidate;
+  }
+  const fromCanonical = Number(canonical.price);
+  return Number.isFinite(fromCanonical) && fromCanonical > 0 ? fromCanonical : 0;
+}
+
+async function registerBulkUploadTracking(
+  item: BulkUploadItemInput,
+  canonical: CanonicalProductForShopify,
+  upsert: UpsertResult,
+): Promise<void> {
+  const sourceUrl = String(item.sourceUrl ?? canonical.sourceUrl ?? "").trim();
+  if (!sourceUrl || !upsert.productId) return;
+
+  const price = extractTrackingPrice(item, canonical);
+  if (price <= 0) return;
+
+  try {
+    const { getTrackingSettings } = await import("./services/tracking-settings.service");
+    const trackingSettings = await getTrackingSettings();
+    if (!trackingSettings.trackingEnabled) return;
+
+    const { trackingService } = await import("./services/tracking.service");
+    const mappingBySku = new Map((upsert.variantMappings || []).map((m) => [m.sku, m]));
+
+    await trackingService.registerFromShopifyUpload({
+      sourceUrl,
+      title: canonical.title,
+      price,
+      shopifyProductId: upsert.productId,
+      shopifyHandle: upsert.handle,
+      shopifyProductGid: upsert.productGid,
+      variants: canonical.variants.map((v) => {
+        const mapped = mappingBySku.get(v.sku);
+        return {
+          color: v.color,
+          size: v.size,
+          sku: v.sku,
+          shopifyVariantId: mapped?.shopifyVariantId,
+          price: Number(v.price) || price,
+          inStock: v.inStock,
+        };
+      }),
+    });
+
+    try {
+      const { urlTrackingService } = await import("./url-tracking-service");
+      await urlTrackingService.enableTracking(sourceUrl, upsert.productId);
+    } catch {
+      /* legacy url_tracking — v2 kaydı yeterli */
+    }
+
+    const { db } = await import("./db");
+    const { shopifyTransferredProducts } = await import("@shared/schema");
+    await db
+      .insert(shopifyTransferredProducts)
+      .values({
+        sourceUrl,
+        shopifyProductId: upsert.productId,
+        shopifyHandle: upsert.handle ?? "",
+        title: canonical.title,
+        brand: canonical.brand ?? "",
+        shopifyPrice: String(price),
+        originalPrice: String(price),
+        variantCount: canonical.variants.length || 1,
+        imageCount: canonical.images.length,
+        trackingEnabled: true,
+        currentStatus: "active",
+      })
+      .onConflictDoUpdate({
+        target: shopifyTransferredProducts.sourceUrl,
+        set: {
+          shopifyProductId: upsert.productId,
+          title: canonical.title,
+          variantCount: canonical.variants.length || 1,
+          imageCount: canonical.images.length,
+          trackingEnabled: true,
+          currentStatus: "active",
+          updatedAt: new Date(),
+        },
+      });
+  } catch (err) {
+    console.warn("[BulkUpload] Takip kaydı atlandı:", err);
+  }
+}
+
 async function sleep(ms: number): Promise<void> {
   await new Promise((r) => setTimeout(r, ms));
+}
+
+async function verifyAndActivateShopifyProduct(productId: string): Promise<{
+  verified: boolean;
+  shopifyStatus?: string;
+}> {
+  const { shopifyAdminFetch, parseShopifyAdminResponse } = await import("./shopify-token-manager");
+
+  const { response } = await shopifyAdminFetch(`/products/${productId}.json`);
+  if (!response.ok) {
+    return { verified: false };
+  }
+
+  const data = (await parseShopifyAdminResponse(response)) as {
+    product?: { status?: string };
+  };
+  let status = data.product?.status ?? "unknown";
+
+  if (status !== "active") {
+    const activate = await shopifyAdminFetch(`/products/${productId}.json`, {
+      method: "PUT",
+      body: JSON.stringify({ product: { id: productId, status: "active" } }),
+    });
+    if (activate.response.ok) {
+      status = "active";
+    }
+  }
+
+  return { verified: status === "active", shopifyStatus: status };
+}
+
+function buildAdminProductUrl(productId: string): string | undefined {
+  const domain =
+    process.env.SHOPIFY_SHOP_DOMAIN?.trim() ||
+    process.env.SHOPIFY_STORE_DOMAIN?.trim() ||
+    "";
+  if (!domain) return undefined;
+  const host = domain.includes(".myshopify.com") ? domain : `${domain}.myshopify.com`;
+  return `https://${host}/admin/products/${productId}`;
 }
 
 async function uploadSingleItem(
@@ -56,14 +191,48 @@ async function uploadSingleItem(
     try {
       const upsert = await upsertProductFromSource(csvContent, canonical);
       if (upsert.success) {
+        if (upsert.mode !== "skipped" && upsert.productId) {
+          setImmediate(() => {
+            registerBulkUploadTracking(item, canonical, upsert).catch((err) => {
+              console.warn("[BulkUpload] Arka plan takip kaydı atlandı:", err);
+            });
+          });
+        }
+
+        let verified = false;
+        let shopifyStatus: string | undefined;
+        if (upsert.productId) {
+          const check = await verifyAndActivateShopifyProduct(upsert.productId);
+          verified = check.verified;
+          shopifyStatus = check.shopifyStatus;
+        }
+
+        const adminUrl = upsert.productId ? buildAdminProductUrl(upsert.productId) : undefined;
+
+        if (upsert.productId && !verified) {
+          return {
+            ...base,
+            success: false,
+            status: "failed",
+            productId: upsert.productId,
+            adminUrl,
+            mode: upsert.mode,
+            verified: false,
+            shopifyStatus,
+            errorCode: "shopify_verify_failed",
+            error: "Shopify'da ürün doğrulanamadı — admin panelini kontrol edin",
+          };
+        }
+
         return {
           ...base,
           success: true,
           status: upsert.mode === "skipped" ? "already_exists" : "success",
           productId: upsert.productId,
-          adminUrl: upsert.productId
-            ? `https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/products/${upsert.productId}`
-            : undefined,
+          adminUrl,
+          mode: upsert.mode,
+          verified,
+          shopifyStatus,
         };
       }
 
@@ -89,11 +258,15 @@ async function uploadSingleItem(
           handle: canonical.handle,
         });
         if (existing?.id) {
+          const adminUrl = buildAdminProductUrl(existing.id);
           return {
             ...base,
             success: true,
             status: "already_exists",
             productId: existing.id,
+            adminUrl,
+            mode: "updated",
+            verified: true,
           };
         }
       }

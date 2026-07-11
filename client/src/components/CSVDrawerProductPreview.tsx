@@ -1,8 +1,9 @@
 import { memo, useMemo, useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Package, Tag, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Package, Tag, X, Download, ShoppingCart, ChevronDown, ChevronUp, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { resolvePreviewImagesForEntry, resolvePreviewProxyUrl } from "@/lib/product-image-url";
 import { resolvePreviewVariants } from "@/lib/preview-variants";
 import { sanitizeTrendyolVariants, pickVariantsForPreview, summarizeVariantStock } from "@shared/trendyol-variant-utils";
@@ -13,7 +14,8 @@ import {
   formatSalePrice,
   formatProfitPercentage,
 } from "@/utils/price-utils";
-import { isBlockedShopifyTag, sanitizeShopifyTags } from "@shared/shopify-tag-sanitizer";
+import { isBlockedShopifyTag } from "@shared/shopify-tag-sanitizer";
+import type { CsvStatusResponse } from "@/lib/shopify-csv-download";
 
 function PreviewCarouselImage({
   directUrl,
@@ -77,6 +79,199 @@ function PreviewCarouselImage({
   );
 }
 
+const TURKISH_COLOR_SWATCHES: Record<string, string> = {
+  siyah: "#171717",
+  beyaz: "#f5f5f5",
+  gri: "#9ca3af",
+  lacivert: "#1e3a8a",
+  mavi: "#3b82f6",
+  kırmızı: "#dc2626",
+  kirmizi: "#dc2626",
+  yeşil: "#16a34a",
+  yesil: "#16a34a",
+  sarı: "#eab308",
+  sari: "#eab308",
+  turuncu: "#ea580c",
+  mor: "#7c3aed",
+  pembe: "#ec4899",
+  bej: "#d4b896",
+  kahverengi: "#78350f",
+  bordo: "#7f1d1d",
+  haki: "#6b7280",
+  ekru: "#e8dcc8",
+  antrasit: "#374151",
+};
+
+function resolveSwatchColor(name: string, colorCode?: string): string {
+  const code = colorCode?.trim();
+  if (code && /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(code)) return code;
+  const mapped = TURKISH_COLOR_SWATCHES[name.toLowerCase().trim()];
+  if (mapped) return mapped;
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 42%, 42%)`;
+}
+
+function MiniThumb({ url, alt, index }: { url: string; alt: string; index: number }) {
+  return (
+    <div
+      className="w-9 h-9 rounded-md overflow-hidden border border-zinc-700/80 shrink-0 shadow-sm animate-in fade-in zoom-in-95 duration-300 fill-mode-both bg-zinc-900"
+      style={{ animationDelay: `${index * 35}ms` }}
+    >
+      <PreviewCarouselImage directUrl={url} alt={alt} />
+    </div>
+  );
+}
+
+type StatPreviewKind = "image" | "color" | "size" | "variant";
+
+function StatPreviewCard({
+  label,
+  value,
+  kind,
+  images,
+  colors,
+  sizes,
+  variants,
+  productTitle,
+}: {
+  label: string;
+  value: number;
+  kind: StatPreviewKind;
+  images: string[];
+  colors: Array<{ name: string; inStock: boolean; colorCode?: string }>;
+  sizes: Array<{ name: string; inStock: boolean }>;
+  variants: Array<{ color: string; size: string; inStock: boolean; colorCode?: string }>;
+  productTitle: string;
+}) {
+  const inStockCount = variants.filter((v) => v.inStock).length;
+
+  return (
+    <HoverCard openDelay={100} closeDelay={60}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="px-2.5 py-1 rounded-md bg-zinc-900/80 border border-zinc-800 text-center min-w-[64px] transition-all duration-200 hover:border-zinc-600 hover:bg-zinc-800/90 hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600/40"
+        >
+          <div className="text-sm font-semibold text-zinc-200">{value}</div>
+          <div className="text-[10px] text-zinc-500">{label}</div>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="top"
+        align="center"
+        sideOffset={8}
+        className="w-auto max-w-[300px] p-3 bg-zinc-950/95 border-zinc-700/80 shadow-xl backdrop-blur-sm"
+      >
+        {kind === "image" && (
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase tracking-wide text-zinc-500 font-medium">Görseller</p>
+            <div className="flex flex-wrap gap-1.5 max-w-[272px] max-h-[220px] overflow-y-auto">
+              {images.map((url, i) => (
+                <MiniThumb key={`${url}-${i}`} url={url} alt={productTitle} index={i} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {kind === "color" && (
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase tracking-wide text-zinc-500 font-medium">Renk paleti</p>
+            <div className="flex flex-wrap gap-2 max-w-[272px]">
+              {colors.map((entry, i) => {
+                const fill = resolveSwatchColor(
+                  entry.name,
+                  variants.find((v) => v.color === entry.name)?.colorCode,
+                );
+                const light = fill === "#f5f5f5" || fill === "#e8dcc8" || fill === "#d4b896";
+                return (
+                  <div
+                    key={`${entry.name}-${i}`}
+                    className="flex flex-col items-center gap-1 animate-in fade-in zoom-in-90 duration-300 fill-mode-both"
+                    style={{ animationDelay: `${i * 40}ms` }}
+                    title={entry.name}
+                  >
+                    <div
+                      className={`w-7 h-7 rounded-full border-2 shadow-inner transition-transform hover:scale-110 ${
+                        entry.inStock ? "border-zinc-600" : "border-zinc-700 opacity-40"
+                      } ${light ? "ring-1 ring-zinc-600" : ""}`}
+                      style={{ backgroundColor: fill }}
+                    />
+                    <span className="text-[9px] text-zinc-500 max-w-[48px] truncate">{entry.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {kind === "size" && (
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase tracking-wide text-zinc-500 font-medium">Bedenler</p>
+            <div className="flex flex-wrap gap-1.5 max-w-[272px]">
+              {sizes.map((entry, i) => (
+                <span
+                  key={`${entry.name}-${i}`}
+                  className={`inline-flex min-w-[2rem] justify-center px-2 py-1 rounded-md text-[11px] font-medium border animate-in fade-in slide-in-from-bottom-1 duration-300 fill-mode-both ${
+                    entry.inStock
+                      ? "border-emerald-800/50 bg-emerald-950/40 text-emerald-300"
+                      : "border-zinc-700 bg-zinc-900/60 text-zinc-500 line-through opacity-60"
+                  }`}
+                  style={{ animationDelay: `${i * 30}ms` }}
+                >
+                  {entry.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {kind === "variant" && (
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wide text-zinc-500 font-medium">Varyant özeti</p>
+              <span className="text-[10px] text-emerald-400/90 tabular-nums">
+                {inStockCount}/{variants.length} stokta
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1 max-h-[140px] overflow-y-auto pr-0.5">
+              {variants.slice(0, 24).map((v, i) => {
+                const swatch = resolveSwatchColor(v.color, v.colorCode);
+                return (
+                  <div
+                    key={`${v.color}-${v.size}-${i}`}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] animate-in fade-in slide-in-from-left-1 duration-300 fill-mode-both ${
+                      v.inStock
+                        ? "border-zinc-700/80 bg-zinc-900/70 text-zinc-300"
+                        : "border-zinc-800 bg-zinc-950/50 text-zinc-600 opacity-55"
+                    }`}
+                    style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0 ring-1 ring-zinc-600/50"
+                      style={{ backgroundColor: swatch }}
+                    />
+                    <span className="truncate flex-1 min-w-0">
+                      {v.color && v.size ? `${v.color} · ${v.size}` : v.size || v.color || "—"}
+                    </span>
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${v.inStock ? "bg-emerald-500" : "bg-zinc-600"}`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            {variants.length > 24 && (
+              <p className="text-[10px] text-zinc-500 text-center">+{variants.length - 24} varyant daha</p>
+            )}
+          </div>
+        )}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
 export interface CSVPreviewData {
   id: string;
   productTitle: string;
@@ -123,6 +318,20 @@ export interface CSVPreviewData {
   };
   brand?: string;
   createdAt: string;
+  description?: string;
+  category?: string;
+  features?: Array<{ key: string; value: string }>;
+  csvPreview?: {
+    headers?: string[];
+    rows?: string[][];
+    rowCount?: number;
+  };
+  csvInfo?: CsvStatusResponse;
+  restoredFromDisk?: boolean;
+  approvedForShopify?: boolean;
+  shopifyUploadBlocked?: boolean;
+  blockReason?: string;
+  titleSource?: string;
 }
 
 export interface ProductPreviewProps {
@@ -134,6 +343,17 @@ export interface ProductPreviewProps {
   onSelectImage?: (index: number) => void;
   onRemoveTag: (tagIndex: number) => void;
   onAddTag: (tag: string) => void;
+  selected?: boolean;
+  onSelectChange?: () => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+  onDownload?: () => void;
+  onShopifyUpload?: () => void;
+  isUploading?: boolean;
+  uploadDisabled?: boolean;
+  uploadDisabledReason?: string;
+  csvHeaders?: string[];
+  csvRows?: string[][];
 }
 
 export const ProductPreview = memo(function ProductPreview({
@@ -145,7 +365,52 @@ export const ProductPreview = memo(function ProductPreview({
   onSelectImage,
   onRemoveTag,
   onAddTag,
+  selected,
+  onSelectChange,
+  isExpanded,
+  onToggleExpand,
+  onDownload,
+  onShopifyUpload,
+  isUploading,
+  uploadDisabled,
+  uploadDisabledReason,
+  csvHeaders = [],
+  csvRows = [],
 }: ProductPreviewProps) {
+    const safeTitle =
+      typeof preview.productTitle === "string" && preview.productTitle.trim()
+        ? preview.productTitle.trim()
+        : "Ürün";
+
+    const safeCsvContent =
+      typeof preview.csvContent === "string"
+        ? preview.csvContent
+        : "";
+
+    const safeImages = Array.isArray(preview.images)
+      ? preview.images.filter(
+          (image): image is string =>
+            typeof image === "string" && image.trim().length > 0,
+        )
+      : [];
+
+    const safeVariants =
+      preview.variants && typeof preview.variants === "object"
+        ? preview.variants
+        : {
+            colors: [],
+            sizes: [],
+            allVariants: [],
+          };
+
+    const safePreview: CSVPreviewData = {
+      ...preview,
+      productTitle: safeTitle,
+      csvContent: safeCsvContent,
+      images: safeImages,
+      variants: safeVariants,
+    };
+
     const parseCsvLine = (line: string): string[] => {
       const result: string[] = [];
       let current = "";
@@ -166,12 +431,12 @@ export const ProductPreview = memo(function ProductPreview({
     };
 
     const canonicalPreview = resolvePreviewVariants({
-      canonicalProduct: preview.canonicalProduct,
-      variants: preview.variants,
+      canonicalProduct: safePreview.canonicalProduct,
+      variants: safePreview.variants,
     });
 
     const variantsFromCsv = (() => {
-      const lines = preview.csvContent.split("\n").filter((line) => line.trim());
+      const lines = safeCsvContent.split("\n").filter((line) => line.trim());
       if (lines.length < 2) {
         return { colors: [] as string[], sizes: [] as string[], allVariants: [] as Array<{ color: string; size: string; inStock: boolean }> };
       }
@@ -228,19 +493,19 @@ export const ProductPreview = memo(function ProductPreview({
               allVariants: canonicalPreview.variants,
               items: canonicalPreview.variants,
             },
-            { productTitle: preview.productTitle },
+            { productTitle: safeTitle },
           )
-        : sanitizeTrendyolVariants(preview.variants, {
-            productTitle: preview.productTitle,
+        : sanitizeTrendyolVariants(safePreview.variants, {
+            productTitle: safeTitle,
           });
     const sanitizedFromCsv = sanitizeTrendyolVariants(variantsFromCsv, {
-      productTitle: preview.productTitle,
+      productTitle: safeTitle,
     });
     const sanitizedVariants = pickVariantsForPreview(sanitizedFromPayload, sanitizedFromCsv);
     const stockSummary = summarizeVariantStock(sanitizedVariants);
     const { urls: previewImages } = resolvePreviewImagesForEntry({
-      images: preview.images,
-      csvContent: preview.csvContent,
+      images: safeImages,
+      csvContent: safeCsvContent,
     });
     const safeImageIndex =
       previewImages.length > 0
@@ -251,7 +516,7 @@ export const ProductPreview = memo(function ProductPreview({
     
     // Extract tracking ID from CSV
     const getTrackingId = () => {
-      const lines = preview.csvContent.split('\n').filter(line => line.trim());
+      const lines = safeCsvContent.split('\n').filter(line => line.trim());
       if (lines.length < 2) return null;
       
       // Parse CSV with proper comma splitting (handling quoted values)
@@ -316,7 +581,7 @@ export const ProductPreview = memo(function ProductPreview({
       }
       
       // Try to extract price from CSV content with advanced parsing
-      const lines = preview.csvContent.split('\n').filter(line => line.trim());
+      const lines = safeCsvContent.split('\n').filter(line => line.trim());
       if (lines.length < 2) return { original: 0, withProfit: 0 };
       
       // Parse CSV with proper comma splitting (handling quoted values)
@@ -343,10 +608,6 @@ export const ProductPreview = memo(function ProductPreview({
       const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
       const firstDataRow = parseCSVLine(lines[1]).map(cell => cell.replace(/"/g, '').trim());
       
-      console.log('🔍 CSV Headers:', headers);
-      console.log('🔍 First Data Row:', firstDataRow);
-      
-      // Multiple price detection strategies
       const priceIndicators = [
         'Variant Price', 'Price', 'price', 'Fiyat', 'fiyat',
         'Cost', 'cost', 'Amount', 'amount', 'Value', 'value'
@@ -361,7 +622,6 @@ export const ProductPreview = memo(function ProductPreview({
           const extracted = parseFloat(firstDataRow[priceIndex].replace(/[^0-9.,]/g, '').replace(',', '.'));
           if (extracted > 0) {
             priceValue = extracted;
-            console.log(`💰 Price found via header "${indicator}": ${priceValue}`);
             break;
           }
         }
@@ -372,9 +632,8 @@ export const ProductPreview = memo(function ProductPreview({
         for (const cell of firstDataRow) {
           const cleaned = cell.replace(/[^0-9.,]/g, '').replace(',', '.');
           const extracted = parseFloat(cleaned);
-          if (extracted > 10 && extracted < 10000) { // Reasonable price range
+          if (extracted > 10 && extracted < 10000) {
             priceValue = extracted;
-            console.log(`💰 Price found via cell search: ${priceValue}`);
             break;
           }
         }
@@ -382,11 +641,10 @@ export const ProductPreview = memo(function ProductPreview({
       
       // Strategy 3: Extract from title
       if (priceValue === 0) {
-        const title = preview.productTitle;
+        const title = safeTitle;
         const priceMatch = title.match(/(\d+[.,]\d+|\d+)\s*(?:TL|₺|lira)/i);
         if (priceMatch) {
           priceValue = parseFloat(priceMatch[1].replace(',', '.'));
-          console.log(`💰 Price found via title: ${priceValue}`);
         }
       }
       
@@ -401,7 +659,7 @@ export const ProductPreview = memo(function ProductPreview({
     };
     
     const prices = (() => {
-      const fromPreview = normalizeTrendyolDisplayPrice(preview.price, 0.1);
+      const fromPreview = normalizeTrendyolDisplayPrice(safePreview.price, 0.1);
       if (fromPreview.original > 0) return fromPreview;
       const fromCsv = parsePriceFromCSV();
       return normalizeTrendyolDisplayPrice(
@@ -415,340 +673,341 @@ export const ProductPreview = memo(function ProductPreview({
     const variantCount = sanitizedVariants.allVariants.length;
     const imageCount = previewImages.length;
 
+    const hasCsvTable = csvHeaders.length > 0 && csvRows.length > 0;
+
+    const colorEntries = stockSummary.colors.map((entry) => ({
+      name: entry.name,
+      inStock: entry.inStock,
+      colorCode: sanitizedVariants.allVariants.find((v) => v.color === entry.name)?.colorCode,
+    }));
+
+    const statCards: Array<{
+      label: string;
+      value: number;
+      kind: StatPreviewKind;
+      show: boolean;
+    }> = [
+      { label: "Görsel", value: imageCount, kind: "image", show: imageCount > 0 },
+      { label: "Renk", value: colorCount, kind: "color", show: colorCount > 0 },
+      { label: "Beden", value: sizeCount, kind: "size", show: sizeCount > 0 },
+      { label: "Varyant", value: variantCount, kind: "variant", show: variantCount > 0 },
+    ];
+
     return (
-      <Card className="bg-slate-800/40 border border-slate-600/50 mb-3">
-        <CardContent className="p-3">
-          <div className="flex gap-3">
-            {/* Sol taraf - Görsel ve Slider */}
-            <div className="relative w-[100px] h-[100px] flex-shrink-0 bg-slate-700/30 rounded overflow-hidden border border-slate-600/30">
+      <Card className="bg-zinc-950/70 border border-zinc-800/90 rounded-xl overflow-hidden shadow-sm hover:border-zinc-700/80 transition-colors">
+        <CardContent className="p-0">
+          {/* Üst satır — geniş özet */}
+          <div className="flex items-stretch gap-0 min-h-[148px]">
+            {onSelectChange && (
+              <div className="flex items-start pt-5 pl-4 pr-1">
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={onSelectChange}
+                  className="w-4 h-4 rounded border-zinc-600 text-emerald-500 focus:ring-emerald-600/40 focus:ring-offset-zinc-950 cursor-pointer"
+                />
+              </div>
+            )}
+
+            {/* Görsel */}
+            <div className="relative w-[168px] min-w-[168px] m-4 rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800">
               {currentImageUrl ? (
                 <>
                   <PreviewCarouselImage
                     directUrl={currentImageUrl}
-                    alt={preview.productTitle}
+                    alt={safeTitle}
                     onFailed={() => {
                       if (previewImages.length > 1) {
                         onSelectImage?.((safeImageIndex + 1) % previewImages.length);
                       }
                     }}
                   />
-                  
                   {hasMultipleImages && (
                     <>
                       <button
+                        type="button"
                         onClick={onPrevImage}
-                        className="absolute left-1 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full opacity-70 hover:opacity-100 transition-opacity"
+                        className="absolute left-1.5 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1 rounded-full hover:bg-black/80"
                       >
-                        <ChevronLeft className="w-3 h-3" />
+                        <ChevronLeft className="w-4 h-4" />
                       </button>
-                      
                       <button
+                        type="button"
                         onClick={onNextImage}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full opacity-70 hover:opacity-100 transition-opacity"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1 rounded-full hover:bg-black/80"
                       >
-                        <ChevronRight className="w-3 h-3" />
+                        <ChevronRight className="w-4 h-4" />
                       </button>
-                      
-                      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1 max-w-[90px] overflow-x-auto">
-                        {previewImages.map((_, index) => (
-                          <button
-                            key={index}
-                            type="button"
-                            aria-label={`Görsel ${index + 1}`}
-                            onClick={() => onSelectImage?.(index)}
-                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors ${
-                              index === safeImageIndex ? 'bg-cyan-400' : 'bg-white/40 hover:bg-white/70'
-                            }`}
-                          />
-                        ))}
+                      <div className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-white/80 bg-black/40 py-0.5">
+                        {safeImageIndex + 1} / {previewImages.length}
                       </div>
                     </>
                   )}
                 </>
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
-                  <Package className="w-6 h-6" />
+                <div className="w-full h-full min-h-[140px] flex items-center justify-center text-zinc-500">
+                  <Package className="w-8 h-8" />
                 </div>
               )}
             </div>
-            
-            {/* Sağ taraf - Ürün Bilgileri */}
-            <div className="flex-1 min-w-0 space-y-2">
-              {/* Ürün Başlığı */}
-              <div>
-                <h3 className="text-white font-medium text-sm leading-tight line-clamp-2">
-                  {preview.productTitle}
-                </h3>
-              </div>
-              
-              {/* ID Bilgisi */}
-              {trackingId && (
-                <div className="flex items-center gap-1">
-                  <span className="text-slate-500 text-xs">ID:</span>
-                  <Badge className="bg-purple-900/30 text-purple-300 text-xs px-2 py-0 h-4 font-mono">
-                    {trackingId}
-                  </Badge>
+
+            {/* Orta — bilgi */}
+            <div className="flex-1 min-w-0 py-4 pr-4 flex flex-col justify-between gap-3">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {preview.brand && (
+                    <span className="text-[11px] uppercase tracking-wide text-zinc-500 font-medium">
+                      {preview.brand}
+                    </span>
+                  )}
+                  {preview.restoredFromDisk && (
+                    <Badge variant="outline" className="border-amber-700/50 text-amber-300 text-[10px] h-5">
+                      Diskten geri yüklendi
+                    </Badge>
+                  )}
+                  {trackingId && (
+                    <Badge className="bg-violet-950/50 text-violet-300 text-[10px] h-5 font-mono">
+                      {trackingId}
+                    </Badge>
+                  )}
                 </div>
-              )}
-              
-              {/* Özet sayılar */}
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                <Badge variant="outline" className="border-slate-600/50 text-slate-300 px-1.5 py-0 h-4">
-                  {imageCount} görsel
-                </Badge>
-                {colorCount > 0 && (
-                  <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 px-1.5 py-0 h-4">
-                    {colorCount} renk
-                  </Badge>
-                )}
-                {sizeCount > 0 && (
-                  <Badge variant="outline" className="border-green-600/40 text-green-300 px-1.5 py-0 h-4">
-                    {sizeCount} beden
-                  </Badge>
-                )}
-                {variantCount > 0 && (
-                  <Badge variant="outline" className="border-purple-600/40 text-purple-300 px-1.5 py-0 h-4">
-                    {variantCount} varyant
-                  </Badge>
-                )}
+                <h3 className="text-zinc-100 font-medium text-base leading-snug line-clamp-2">
+                  {safeTitle}
+                </h3>
+
+                <div className="flex flex-wrap gap-2">
+                  {statCards
+                    .filter((s) => s.show)
+                    .map((stat) => (
+                      <StatPreviewCard
+                        key={stat.label}
+                        label={stat.label}
+                        value={stat.value}
+                        kind={stat.kind}
+                        images={previewImages}
+                        colors={colorEntries}
+                        sizes={stockSummary.sizes}
+                        variants={sanitizedVariants.allVariants}
+                        productTitle={safeTitle}
+                      />
+                    ))}
+                </div>
               </div>
 
-              {/* Fiyat Bilgileri */}
-              {prices.original > 0 && (
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">Alış:</span>
-                    <span className="text-orange-300 font-semibold">
+              <div className="flex flex-wrap items-center gap-3">
+                {prices.original > 0 && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800 text-sm">
+                    <span className="text-zinc-500">Alış</span>
+                    <span className="text-orange-300 font-semibold tabular-nums">
                       {formatOriginalPrice(prices)}
                     </span>
-                  </div>
-                  <span className="text-slate-600">→</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">Karlı satış:</span>
-                    <span className="text-green-300 font-semibold">
+                    <span className="text-zinc-600">→</span>
+                    <span className="text-zinc-500">Satış</span>
+                    <span className="text-emerald-400 font-semibold tabular-nums">
                       {formatSalePrice(prices)}
                     </span>
+                    <Badge variant="outline" className="border-emerald-800/50 text-emerald-400 text-[10px] h-5">
+                      {formatProfitPercentage(prices)}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className="border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4">
-                    {formatProfitPercentage(prices)}
-                  </Badge>
-                </div>
-              )}
-              
-              {/* Varyant detayları */}
-              <div className="space-y-1.5 pt-2 border-t border-slate-700/30">
-                {(stockSummary.outOfStockCount > 0 || stockSummary.colors.some((c) => !c.inStock) || stockSummary.sizes.some((s) => !s.inStock)) && (
-                  <p className="text-[10px] text-slate-500 leading-snug">
-                    Gri etiketler stokta yok — yalnızca önizlemede gösterilir, CSV/Shopify dosyasına eklenmez.
-                  </p>
                 )}
                 {preview.stockSummary && (
-                  <p className="text-[10px] text-slate-500">
-                    Stok güveni: <span className="text-slate-300">{preview.stockSummary.confidence}</span>
-                    {" · "}
-                    {preview.stockSummary.inStockVariants}/{preview.stockSummary.totalVariants} Shopify&apos;a aktarılacak
+                  <span className="text-xs text-zinc-500">
+                    Stok:{" "}
+                    <span className="text-zinc-300">
+                      {preview.stockSummary.inStockVariants}/{preview.stockSummary.totalVariants}
+                    </span>{" "}
+                    aktarılacak
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Sağ — aksiyonlar */}
+            <div className="flex flex-col justify-center gap-2 p-4 border-l border-zinc-800/80 bg-zinc-900/30 min-w-[52px]">
+              {onDownload && (
+                <Button
+                  type="button"
+                  onClick={onDownload}
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-9 p-0 border-zinc-700 text-emerald-400 hover:bg-emerald-950/30"
+                  title="CSV İndir"
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
+              )}
+              {onShopifyUpload && (
+                <Button
+                  type="button"
+                  onClick={onShopifyUpload}
+                  size="sm"
+                  disabled={uploadDisabled || isUploading}
+                  className="h-9 w-9 p-0 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50"
+                  title={uploadDisabledReason || "Shopify'a Aktar"}
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ShoppingCart className="w-4 h-4" />
+                  )}
+                </Button>
+              )}
+              {onToggleExpand && (
+                <Button
+                  type="button"
+                  onClick={onToggleExpand}
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-200"
+                  title={isExpanded ? "Daralt" : "Detayları göster"}
+                >
+                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Etiketler — her zaman görünür, sade şerit */}
+          <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5 border-t border-zinc-800/60 pt-3 bg-zinc-900/20">
+            <Tag className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+            {tags.map((tag, index) => (
+              <Badge
+                key={`manual-${index}`}
+                variant="outline"
+                className="border-cyan-800/40 text-cyan-300 text-xs h-6 gap-1 group"
+              >
+                {tag}
+                <X
+                  className="w-3 h-3 cursor-pointer opacity-50 group-hover:opacity-100 text-red-400"
+                  onClick={() => onRemoveTag(index)}
+                />
+              </Badge>
+            ))}
+            <input
+              type="text"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const input = e.target as HTMLInputElement;
+                  const newTag = input.value.trim();
+                  if (newTag && !isBlockedShopifyTag(newTag)) {
+                    onAddTag(newTag);
+                    input.value = "";
+                  }
+                }
+              }}
+              placeholder="Etiket ekle (Enter)"
+              className="h-7 min-w-[140px] flex-1 max-w-xs text-xs bg-zinc-950 border border-zinc-800 rounded-md px-2 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+              data-testid={`input-add-tag-${preview.id}`}
+            />
+          </div>
+
+          {/* Genişletilmiş detay */}
+          {isExpanded && (
+            <div className="border-t border-zinc-800/80 px-4 py-4 space-y-4 bg-zinc-950/50">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                    Renkler ({colorCount})
                   </p>
-                )}
-                {preview.variants?.items && preview.variants.items.filter((i) => !i.inStock).length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {preview.variants.items
-                      .filter((i) => !i.inStock)
-                      .map((item) => (
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                    {stockSummary.colors.length > 0 ? (
+                      stockSummary.colors.map((entry, idx) => (
                         <Badge
-                          key={item.key}
+                          key={idx}
                           variant="outline"
-                          className="border-red-700/40 text-red-400 text-[10px] px-1.5 py-0 h-4"
-                          title={item.disabledReason || "Shopify'a aktarılmayacak"}
+                          className={
+                            entry.inStock
+                              ? "border-cyan-800/40 text-cyan-300 text-xs"
+                              : "border-zinc-700 text-zinc-500 text-xs line-through opacity-60"
+                          }
                         >
-                          {item.key} — Shopify&apos;a aktarılmayacak
+                          {entry.name}
                         </Badge>
-                      ))}
+                      ))
+                    ) : (
+                      <span className="text-xs text-zinc-600">—</span>
+                    )}
                   </div>
-                )}
-                {/* Renk Seçenekleri — stok durumu ile */}
-                <div className="flex items-start gap-1.5">
-                  <span className="text-slate-400 text-xs flex-shrink-0 mt-0.5">
-                    Renkler ({colorCount}):
-                  </span>
-                  {colorCount > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {stockSummary.colors.map((entry, idx) => (
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                    Bedenler ({sizeCount})
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                    {stockSummary.sizes.length > 0 ? (
+                      stockSummary.sizes.map((entry, idx) => (
                         <Badge
                           key={idx}
                           variant="outline"
-                          title={entry.inStock ? "Stokta" : "Stokta yok"}
                           className={
                             entry.inStock
-                              ? "border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4"
-                              : "border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 opacity-60 line-through decoration-gray-600"
+                              ? "border-emerald-800/40 text-emerald-300 text-xs"
+                              : "border-zinc-700 text-zinc-500 text-xs line-through opacity-60"
                           }
                         >
                           {entry.name}
                         </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-slate-500 text-xs">Renk bilgisi yok</span>
-                  )}
-                </div>
-
-                {/* Beden Seçenekleri — stok durumu ile */}
-                <div className="flex items-start gap-1.5">
-                  <span className="text-slate-400 text-xs flex-shrink-0 mt-0.5">
-                    Bedenler ({sizeCount}):
-                  </span>
-                  {sizeCount > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {stockSummary.sizes.map((entry, idx) => (
-                        <Badge
-                          key={idx}
-                          variant="outline"
-                          title={entry.inStock ? "Stokta" : "Stokta yok"}
-                          className={
-                            entry.inStock
-                              ? "border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4"
-                              : "border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 opacity-60 line-through decoration-gray-600"
-                          }
-                        >
-                          {entry.name}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-slate-500 text-xs">Beden bilgisi yok</span>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-1">
-                  {variantCount > 0 ? (
-                    <>
-                      <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-1.5 py-0 h-4">
-                        {stockSummary.inStockCount}/{variantCount} varyant stokta
-                      </Badge>
-                      {stockSummary.outOfStockCount > 0 && (
-                        <Badge variant="outline" className="border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4">
-                          {stockSummary.outOfStockCount} stok dışı
-                        </Badge>
-                      )}
-                    </>
-                  ) : colorCount === 0 && sizeCount === 0 ? (
-                    <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-1.5 py-0 h-4">
-                      Tek ürün
-                    </Badge>
-                  ) : null}
-                </div>
-
-                <div className="flex items-start gap-1.5">
-                  <Tag className="w-3 h-3 text-cyan-400 mt-0.5 flex-shrink-0" />
-                  
-                  <div className="flex-1 space-y-1">
-                    {/* Tüm Etiketler Tek Satırda */}
-                    <div className="flex flex-wrap gap-1">
-                      {/* CSV'den Gelen Ürün Etiketleri */}
-                      {(() => {
-                        const lines = preview.csvContent.split('\n').filter(line => line.trim());
-                        if (lines.length < 2) return null;
-                        
-                        const parseCSVLine = (line: string) => {
-                          const result = [];
-                          let current = '';
-                          let inQuotes = false;
-                          
-                          for (let i = 0; i < line.length; i++) {
-                            const char = line[i];
-                            if (char === '"') {
-                              inQuotes = !inQuotes;
-                            } else if (char === ',' && !inQuotes) {
-                              result.push(current.trim());
-                              current = '';
-                            } else {
-                              current += char;
-                            }
-                          }
-                          result.push(current.trim());
-                          return result;
-                        };
-
-                        const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
-                        const firstDataRow = parseCSVLine(lines[1]).map(cell => cell.replace(/"/g, '').trim());
-                        const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
-                        
-                        if (tagsIndex !== -1 && firstDataRow[tagsIndex]) {
-                          const productTags = sanitizeShopifyTags(
-                            firstDataRow[tagsIndex]
-                              .split(',')
-                              .map(tag => tag.trim())
-                              .filter(tag => tag.length > 0),
-                          );
-                          
-                          return productTags.map((tag, index) => (
-                            <Badge 
-                              key={`product-${index}`}
-                              variant="outline" 
-                              className="border-slate-600/40 text-slate-300 text-xs px-1.5 py-0 h-4"
-                            >
-                              {tag}
-                            </Badge>
-                          ));
-                        }
-                        return null;
-                      })()}
-                      
-                      {/* Manuel Eklenen Etiketler */}
-                      {tags?.map((tag, index) => (
-                        <Badge 
-                          key={`manual-${index}`}
-                          variant="outline" 
-                          className="border-cyan-600/50 text-cyan-300 text-xs px-1.5 py-0 h-4 flex items-center gap-0.5 hover:border-red-500/60 group"
-                          data-testid={`tag-individual-${preview.id}-${index}`}
-                        >
-                          {tag}
-                          <X 
-                            className="w-2.5 h-2.5 cursor-pointer opacity-0 group-hover:opacity-100 text-red-400 transition-opacity" 
-                            onClick={() => onRemoveTag(index)}
-                          />
-                        </Badge>
-                      ))}
-                      
-                      {/* Etiket Ekle Butonu */}
-                      <Button
-                        onClick={() => {
-                          const input = document.querySelector(`[data-testid="input-add-tag-${preview.id}"]`) as HTMLInputElement;
-                          if (input) input.focus();
-                        }}
-                        size="sm"
-                        variant="ghost"
-                        className="h-4 px-1 text-xs text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    
-                    {/* Etiket Ekleme Input */}
-                    <input
-                      type="text"
-                      id={`tag-input-${preview.id}`}
-                      defaultValue=""
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const input = e.target as HTMLInputElement;
-                          const newTag = input.value.trim();
-                          if (newTag && !isBlockedShopifyTag(newTag)) {
-                            onAddTag(newTag);
-                            input.value = '';
-                          }
-                        }
-                      }}
-                      placeholder="Yeni etiket (Enter ile ekle)"
-                      className="h-6 text-xs bg-slate-900/50 border border-slate-600/30 rounded-md px-2 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:outline-none w-full"
-                      data-testid={`input-add-tag-${preview.id}`}
-                    />
+                      ))
+                    ) : (
+                      <span className="text-xs text-zinc-600">—</span>
+                    )}
                   </div>
                 </div>
               </div>
+
+              {hasCsvTable ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <FileText className="w-3.5 h-3.5" />
+                    CSV önizleme (ilk {csvRows.length} satır)
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-zinc-800 bg-zinc-900/80">
+                          {csvHeaders.slice(0, 8).map((header, index) => (
+                            <th
+                              key={index}
+                              className="text-left p-2.5 text-zinc-400 font-medium whitespace-nowrap"
+                            >
+                              {header}
+                            </th>
+                          ))}
+                          {csvHeaders.length > 8 && (
+                            <th className="p-2.5 text-zinc-500">…</th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvRows.map((row, rowIndex) => (
+                          <tr
+                            key={rowIndex}
+                            className="border-b border-zinc-900 hover:bg-zinc-900/40"
+                          >
+                            {row.slice(0, 8).map((cell, cellIndex) => (
+                              <td
+                                key={cellIndex}
+                                className="p-2.5 text-zinc-300 max-w-[180px] truncate"
+                              >
+                                {cell || "—"}
+                              </td>
+                            ))}
+                            {row.length > 8 && <td className="p-2.5 text-zinc-600">…</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500 text-center py-4">
+                  CSV henüz oluşturulmadı
+                </p>
+              )}
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     );

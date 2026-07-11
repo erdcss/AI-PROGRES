@@ -20,6 +20,7 @@ import {
   Clock,
 } from "lucide-react";
 import { TrackingChangeCard } from "@/features/tracking/TrackingChangeCard";
+import { TrackingProductImage } from "@/features/tracking/TrackingProductImage";
 
 type TrackedProduct = {
   id: number;
@@ -35,6 +36,7 @@ type TrackedProduct = {
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
   lastErrorMessage: string | null;
+  productImageUrl?: string | null;
 };
 
 type DetectedChange = {
@@ -50,6 +52,7 @@ type DetectedChange = {
   createdAt: string;
   productTitle?: string | null;
   productUrl?: string | null;
+  productImageUrl?: string | null;
   shopifyProductId?: string | null;
   trackingUid?: string | null;
 };
@@ -288,8 +291,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             <Package className="w-8 h-8 text-blue-500" />
             Ürün Takip Sistemi v2
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Kaynak site değişiklik tespiti — Shopify otomatik güncelleme kapalı
+          <p className="text-muted-foreground mt-1 text-sm">
+            Kaynak sitedeki fiyat ve stok değişikliklerini izler
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -319,23 +322,26 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         </Card>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Takip edilen", value: st?.trackedProductsCount ?? "—" },
-          { label: "Aktif", value: st?.activeTrackedProductsCount ?? "—" },
-          { label: "Bekleyen", value: st?.pendingChangesCount ?? "—" },
-          { label: "Manuel", value: st?.manualReviewCount ?? "—" },
-          { label: "Hatalı", value: st?.errorProductsCount ?? "—" },
-          { label: "Son kontrol", value: formatDate(st?.lastRunAt ?? null) },
           {
-            label: "Aralık",
-            value: st?.intervalMinutes ? `${st.intervalMinutes} dk` : "—",
+            label: "Takip edilen",
+            value: st?.trackedProductsCount ?? "—",
+            hint: st?.activeTrackedProductsCount != null ? `${st.activeTrackedProductsCount} aktif` : undefined,
+          },
+          { label: "Bekleyen değişiklik", value: st?.pendingChangesCount ?? "—" },
+          { label: "Manuel inceleme", value: st?.manualReviewCount ?? "—" },
+          {
+            label: "Son kontrol",
+            value: st?.lastRunAt ? formatDate(st.lastRunAt).split(",")[0] : "—",
+            hint: st?.intervalMinutes ? `Her ${st.intervalMinutes} dk` : undefined,
           },
         ].map((card) => (
-          <Card key={card.label}>
+          <Card key={card.label} className="border-border/60 bg-card/40">
             <CardContent className="pt-4 pb-3">
               <p className="text-xs text-muted-foreground">{card.label}</p>
-              <p className="text-lg font-semibold truncate">{card.value}</p>
+              <p className="text-2xl font-semibold tabular-nums">{card.value}</p>
+              {card.hint && <p className="text-[11px] text-muted-foreground mt-0.5">{card.hint}</p>}
             </CardContent>
           </Card>
         ))}
@@ -383,53 +389,75 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             </Card>
           )}
 
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             {productsQuery.data?.map((p) => (
-              <Card key={p.id}>
-                <CardHeader className="pb-2">
+              <article
+                key={p.id}
+                className="rounded-xl border border-border/60 bg-card/50 p-4 flex gap-4"
+              >
+                <TrackingProductImage
+                  imageUrl={p.productImageUrl}
+                  title={p.sourceTitle}
+                  size="lg"
+                />
+                <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <CardTitle className="text-lg">{p.sourceTitle}</CardTitle>
-                    <Badge variant={p.currentStatus === "active" ? "default" : "secondary"}>{p.currentStatus}</Badge>
+                    <h3 className="font-medium leading-snug line-clamp-2 text-[15px] pr-2">
+                      {p.sourceTitle}
+                    </h3>
+                    <Badge
+                      variant={p.currentStatus === "active" ? "default" : "secondary"}
+                      className="shrink-0 text-xs"
+                    >
+                      {p.currentStatus === "active" ? "Aktif" : p.currentStatus}
+                    </Badge>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Son fiyat:</span>{" "}
-                      {p.currentSourcePrice ? `${p.currentSourcePrice} TRY` : "—"}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Son stok:</span> {p.currentSourceStock ?? "—"}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Son kontrol:</span> {formatDate(p.lastCheckedAt)}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Shopify ID:</span> {p.shopifyProductId || "—"}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Takip UID:</span>{" "}
-                      <code className="text-xs">{p.trackingUid || "—"}</code>
-                    </div>
+
+                  <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                    <span>
+                      <span className="text-muted-foreground">Fiyat: </span>
+                      {p.currentSourcePrice ? `${p.currentSourcePrice} ₺` : "—"}
+                    </span>
+                    <span>
+                      <span className="text-muted-foreground">Stok: </span>
+                      {p.currentSourceStock ?? "—"}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      Son kontrol: {formatDate(p.lastCheckedAt)}
+                    </span>
                   </div>
+
                   {p.lastErrorMessage && (
-                    <p className="text-sm text-destructive flex items-center gap-1">
-                      <AlertTriangle className="w-4 h-4" />
+                    <p className="text-sm text-destructive flex items-center gap-1.5 rounded-lg bg-destructive/5 px-3 py-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
                       {p.lastErrorMessage}
                     </p>
                   )}
+
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => checkMutation.mutate(p.id)} disabled={checkMutation.isPending || !p.trackingEnabled}>
+                    <Button
+                      size="sm"
+                      onClick={() => checkMutation.mutate(p.id)}
+                      disabled={checkMutation.isPending || !p.trackingEnabled}
+                    >
                       <RefreshCw className="w-4 h-4 mr-1" />
                       Kontrol Et
                     </Button>
                     {p.trackingEnabled ? (
-                      <Button size="sm" variant="outline" onClick={() => toggleMutation.mutate({ id: p.id, enable: false })}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => toggleMutation.mutate({ id: p.id, enable: false })}
+                      >
                         <Pause className="w-4 h-4 mr-1" />
-                        Devre Dışı
+                        Duraklat
                       </Button>
                     ) : (
-                      <Button size="sm" variant="outline" onClick={() => toggleMutation.mutate({ id: p.id, enable: true })}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => toggleMutation.mutate({ id: p.id, enable: true })}
+                      >
                         <Play className="w-4 h-4 mr-1" />
                         Etkinleştir
                       </Button>
@@ -441,38 +469,42 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       </a>
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </article>
             ))}
           </div>
         </TabsContent>
 
         <TabsContent value="changes" className="mt-4 space-y-4">
-          <div className="flex flex-wrap gap-2 items-center">
-            {CHANGE_FILTERS.map((f) => (
-              <Button
-                key={f.value || "all"}
-                size="sm"
-                variant={statusFilter === f.value ? "default" : "outline"}
-                onClick={() => setStatusFilter(f.value)}
-              >
-                {f.label}
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex flex-wrap gap-1.5">
+              {CHANGE_FILTERS.map((f) => (
+                <Button
+                  key={f.value || "all"}
+                  size="sm"
+                  variant={statusFilter === f.value ? "default" : "outline"}
+                  className="h-8"
+                  onClick={() => setStatusFilter(f.value)}
+                >
+                  {f.label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => changesQuery.refetch()}>
+                <RefreshCw className={`w-4 h-4 mr-1 ${changesQuery.isFetching ? "animate-spin" : ""}`} />
+                Yenile
               </Button>
-            ))}
-            <Button variant="ghost" size="sm" onClick={() => changesQuery.refetch()}>
-              <RefreshCw className={`w-4 h-4 mr-1 ${changesQuery.isFetching ? "animate-spin" : ""}`} />
-              Yenile
-            </Button>
-            {approvableIds.length > 0 && (
-              <Button
-                size="sm"
-                variant="default"
-                disabled={bulkApproveMutation.isPending}
-                onClick={() => bulkApproveMutation.mutate(approvableIds)}
-              >
-                Toplu Onayla ({approvableIds.length})
-              </Button>
-            )}
+              {approvableIds.length > 0 && (
+                <Button
+                  size="sm"
+                  disabled={bulkApproveMutation.isPending}
+                  onClick={() => bulkApproveMutation.mutate(approvableIds)}
+                >
+                  Toplu Onayla ({approvableIds.length})
+                </Button>
+              )}
+            </div>
           </div>
 
           {changesQuery.isLoading && (

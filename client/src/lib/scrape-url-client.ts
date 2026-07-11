@@ -454,6 +454,7 @@ export function buildCsvPreviewEntry(
     },
     brand: data.brand,
     createdAt: new Date().toISOString(),
+    approvedForShopify: true,
   };
 }
 

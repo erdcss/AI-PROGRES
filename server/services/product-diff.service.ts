@@ -105,6 +105,40 @@ async function isDuplicateChange(input: {
   );
 }
 
+async function loadTrackedVariantKeys(trackedProductId: number): Promise<Set<string>> {
+  const rows = await db
+    .select({
+      option1: trackedVariants.option1,
+      option2: trackedVariants.option2,
+      sourceSku: trackedVariants.sourceSku,
+      shopifyVariantId: trackedVariants.shopifyVariantId,
+      currentAvailable: trackedVariants.currentAvailable,
+    })
+    .from(trackedVariants)
+    .where(eq(trackedVariants.trackedProductId, trackedProductId));
+
+  const withShopify = rows.filter((r) => Boolean(String(r.shopifyVariantId ?? "").trim()));
+  const source =
+    withShopify.length > 0
+      ? withShopify
+      : rows.filter((r) => r.currentAvailable !== false);
+
+  return new Set(
+    source.map((r) =>
+      stableVariantKey({
+        color: r.option1 ?? undefined,
+        size: r.option2 ?? undefined,
+        sku: r.sourceSku ?? undefined,
+      }),
+    ),
+  );
+}
+
+function shouldTrackVariantChange(key: string, trackedKeys: Set<string>): boolean {
+  if (trackedKeys.size === 0) return true;
+  return trackedKeys.has(key);
+}
+
 export async function compareSnapshots(
   trackedProductId: number,
   previous: ProductSnapshot | null,
@@ -192,9 +226,11 @@ export async function compareSnapshots(
 
   const oldMap = new Map(oldVariants.map((v) => [variantKey(v), v]));
   const newMap = new Map(newVariants.map((v) => [variantKey(v), v]));
+  const trackedKeys = await loadTrackedVariantKeys(trackedProductId);
 
   for (const [key, nv] of newMap) {
     if (!oldMap.has(key)) {
+      if (!shouldTrackVariantChange(key, trackedKeys)) continue;
       changes.push({
         changeType: "variant_added",
         fieldName: "variant",
@@ -210,6 +246,7 @@ export async function compareSnapshots(
 
   for (const [key, ov] of oldMap) {
     if (!newMap.has(key)) {
+      if (!shouldTrackVariantChange(key, trackedKeys)) continue;
       changes.push({
         changeType: "variant_removed",
         fieldName: "variant",
@@ -226,6 +263,7 @@ export async function compareSnapshots(
   for (const [key, nv] of newMap) {
     const ov = oldMap.get(key);
     if (!ov) continue;
+    if (!shouldTrackVariantChange(key, trackedKeys)) continue;
 
     const oldInStock = ov.inStock !== false;
     const newInStock = (nv as { inStock?: boolean }).inStock !== false;

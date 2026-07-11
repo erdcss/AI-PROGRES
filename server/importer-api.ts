@@ -31,11 +31,9 @@ let tokenStatus: TokenStatus = {
   checkCount: 0,
 };
 
-const TOKEN_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 dakikada bir kontrol
-
 /**
- * Shopify token'ının geçerliliğini test eder.
- * 5 dakikada bir otomatik olarak çağrılır.
+ * Shopify token'ının geçerliliğini test eder (istek anında).
+ * Periyodik yenileme shopify-token-manager.warmUpShopifyToken tarafından yönetilir.
  */
 async function validateShopifyToken(): Promise<boolean> {
   try {
@@ -69,13 +67,6 @@ async function validateShopifyToken(): Promise<boolean> {
     tokenStatus = { ...tokenStatus, valid: false, lastChecked: new Date() };
     return false;
   }
-}
-
-/** Token kontrol döngüsü – sunucu başlangıcında başlar */
-export function startTokenRefreshScheduler(): void {
-  console.log('🔑 [Importer] Token yenileme zamanlayıcısı başlatıldı');
-  validateShopifyToken(); // hemen bir kere çalıştır
-  setInterval(validateShopifyToken, TOKEN_CHECK_INTERVAL_MS);
 }
 
 // ── IMPORT_KEY middleware ─────────────────────────────────────────────────────

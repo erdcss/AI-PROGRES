@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -59,12 +59,16 @@ interface TokenRefreshStatus {
   hasDbToken?: boolean;
   clientCredentialsReady?: boolean;
   secretLooksLikeSharedSecret?: boolean;
+  clientSecretUsableForRefresh?: boolean;
+  connected?: boolean;
+  liveConnected?: boolean;
   shopDomain: string | null;
   tokenExpiresAt?: string | null;
   lastError?: string | null;
   envVarsConfigured: {
     SHOPIFY_CLIENT_ID?: boolean;
     SHOPIFY_CLIENT_SECRET?: boolean;
+    SHOPIFY_CLIENT_SECRET_USABLE?: boolean;
     SHOPIFY_API_KEY: boolean;
     SHOPIFY_APP_SHARED_SECRET: boolean;
   };
@@ -92,8 +96,8 @@ export default function ShopifySettingsDialog() {
 
   const { data: status, isLoading } = useQuery<CredentialsStatus>({
     queryKey: ["/api/shopify/credentials"],
-    enabled: open,
-    refetchInterval: open ? 8000 : false,
+    refetchInterval: open ? 8000 : 60_000,
+    staleTime: 30_000,
   });
 
   const { data: canvaStatus, refetch: refetchCanva } = useQuery<CanvaStatus>({
@@ -104,9 +108,11 @@ export default function ShopifySettingsDialog() {
 
   const { data: tokenRefreshStatus, refetch: refetchTokenStatus } = useQuery<TokenRefreshStatus>({
     queryKey: ["/api/shopify/token-status"],
-    refetchInterval: open ? 30000 : false,
-    enabled: open,
+    refetchInterval: 45_000,
+    staleTime: 20_000,
   });
+
+  const bootstrapRan = useRef(false);
 
   const rotateNowMutation = useMutation({
     mutationFn: async () => {
@@ -151,13 +157,10 @@ export default function ShopifySettingsDialog() {
     }
   }, []);
 
-  // Bootstrap + auto-test when dialog opens
+  // Sayfa açılışında bir kez bootstrap + bağlantı testi
   useEffect(() => {
-    if (!open) {
-      setLiveTest(null);
-      return;
-    }
-
+    if (bootstrapRan.current) return;
+    bootstrapRan.current = true;
     fetch("/api/shopify/bootstrap", { method: "POST" })
       .then(() => {
         queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
@@ -165,6 +168,20 @@ export default function ShopifySettingsDialog() {
       })
       .catch(() => undefined)
       .finally(() => runLiveTest());
+  }, []);
+
+  // Arka planda periyodik canlı test
+  useEffect(() => {
+    const id = window.setInterval(() => runLiveTest(), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // Diyalog açıldığında durumu yenile
+  useEffect(() => {
+    if (!open) return;
+    queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
+    runLiveTest();
   }, [open]);
 
   useEffect(() => {
@@ -331,13 +348,21 @@ export default function ShopifySettingsDialog() {
     },
   });
 
-  const isActuallyConnected = liveTest?.success === true;
-  const isActuallyFailed = liveTest?.success === false;
-  const hasCredentials = status?.hasToken;
+  const isActuallyConnected =
+    liveTest?.success === true || tokenRefreshStatus?.connected === true || tokenRefreshStatus?.liveConnected === true;
+  const isActuallyFailed =
+    liveTest?.success === false &&
+    tokenRefreshStatus?.connected !== true &&
+    tokenRefreshStatus?.liveConnected !== true;
+  const hasCredentials = status?.hasToken || tokenRefreshStatus?.hasActiveToken;
 
-  const badgeStatus = liveTest
-    ? (liveTest.success ? "connected" : "failed")
-    : (hasCredentials ? "unknown" : "none");
+  const badgeStatus = isActuallyConnected
+    ? "connected"
+    : isActuallyFailed
+      ? "failed"
+      : hasCredentials
+        ? "unknown"
+        : "none";
 
   const canvaConnected = canvaStatus?.connected === true;
 
@@ -440,7 +465,10 @@ export default function ShopifySettingsDialog() {
               const clientCredentialsReady =
                 trs?.clientCredentialsReady ?? trs?.status?.clientCredentialsReady ?? false;
               const sharedSecretOnly =
-                trs?.secretLooksLikeSharedSecret ?? trs?.status?.secretLooksLikeSharedSecret ?? false;
+                trs?.secretLooksLikeSharedSecret ??
+                trs?.status?.secretLooksLikeSharedSecret ??
+                (trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET === true &&
+                  trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET_USABLE === false);
               const refreshActive =
                 trs?.status?.autoRefreshEnabled || trs?.hasActiveToken || trs?.hasDbToken;
               const lastMs = trs?.status?.lastSuccessfulRefreshAt || trs?.status?.lastRefreshTime || 0;
@@ -532,16 +560,29 @@ export default function ShopifySettingsDialog() {
 
             {(isActuallyFailed || !status?.hasToken) && (
               <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-800 dark:text-blue-200">
-                <p className="font-semibold mb-1">🔑 Token nasıl alınır?</p>
-                <p className="text-blue-700 dark:text-blue-300 mb-1">
-                  API Key ve Gizli Anahtar zaten tanımlı. OAuth sekmesinden tek tıkla Shopify'ı yetkilendirin:
-                </p>
-                <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-300">
-                  <li>"OAuth" sekmesine geçin (aşağıda)</li>
-                  <li>"Shopify'da Yetkilendir" butonuna tıklayın</li>
-                  <li>Açılan Shopify sayfasında onaylayın</li>
-                  <li>Token otomatik yenilenir (süre dolmadan 1 saat önce)</li>
-                </ol>
+                <p className="font-semibold mb-1">🔑 Bağlantıyı tamamlayın</p>
+                {status?.oauthReady ? (
+                  <>
+                    <p className="text-blue-700 dark:text-blue-300 mb-1">
+                      Kimlik bilgileri hazır. <strong>shpss_</strong> yalnızca imza anahtarıdır — otomatik yenileme için OAuth veya Admin Token gerekir:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-300">
+                      <li>"OAuth" sekmesinden <strong>Shopify'da Yetkilendir</strong>'e tıklayın</li>
+                      <li>Veya "Admin Token" sekmesine <code className="bg-muted px-1 rounded">shpat_...</code> yapıştırın</li>
+                      <li>Token DB'ye kaydedilir ve sunucu yeniden başlasa da kalır</li>
+                    </ol>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-blue-700 dark:text-blue-300 mb-1">
+                      Shopify Client ID ve Client Secret (shpsec_...) tanımlayın veya Admin Token girin:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-300">
+                      <li>Dev Dashboard → Client Secret (shpsec_...) alın</li>
+                      <li>OAuth sekmesinden yetkilendirin veya Admin Token kaydedin</li>
+                    </ol>
+                  </>
+                )}
               </div>
             )}
 

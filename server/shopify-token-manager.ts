@@ -4,9 +4,11 @@ import { desc, eq } from 'drizzle-orm';
 import {
   envShopDomain,
   getShopifyClientCredentials,
+  isSharedSigningSecret,
   normalizeShopDomain,
   resolveClientIdSource,
   resolveClientSecretSource,
+  resolveTokenGrantClientSecret,
 } from './shopify-credentials';
 
 export type ShopifyTokenSource =
@@ -174,6 +176,19 @@ export function invalidateShopifyTokenCache(): void {
   tokenCache = null;
 }
 
+/** Önbellek + runtime ENV tokenlarını temizle (disconnect sonrası) */
+export function clearShopifyRuntimeCredentials(): void {
+  invalidateShopifyTokenCache();
+  delete process.env.SHOPIFY_ACCESS_TOKEN;
+  delete process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+  lastRefreshError = null;
+}
+
+function invalidateEnvAccessTokens(): void {
+  delete process.env.SHOPIFY_ACCESS_TOKEN;
+  delete process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+}
+
 async function probeShopToken(shopDomain: string, accessToken: string): Promise<{
   ok: boolean;
   status: number;
@@ -311,6 +326,15 @@ async function exchangeClientCredentialsToken(
   };
 }
 
+export async function activateShopifyAccessToken(
+  shopDomain: string,
+  accessToken: string,
+  source: ShopifyTokenSource = 'db',
+  expiresInSeconds?: number,
+): Promise<void> {
+  await persistTokenToRuntime(shopDomain, accessToken, source, expiresInSeconds);
+}
+
 async function persistTokenToRuntime(
   shopDomain: string,
   accessToken: string,
@@ -324,8 +348,11 @@ async function persistTokenToRuntime(
     expiresInSeconds,
   });
 
-  process.env.SHOPIFY_ACCESS_TOKEN = accessToken;
-  process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = accessToken;
+  // client_credentials tokenları geçicidir — ENV'e yazma (sonraki döngüde 'env' kaynağı sanılır)
+  if (source !== 'client_credentials') {
+    process.env.SHOPIFY_ACCESS_TOKEN = accessToken;
+    process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = accessToken;
+  }
 
   try {
     const { saveDirectAccessToken } = await import('./shopify-credentials');
@@ -372,6 +399,7 @@ async function acquireFreshToken(forceRefresh = false): Promise<TokenCacheEntry>
       await persistTokenToRuntime(normalizedDomain, token, candidate.source);
       return tokenCache!;
     }
+    invalidateEnvAccessTokens();
     if (!forceRefresh) {
       console.warn('[SHOPIFY_TOKEN] ENV token geçersiz, sonraki kaynak deneniyor', {
         source: candidate.source,
@@ -389,9 +417,13 @@ async function acquireFreshToken(forceRefresh = false): Promise<TokenCacheEntry>
 
   const exchanged = await exchangeClientCredentialsToken(normalizedDomain);
   if (!exchanged) {
+    const { resolveOAuthShopifyCredentials } = await import('./shopify-credentials');
+    const oauth = await resolveOAuthShopifyCredentials();
     const hint =
       lastRefreshError ||
-      'SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard shpsec_...) ve *.myshopify.com domain kontrol edin';
+      (oauth
+        ? 'OAuth ile yetkilendirin (Ayarlar → Shopify → OAuth) veya Admin Token (shpat_...) kaydedin'
+        : 'SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard shpsec_...) veya Admin Token tanımlayın');
     throw new Error(`Shopify access token alınamadı veya doğrulanamadı — ${hint}`);
   }
 
@@ -522,16 +554,20 @@ export function hasClientCredentialsConfigured(): boolean {
   return Boolean(getShopifyClientCredentials());
 }
 
-/** secret_key / SHOPIFY_APP_SHARED_SECRET (shpss_) — client_credentials için yeterli değil */
+/** secret_key / SHOPIFY_CLIENT_SECRET (shpss_) — client_credentials için yeterli değil */
 export function secretLooksLikeSharedSecretOnly(): boolean {
+  const clientSecret =
+    process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
+    process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim() ||
+    '';
+  if (clientSecret && isSharedSigningSecret(clientSecret)) return true;
   const shared =
     process.env.secret_key?.trim() ||
     process.env.SHOPIFY_APP_SHARED_SECRET?.trim() ||
     '';
   return (
     shared.startsWith('shpss_') &&
-    !process.env.SHOPIFY_CLIENT_SECRET?.trim() &&
-    !process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim()
+    !resolveTokenGrantClientSecret()
   );
 }
 
@@ -539,18 +575,23 @@ export function secretLooksLikeSharedSecretOnly(): boolean {
 export async function hasStoredShopifyToken(): Promise<boolean> {
   if (getTokenCacheStatus().cached) return true;
 
+  const shopDomain = envShopDomain();
+  if (!shopDomain) return false;
+  const normalizedDomain = normalizeShopDomain(shopDomain);
+
   if (hasEnvAccessToken()) {
     const token =
       process.env.SHOPIFY_ACCESS_TOKEN?.trim() ||
       process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim() ||
       '';
-    if (token && !isDeprecatedToken(token)) return true;
+    if (token && !isDeprecatedToken(token)) {
+      const probe = await probeShopToken(normalizedDomain, token);
+      if (probe.ok) return true;
+      invalidateEnvAccessTokens();
+    }
   }
 
-  const shopDomain = envShopDomain();
-  if (!shopDomain) return false;
-
-  const dbToken = await readDbToken(normalizeShopDomain(shopDomain));
+  const dbToken = await readDbToken(normalizedDomain);
   return Boolean(dbToken);
 }
 
@@ -578,12 +619,12 @@ export async function getShopifyHealthResponse(): Promise<{
   const clientIdSource = resolveClientIdSource();
   const clientSecretSource = resolveClientSecretSource();
   const sharedSecretCandidate =
+    process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
     process.env.secret_key?.trim() ||
     process.env.SHOPIFY_APP_SHARED_SECRET?.trim() ||
     '';
   const secretLooksLikeSharedSecret =
-    sharedSecretCandidate.startsWith('shpss_') &&
-    !process.env.SHOPIFY_CLIENT_SECRET?.trim();
+    isSharedSigningSecret(sharedSecretCandidate) && !resolveTokenGrantClientSecret();
 
   const baseFailure = {
     shopDomain: shopDomain ? normalizeShopDomain(shopDomain) : '',
@@ -757,25 +798,41 @@ export async function buildShopifyTokenStatusPayload(): Promise<{
   hasDbToken: boolean;
   clientCredentialsReady: boolean;
   secretLooksLikeSharedSecret: boolean;
+  clientSecretUsableForRefresh: boolean;
   shopDomain: string | null;
   tokenExpiresAt: string | null;
   lastError: string | null;
+  liveConnected: boolean;
 }> {
   const dbHasToken = await hasStoredShopifyToken();
   const lifecycle = getShopifyTokenLifecycleStatus({ hasStoredToken: dbHasToken });
   const shopDomain = lifecycle.cache.shopDomain || envShopDomain() || null;
 
+  let liveConnected = false;
+  if (lifecycle.cache.cached || dbHasToken) {
+    try {
+      const health = await getShopifyHealthResponse();
+      liveConnected = health.ok;
+    } catch {
+      liveConnected = false;
+    }
+  }
+
+  const { hasUsableClientSecretForRefresh } = await import('./shopify-credentials');
+
   return {
     status: lifecycle,
-    hasActiveToken: lifecycle.cache.cached || dbHasToken,
+    hasActiveToken: liveConnected,
     hasDbToken: dbHasToken,
     clientCredentialsReady: lifecycle.clientCredentialsReady,
     secretLooksLikeSharedSecret: lifecycle.secretLooksLikeSharedSecret,
+    clientSecretUsableForRefresh: hasUsableClientSecretForRefresh(),
     shopDomain,
     tokenExpiresAt: lifecycle.cache.expiresAt
       ? new Date(lifecycle.cache.expiresAt).toISOString()
       : null,
     lastError: lifecycle.lastError,
+    liveConnected,
   };
 }
 

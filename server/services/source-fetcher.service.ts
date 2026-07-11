@@ -41,7 +41,7 @@ function normalizeVariants(raw: unknown): FetchedSourceSnapshot["variants"] {
       key: `${color}::${size}`.toLowerCase(),
       color,
       size,
-      inStock: item.inStock ?? true,
+      inStock: item.inStock === true,
       sku: item.sku,
       price: item.price,
     };

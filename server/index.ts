@@ -15,7 +15,7 @@ import * as pathModule from "path";
 import { fileURLToPath} from 'url';
 import * as fs from 'fs';
 import { enhancedErrorDetection } from './enhanced-error-detection';
-import { importerRouter, startTokenRefreshScheduler } from './importer-api';
+import { importerRouter } from './importer-api';
 import { syncEnvApiKeyToDB } from './shopify-credentials';
 import { requestIdMiddleware } from './request-context';
 import {
@@ -24,6 +24,7 @@ import {
   getCsvDownloadInfo,
   parseShopifyCsvFile,
   getSanitizedShopifyCsvPayload,
+  deleteShopifyCsv,
 } from './csv-paths';
 
 console.error("=========================================");
@@ -38,8 +39,15 @@ app.use(requestIdMiddleware);
 
 // Timeout ve connection handling
 app.use((req, res, next) => {
-  req.setTimeout(60000); // 60 second timeout
-  res.setTimeout(60000);
+  const isLongShopifyUpload =
+    req.method === "POST" &&
+    (req.path === "/api/shopify/bulk-upload" ||
+      req.path === "/api/shopify/upload-csv-product" ||
+      req.path === "/api/shopify/products" ||
+      req.path === "/api/shopify/upload-product");
+  const timeoutMs = isLongShopifyUpload ? 10 * 60 * 1000 : 60_000;
+  req.setTimeout(timeoutMs);
+  res.setTimeout(timeoutMs);
   next();
 });
 
@@ -130,6 +138,24 @@ app.get('/api/csv/status', (_req, res) => {
   } catch (error) {
     console.error('CSV status error:', error);
     res.status(500).json({ message: "CSV durumu kontrolü hatası" });
+  }
+});
+
+app.delete("/api/csv/current", (_req, res) => {
+  try {
+    const deleted = deleteShopifyCsv();
+
+    return res.json({
+      success: true,
+      deleted,
+    });
+  } catch (error) {
+    console.error("CSV delete error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "CSV dosyası silinemedi",
+    });
   }
 });
 
@@ -292,15 +318,9 @@ app.use(pendingChangesRoutes);
 
   // ── Replit Importer API (/api/health, /api/import) ──────────────────────────
   app.use('/api', importerRouter);
-  startTokenRefreshScheduler();
-  import('./shopify-credentials')
-    .then(({ bootstrapShopifyConnectionFromEnv }) => bootstrapShopifyConnectionFromEnv())
-    .then(async (boot) => {
-      console.log(`[SHOPIFY] Bootstrap: ${boot.message}`);
-      const { warmUpShopifyToken } = await import('./shopify-token-manager');
-      warmUpShopifyToken();
-    })
-    .catch((err) => console.error('Shopify bootstrap error:', err));
+  import('./shopify-token-manager')
+    .then(({ warmUpShopifyToken }) => warmUpShopifyToken())
+    .catch((err) => console.error('Shopify token lifecycle error:', err));
   
   // Test enhanced extraction endpoint - Direct registration
   app.post('/api/test-enhanced', async (req, res) => {

@@ -29,6 +29,9 @@ export interface BulkUploadItemResult {
   status: BulkUploadItemStatus;
   productId?: string;
   adminUrl?: string;
+  mode?: "created" | "updated" | "skipped";
+  verified?: boolean;
+  shopifyStatus?: string;
   errorCode?: string;
   error?: string;
   requestId?: string;

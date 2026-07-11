@@ -296,7 +296,9 @@ export async function handleShopifyProductUpload(
           price: normalized.price.original,
           shopifyProductId: String(productId),
           shopifyHandle: handle,
-          variants: normalized.variants.allVariants.map((v) => ({
+          variants: normalized.variants.allVariants
+            .filter((v) => v.inStock !== false)
+            .map((v) => ({
             color: v.color,
             size: v.size,
             sku: (v as { sku?: string }).sku,
@@ -304,6 +306,12 @@ export async function handleShopifyProductUpload(
             price: normalized.price.original,
           })),
         });
+        try {
+          const { urlTrackingService } = await import('./url-tracking-service');
+          await urlTrackingService.enableTracking(sourceUrl, String(productId));
+        } catch {
+          /* legacy url_tracking */
+        }
       }
     } catch (trackErr) {
       console.warn('⚠️ Tracking kaydı oluşturulamadı (kritik değil):', trackErr);

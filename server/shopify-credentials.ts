@@ -61,6 +61,18 @@ export interface ResolvedShopifyConfig {
   error?: string;
 }
 
+/** OAuth authorize + code exchange — önce shpsec_, yoksa legacy shpss_ (imza anahtarı) */
+export function resolveOAuthExchangeSecret(): string {
+  const grant = resolveTokenGrantClientSecret();
+  if (grant) return grant;
+  const legacy = [
+    process.env.SHOPIFY_CLIENT_SECRET?.trim(),
+    process.env.secret_key?.trim(),
+    process.env.SHOPIFY_APP_SHARED_SECRET?.trim(),
+  ].filter(Boolean) as string[];
+  return legacy[0] || '';
+}
+
 function readEnvOAuthCredentials(): {
   shopDomain: string;
   apiKey: string;
@@ -72,12 +84,7 @@ function readEnvOAuthCredentials(): {
     process.env.SHOPIFY_client_id?.trim() ||
     process.env.SHOPIFY_API_KEY?.trim() ||
     "";
-  const apiSecret =
-    process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
-    process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim() ||
-    process.env.secret_key?.trim() ||
-    process.env.SHOPIFY_APP_SHARED_SECRET?.trim() ||
-    "";
+  const apiSecret = resolveOAuthExchangeSecret();
 
   if (!shopDomain || !apiKey || !apiSecret) return null;
   return { shopDomain: normalizeShopDomain(shopDomain), apiKey, apiSecret };
@@ -213,6 +220,27 @@ export function resolveClientSecretSource():
   return 'missing';
 }
 
+/** shpss_ yalnızca OAuth imza / webhook doğrulama içindir — token grant ile kullanılamaz */
+export function isSharedSigningSecret(value: string): boolean {
+  return value.trim().startsWith('shpss_');
+}
+
+/** client_credentials ve OAuth token exchange için kullanılabilir secret */
+export function resolveTokenGrantClientSecret(): string {
+  const candidates = [
+    process.env.SHOPIFY_CLIENT_SECRET?.trim(),
+    process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim(),
+  ].filter(Boolean) as string[];
+  for (const secret of candidates) {
+    if (!isSharedSigningSecret(secret)) return secret;
+  }
+  return '';
+}
+
+export function hasUsableClientSecretForRefresh(): boolean {
+  return resolveTokenGrantClientSecret().length > 0;
+}
+
 /** ENV'den Shopify Client Credentials (Postman: client_id + client_secret + grant_type) */
 export function getShopifyClientCredentials(): {
   clientId: string;
@@ -224,27 +252,10 @@ export function getShopifyClientCredentials(): {
     process.env.SHOPIFY_client_id ||
     process.env.SHOPIFY_API_KEY ||
     '';
-  const clientSecret =
-    process.env.SHOPIFY_CLIENT_SECRET ||
-    process.env.SHOPIFY_CLIENT_SECRET_KEY ||
-    process.env.secret_key ||
-    process.env.SHOPIFY_APP_SHARED_SECRET ||
-    '';
+  const clientSecret = resolveTokenGrantClientSecret();
   const shopDomain = envShopDomain();
 
   if (!clientId || !clientSecret || !shopDomain) return null;
-
-  if (clientSecret.startsWith('shpss_')) {
-    const fromExplicitSecret =
-      process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
-      process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim();
-    if (!fromExplicitSecret) {
-      console.warn(
-        '[SHOPIFY] secret_key shpss_ ile başlıyor — client_credentials için Dev Dashboard Client Secret (shpsec_...) kullanın.',
-      );
-      return null;
-    }
-  }
 
   return { clientId, clientSecret, shopDomain };
 }
@@ -301,6 +312,7 @@ export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
  * DB'deki mağaza kaydına otomatik olarak yazar.
  */
 export async function syncEnvApiKeyToDB(): Promise<void> {
+  const shopDomain = envShopDomain();
   const creds = getShopifyClientCredentials();
   const apiKey =
     creds?.clientId ||
@@ -308,14 +320,7 @@ export async function syncEnvApiKeyToDB(): Promise<void> {
     process.env.SHOPIFY_client_id?.trim() ||
     process.env.SHOPIFY_API_KEY?.trim() ||
     "";
-  const apiSecret =
-    creds?.clientSecret ||
-    process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
-    process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim() ||
-    process.env.secret_key?.trim() ||
-    process.env.SHOPIFY_APP_SHARED_SECRET?.trim() ||
-    "";
-  const shopDomain = creds?.shopDomain || envShopDomain();
+  const apiSecret = resolveTokenGrantClientSecret();
 
   if (!apiKey || !shopDomain) return;
 
@@ -413,6 +418,11 @@ export async function saveShopifyCredentials(data: {
   apiSecret: string;
   accessToken?: string;
 }): Promise<void> {
+  if (isSharedSigningSecret(data.apiSecret)) {
+    throw new Error(
+      'shpss_ OAuth imza anahtarı API secret olarak kaydedilemez. Dev Dashboard Client Secret (shpsec_...) kullanın.',
+    );
+  }
   const cleanDomain = normalizeShopDomain(data.shopDomain);
   const existing = await db
     .select()
@@ -546,4 +556,11 @@ export async function deleteShopifyCredentials(shopDomain: string): Promise<void
     .update(shopifyCredentials)
     .set({ isActive: false, accessToken: null as any, updatedAt: new Date() } as any)
     .where(eq(shopifyCredentials.shopDomain, cleanDomain));
+
+  try {
+    const { clearShopifyRuntimeCredentials } = await import('./shopify-token-manager');
+    clearShopifyRuntimeCredentials();
+  } catch {
+    /* optional */
+  }
 }

@@ -10,13 +10,78 @@ import {
   type InsertTrackedProduct,
   type InsertTrackedVariant,
 } from "@shared/schema";
-import { eq, desc, and, sql, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, inArray, isNull } from "drizzle-orm";
 import { getTrackingSettings } from "./tracking-settings.service";
 import { generateTrackingUid, generateVariantUid } from "./tracking-uid.service";
 
 export type SyncLogMeta = Record<string, unknown>;
 
+export type TrackingRegistrationVariant = {
+  color?: string;
+  size?: string;
+  sku?: string;
+  shopifyVariantId?: string;
+  price?: number;
+  inStock?: boolean;
+};
+
+/** Shopify'a aktarılan varyantlar — stok dışı / eşleşmeyen bedenler takibe alınmaz */
+export function filterUploadedVariantsForTracking(
+  variants: TrackingRegistrationVariant[],
+): TrackingRegistrationVariant[] {
+  const withShopifyId = variants.filter((v) => Boolean(String(v.shopifyVariantId ?? "").trim()));
+  if (withShopifyId.length > 0) return withShopifyId;
+  return variants.filter((v) => v.inStock !== false);
+}
+
+function pickFirstImageUrl(images: unknown): string | null {
+  if (!Array.isArray(images)) return null;
+  for (const item of images) {
+    if (typeof item === "string") {
+      const trimmed = item.trim();
+      if (trimmed.startsWith("http")) return trimmed;
+      continue;
+    }
+    if (item && typeof item === "object") {
+      const record = item as Record<string, unknown>;
+      for (const key of ["url", "src", "imageUrl", "image"]) {
+        const value = record[key];
+        if (typeof value === "string" && value.trim().startsWith("http")) {
+          return value.trim();
+        }
+      }
+    }
+  }
+  return null;
+}
+
 export class TrackingService {
+  private async getLatestImageMap(productIds: number[]): Promise<Map<number, string | null>> {
+    const map = new Map<number, string | null>();
+    if (productIds.length === 0) return map;
+
+    const rows = await db
+      .select({
+        trackedProductId: productSnapshots.trackedProductId,
+        images: productSnapshots.images,
+        createdAt: productSnapshots.createdAt,
+      })
+      .from(productSnapshots)
+      .where(inArray(productSnapshots.trackedProductId, productIds))
+      .orderBy(desc(productSnapshots.createdAt));
+
+    for (const row of rows) {
+      if (!map.has(row.trackedProductId)) {
+        map.set(row.trackedProductId, pickFirstImageUrl(row.images));
+      }
+    }
+
+    for (const id of productIds) {
+      if (!map.has(id)) map.set(id, null);
+    }
+
+    return map;
+  }
   async assertEnabled() {
     const s = await getTrackingSettings();
     if (!s.trackingEnabled) {
@@ -64,10 +129,16 @@ export class TrackingService {
 
   /** Kontrol merkezi — takip kapalı olsa bile listeler */
   async listProductsForPanel() {
-    return db
+    const products = await db
       .select()
       .from(trackedProducts)
       .orderBy(desc(trackedProducts.updatedAt));
+
+    const imageMap = await this.getLatestImageMap(products.map((p) => p.id));
+    return products.map((p) => ({
+      ...p,
+      productImageUrl: imageMap.get(p.id) ?? null,
+    }));
   }
 
   async listChangesForPanel(filters?: {
@@ -106,12 +177,14 @@ export class TrackingService {
       .where(inArray(trackedProducts.id, productIds));
 
     const byId = new Map(products.map((p) => [p.id, p]));
+    const imageMap = await this.getLatestImageMap(productIds);
     return changes.map((c) => ({
       ...c,
       productTitle: byId.get(c.trackedProductId)?.sourceTitle ?? null,
       productUrl: byId.get(c.trackedProductId)?.sourceUrl ?? null,
       shopifyProductId: byId.get(c.trackedProductId)?.shopifyProductId ?? null,
       trackingUid: byId.get(c.trackedProductId)?.trackingUid ?? null,
+      productImageUrl: imageMap.get(c.trackedProductId) ?? null,
     }));
   }
 
@@ -166,19 +239,14 @@ export class TrackingService {
     shopifyProductId: string;
     shopifyHandle?: string;
     shopifyProductGid?: string;
-    variants?: Array<{
-      color?: string;
-      size?: string;
-      sku?: string;
-      shopifyVariantId?: string;
-      price?: number;
-      inStock?: boolean;
-    }>;
+    variants?: TrackingRegistrationVariant[];
   }) {
     await this.assertEnabled();
     if (input.price <= 0) {
       throw new Error("price=0 — tracking kaydı oluşturulamaz");
     }
+
+    const variantList = filterUploadedVariantsForTracking(input.variants ?? []);
 
     const site = input.sourceUrl.includes("trendyol") ? "trendyol" : "other";
     const productIdMatch = input.sourceUrl.match(/p-(\d+)/);
@@ -222,7 +290,16 @@ export class TrackingService {
       [productRow] = await db.insert(trackedProducts).values(payload).returning();
     }
 
-    const variantList = input.variants ?? [];
+    // Shopify'a hiç aktarılmamış eski varyant kayıtlarını temizle
+    await db
+      .delete(trackedVariants)
+      .where(
+        and(
+          eq(trackedVariants.trackedProductId, productRow.id),
+          isNull(trackedVariants.shopifyVariantId),
+        ),
+      );
+
     for (const v of variantList) {
       const option1 = v.color?.trim() || null;
       const option2 = v.size?.trim() || null;
@@ -240,7 +317,7 @@ export class TrackingService {
         sourceSku: v.sku ?? null,
         shopifyVariantId: v.shopifyVariantId ?? null,
         currentSourcePrice: v.price ? String(v.price) : String(input.price),
-        currentAvailable: v.inStock ?? true,
+        currentAvailable: v.inStock !== false,
         matchConfidence: v.shopifyVariantId ? "90" : "50",
         matchStatus: v.shopifyVariantId ? "matched" : "uncertain",
       };
@@ -304,6 +381,11 @@ export class TrackingService {
         rawData: { shopifyProductId: input.shopifyProductId },
         quality: { registeredFrom: "shopify_upload" },
       });
+    } else if (variantList.length > 0) {
+      await db
+        .update(productSnapshots)
+        .set({ variants: variantList as never })
+        .where(eq(productSnapshots.id, snapshot.id));
     }
 
     await this.writeSyncLog({

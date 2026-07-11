@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CSVPreview } from "@/components/CSVPreview";
 import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
+import type { CSVPreviewData } from "@/components/CSVDrawerProductPreview";
 import * as Collapsible from "@radix-ui/react-collapsible";
 
 import { ScrapeSourceErrorAlert, type ScrapeErrorMeta } from "@/components/ScrapeSourceErrorAlert";
@@ -21,8 +22,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
 import MiniBrowser from "@/components/MiniBrowser";
 import { UrlHistory } from "@/components/UrlHistory";
-import { addRecentUrl, clearRecentUrls } from "@/lib/url-history-client";
-import { fetchShopifyCsvStatus } from "@/lib/shopify-csv-download";
+import { addRecentUrl } from "@/lib/url-history-client";
+import { fetchShopifyCsvStatus, deleteCurrentShopifyCsv } from "@/lib/shopify-csv-download";
 import { clearScraperUiStorage } from "@/lib/scraper-state-persist";
 import { resolvePreviewImageUrl, resolvePreviewImageUrls, resolvePreviewProxyUrl } from "@/lib/product-image-url";
 import { fetchScrapeCapabilities, type ScrapeCapabilities } from "@/lib/scrape-capabilities";
@@ -72,6 +73,66 @@ type MultiUrlFormData = z.infer<typeof multiUrlSchema>;
 
 type ScrapingMode = 'single' | 'multi-url';
 
+type ShopifyUploadPhase = "connecting" | "uploading" | "verifying" | "item_done";
+
+interface ShopifyUploadOutcome {
+  title: string;
+  ok: boolean;
+  mode?: string;
+  productId?: string;
+  adminUrl?: string;
+  error?: string;
+}
+
+interface ShopifyUploadProgressState {
+  index: number;
+  total: number;
+  successCount: number;
+  failCount: number;
+  title: string;
+  phase: ShopifyUploadPhase;
+  detail: string;
+  percent: number;
+  outcomes: ShopifyUploadOutcome[];
+}
+
+function isShopifyUploadNetworkError(err: unknown): boolean {
+  if (err instanceof TypeError) return true;
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    return (
+      err.name === "AbortError" ||
+      msg === "failed to fetch" ||
+      msg.includes("network") ||
+      msg.includes("load failed")
+    );
+  }
+  return false;
+}
+
+async function recoverShopifyUploadFromStore(params: {
+  sourceProductId?: string;
+  handle?: string;
+  sourceUrl?: string;
+}): Promise<{
+  found: boolean;
+  productId?: string;
+  adminUrl?: string;
+  handle?: string;
+} | null> {
+  try {
+    const res = await fetch("/api/shopify/verify-upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 const URL_STATUS_LABEL: Record<UrlQueueStatus, string> = {
   pending: 'Bekliyor',
   processing: 'İşleniyor',
@@ -80,13 +141,7 @@ const URL_STATUS_LABEL: Record<UrlQueueStatus, string> = {
 };
 
 function resolvePreviewCsvContent(
-  preview: {
-    csvContent?: string;
-    productTitle?: string;
-    sourceUrl?: string;
-    canonicalProduct?: Product["canonicalProduct"];
-    productData?: Record<string, unknown>;
-  },
+  preview: Pick<CSVPreviewData, "csvContent">,
 ): string {
   const fromPreview = preview.csvContent?.trim() || "";
   if (fromPreview.length >= 50) return fromPreview;
@@ -212,13 +267,14 @@ function ScraperPage() {
   const [productFeatures, setProductFeatures] = useState<any[]>([]);
   const [urlQueue, setUrlQueue] = useState<UrlQueueItem[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
+  const [csvPreviews, setCsvPreviews] = useState<CSVPreviewData[]>([]);
   const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
   const extractAllColors = true; // Always extract all colors automatically
   const [isVariantsOpen, setIsVariantsOpen] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{current: number; total: number} | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<{current: number; total: number; successCount: number; failCount: number; currentTitle: string} | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<ShopifyUploadProgressState | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [failedUploads, setFailedUploads] = useState<{title: string; error: string}[]>([]);
   const [bulkScrapeSummary, setBulkScrapeSummary] = useState<{
     totalProducts: number;
@@ -248,6 +304,8 @@ function ScraperPage() {
   const urlQueueRef = useRef<UrlQueueItem[]>([]);
   const lastUrlIngestRef = useRef<{ fingerprint: string; at: number } | null>(null);
   const shopifyUploadInFlightRef = useRef(false);
+  const csvPreviewSectionRef = useRef<HTMLDivElement | null>(null);
+  const previousCsvPreviewCountRef = useRef(0);
   urlQueueRef.current = urlQueue;
   
   const singleForm = useForm<ScrapeFormData>({
@@ -265,10 +323,23 @@ function ScraperPage() {
   });
 
   useEffect(() => {
-    clearScraperUiStorage();
-    clearRecentUrls();
     fetchScrapeCapabilities(true).then(setRuntimeCapabilities).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    const previousCount = previousCsvPreviewCountRef.current;
+
+    if (csvPreviews.length > previousCount && !isBulkProcessing) {
+      requestAnimationFrame(() => {
+        csvPreviewSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    }
+
+    previousCsvPreviewCountRef.current = csvPreviews.length;
+  }, [csvPreviews.length, isBulkProcessing]);
 
 
   const singleScrapeMutation = useMutation({
@@ -277,10 +348,6 @@ function ScraperPage() {
       setScrapeErrorMeta(null);
       setLocalAgentWarningDetail(null);
       setScrapeSourceWarning(null);
-      setProduct(null);
-      setCsvPreviews([]);
-      clearScraperUiStorage();
-      console.log("[CacheGuard] cleared previous preview state");
       setWorkflowStep('URL alındı → Ürün çekiliyor...');
       toast({
         title: "⚙️ Arka Planda Çalışıyor",
@@ -338,13 +405,14 @@ function ScraperPage() {
       }
 
       const scraped = data as ScrapedUrlPayload;
-      console.log("🎯 Single scrape successful (normalized):", {
-        title: scraped.title,
-        imagesCount: scraped.images.length,
-        price: scraped.price,
-      });
+      if (import.meta.env.DEV) {
+        console.log("[ScraperState] scrape payload received", {
+          title: scraped.title,
+          imagesCount: scraped.images.length,
+          price: scraped.price,
+        });
+      }
 
-      setWorkflowStep("Ürün normalize edildi");
       setScrapeError(null);
 
       const sourceWarning = resolveScrapeSourceWarning(scraped.warnings);
@@ -415,7 +483,6 @@ function ScraperPage() {
                 size: v.size,
                 inStock: v.inStock,
               })),
-              items: scraped.canonicalProduct.variants,
             }
           : scraped.variants,
         features: scraped.features || [],
@@ -468,20 +535,54 @@ function ScraperPage() {
       if (sourceUrl) {
         addRecentUrl(sourceUrl);
       }
+
+      const newCSVPreview = buildCsvPreviewEntry(scraped, sourceUrl, "csv") as unknown as CSVPreviewData;
+
+      if (import.meta.env.DEV) {
+        console.log("[ScraperState] scrape success", {
+          title: scraped.title,
+          sourceUrl,
+          queueLength: urlQueueRef.current.length,
+          csvReady,
+          csvLength: scraped.csvContent?.length || 0,
+        });
+      }
+
+      setCsvPreviews((previous) => {
+        const filtered = previous.filter((item) => {
+          if (
+            newCSVPreview.scrapeRunId &&
+            item.scrapeRunId === newCSVPreview.scrapeRunId
+          ) {
+            return false;
+          }
+
+          if (
+            newCSVPreview.sourceUrl &&
+            item.sourceUrl === newCSVPreview.sourceUrl
+          ) {
+            return false;
+          }
+
+          return true;
+        });
+
+        return [newCSVPreview, ...filtered];
+      });
+
+      if (import.meta.env.DEV) {
+        console.log("[ScraperState] preview added", {
+          id: newCSVPreview.id,
+          scrapeRunId: newCSVPreview.scrapeRunId,
+          sourceUrl: newCSVPreview.sourceUrl,
+        });
+      }
+
       setWorkflowStep(
         csvReady
           ? "Ürün hazır — Shopify'a gönderebilirsiniz"
           : "Ürün çekildi ama CSV oluşturulamadı",
       );
-
-      requestAnimationFrame(() => {
-        document
-          .getElementById("product-preview-section")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-
-      const newCSVPreview = buildCsvPreviewEntry(scraped, sourceUrl, "csv");
-      setCsvPreviews((prev) => [newCSVPreview, ...prev]);
 
       const isPartial = scraped.partialSuccess === true || scraped.success === false;
       const missingParts: string[] = [];
@@ -1013,7 +1114,7 @@ function ScraperPage() {
           scraped = await fetchScenarioScrapeResult(url, true);
         }
         const newPreview = buildCsvPreviewEntry(scraped, url, "bulk");
-        setCsvPreviews((prev) => [newPreview, ...prev]);
+        setCsvPreviews((prev) => [newPreview as unknown as CSVPreviewData, ...prev]);
         updateUrlQueueItem(url, { status: "success", error: undefined });
         successCount++;
 
@@ -1396,7 +1497,20 @@ function ScraperPage() {
     });
   };
 
+  const clearUrlQueueOnly = useCallback(() => {
+    if (import.meta.env.DEV) {
+      console.trace("[ScraperState] clearUrlQueueOnly");
+    }
+    setUrlQueue([]);
+    urlQueueRef.current = [];
+    lastUrlIngestRef.current = null;
+    singleForm.setValue("url", "");
+  }, [singleForm]);
+
   const clearScraperWorkspace = useCallback(() => {
+    if (import.meta.env.DEV) {
+      console.trace("[ScraperState] clearScraperWorkspace");
+    }
     singleForm.reset({ url: "" });
     multiForm.setValue("urls", [{ url: "" }]);
 
@@ -1422,15 +1536,16 @@ function ScraperPage() {
     lastUrlIngestRef.current = null;
 
     clearScraperUiStorage();
-    clearRecentUrls();
+
+    void deleteCurrentShopifyCsv().catch((error) => {
+      console.warn("Server CSV temizlenemedi:", error);
+    });
 
     toast({
       title: "Temizlendi",
       description: "Tüm URL'ler ve geçici ön izleme verileri temizlendi.",
     });
   }, [singleForm, multiForm]);
-
-  const clearAllUrls = clearScraperWorkspace;
 
   // CSV tag uygulama yardımcısı — hem tekil hem toplu yüklemede kullanılır
   const applyTagsToCSV = useCallback((csvContent: string, tags: string[]): string => {
@@ -1461,7 +1576,7 @@ function ScraperPage() {
     return updated.join('\n');
   }, []);
 
-  // Tüm CSV'leri Shopify'a yükleme fonksiyonu
+  // Tüm CSV'leri Shopify'a yükleme — ürün başına canlı ilerleme
   const uploadAllCSVsToShopify = async () => {
     if (csvPreviews.length === 0) {
       toast({ title: "Hata", description: "Yüklenecek CSV dosyası bulunamadı", variant: "destructive" });
@@ -1470,16 +1585,30 @@ function ScraperPage() {
     if (uploadProgress) return;
 
     const total = csvPreviews.length;
-    setUploadProgress({ current: 0, total, successCount: 0, failCount: 0, currentTitle: "Bağlantı kontrol ediliyor..." });
+    const outcomes: ShopifyUploadOutcome[] = [];
+    let successCount = 0;
+    let failCount = 0;
+
+    setUploadProgress({
+      index: 0,
+      total,
+      successCount: 0,
+      failCount: 0,
+      title: "",
+      phase: "connecting",
+      detail: "Shopify bağlantısı kontrol ediliyor...",
+      percent: 2,
+      outcomes: [],
+    });
     setFailedUploads([]);
 
     try {
-      const connRes = await fetch("/api/shopify/token-status");
+      const connRes = await fetch("/api/shopify/connection-test", { method: "POST" });
       const connData = await connRes.json().catch(() => ({}));
-      if (!connData?.connected && connData?.hasToken !== true) {
+      if (!connRes.ok || !connData?.connected) {
         toast({
           title: "Shopify bağlantısı yok",
-          description: "Yükleme başlamadan önce Shopify bağlantısını doğrulayın",
+          description: connData?.message || "Yükleme başlamadan önce Shopify bağlantısını doğrulayın",
           variant: "destructive",
         });
         setUploadProgress(null);
@@ -1510,83 +1639,186 @@ function ScraperPage() {
           csvContent: csvToUpload,
           individualTags: tags,
           idempotencyKey: `${preview.sourceUrl || preview.id}-${preview.scrapeRunId || preview.id}`,
-          approvedForShopify: preview.approvedForShopify === true,
+          approvedForShopify: preview.restoredFromDisk ? false : preview.approvedForShopify !== false,
         };
       });
 
-      setUploadProgress({ current: 0, total, successCount: 0, failCount: 0, currentTitle: "Toplu yükleme başlatılıyor..." });
+      const failedList: { title: string; error: string }[] = [];
 
-      const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 15 * 60 * 1000);
-      let bulkResult: {
-        successCount: number;
-        failureCount: number;
-        unknownCount: number;
-        results: Array<{
-          clientItemId: string;
+      for (let i = 0; i < items.length; i++) {
+        const preview = csvPreviews[i];
+        const item = items[i];
+        const itemIndex = i + 1;
+        const basePercent = Math.round((i / total) * 100);
+
+        setUploadProgress({
+          index: itemIndex,
+          total,
+          successCount,
+          failCount,
+          title: preview.productTitle,
+          phase: "uploading",
+          detail: "CSV Shopify API'ye gönderiliyor...",
+          percent: basePercent + Math.round(15 / total),
+          outcomes: [...outcomes],
+        });
+
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+
+        let row: {
           success: boolean;
           status: string;
           error?: string;
           errorCode?: string;
           requestId?: string;
           productId?: string;
-        }>;
-      };
+          adminUrl?: string;
+          mode?: string;
+          verified?: boolean;
+        } | undefined;
 
-      try {
-        const response = await fetch("/api/shopify/bulk-upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({ items }),
-        });
-        bulkResult = await response.json();
-        if (!response.ok && !bulkResult?.results) {
-          throw new Error(bulkResult?.error || `HTTP ${response.status}`);
-        }
-      } finally {
-        clearTimeout(tid);
-      }
+        try {
+          setUploadProgress((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  phase: "verifying",
+                  detail: "Ürün mağazada doğrulanıyor...",
+                  percent: basePercent + Math.round(55 / total),
+                }
+              : prev,
+          );
 
-      const failedList: { title: string; error: string }[] = [];
-      let processed = 0;
-      for (const preview of csvPreviews) {
-        processed++;
-        const row = bulkResult.results?.find((r) => r.clientItemId === preview.id);
-        setUploadProgress({
-          current: processed,
-          total,
-          successCount: bulkResult.successCount ?? 0,
-          failCount: (bulkResult.failureCount ?? 0) + (bulkResult.unknownCount ?? 0),
-          currentTitle: preview.productTitle,
-        });
-        if (row && !row.success && row.status !== "already_exists") {
-          failedList.push({
-            title: preview.productTitle,
-            error: `[${row.errorCode || row.status}] ${row.error || "Bilinmeyen hata"}${row.requestId ? ` (${row.requestId})` : ""}`,
+          const response = await fetch("/api/shopify/bulk-upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({ items: [item] }),
           });
+          const bulkResult = await response.json();
+          if (!response.ok && !bulkResult?.results) {
+            throw new Error(
+              bulkResult?.error || bulkResult?.message || `HTTP ${response.status}`,
+            );
+          }
+          row = bulkResult.results?.[0];
+        } catch (err: unknown) {
+          let recovered: Awaited<ReturnType<typeof recoverShopifyUploadFromStore>> = null;
+          if (isShopifyUploadNetworkError(err)) {
+            setUploadProgress((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    phase: "verifying",
+                    detail: "Bağlantı koptu — Shopify'da ürün aranıyor...",
+                  }
+                : prev,
+            );
+            recovered = await recoverShopifyUploadFromStore({
+              sourceProductId: item.canonicalProduct?.sourceProductId,
+              handle: item.canonicalProduct?.handle,
+              sourceUrl: item.sourceUrl,
+            });
+          }
+
+          if (recovered?.found) {
+            successCount++;
+            outcomes.push({
+              title: preview.productTitle,
+              ok: true,
+              mode: "Shopify'da doğrulandı",
+              productId: recovered.productId,
+              adminUrl: recovered.adminUrl,
+            });
+          } else {
+            const msg = isShopifyUploadNetworkError(err)
+              ? "Bağlantı kesildi ve Shopify'da ürün bulunamadı — admin panelini kontrol edin"
+              : err instanceof Error
+                ? err.message
+                : "Yükleme hatası";
+            failCount++;
+            outcomes.push({ title: preview.productTitle, ok: false, error: msg });
+            failedList.push({ title: preview.productTitle, error: msg });
+          }
+        } finally {
+          clearTimeout(tid);
         }
+
+        if (row) {
+          const ok =
+            row.success && row.status !== "failed" && row.verified !== false;
+          const modeLabel =
+            row.mode === "created"
+              ? "oluşturuldu"
+              : row.mode === "updated"
+                ? "güncellendi"
+                : row.status === "already_exists"
+                  ? "zaten vardı"
+                  : row.status;
+
+          if (ok) {
+            successCount++;
+            outcomes.push({
+              title: preview.productTitle,
+              ok: true,
+              mode: modeLabel,
+              productId: row.productId,
+              adminUrl: row.adminUrl,
+            });
+          } else {
+            failCount++;
+            const errText = `[${row.errorCode || row.status}] ${row.error || "Doğrulanamadı"}${row.requestId ? ` (${row.requestId})` : ""}`;
+            outcomes.push({
+              title: preview.productTitle,
+              ok: false,
+              productId: row.productId,
+              adminUrl: row.adminUrl,
+              error: errText,
+            });
+            failedList.push({ title: preview.productTitle, error: errText });
+          }
+        }
+
+        setUploadProgress({
+          index: itemIndex,
+          total,
+          successCount,
+          failCount,
+          title: preview.productTitle,
+          phase: "item_done",
+          detail:
+            outcomes[outcomes.length - 1]?.ok
+              ? `✓ ${outcomes[outcomes.length - 1]?.mode || "yüklendi"}`
+              : "Hata oluştu",
+          percent: Math.round((itemIndex / total) * 100),
+          outcomes: [...outcomes],
+        });
       }
 
       setUploadProgress(null);
       setFailedUploads(failedList);
+
+      const lastSuccess = [...outcomes].reverse().find((o) => o.ok && o.adminUrl);
+      if (lastSuccess?.adminUrl) {
+        setLastShopifyResult({
+          adminUrl: lastSuccess.adminUrl,
+          shopifyId: lastSuccess.productId,
+        });
+      }
+
       toast({
-        title: "Toplu Yükleme Tamamlandı",
-        description: `✅ Başarılı: ${bulkResult.successCount ?? 0}, ❌ Hatalı: ${bulkResult.failureCount ?? 0}, ❓ Doğrulanamadı: ${bulkResult.unknownCount ?? 0}`,
-        duration: 10000,
+        title: failCount === 0 ? "Toplu Yükleme Tamamlandı" : "Toplu Yükleme Bitti",
+        description:
+          failCount === 0
+            ? `✅ ${successCount} ürün Shopify'da doğrulandı${lastSuccess?.adminUrl ? " — son ürünü admin'de açabilirsiniz" : ""}`
+            : `✅ ${successCount} başarılı, ❌ ${failCount} hatalı`,
+        duration: 12000,
       });
     } catch (err: unknown) {
       setUploadProgress(null);
       const msg = err instanceof Error ? err.message : "Toplu yükleme hatası";
-      if (err instanceof Error && err.name === "AbortError") {
-        toast({
-          title: "Yükleme zaman aşımı",
-          description: "Sonuç doğrulanamadı — Shopify admin panelinden kontrol edin",
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "Toplu yükleme hatası", description: msg, variant: "destructive" });
-      }
+      toast({ title: "Toplu yükleme hatası", description: msg, variant: "destructive" });
     }
   };
 
@@ -1805,7 +2037,7 @@ function ScraperPage() {
         individualTags || [],
       );
       const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 3 * 60 * 1000);
+      const tid = setTimeout(() => controller.abort(), 10 * 60 * 1000);
       let response: Response;
       try {
         response = await fetch("/api/shopify/upload-csv-product", {
@@ -1816,6 +2048,22 @@ function ScraperPage() {
             buildCsvShopifyUploadBody(preview, csvToUpload, individualTags || []),
           ),
         });
+      } catch (fetchErr: unknown) {
+        if (isShopifyUploadNetworkError(fetchErr)) {
+          const recovered = await recoverShopifyUploadFromStore({
+            sourceProductId: preview.canonicalProduct?.sourceProductId,
+            handle: preview.canonicalProduct?.handle,
+            sourceUrl: preview.sourceUrl,
+          });
+          if (recovered?.found) {
+            toast({
+              title: "Shopify'a Yüklendi ✅",
+              description: "Bağlantı koptu ancak ürün mağazada doğrulandı",
+            });
+            return;
+          }
+        }
+        throw fetchErr;
       } finally { clearTimeout(tid); }
 
       if (response.ok) {
@@ -1945,6 +2193,7 @@ function ScraperPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button
+                type="button"
                 onClick={() => setLocation('/')}
                 variant="outline"
                 className="business-button px-4 py-2"
@@ -1954,6 +2203,7 @@ function ScraperPage() {
                 Ana Sayfa
               </Button>
               <Button
+                type="button"
                 onClick={() => setLocation('/telegram-notifications')}
                 variant="outline"
                 className="bg-zinc-800/40 border-zinc-700/60 text-zinc-400 hover:bg-zinc-800/70 hover:border-zinc-600 hover:text-zinc-200 px-4 py-2"
@@ -1964,11 +2214,12 @@ function ScraperPage() {
               </Button>
               <ShopifySettingsDialog />
               <Button
+                type="button"
                 onClick={clearScraperWorkspace}
                 variant="outline"
                 className="bg-zinc-800/40 border-zinc-700/60 text-zinc-500 hover:bg-zinc-800/70 hover:border-zinc-600 hover:text-zinc-300 px-4 py-2"
                 disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
-                data-testid="button-clear-all"
+                data-testid="button-clear-workspace"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Tümünü Sil
@@ -2007,7 +2258,7 @@ function ScraperPage() {
       </div>
 
       {/* Main Content */}
-      <div className={`mx-auto ${isMobile ? 'px-4 py-6 max-w-full' : 'max-w-6xl px-6 py-8'}`}>
+      <div className={`mx-auto ${isMobile ? 'px-4 py-6 max-w-full' : 'max-w-7xl px-6 py-8'}`}>
         <div className={`grid grid-cols-1 ${isMobile ? 'gap-6' : 'gap-8'}`}>
           
           {/* Main Content Section */}
@@ -2121,9 +2372,10 @@ function ScraperPage() {
                           {urlQueue.length > 0 && (
                             <Button
                               type="button"
-                              onClick={clearAllUrls}
+                              onClick={clearUrlQueueOnly}
                               variant="ghost"
                               className="text-zinc-500 hover:text-zinc-400 text-xs h-6 px-2"
+                              data-testid="button-clear-url-queue"
                             >
                               Tümünü Sil
                             </Button>
@@ -2377,7 +2629,11 @@ function ScraperPage() {
 
         {/* CSV Drawer Preview - Tüm CSV'ler */}
         {(csvPreviews.length > 0 || (product && hasCsvPreviewData(product))) && (
-          <div className="mt-8 space-y-4">
+          <div
+            id="product-preview-section"
+            ref={csvPreviewSectionRef}
+            className="mt-8 space-y-4 scroll-mt-24"
+          >
             {bulkScrapeSummary && (
               <Card className="business-card">
                 <CardContent className="p-4 text-sm text-zinc-400 space-y-1">
@@ -2416,43 +2672,113 @@ function ScraperPage() {
             
             {/* Toplu Yükleme Progress Banner */}
             {uploadProgress && (
-              <div className="mt-4 rounded-xl border border-zinc-700/60 bg-zinc-900/80 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="relative w-10 h-10 shrink-0">
-                    <span className="absolute inset-0 rounded-full border-2 border-zinc-600/40 border-t-zinc-400 animate-spin" />
-                    <ShoppingCart className="absolute inset-0 m-auto w-4 h-4 text-zinc-400" />
+              <div className="mt-4 rounded-xl border border-emerald-900/40 bg-zinc-900/90 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="relative w-11 h-11 shrink-0">
+                    <span className="absolute inset-0 rounded-full border-2 border-emerald-800/50 border-t-emerald-400 animate-spin" />
+                    <ShoppingCart className="absolute inset-0 m-auto w-5 h-5 text-emerald-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-zinc-300 font-medium text-sm">
-                      {uploadProgress.current}. ürün yükleniyor...
+                    <p className="text-emerald-300 font-medium text-sm">
+                      {uploadProgress.index > 0
+                        ? `${uploadProgress.index} / ${uploadProgress.total} ürün`
+                        : "Hazırlanıyor..."}
                     </p>
-                    <p className="text-zinc-500 text-xs mt-0.5 truncate">
-                      {uploadProgress.currentTitle || 'Shopify\'a aktarılıyor'}
+                    <p className="text-zinc-100 text-sm mt-0.5 truncate font-medium">
+                      {uploadProgress.title || "Shopify aktarımı"}
+                    </p>
+                    <p className="text-zinc-500 text-xs mt-1">
+                      {uploadProgress.detail}
                     </p>
                   </div>
-                  <div className="shrink-0 flex gap-3 text-right">
+                  <div className="shrink-0 flex gap-4 text-right">
                     <div>
-                      <span className="text-xl font-bold text-zinc-300">{uploadProgress.successCount}</span>
+                      <span className="text-xl font-bold text-emerald-400">{uploadProgress.successCount}</span>
                       <span className="text-xs text-zinc-500 block">başarılı</span>
                     </div>
                     {uploadProgress.failCount > 0 && (
                       <div>
-                        <span className="text-xl font-bold text-zinc-400">{uploadProgress.failCount}</span>
+                        <span className="text-xl font-bold text-red-400">{uploadProgress.failCount}</span>
                         <span className="text-xs text-zinc-500 block">hatalı</span>
                       </div>
                     )}
                     <div>
-                      <span className="text-xl font-bold text-zinc-300">{uploadProgress.current}</span>
-                      <span className="text-xs text-zinc-500 block">/ {uploadProgress.total}</span>
+                      <span className="text-xl font-bold text-zinc-300">{uploadProgress.percent}%</span>
+                      <span className="text-xs text-zinc-500 block">ilerleme</span>
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+
+                <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
                   <div
-                    className="h-full bg-zinc-500 transition-all duration-700"
-                    style={{width: `${(uploadProgress.current / uploadProgress.total) * 100}%`}}
+                    className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all duration-500 ease-out"
+                    style={{ width: `${Math.max(uploadProgress.percent, 3)}%` }}
                   />
                 </div>
+
+                <div className="flex flex-wrap gap-2 text-[11px]">
+                  {(
+                    [
+                      ["connecting", "Bağlantı"],
+                      ["uploading", "Aktarım"],
+                      ["verifying", "Doğrulama"],
+                      ["item_done", "Tamam"],
+                    ] as const
+                  ).map(([phase, label]) => {
+                    const order = ["connecting", "uploading", "verifying", "item_done"];
+                    const active = uploadProgress.phase === phase;
+                    const done = order.indexOf(uploadProgress.phase) > order.indexOf(phase);
+                    return (
+                      <span
+                        key={phase}
+                        className={`px-2 py-0.5 rounded-full border ${
+                          active
+                            ? "border-emerald-500/60 bg-emerald-950/50 text-emerald-300"
+                            : done
+                              ? "border-zinc-600 text-zinc-400"
+                              : "border-zinc-800 text-zinc-600"
+                        }`}
+                      >
+                        {done && !active ? "✓ " : active ? "● " : ""}
+                        {label}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {uploadProgress.outcomes.length > 0 && (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto border-t border-zinc-800 pt-2">
+                    {uploadProgress.outcomes.map((outcome, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between gap-2 text-xs bg-zinc-800/40 rounded-lg px-3 py-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className={outcome.ok ? "text-emerald-400" : "text-red-400"}>
+                            {outcome.ok ? "✓" : "✗"}
+                          </span>{" "}
+                          <span className="text-zinc-300 truncate">{outcome.title}</span>
+                          {outcome.mode && (
+                            <span className="text-zinc-500 ml-1">({outcome.mode})</span>
+                          )}
+                          {outcome.error && (
+                            <p className="text-red-400/80 mt-0.5 truncate">{outcome.error}</p>
+                          )}
+                        </div>
+                        {outcome.adminUrl && (
+                          <a
+                            href={outcome.adminUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-emerald-400 hover:text-emerald-300 underline"
+                          >
+                            Admin
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -2464,6 +2790,7 @@ function ScraperPage() {
                     <span>❌</span> {failedUploads.length} Ürün Yüklenemedi
                   </span>
                   <button
+                    type="button"
                     onClick={() => setFailedUploads([])}
                     className="text-zinc-500 hover:text-zinc-400 text-xs"
                   >kapat</button>
@@ -2485,6 +2812,7 @@ function ScraperPage() {
             {/* Toplu İşlem Butonları */}
             <div className="mt-4 flex flex-wrap justify-center gap-3">
               <Button
+                type="button"
                 onClick={handleExportAllCSV}
                 className="bg-zinc-700 hover:bg-zinc-600 text-zinc-100 font-medium px-8 py-3"
               >
@@ -2494,6 +2822,7 @@ function ScraperPage() {
                 </div>
               </Button>
               <Button
+                type="button"
                 onClick={uploadAllCSVsToShopify}
                 disabled={!!uploadProgress}
                 className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-medium px-8 py-3 border border-zinc-700"
@@ -2501,7 +2830,7 @@ function ScraperPage() {
                 {uploadProgress ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    {uploadProgress.current}/{uploadProgress.total} Yükleniyor... (✅{uploadProgress.successCount}{uploadProgress.failCount > 0 ? ` ❌${uploadProgress.failCount}` : ''})
+                    {uploadProgress.index}/{uploadProgress.total} — %{uploadProgress.percent} ({uploadProgress.detail})
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">

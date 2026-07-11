@@ -18,6 +18,7 @@ type TrackedChange = {
   createdAt: string;
   productTitle: string | null;
   productUrl: string | null;
+  productImageUrl?: string | null;
   shopifyProductId: string | null;
   trackingUid: string | null;
 };

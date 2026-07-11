@@ -321,3 +321,14 @@ export async function attachCsvInfoToResult<T extends Record<string, unknown>>(
 
   return result;
 }
+
+export function deleteShopifyCsv(): boolean {
+  const target = getShopifyCsvPath();
+
+  if (!fs.existsSync(target)) {
+    return false;
+  }
+
+  fs.unlinkSync(target);
+  return true;
+}

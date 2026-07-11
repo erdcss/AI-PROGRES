@@ -1,12 +1,6 @@
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
 import {
   CHANGE_STATUS_LABELS,
@@ -15,6 +9,7 @@ import {
   formatChangeDiff,
   formatChangeValue,
 } from "./format-change-value";
+import { TrackingProductImage } from "./TrackingProductImage";
 
 export type TrackingChangeItem = {
   id: number;
@@ -29,6 +24,7 @@ export type TrackingChangeItem = {
   createdAt: string;
   productTitle?: string | null;
   productUrl?: string | null;
+  productImageUrl?: string | null;
   shopifyProductId?: string | null;
   trackingUid?: string | null;
 };
@@ -49,7 +45,6 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString("tr-TR", {
     day: "2-digit",
     month: "2-digit",
-    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -72,135 +67,148 @@ export function TrackingChangeCard({
   const canAct = c.status === "pending" || c.status === "manual_review";
   const canShopify =
     c.status !== "applied" && c.status !== "ignored" && c.status !== "rejected";
+  const needsReview = c.status === "manual_review" || c.status === "pending";
 
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <p className="font-medium leading-snug line-clamp-2">
-              {c.productTitle || `Ürün #${c.trackedProductId}`}
+    <article
+      className={`rounded-xl border bg-card/50 overflow-hidden transition-colors ${
+        needsReview ? "border-amber-500/30" : "border-border/60"
+      }`}
+    >
+      <div className="p-4 flex gap-4">
+        <TrackingProductImage imageUrl={c.productImageUrl} title={c.productTitle} size="lg" />
+
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+            <div className="min-w-0 space-y-1.5">
+              <h3 className="font-medium leading-snug line-clamp-2 text-[15px]">
+                {c.productTitle || `Ürün #${c.trackedProductId}`}
+              </h3>
+              <p className="text-sm text-foreground/85">{diff}</p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant="secondary" className="font-normal text-xs">
+                  {typeLabel}
+                </Badge>
+                <Badge variant={changeStatusVariant(c.status)} className="font-normal text-xs">
+                  {CHANGE_STATUS_LABELS[c.status] || c.status}
+                </Badge>
+                <span className="text-xs text-muted-foreground">{formatDate(c.createdAt)}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 shrink-0 lg:justify-end">
+              {canAct && onApprove && (
+                <Button size="sm" variant="outline" disabled={busy} onClick={onApprove}>
+                  Onayla
+                </Button>
+              )}
+              {canAct && onReject && (
+                <Button size="sm" variant="outline" disabled={busy} onClick={onReject}>
+                  Reddet
+                </Button>
+              )}
+              {canShopify && onShopifySync && (
+                <Button
+                  size="sm"
+                  disabled={busy || !c.trackingUid || !c.shopifyProductId}
+                  title={
+                    !c.trackingUid
+                      ? "Takip UID eksik"
+                      : !c.shopifyProductId
+                        ? "Shopify ürün ID yok"
+                        : undefined
+                  }
+                  onClick={onShopifySync}
+                >
+                  Shopify&apos;da güncelle
+                </Button>
+              )}
+              {c.status === "approved" && onApply && (
+                <Button size="sm" disabled={busy} onClick={onApply}>
+                  Uygula
+                </Button>
+              )}
+              {c.status === "failed" && onRetry && (
+                <Button size="sm" variant="outline" disabled={busy} onClick={onRetry}>
+                  Tekrar dene
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {c.reason && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 flex items-start gap-1.5 rounded-lg bg-amber-500/5 px-3 py-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{c.reason}</span>
             </p>
-            <p className="text-sm text-foreground/90">{diff}</p>
-            <div className="flex flex-wrap items-center gap-2 pt-0.5">
-              <Badge variant="secondary" className="font-normal">
-                {typeLabel}
-              </Badge>
-              <Badge variant={changeStatusVariant(c.status)} className="font-normal">
-                {CHANGE_STATUS_LABELS[c.status] || c.status}
-              </Badge>
-              <span className="text-xs text-muted-foreground">{formatDate(c.createdAt)}</span>
-            </div>
-          </div>
+          )}
 
-          <div className="flex flex-wrap gap-2 shrink-0">
-            {canAct && onApprove && (
-              <Button size="sm" variant="outline" disabled={busy} onClick={onApprove}>
-                Onayla
-              </Button>
-            )}
-            {canAct && onReject && (
-              <Button size="sm" variant="outline" disabled={busy} onClick={onReject}>
-                Reddet
-              </Button>
-            )}
-            {canShopify && onShopifySync && (
-              <Button
-                size="sm"
-                disabled={busy || !c.trackingUid || !c.shopifyProductId}
-                title={
-                  !c.trackingUid
-                    ? "Takip UID eksik"
-                    : !c.shopifyProductId
-                      ? "Shopify ürün ID yok"
-                      : undefined
-                }
-                onClick={onShopifySync}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pt-0.5">
+            {onMarkSeen && (
+              <button
+                type="button"
+                className="hover:text-foreground transition-colors"
+                disabled={busy}
+                onClick={onMarkSeen}
               >
-                Shopify&apos;da güncelle
-              </Button>
+                Görüldü
+              </button>
             )}
-            {c.status === "approved" && onApply && (
-              <Button size="sm" disabled={busy} onClick={onApply}>
-                Uygula
-              </Button>
+            {onIgnore && c.status !== "ignored" && (
+              <button
+                type="button"
+                className="hover:text-foreground transition-colors"
+                disabled={busy}
+                onClick={onIgnore}
+              >
+                Yok say
+              </button>
             )}
-            {c.status === "failed" && onRetry && (
-              <Button size="sm" variant="outline" disabled={busy} onClick={onRetry}>
-                Tekrar dene
-              </Button>
+            {c.productUrl && (
+              <a
+                href={c.productUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+              >
+                Kaynak
+                <ExternalLink className="w-3 h-3" />
+              </a>
             )}
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+              onClick={() => setDetailsOpen((v) => !v)}
+            >
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`}
+              />
+              Detay
+            </button>
           </div>
         </div>
+      </div>
 
-        {c.reason && (
-          <p className="text-sm text-amber-600 dark:text-amber-500 flex items-start gap-1.5">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{c.reason}</span>
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          {onMarkSeen && (
-            <button
-              type="button"
-              className="hover:text-foreground underline-offset-2 hover:underline"
-              disabled={busy}
-              onClick={onMarkSeen}
-            >
-              Görüldü işaretle
-            </button>
-          )}
-          {onIgnore && c.status !== "ignored" && (
-            <button
-              type="button"
-              className="hover:text-foreground underline-offset-2 hover:underline"
-              disabled={busy}
-              onClick={onIgnore}
-            >
-              Yok say
-            </button>
-          )}
-          {c.productUrl && (
-            <a
-              href={c.productUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 hover:text-foreground"
-            >
-              Trendyol
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
+      {detailsOpen && (
+        <div className="px-4 pb-4 pt-0 ml-[6.5rem] space-y-2 text-xs text-muted-foreground border-t border-border/40 mx-4">
+          <div className="grid sm:grid-cols-2 gap-2 rounded-lg bg-muted/30 p-3 mt-3">
+            <div>
+              <span className="font-medium text-foreground/70">Önceki: </span>
+              {formatChangeValue(c.oldValue, c.changeType)}
+            </div>
+            <div>
+              <span className="font-medium text-foreground/70">Sonraki: </span>
+              {formatChangeValue(c.newValue, c.changeType)}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px]">
+            <span>#{c.id}</span>
+            {c.trackingUid && <span>{c.trackingUid}</span>}
+            {c.shopifyProductId && <span>Shopify {c.shopifyProductId}</span>}
+            {c.confidence != null && <span>Güven %{c.confidence}</span>}
+          </div>
         </div>
-
-        <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <ChevronDown
-              className={`w-3.5 h-3.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`}
-            />
-            Teknik detaylar
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-2 space-y-2 text-xs text-muted-foreground">
-            <div className="grid sm:grid-cols-2 gap-2 rounded-md bg-muted/40 p-3">
-              <div>
-                <span className="text-muted-foreground">Önceki: </span>
-                {formatChangeValue(c.oldValue, c.changeType)}
-              </div>
-              <div>
-                <span className="text-muted-foreground">Sonraki: </span>
-                {formatChangeValue(c.newValue, c.changeType)}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono">
-              <span>#{c.id}</span>
-              {c.trackingUid && <span>{c.trackingUid}</span>}
-              {c.shopifyProductId && <span>Shopify {c.shopifyProductId}</span>}
-              {c.confidence != null && <span>Güven %{c.confidence}</span>}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </CardContent>
-    </Card>
+      )}
+    </article>
   );
 }

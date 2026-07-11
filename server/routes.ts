@@ -4262,6 +4262,55 @@ setTimeout(check, 1000);
     }
   });
 
+  /** Ağ kesintisi sonrası — ürünün Shopify'da oluşup oluşmadığını kontrol eder */
+  app.post('/api/shopify/verify-upload', async (req, res) => {
+    try {
+      const { sourceProductId, handle, sourceUrl } = req.body as {
+        sourceProductId?: string;
+        handle?: string;
+        sourceUrl?: string;
+      };
+
+      let productId = String(sourceProductId || "").trim();
+      if (!productId && sourceUrl) {
+        productId = sourceUrl.match(/p-(\d+)/)?.[1] || "";
+      }
+
+      const cleanHandle = String(handle || "").trim();
+      if (!productId && !cleanHandle) {
+        return res.status(400).json({ found: false, error: "sourceProductId veya handle gerekli" });
+      }
+
+      const { findExistingShopifyProduct } = await import('./shopify-upsert-service');
+      const { envShopDomain } = await import('./shopify-credentials');
+
+      const existing = await findExistingShopifyProduct({
+        sourceProductId: productId,
+        handle: cleanHandle || undefined,
+        skuPrefix: productId ? `TY-${productId}` : undefined,
+      });
+
+      if (!existing?.id) {
+        return res.json({ found: false });
+      }
+
+      const domain = envShopDomain();
+      const host = domain.includes(".myshopify.com") ? domain : `${domain}.myshopify.com`;
+
+      return res.json({
+        found: true,
+        productId: existing.id,
+        handle: existing.handle,
+        adminUrl: `https://${host}/admin/products/${existing.id}`,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        found: false,
+        error: error instanceof Error ? error.message : "Doğrulama başarısız",
+      });
+    }
+  });
+
   // Debug endpoint
   app.get('/api/debug-multi-url', async (req, res) => {
     try {
@@ -4328,18 +4377,28 @@ setTimeout(check, 1000);
   // Mevcut kimlik bilgilerini döndürür (token gizlenir, gerçek API probe ile)
   app.get('/api/shopify/credentials', async (_req, res) => {
     try {
-      const { resolveShopifyConfig, bootstrapShopifyConnectionFromEnv } = await import('./shopify-credentials');
-      const boot = await bootstrapShopifyConnectionFromEnv();
+      const {
+        resolveShopifyConfig,
+        resolveOAuthShopifyCredentials,
+        envShopDomain,
+      } = await import('./shopify-credentials');
       const config = await resolveShopifyConfig();
+      const oauth = await resolveOAuthShopifyCredentials();
+      const shopDomain = config.shopDomain || envShopDomain();
+      const bootstrapMessage = config.ok
+        ? `Token aktif (${config.tokenSource})`
+        : oauth
+          ? 'OAuth hazır — "Shopify\'da Yetkilendir" ile bağlanın veya Admin Token kaydedin'
+          : config.error;
       return res.json({
         connected: config.ok,
-        shopDomain: config.shopDomain || boot.shopDomain,
+        shopDomain: shopDomain ? shopDomain : '',
         apiKey: config.apiKey,
         hasToken: config.hasAccessToken,
-        tokenInvalid: !config.ok && boot.hasAccessToken === false && config.hasAccessToken,
-        oauthReady: boot.oauthReady,
+        tokenInvalid: !config.ok && config.hasAccessToken,
+        oauthReady: Boolean(oauth),
         source: config.tokenSource,
-        bootstrapMessage: boot.message,
+        bootstrapMessage,
         error: config.error,
       });
     } catch (err) {
@@ -4365,6 +4424,13 @@ setTimeout(check, 1000);
       const { shopDomain, apiKey, apiSecret } = req.body;
       if (!shopDomain || !apiKey || !apiSecret) {
         return res.status(400).json({ error: 'shopDomain, apiKey ve apiSecret zorunludur.' });
+      }
+      const { isSharedSigningSecret } = await import('./shopify-credentials');
+      if (isSharedSigningSecret(apiSecret)) {
+        return res.status(400).json({
+          error:
+            'shpss_ OAuth imza anahtarı API secret olarak kullanılamaz. Dev Dashboard Client Secret (shpsec_...) girin.',
+        });
       }
       const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
       await saveShopifyCredentials({ shopDomain: cleanDomain, apiKey, apiSecret });
@@ -4405,37 +4471,48 @@ setTimeout(check, 1000);
   app.get('/api/shopify/callback', async (req, res) => {
     try {
       const { code, shop } = req.query as { code: string; shop: string };
-      if (!code || !shop) return res.status(400).send('GeÃ§ersiz OAuth parametreleri');
+      if (!code || !shop) return res.status(400).send('Geçersiz OAuth parametreleri');
 
-      const rows = await db.select().from(shopifyCredentials)
-        .where(eq(shopifyCredentials.shopDomain, shop))
-        .limit(1);
-      const cred = rows[0];
-      if (!cred) return res.status(400).send('Bu maÄŸaza iÃ§in kayÄ±tlÄ± kimlik bilgisi bulunamadÄ±.');
+      const { normalizeShopDomain, resolveOAuthShopifyCredentials } = await import('./shopify-credentials');
+      const normalizedShop = normalizeShopDomain(shop);
 
-      const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: cred.apiKey, client_secret: cred.apiSecret, code })
-      });
-      const tokenData = await tokenRes.json() as any;
-      if (!tokenData.access_token) {
-        return res.status(400).send(`Token alÄ±namadÄ±: ${JSON.stringify(tokenData)}`);
+      let cred = (
+        await db
+          .select()
+          .from(shopifyCredentials)
+          .where(eq(shopifyCredentials.shopDomain, normalizedShop))
+          .limit(1)
+      )[0];
+
+      if (!cred?.apiKey || !cred?.apiSecret) {
+        const oauth = await resolveOAuthShopifyCredentials();
+        if (!oauth) {
+          return res.status(400).send('Bu mağaza için kayıtlı kimlik bilgisi bulunamadı.');
+        }
+        cred = {
+          apiKey: oauth.apiKey,
+          apiSecret: oauth.apiSecret,
+        } as typeof cred;
       }
 
-      await saveShopifyAccessToken(shop, tokenData.access_token);
-
-      const { setShopifyTokenCache } = await import('./shopify-token-manager');
-      setShopifyTokenCache({
-        accessToken: tokenData.access_token,
-        shopDomain: shop,
-        source: 'db',
-        expiresInSeconds: 23 * 3600,
+      const tokenRes = await fetch(`https://${normalizedShop}/admin/oauth/access_token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: cred.apiKey, client_secret: cred.apiSecret, code }),
       });
+      const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string };
+      if (!tokenData.access_token) {
+        return res.status(400).send(`Token alınamadı: ${JSON.stringify(tokenData)}`);
+      }
+
+      await saveShopifyAccessToken(normalizedShop, tokenData.access_token);
+
+      const { activateShopifyAccessToken } = await import('./shopify-token-manager');
+      await activateShopifyAccessToken(normalizedShop, tokenData.access_token, 'db', 23 * 3600);
       invalidateShopifyCredentialCache();
       res.redirect('/?shopify=connected');
     } catch (err) {
-      res.status(500).send(`OAuth hatasÄ±: ${err}`);
+      res.status(500).send(`OAuth hatası: ${err}`);
     }
   });
 
@@ -4462,8 +4539,6 @@ setTimeout(check, 1000);
       const { shopDomain } = req.body;
       if (!shopDomain) return res.status(400).json({ error: 'shopDomain zorunludur.' });
       await deleteShopifyCredentials(shopDomain);
-      const { invalidateShopifyTokenCache } = await import('./shopify-token-manager');
-      invalidateShopifyTokenCache();
       invalidateShopifyCredentialCache();
       res.json({ success: true });
     } catch (err) {
@@ -4531,13 +4606,17 @@ setTimeout(check, 1000);
       const {
         resolveClientIdSource,
         resolveClientSecretSource,
+        hasUsableClientSecretForRefresh,
       } = await import('./shopify-credentials');
       const payload = await buildShopifyTokenStatusPayload();
       res.json({
         ...payload,
+        connected: payload.liveConnected,
+        hasToken: payload.hasActiveToken,
         envVarsConfigured: {
           SHOPIFY_CLIENT_ID: resolveClientIdSource() !== 'missing',
           SHOPIFY_CLIENT_SECRET: resolveClientSecretSource() !== 'missing',
+          SHOPIFY_CLIENT_SECRET_USABLE: hasUsableClientSecretForRefresh(),
           SHOPIFY_API_KEY: !!process.env.SHOPIFY_API_KEY,
           SHOPIFY_APP_SHARED_SECRET: !!process.env.SHOPIFY_APP_SHARED_SECRET,
           SHOPIFY_ACCESS_TOKEN: !!process.env.SHOPIFY_ACCESS_TOKEN,
@@ -4620,13 +4699,8 @@ setTimeout(check, 1000);
       const shopData = (await testRes.json()) as { shop?: { name?: string } };
       await saveDirectAccessToken(cleanDomain, accessToken);
 
-      const { setShopifyTokenCache } = await import('./shopify-token-manager');
-      setShopifyTokenCache({
-        accessToken,
-        shopDomain: cleanDomain,
-        source: 'db',
-        expiresInSeconds: 23 * 3600,
-      });
+      const { activateShopifyAccessToken } = await import('./shopify-token-manager');
+      await activateShopifyAccessToken(cleanDomain, accessToken, 'db', 23 * 3600);
 
       invalidateShopifyCredentialCache();
       res.json({ success: true, shopDomain: cleanDomain, storeName: shopData?.shop?.name || cleanDomain });

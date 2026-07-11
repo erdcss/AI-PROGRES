@@ -326,11 +326,205 @@ export async function upsertProductFromSource(
   }
 }
 
+const REST_VARIANT_CREATE_LIMIT = 100;
+const GRAPHQL_VARIANT_BATCH_SIZE = 100;
+
+async function createNewProductViaGraphQL(
+  parsed: ReturnType<typeof parseCsvVariants>,
+  tags: string,
+  canonical: CanonicalProductForShopify,
+): Promise<UpsertResult> {
+  const opt1Values = [...new Set(parsed.variants.map((v) => v.option1).filter(Boolean))];
+  const opt2Values = [...new Set(parsed.variants.map((v) => v.option2).filter(Boolean))];
+
+  const productOptionsInput: Array<{ name: string; values: Array<{ name: string }> }> = [];
+  if (opt1Values.length && parsed.option1Name) {
+    productOptionsInput.push({
+      name: parsed.option1Name,
+      values: opt1Values.map((v) => ({ name: v })),
+    });
+  }
+  if (opt2Values.length && parsed.option2Name) {
+    productOptionsInput.push({
+      name: parsed.option2Name,
+      values: opt2Values.map((v) => ({ name: v })),
+    });
+  }
+
+  const createMutation = `
+    mutation productCreate($input: ProductInput!) {
+      productCreate(input: $input) {
+        product { id handle }
+        userErrors { field message }
+      }
+    }
+  `;
+
+  const productInput: Record<string, unknown> = {
+    title: parsed.title,
+    descriptionHtml: parsed.bodyHtml,
+    vendor: parsed.vendor || canonical.brand,
+    tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+    handle: parsed.handle || canonical.handle,
+    status: "ACTIVE",
+  };
+  if (productOptionsInput.length > 0) productInput.productOptions = productOptionsInput;
+
+  const createResult = await shopifyAdminGraphql<{
+    productCreate?: {
+      product?: { id: string; handle: string };
+      userErrors?: Array<{ message: string }>;
+    };
+  }>(createMutation, { input: productInput }, false, "2024-10");
+
+  if (!createResult.response.ok) {
+    return {
+      success: false,
+      message: `GraphQL HTTP hatası: ${createResult.response.status}`,
+      httpStatus: createResult.response.status,
+    };
+  }
+
+  const userErrors = createResult.data?.productCreate?.userErrors || [];
+  if (createResult.errors || userErrors.length > 0) {
+    const errMsg = createResult.errors
+      ? JSON.stringify(createResult.errors)
+      : userErrors.map((e) => e.message).join(", ");
+    return {
+      success: false,
+      message: `GraphQL ürün oluşturma hatası: ${errMsg}`,
+      httpStatus: 422,
+    };
+  }
+
+  const createdProduct = createResult.data?.productCreate?.product;
+  if (!createdProduct?.id) {
+    return { success: false, message: "GraphQL ürün oluşturma yanıtı eksik", httpStatus: 422 };
+  }
+
+  const productGid = createdProduct.id;
+  const productId = productGid.split("/").pop()!;
+  console.log(`[ShopifyUpsert] GraphQL ürün oluşturuldu ID=${productId} (${parsed.variants.length} varyant)`);
+
+  if (parsed.images.length > 0) {
+    const IMAGE_BATCH_SIZE = 5;
+    for (let b = 0; b < parsed.images.length; b += IMAGE_BATCH_SIZE) {
+      const batch = parsed.images.slice(b, b + IMAGE_BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (image) => {
+          try {
+            await shopifyAdminFetch(`/products/${productId}/images.json`, {
+              method: "POST",
+              body: JSON.stringify({
+                image: { src: image.src, alt: image.alt, position: image.position },
+              }),
+            });
+          } catch {
+            /* non-critical */
+          }
+        }),
+      );
+    }
+  }
+
+  const bulkVariantMutation = `
+    mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkCreate(productId: $productId, variants: $variants) {
+        productVariants { id }
+        userErrors { field message }
+      }
+    }
+  `;
+
+  let createdVariantCount = 0;
+  for (let i = 0; i < parsed.variants.length; i += GRAPHQL_VARIANT_BATCH_SIZE) {
+    const batch = parsed.variants.slice(i, i + GRAPHQL_VARIANT_BATCH_SIZE);
+    const variantsInput = batch.map((v) => {
+      const vi: Record<string, unknown> = {
+        price: v.price,
+        sku: v.sku,
+        inventoryPolicy: v.inventoryQty > 0 ? "CONTINUE" : "DENY",
+        inventoryItem: { tracked: true },
+      };
+      if (v.compareAtPrice && parseFloat(v.compareAtPrice) > 0) {
+        vi.compareAtPrice = v.compareAtPrice;
+      }
+      const optionValues: { name: string; value: string }[] = [];
+      if (v.option1?.trim() && parsed.option1Name) {
+        optionValues.push({ name: parsed.option1Name, value: v.option1 });
+      }
+      if (v.option2?.trim() && parsed.option2Name) {
+        optionValues.push({ name: parsed.option2Name, value: v.option2 });
+      }
+      if (optionValues.length > 0) vi.optionValues = optionValues;
+      return vi;
+    });
+
+    const varResult = await shopifyAdminGraphql<{
+      productVariantsBulkCreate?: {
+        productVariants?: Array<{ id: string }>;
+        userErrors?: Array<{ message: string }>;
+      };
+    }>(
+      bulkVariantMutation,
+      { productId: productGid, variants: variantsInput },
+      false,
+      "2024-10",
+    );
+
+    if (!varResult.response.ok) {
+      return {
+        success: false,
+        message: `GraphQL varyant batch hatası (HTTP ${varResult.response.status})`,
+        httpStatus: varResult.response.status,
+        productId,
+      };
+    }
+
+    const vErrors = varResult.data?.productVariantsBulkCreate?.userErrors || [];
+    if (varResult.errors || vErrors.length > 0) {
+      const errMsg = varResult.errors
+        ? JSON.stringify(varResult.errors)
+        : vErrors.map((e) => e.message).join(", ");
+      return {
+        success: false,
+        message: `GraphQL varyant oluşturma hatası: ${errMsg}`,
+        httpStatus: 422,
+        productId,
+      };
+    }
+
+    createdVariantCount += varResult.data?.productVariantsBulkCreate?.productVariants?.length ?? 0;
+  }
+
+  const variantMappings = await fetchShopifyVariantMappings(productId);
+
+  return {
+    success: true,
+    mode: "created",
+    productId,
+    productGid,
+    handle: createdProduct.handle,
+    message: `GraphQL ile oluşturuldu (${createdVariantCount} varyant)`,
+    createdVariants: createdVariantCount,
+    updatedVariants: 0,
+    skippedDuplicateVariants: 0,
+    variantMappings,
+  };
+}
+
 async function createNewProduct(
   parsed: ReturnType<typeof parseCsvVariants>,
   tags: string,
   canonical: CanonicalProductForShopify,
 ): Promise<UpsertResult> {
+  if (parsed.variants.length > REST_VARIANT_CREATE_LIMIT) {
+    console.log(
+      `[ShopifyUpsert] ${parsed.variants.length} varyant > ${REST_VARIANT_CREATE_LIMIT} — GraphQL kullanılıyor`,
+    );
+    return createNewProductViaGraphQL(parsed, tags, canonical);
+  }
+
   const options: Array<{ name: string; values: string[] }> = [];
   const opt1Values = [...new Set(parsed.variants.map((v) => v.option1).filter(Boolean))];
   const opt2Values = [...new Set(parsed.variants.map((v) => v.option2).filter(Boolean))];
@@ -382,9 +576,16 @@ async function createNewProduct(
 
   if (!response.ok) {
     const err = await parseShopifyAdminResponse(response);
+    const errStr = JSON.stringify(err);
+    if (
+      parsed.variants.length > REST_VARIANT_CREATE_LIMIT &&
+      errStr.includes("more than 100 variants")
+    ) {
+      return createNewProductViaGraphQL(parsed, tags, canonical);
+    }
     return {
       success: false,
-      message: `Shopify create hatası: ${JSON.stringify(err)}`,
+      message: `Shopify create hatası: ${errStr}`,
       httpStatus: response.status,
     };
   }
@@ -425,6 +626,7 @@ async function updateExistingProduct(
         body_html: parsed.bodyHtml,
         vendor: parsed.vendor || canonical.brand,
         tags,
+        status: "active",
       },
     }),
   });
