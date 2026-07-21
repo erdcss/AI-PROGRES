@@ -1,14 +1,22 @@
 import { db } from "../db";
 import { trackedProducts, detectedChanges } from "@shared/schema";
-import { eq, and, sql, desc, isNull, count } from "drizzle-orm";
+import { eq, and, sql, desc, isNull, isNotNull, count, ne, or } from "drizzle-orm";
 import {
   getTrackingSettings,
   isTrackingSettingsTableReady,
 } from "./tracking-settings.service";
 import { isScrapeGatewaySettingsTableReady } from "./scrape-gateway-settings.service";
 import { trackingService } from "./tracking.service";
-import { fetchSourceForTracking } from "./source-fetcher.service";
+import {
+  fetchSourceForTracking,
+  hasSufficientVariantCoverage,
+} from "./source-fetcher.service";
 import { compareSnapshots, persistDetectedChanges } from "./product-diff.service";
+import {
+  getLastShopifyTrackingReconcileStatus,
+  reconcileShopifyTracking,
+  type ShopifyTrackingReconcileResult,
+} from "./shopify-tracking-reconciliation.service";
 import {
   getProductTrackingMigrationStatus,
   refreshProductTrackingTableStatus,
@@ -18,6 +26,10 @@ import {
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 const checkingProducts = new Set<number>();
+const SHOPIFY_RECONCILE_INTERVAL_MS = 60 * 60_000;
+const SHOPIFY_RECONCILE_RETRY_DELAY_MS = 5 * 60_000;
+let shopifyReconcilePromise: Promise<ShopifyTrackingReconcileResult> | null = null;
+let lastShopifyReconcileAttemptAt: Date | null = null;
 
 let schedulerState = {
   lastRunAt: null as Date | null,
@@ -25,6 +37,42 @@ let schedulerState = {
   nextRunAt: null as Date | null,
   lastRunId: null as string | null,
 };
+
+export function isShopifyTrackingReconcileDue(
+  last: { status: string; created_at: Date | string } | null,
+  now = Date.now(),
+): boolean {
+  return !(
+    last?.status === "success" &&
+    now - new Date(last.created_at).getTime() < SHOPIFY_RECONCILE_INTERVAL_MS
+  );
+}
+
+export async function triggerShopifyTrackingReconcile(
+  force = false,
+): Promise<ShopifyTrackingReconcileResult | null> {
+  if (shopifyReconcilePromise) return shopifyReconcilePromise;
+
+  const now = Date.now();
+  if (
+    !force &&
+    lastShopifyReconcileAttemptAt &&
+    now - lastShopifyReconcileAttemptAt.getTime() < SHOPIFY_RECONCILE_RETRY_DELAY_MS
+  ) {
+    return null;
+  }
+
+  if (!force) {
+    const last = await getLastShopifyTrackingReconcileStatus().catch(() => null);
+    if (!isShopifyTrackingReconcileDue(last, now)) return null;
+  }
+
+  lastShopifyReconcileAttemptAt = new Date();
+  shopifyReconcilePromise = reconcileShopifyTracking().finally(() => {
+    shopifyReconcilePromise = null;
+  });
+  return shopifyReconcilePromise;
+}
 
 export function releaseStaleCheckLocks(): void {
   checkingProducts.clear();
@@ -39,6 +87,17 @@ function numPrice(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function visibleTrackedProductCondition() {
+  return and(
+    ne(trackedProducts.currentStatus, "shopify_deleted"),
+    isNull(trackedProducts.archivedAt),
+    or(
+      isNotNull(trackedProducts.shopifyProductId),
+      isNotNull(trackedProducts.shopifyProductGid),
+    ),
+  );
 }
 
 export async function runManualProductCheck(trackedProductId: number) {
@@ -134,6 +193,38 @@ export async function runManualProductCheck(trackedProductId: number) {
     }
 
     const data = fetchResult.data;
+    const previousVariantCount = Array.isArray(previousSnapshot?.variants)
+      ? previousSnapshot.variants.length
+      : 0;
+    if (!hasSufficientVariantCoverage(previousVariantCount, data.variants.length)) {
+      const message =
+        `Eksik varyant ölçümü yok sayıldı (${data.variants.length}/${previousVariantCount})`;
+      await db
+        .update(trackedProducts)
+        .set({ lastCheckedAt: new Date(), updatedAt: new Date() })
+        .where(eq(trackedProducts.id, trackedProductId));
+      await trackingService.writeSyncLog({
+        trackedProductId,
+        action: "source_fetch",
+        status: "warning",
+        message,
+        meta: {
+          previousVariantCount,
+          currentVariantCount: data.variants.length,
+          skippedReason: "incomplete_variant_snapshot",
+        },
+      });
+      return {
+        success: false,
+        skipped: true,
+        checked: true,
+        validSource: false,
+        changesCreated: 0,
+        userMessage: message,
+        reason: "incomplete_variant_snapshot",
+      };
+    }
+
     const newSnapshot = await trackingService.saveSnapshot({
       trackedProductId,
       snapshotType: "manual",
@@ -219,6 +310,12 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
       return;
     }
 
+    try {
+      await triggerShopifyTrackingReconcile(false);
+    } catch (err) {
+      console.warn("Shopify tracking reconciliation skipped:", err);
+    }
+
     const now = Date.now();
     const products = await db
       .select()
@@ -227,6 +324,7 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
         and(
           eq(trackedProducts.trackingEnabled, true),
           eq(trackedProducts.currentStatus, "active"),
+          visibleTrackedProductCondition(),
         ),
       );
 
@@ -285,7 +383,7 @@ export async function startTrackingScheduler(): Promise<void> {
     return;
   }
 
-  console.log("⏰ Ürün Takip v2 scheduler başlatılıyor (Shopify auto-sync KAPALI)");
+  console.log("⏰ Ürün Takip v2 scheduler başlatılıyor (Shopify ürün eşitleme: saatlik)");
   schedulerState.nextRunAt = new Date(Date.now() + 60_000);
 
   intervalHandle = setInterval(() => {
@@ -328,6 +426,8 @@ export async function getTrackingSchedulerStatus() {
     () => false,
   );
 
+  const lastShopifyReconcile = await getLastShopifyTrackingReconcileStatus().catch(() => null);
+
   if (!settings) {
     return {
       trackingEnabled: false,
@@ -345,6 +445,8 @@ export async function getTrackingSchedulerStatus() {
       trackedProductsCount: 0,
       activeTrackedProductsCount: 0,
       errorProductsCount: 0,
+      shopifyReconcileRunning: shopifyReconcilePromise !== null,
+      lastShopifyReconcile,
       settingsReady,
       scrapeGatewaySettingsReady,
       migration: {
@@ -355,21 +457,34 @@ export async function getTrackingSchedulerStatus() {
     };
   }
 
-  const [trackedCount] = await db.select({ c: count() }).from(trackedProducts);
+  const [trackedCount] = await db
+    .select({ c: count() })
+    .from(trackedProducts)
+    .where(
+      visibleTrackedProductCondition(),
+    );
   const [activeCount] = await db
     .select({ c: count() })
     .from(trackedProducts)
-    .where(and(eq(trackedProducts.trackingEnabled, true), eq(trackedProducts.currentStatus, "active")));
+    .where(
+      and(
+        eq(trackedProducts.trackingEnabled, true),
+        eq(trackedProducts.currentStatus, "active"),
+        visibleTrackedProductCondition(),
+      ),
+    );
 
   const [pendingCount] = await db
     .select({ c: count() })
     .from(detectedChanges)
-    .where(eq(detectedChanges.status, "pending"));
+    .innerJoin(trackedProducts, eq(detectedChanges.trackedProductId, trackedProducts.id))
+    .where(and(eq(detectedChanges.status, "pending"), visibleTrackedProductCondition()));
 
   const [manualCount] = await db
     .select({ c: count() })
     .from(detectedChanges)
-    .where(eq(detectedChanges.status, "manual_review"));
+    .innerJoin(trackedProducts, eq(detectedChanges.trackedProductId, trackedProducts.id))
+    .where(and(eq(detectedChanges.status, "manual_review"), visibleTrackedProductCondition()));
 
   const [errorCount] = await db
     .select({ c: count() })
@@ -392,6 +507,8 @@ export async function getTrackingSchedulerStatus() {
     trackedProductsCount: Number(trackedCount?.c ?? 0),
     activeTrackedProductsCount: Number(activeCount?.c ?? 0),
     errorProductsCount: Number(errorCount?.c ?? 0),
+    shopifyReconcileRunning: shopifyReconcilePromise !== null,
+    lastShopifyReconcile,
     settingsReady: true,
     scrapeGatewaySettingsReady,
     migration: {

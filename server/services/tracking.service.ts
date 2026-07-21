@@ -10,15 +10,18 @@ import {
   type InsertTrackedProduct,
   type InsertTrackedVariant,
 } from "@shared/schema";
-import { eq, desc, and, sql, inArray, isNull } from "drizzle-orm";
+import { eq, desc, and, sql, inArray, isNull, isNotNull, ne, or } from "drizzle-orm";
 import { getTrackingSettings } from "./tracking-settings.service";
 import { generateTrackingUid, generateVariantUid } from "./tracking-uid.service";
+import {
+  buildTrackingVariantLabel,
+  resolveTrackingVariantColorSize,
+  type TrackingVariantInput,
+} from "@shared/trendyol-variant-utils";
 
 export type SyncLogMeta = Record<string, unknown>;
 
-export type TrackingRegistrationVariant = {
-  color?: string;
-  size?: string;
+export type TrackingRegistrationVariant = TrackingVariantInput & {
   sku?: string;
   shopifyVariantId?: string;
   price?: number;
@@ -110,6 +113,16 @@ export class TrackingService {
     return db
       .select()
       .from(trackedProducts)
+      .where(
+        and(
+          ne(trackedProducts.currentStatus, "shopify_deleted"),
+          isNull(trackedProducts.archivedAt),
+          or(
+            isNotNull(trackedProducts.shopifyProductId),
+            isNotNull(trackedProducts.shopifyProductGid),
+          ),
+        ),
+      )
       .orderBy(desc(trackedProducts.updatedAt));
   }
 
@@ -128,10 +141,23 @@ export class TrackingService {
   }
 
   /** Kontrol merkezi — takip kapalı olsa bile listeler */
-  async listProductsForPanel() {
+  async listProductsForPanel(options?: { includeArchived?: boolean }) {
+    const includeArchived = options?.includeArchived === true;
     const products = await db
       .select()
       .from(trackedProducts)
+      .where(
+        includeArchived
+          ? undefined
+          : and(
+              ne(trackedProducts.currentStatus, "shopify_deleted"),
+              isNull(trackedProducts.archivedAt),
+              or(
+                isNotNull(trackedProducts.shopifyProductId),
+                isNotNull(trackedProducts.shopifyProductGid),
+              ),
+            ),
+      )
       .orderBy(desc(trackedProducts.updatedAt));
 
     const imageMap = await this.getLatestImageMap(products.map((p) => p.id));
@@ -147,7 +173,33 @@ export class TrackingService {
     changeType?: string;
   }) {
     const conditions = [];
-    if (filters?.status) conditions.push(eq(detectedChanges.status, filters.status));
+    conditions.push(
+      inArray(
+        detectedChanges.trackedProductId,
+        db
+          .select({ id: trackedProducts.id })
+          .from(trackedProducts)
+          .where(
+            and(
+              ne(trackedProducts.currentStatus, "shopify_deleted"),
+              isNull(trackedProducts.archivedAt),
+              or(
+                isNotNull(trackedProducts.shopifyProductId),
+                isNotNull(trackedProducts.shopifyProductGid),
+              ),
+            ),
+          ),
+      ),
+    );
+    if (filters?.status === "actionable") {
+      conditions.push(
+        inArray(detectedChanges.status, ["pending", "manual_review", "approved", "failed"]),
+      );
+    } else if (filters?.status) {
+      conditions.push(eq(detectedChanges.status, filters.status));
+    } else {
+      conditions.push(ne(detectedChanges.status, "superseded"));
+    }
     if (filters?.productId) conditions.push(eq(detectedChanges.trackedProductId, filters.productId));
     if (filters?.changeType) conditions.push(eq(detectedChanges.changeType, filters.changeType));
 
@@ -177,15 +229,52 @@ export class TrackingService {
       .where(inArray(trackedProducts.id, productIds));
 
     const byId = new Map(products.map((p) => [p.id, p]));
+    const variantIds = [
+      ...new Set(
+        changes
+          .map((change) => change.trackedVariantId)
+          .filter((id): id is number => typeof id === "number"),
+      ),
+    ];
+    const variants =
+      variantIds.length > 0
+        ? await db
+            .select({
+              id: trackedVariants.id,
+              variantUid: trackedVariants.variantUid,
+              sourceVariantTitle: trackedVariants.sourceVariantTitle,
+              sourceSku: trackedVariants.sourceSku,
+              option1: trackedVariants.option1,
+              option2: trackedVariants.option2,
+              option3: trackedVariants.option3,
+              shopifyVariantId: trackedVariants.shopifyVariantId,
+            })
+            .from(trackedVariants)
+            .where(inArray(trackedVariants.id, variantIds))
+        : [];
+    const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const imageMap = await this.getLatestImageMap(productIds);
-    return changes.map((c) => ({
-      ...c,
-      productTitle: byId.get(c.trackedProductId)?.sourceTitle ?? null,
-      productUrl: byId.get(c.trackedProductId)?.sourceUrl ?? null,
-      shopifyProductId: byId.get(c.trackedProductId)?.shopifyProductId ?? null,
-      trackingUid: byId.get(c.trackedProductId)?.trackingUid ?? null,
-      productImageUrl: imageMap.get(c.trackedProductId) ?? null,
-    }));
+    return changes.map((c) => {
+      const variant = c.trackedVariantId ? variantById.get(c.trackedVariantId) : undefined;
+      const variantLabel = variant
+        ? buildTrackingVariantLabel(variant.option1, variant.option2, variant.sourceVariantTitle) ||
+          buildTrackingVariantLabel(variant.option1, variant.option3, variant.sourceSku) ||
+          variant.sourceSku ||
+          null
+        : null;
+      return {
+        ...c,
+        productTitle: byId.get(c.trackedProductId)?.sourceTitle ?? null,
+        productUrl: byId.get(c.trackedProductId)?.sourceUrl ?? null,
+        shopifyProductId: byId.get(c.trackedProductId)?.shopifyProductId ?? null,
+        trackingUid: byId.get(c.trackedProductId)?.trackingUid ?? null,
+        productImageUrl: imageMap.get(c.trackedProductId) ?? null,
+        variantUid: variant?.variantUid ?? null,
+        variantLabel,
+        variantSku: variant?.sourceSku ?? null,
+        shopifyVariantId: variant?.shopifyVariantId ?? null,
+      };
+    });
   }
 
   async getLatestSnapshot(trackedProductId: number) {
@@ -276,6 +365,11 @@ export class TrackingService {
       currentSourcePrice: String(input.price),
       currentStatus: "active",
       trackingEnabled: true,
+      shopifySyncStatus: "live",
+      lastShopifySyncAt: new Date(),
+      pausedReason: null,
+      archivedAt: null,
+      lastErrorMessage: null,
       lastSuccessAt: new Date(),
     };
 
@@ -301,8 +395,9 @@ export class TrackingService {
       );
 
     for (const v of variantList) {
-      const option1 = v.color?.trim() || null;
-      const option2 = v.size?.trim() || null;
+      const { color, size } = resolveTrackingVariantColorSize(v);
+      const option1 = color;
+      const option2 = size;
       const variantPayload: InsertTrackedVariant = {
         trackedProductId: productRow.id,
         variantUid: generateVariantUid(
@@ -311,7 +406,8 @@ export class TrackingService {
           option2,
           v.sku,
         ),
-        sourceVariantTitle: [option1, option2].filter(Boolean).join(" / ") || v.sku || "unknown",
+        sourceVariantTitle:
+          buildTrackingVariantLabel(color, size, v.sku) || v.sku || "unknown",
         option1,
         option2,
         sourceSku: v.sku ?? null,

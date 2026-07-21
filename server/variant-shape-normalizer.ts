@@ -12,6 +12,8 @@ import {
 } from "./shopify-source-key";
 import { mergeScrapeFields, collectScrapeSourceLayers } from "./scrape-field-merge";
 import { normalizeTrendyolPriceValue } from "./trendyol-price-utils";
+import { traceVariants } from "./variant-trace";
+import { isComboSizeLabel } from "@shared/trendyol-variant-utils";
 
 export interface CanonicalVariantItem {
   sourceProductId: string;
@@ -38,6 +40,8 @@ export interface CanonicalProductForShopify {
   parsedProductId?: string;
   sourceUrl: string;
   sourceKey: string;
+  /** Renk ailesindeki tüm trendyol:{productId} anahtarları */
+  sourceAliases?: string[];
   handle: string;
   title: string;
   brand: string;
@@ -46,6 +50,8 @@ export interface CanonicalProductForShopify {
   /** Gerçek liste/indirim öncesi fiyat — yoksa boş */
   compareAtPrice?: string;
   images: string[];
+  /** Renk → galeri; CSV Variant Image / Image Alt için */
+  imagesByColor?: Record<string, string[]>;
   variants: CanonicalVariantItem[];
   outOfStockVariants: CanonicalVariantItem[];
   stockSummary: {
@@ -84,7 +90,11 @@ export const VALID_SIZE_LABEL =
   /^(XS|S|M|L|XL|XXL|2XL|3XL|4XL|34|36|38|40|42|44|Standart|STD|Tek Ebat)$/i;
 
 export function isValidSizeLabel(size: string): boolean {
-  return VALID_SIZE_LABEL.test(size.trim());
+  const t = size.trim();
+  if (!t) return false;
+  // Trendyol combo bedenleri (S/M, L/XL) atomik genişletmeden önce kabul edilmeli
+  if (isComboSizeLabel(t)) return true;
+  return VALID_SIZE_LABEL.test(t);
 }
 
 function cleanSize(value: string): string | null {
@@ -266,15 +276,40 @@ function collectFromAllVariants(allVariants: unknown[]): RawVariantRow[] {
     }
     const color = normalizedColor || DEFAULT_COLOR;
     const size = normalizeSizeValue(o.size ?? o.sizeName) || DEFAULT_SIZE;
+    const images = Array.isArray(o.images)
+      ? o.images.filter((u): u is string => typeof u === "string" && /^https?:\/\//i.test(u))
+      : [];
+    const image =
+      typeof o.image === "string" && /^https?:\/\//i.test(o.image)
+        ? o.image
+        : images[0];
     rows.push({
       color,
       size,
       inStock: resolveRowStockUnknown(o) ? false : resolveRowInStock(o),
-      stockCount: typeof o.stockCount === "number" ? o.stockCount : null,
+      stockCount:
+        typeof o.stockCount === "number"
+          ? o.stockCount
+          : typeof o.sourceStockQty === "number"
+            ? o.sourceStockQty
+            : null,
+      price:
+        typeof o.price === "number" || typeof o.price === "string" ? o.price : undefined,
+      image,
       confidence: resolveRowStockUnknown(o) ? "low" : "high",
       evidenceSource: "all_variants" as const,
-      sourceListingId: typeof o.listingId === "string" ? o.listingId : null,
-      sourceProductId: typeof o.productId === "string" ? o.productId : null,
+      sourceListingId:
+        typeof o.listingId === "string"
+          ? o.listingId
+          : typeof o.sourceListingId === "string"
+            ? o.sourceListingId
+            : null,
+      sourceProductId:
+        o.sourceProductId != null
+          ? String(o.sourceProductId)
+          : o.productId != null
+            ? String(o.productId)
+            : null,
     });
   }
   return rows;
@@ -387,47 +422,44 @@ function mergeAllVariantSources(
   if (Array.isArray(v.allVariants) && v.allVariants.length > 0) {
     ingest(collectFromAllVariants(v.allVariants as unknown[]), "allVariants");
   }
-  const hasNamedColorsInMap = [...rowMap.values()].some(
-    (r) => r.color && r.color !== DEFAULT_COLOR,
+
+  const existingSizeKeys = new Set(
+    [...rowMap.values()].map((r) => (normalizeSizeValue(r.size) || "").toLowerCase()).filter(Boolean),
   );
-  if (!hasNamedColorsInMap && extras?.slicingAttributes) {
+  const ingestExtraSizes = (
+    sizes: string[],
+    source: string,
+    evidenceSource: RawVariantRow["evidenceSource"],
+  ) => {
+    const normalized = sizes
+      .map((s) => normalizeSizeValue(s))
+      .filter((s): s is string => Boolean(s));
+    const novel = normalized.filter((s) => !existingSizeKeys.has(s.toLowerCase()));
+    if (novel.length === 0) return;
+    ingest(
+      novel.map((size) => ({
+        color: DEFAULT_COLOR,
+        size,
+        inStock: false,
+        confidence: "low" as const,
+        evidenceSource,
+      })),
+      source,
+    );
+    for (const s of novel) existingSizeKeys.add(s.toLowerCase());
+  };
+
+  // Renk satırı olsa bile DOM/script/slicing bedenleri birleştir — yalnızca görünür
+  // seçili bedene güvenilmemeli (hasNamedColorsInMap eski kapısı kaldırıldı).
+  if (extras?.slicingAttributes) {
     const slicingSizes = extractSizesFromSlicingAttributes(extras.slicingAttributes);
-    if (slicingSizes.length) {
-      ingest(
-        slicingSizes.map((size) => ({
-          color: DEFAULT_COLOR,
-          size,
-          inStock: false,
-          confidence: "low" as const,
-          evidenceSource: "script_state" as const,
-        })),
-        "slicingAttributes",
-      );
-    }
+    if (slicingSizes.length) ingestExtraSizes(slicingSizes, "slicingAttributes", "script_state");
   }
-  if (!hasNamedColorsInMap && extras?.scriptSizes?.length) {
-    ingest(
-      extras.scriptSizes.map((size) => ({
-        color: DEFAULT_COLOR,
-        size,
-        inStock: false,
-        confidence: "low" as const,
-        evidenceSource: "script_state" as const,
-      })),
-      "scriptJson",
-    );
+  if (extras?.scriptSizes?.length) {
+    ingestExtraSizes(extras.scriptSizes, "scriptJson", "script_state");
   }
-  if (!hasNamedColorsInMap && extras?.domSizeButtons?.length) {
-    ingest(
-      extras.domSizeButtons.map((size) => ({
-        color: DEFAULT_COLOR,
-        size,
-        inStock: false,
-        confidence: "low" as const,
-        evidenceSource: "dom_buttons" as const,
-      })),
-      "domButtons",
-    );
+  if (extras?.domSizeButtons?.length) {
+    ingestExtraSizes(extras.domSizeButtons, "domButtons", "dom_buttons");
   }
 
   if (colors.length > 0 && sizes.length > 0 && rowMap.size === 0) {
@@ -659,13 +691,30 @@ export function buildCanonicalProductForShopify(
   const slicingAttributes =
     rootLayer.slicingAttributes ?? input.scrapeResult.slicingAttributes ?? rootLayer.attributes;
 
-  const { rows, inputShape, diagnostics: extractDiag } = extractVariantsFromScrape(
+  const extractedVariants = extractVariantsFromScrape(
     variantsRaw,
     stockText,
     { domSizeButtons, slicingAttributes, variantDiagnostics, scriptSizes },
   );
+  let rows = extractedVariants.rows;
+  const { inputShape, diagnostics: extractDiag } = extractedVariants;
+  const likelyApparel = isLikelyApparelForCanonical(input.scrapeResult, sourceUrl, title);
 
   if (rows.length === 0) {
+    if (!likelyApparel) {
+      console.log(
+        "[VariantNormalize] varyantsız normal ürün — güvenli varsayılan Shopify varyantı oluşturuldu",
+      );
+      rows = [
+        {
+          color: DEFAULT_COLOR,
+          size: DEFAULT_SIZE,
+          inStock: true,
+          confidence: "low",
+          evidenceSource: "unknown",
+        },
+      ];
+    } else {
     console.log("[VariantNormalize] no variants extracted — manual review required");
     return {
       sourcePlatform: "trendyol",
@@ -693,9 +742,30 @@ export function buildCanonicalProductForShopify(
       variantDiagnostics: { ...variantDiagnostics, ...extractDiag, shopifyUploadBlocked: true },
       stockText,
     };
+    }
   }
 
   const config = getShopifyInventoryConfig();
+  const familySourceKey =
+    typeof input.scrapeResult.familySourceKey === "string"
+      ? input.scrapeResult.familySourceKey
+      : typeof (input.scrapeResult.colorFamily as { familySourceKey?: string } | undefined)
+            ?.familySourceKey === "string"
+        ? (input.scrapeResult.colorFamily as { familySourceKey: string }).familySourceKey
+        : null;
+  const sourceAliases = Array.isArray(input.scrapeResult.sourceAliases)
+    ? (input.scrapeResult.sourceAliases as string[]).filter((s) => typeof s === "string")
+    : Array.isArray((input.scrapeResult.colorFamily as { sourceAliases?: string[] } | undefined)?.sourceAliases)
+      ? ((input.scrapeResult.colorFamily as { sourceAliases: string[] }).sourceAliases)
+      : undefined;
+  const effectiveSourceKey =
+    familySourceKey ||
+    sourceIds?.sourceKey ||
+    identity?.sourceKey ||
+    `trendyol:${sourceProductId}`;
+  const familyIdForHandle =
+    familySourceKey?.replace(/^trendyol-group:/, "") || sourceProductId;
+
   const canonicalRows: CanonicalVariantItem[] = rows.map((row) => {
     const inventoryQty = resolveInventoryQty(
       { inStock: row.inStock, stockCount: row.stockCount },
@@ -723,51 +793,150 @@ export function buildCanonicalProductForShopify(
       option1Value = row.size;
     }
 
+    const variantSourceProductId = row.sourceProductId || sourceProductId;
+    const variantPrice = resolveVariantSalePrice(
+      row.price != null && String(row.price).trim() !== "" ? String(row.price) : undefined,
+      price,
+      profitRatio,
+    );
+
     return {
-      sourceProductId,
+      sourceProductId: variantSourceProductId,
       color: row.color,
       size: row.size,
       option1Name,
       option1Value,
       option2Name,
       option2Value,
-      sku: buildCanonicalSku(sourceProductId, row.color, row.size),
+      sku: buildCanonicalSku(variantSourceProductId, row.color, row.size),
       inStock: row.inStock,
       inventoryQty,
       sourceStockQty: row.stockCount ?? null,
       stockConfidence: row.confidence,
       disabledReason: row.disabledReason,
-      price: resolveVariantSalePrice(
-        row.price ? String(row.price) : undefined,
-        price,
-        profitRatio,
-      ),
+      price: variantPrice,
       image: row.image,
     };
   });
 
   const inStock = canonicalRows.filter((v) => v.inStock);
   const outOfStock = canonicalRows.filter((v) => !v.inStock);
-  const exportVariants = config.exportOutOfStockVariants ? canonicalRows : inStock;
 
-  const colors = [...new Set(canonicalRows.map((v) => v.color))];
-  const sizes = [...new Set(canonicalRows.map((v) => v.size))];
+  // Gerçek renk varken "Tek Renk" satırlarını düş — Shopify option şemasını bozar
+  const namedColorRows = canonicalRows.filter(
+    (v) => v.color && v.color !== DEFAULT_COLOR,
+  );
+  const rowsForColor =
+    namedColorRows.length > 0 ? namedColorRows : canonicalRows;
+
+  // Shopify'a yalnızca stokta olanlar gider (env ile açılmadıkça)
+  const rowsForExport = config.exportOutOfStockVariants
+    ? rowsForColor
+    : rowsForColor.filter((v) => v.inStock);
+
+  const exportVariants =
+    rowsForExport.length > 0
+      ? rowsForExport
+      : config.exportOutOfStockVariants
+        ? rowsForColor
+        : inStock.filter((v) =>
+            namedColorRows.length > 0 ? v.color && v.color !== DEFAULT_COLOR : true,
+          );
+
+  const colors = [...new Set(rowsForColor.map((v) => v.color))];
+  const sizes = [...new Set(rowsForColor.map((v) => v.size))];
+
+  const imagesByColorRaw = input.scrapeResult.imagesByColor;
+  const imagesByColor: Record<string, string[]> =
+    imagesByColorRaw && typeof imagesByColorRaw === "object" && !Array.isArray(imagesByColorRaw)
+      ? Object.fromEntries(
+          Object.entries(imagesByColorRaw as Record<string, unknown>)
+            .map(([k, v]) => [
+              k,
+              Array.isArray(v)
+                ? v.filter((u): u is string => typeof u === "string" && /^https?:\/\//i.test(u))
+                : [],
+            ])
+            .filter(([, urls]) => (urls as string[]).length > 0),
+        )
+      : {};
+
+  // Her varyanta kendi renk görselini bağla
+  for (const v of exportVariants) {
+    if (v.image) continue;
+    const gallery =
+      imagesByColor[v.color] ||
+      Object.entries(imagesByColor).find(
+        ([k]) => k.toLocaleLowerCase("tr-TR") === v.color.toLocaleLowerCase("tr-TR"),
+      )?.[1];
+    if (gallery?.[0]) v.image = gallery[0];
+  }
+  for (const v of rowsForColor) {
+    if (v.image) continue;
+    const gallery =
+      imagesByColor[v.color] ||
+      Object.entries(imagesByColor).find(
+        ([k]) => k.toLocaleLowerCase("tr-TR") === v.color.toLocaleLowerCase("tr-TR"),
+      )?.[1];
+    if (gallery?.[0]) v.image = gallery[0];
+  }
+
+  // Ürün galerisi: renk sırasıyla (yabancı renk görselleri karışmasın)
+  const orderedFromColors: string[] = [];
+  const seenImg = new Set<string>();
+  for (const color of colors) {
+    const gallery =
+      imagesByColor[color] ||
+      Object.entries(imagesByColor).find(
+        ([k]) => k.toLocaleLowerCase("tr-TR") === color.toLocaleLowerCase("tr-TR"),
+      )?.[1] ||
+      [];
+    for (const img of gallery) {
+      if (seenImg.has(img)) continue;
+      seenImg.add(img);
+      orderedFromColors.push(img);
+    }
+  }
+  for (const v of exportVariants) {
+    if (v.image && !seenImg.has(v.image)) {
+      seenImg.add(v.image);
+      orderedFromColors.push(v.image);
+    }
+  }
+  const flatImages = extractImagesFromList(merged.images);
+  const productImages =
+    orderedFromColors.length > 0
+      ? [
+          ...orderedFromColors,
+          ...flatImages.filter((u) => !seenImg.has(u) && colors.length <= 1),
+        ]
+      : flatImages;
 
   console.log(`[VariantNormalize] inputShape=${inputShape}`);
   console.log(`[VariantNormalize] colors=${colors.join(", ")}`);
   console.log(`[VariantNormalize] sizes=${sizes.join(", ")}`);
+  if (namedColorRows.length > 0 && namedColorRows.length !== canonicalRows.length) {
+    console.log(
+      `[VariantNormalize] droppedPlaceholderColors=${canonicalRows.length - namedColorRows.length}`,
+    );
+  }
+  if (!config.exportOutOfStockVariants && rowsForColor.length !== exportVariants.length) {
+    console.log(
+      `[VariantNormalize] droppedOutOfStock=${rowsForColor.length - exportVariants.length} (Shopify'a gönderilmeyecek)`,
+    );
+  }
   console.log(
-    `[VariantNormalize] canonicalVariants=${exportVariants.length} (inStock=${inStock.length} outOfStock=${outOfStock.length})`,
+    `[VariantNormalize] canonicalVariants=${exportVariants.length} (inStock=${exportVariants.filter((v) => v.inStock).length} outOfStockKept=${exportVariants.filter((v) => !v.inStock).length})`,
   );
   console.log(
-    `[Stock] inStock=${inStock.length} outOfStock=${outOfStock.length} defaultQty=${config.defaultInStockQty}`,
+    `[Stock] inStock=${inStock.length} outOfStock=${outOfStock.length} defaultQty=${config.defaultInStockQty} exportOos=${config.exportOutOfStockVariants}`,
   );
 
   const lowConfidenceOnly =
-    canonicalRows.every((v) => v.stockConfidence === "low") && canonicalRows.length <= 1;
+    rowsForColor.every((v) => v.stockConfidence === "low") && rowsForColor.length <= 1;
 
   const domMismatch =
-    (extractDiag.rawDomSizeCount ?? 0) > canonicalRows.length &&
+    (extractDiag.rawDomSizeCount ?? 0) > rowsForColor.length &&
     (extractDiag.rawDomSizeCount ?? 0) > 1;
 
   const mergedSourceCount = Math.max(
@@ -777,11 +946,11 @@ export function buildCanonicalProductForShopify(
     (scriptSizes?.length ?? 0),
   );
   const mergeFailed =
-    mergedSourceCount > 1 && canonicalRows.length === 1 && (extractDiag.rawDomSizeCount ?? 0) > 1;
+    mergedSourceCount > 1 && rowsForColor.length === 1 && (extractDiag.rawDomSizeCount ?? 0) > 1;
 
   const apparelOneSizeBlock =
-    isLikelyApparelForCanonical(input.scrapeResult, sourceUrl, title) &&
-    canonicalRows.length <= 1 &&
+    likelyApparel &&
+    rowsForColor.length <= 1 &&
     (variantDiagnostics.fullVariantScrapeAttempted === true ||
       input.scrapeResult.fullVariantScrapeAttempted === true);
 
@@ -793,11 +962,12 @@ export function buildCanonicalProductForShopify(
 
   const manualReviewRequired =
     lowConfidenceOnly || domMismatch || canonicalRows.length === 0 || apparelOneSizeBlock || mergeFailed;
-  const shopifyUploadBlocked = manualReviewRequired || domMismatch || apparelOneSizeBlock || mergeFailed;
+  const shopifyUploadBlocked =
+    exportVariants.length === 0 || domMismatch || apparelOneSizeBlock || mergeFailed;
 
   if (domMismatch || mergeFailed) {
     console.warn(
-      `⚠️ Canlı sayfada ${extractDiag.rawDomSizeCount ?? mergedSourceCount} beden bulundu fakat aktarım datasında ${canonicalRows.length} beden var. Manuel kontrol gerekli.`,
+      `⚠️ Canlı sayfada ${extractDiag.rawDomSizeCount ?? mergedSourceCount} beden bulundu fakat aktarım datasında ${rowsForColor.length} beden var. Manuel kontrol gerekli.`,
     );
   }
 
@@ -805,11 +975,26 @@ export function buildCanonicalProductForShopify(
     `[VariantDebug] canonicalVariants=${exportVariants.length} manualReviewRequired=${manualReviewRequired}`,
   );
 
-  if (identity || sourceIds) {
+  if (identity || sourceIds || familySourceKey) {
     console.log(
-      `[Source] platform=trendyol productId=${sourceProductId} sourceKey=trendyol:${sourceProductId}`,
+      `[Source] platform=trendyol productId=${sourceProductId} sourceKey=${effectiveSourceKey}`,
     );
   }
+
+  const exportOutOfStock = rowsForColor.filter((v) => !v.inStock);
+  const exportInStock = exportVariants.filter((v) => v.inStock);
+
+  traceVariants("canonical_product", { allVariants: exportVariants }, {
+    source: "buildCanonicalProductForShopify",
+    options: {
+      exportCount: exportVariants.length,
+      inStock: exportInStock.length,
+      outOfStock: exportOutOfStock.length,
+      sizes,
+      mergeFailed,
+      apparelOneSizeBlock,
+    },
+  });
 
   return {
     sourcePlatform: "trendyol",
@@ -817,19 +1002,21 @@ export function buildCanonicalProductForShopify(
     urlProductId: sourceIds?.urlProductId ?? identity?.sourceProductId,
     parsedProductId: sourceIds?.parsedProductId ?? undefined,
     sourceUrl: identity?.sourceUrl || sourceUrl,
-    sourceKey: sourceIds?.sourceKey || identity?.sourceKey || `trendyol:${sourceProductId}`,
-    handle: buildCanonicalHandle(brand, title, sourceProductId),
+    sourceKey: effectiveSourceKey,
+    sourceAliases,
+    handle: buildCanonicalHandle(brand, title, familyIdForHandle),
     title,
     brand,
     price,
     compareAtPrice,
-    images: extractImagesFromList(merged.images),
+    images: productImages,
+    imagesByColor: Object.keys(imagesByColor).length ? imagesByColor : undefined,
     variants: exportVariants,
-    outOfStockVariants: outOfStock,
+    outOfStockVariants: exportOutOfStock,
     stockSummary: {
-      totalVariants: canonicalRows.length,
-      inStockVariants: inStock.length,
-      outOfStockVariants: outOfStock.length,
+      totalVariants: rowsForColor.length,
+      inStockVariants: rowsForColor.filter((v) => v.inStock).length,
+      outOfStockVariants: exportOutOfStock.length,
       defaultInventoryQty: config.defaultInStockQty,
     },
     manualReviewRequired,
@@ -837,7 +1024,7 @@ export function buildCanonicalProductForShopify(
     variantDiagnostics: {
       ...variantDiagnostics,
       ...extractDiag,
-      canonicalVariantCount: canonicalRows.length,
+      canonicalVariantCount: exportVariants.length,
       shopifyUploadBlocked,
       sizeSourceWinner: variantDiagnostics.sizeSourceWinner,
       blockReason,
@@ -873,7 +1060,7 @@ export function validateCanonicalForShopifyUpload(
       step: "variant_count_mismatch",
     };
   }
-  if (canonical.manualReviewRequired || canonical.shopifyUploadBlocked) {
+  if (canonical.shopifyUploadBlocked) {
     return {
       ok: false,
       error: "Manual review required. Shopify upload blocked.",

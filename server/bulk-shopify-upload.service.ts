@@ -6,7 +6,7 @@ import {
   type BulkUploadItemResult,
 } from "./bulk-upload-validator";
 import { findExistingShopifyProduct } from "./shopify-upsert-service";
-import { sanitizeShopifyTags } from "@shared/shopify-tag-sanitizer";
+import { applyTagsToShopifyCsv } from "@shared/shopify-csv-tags";
 import type { CanonicalProductForShopify } from "./variant-shape-normalizer";
 
 const DEFAULT_CONCURRENCY = 1;
@@ -55,12 +55,14 @@ async function registerBulkUploadTracking(
       variants: canonical.variants.map((v) => {
         const mapped = mappingBySku.get(v.sku);
         return {
-          color: v.color,
-          size: v.size,
-          sku: v.sku,
+          option1Name: v.option1Name,
+          option1Value: v.option1Value,
+          option2Name: v.option2Name,
+          option2Value: v.option2Value,
+          sku: v.sku ?? undefined,
           shopifyVariantId: mapped?.shopifyVariantId,
           price: Number(v.price) || price,
-          inStock: v.inStock,
+          inStock: v.inStock !== false,
         };
       }),
     });
@@ -116,27 +118,33 @@ async function verifyAndActivateShopifyProduct(productId: string): Promise<{
 }> {
   const { shopifyAdminFetch, parseShopifyAdminResponse } = await import("./shopify-token-manager");
 
-  const { response } = await shopifyAdminFetch(`/products/${productId}.json`);
-  if (!response.ok) {
-    return { verified: false };
-  }
+  let lastStatus: string | undefined;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const { response } = await shopifyAdminFetch(`/products/${productId}.json`);
+      if (response.ok) {
+        const data = (await parseShopifyAdminResponse(response)) as {
+          product?: { status?: string };
+        };
+        let status = data.product?.status ?? "unknown";
+        lastStatus = status;
 
-  const data = (await parseShopifyAdminResponse(response)) as {
-    product?: { status?: string };
-  };
-  let status = data.product?.status ?? "unknown";
-
-  if (status !== "active") {
-    const activate = await shopifyAdminFetch(`/products/${productId}.json`, {
-      method: "PUT",
-      body: JSON.stringify({ product: { id: productId, status: "active" } }),
-    });
-    if (activate.response.ok) {
-      status = "active";
+        if (status !== "active") {
+          const activate = await shopifyAdminFetch(`/products/${productId}.json`, {
+            method: "PUT",
+            body: JSON.stringify({ product: { id: productId, status: "active" } }),
+          });
+          if (activate.response.ok) status = "active";
+        }
+        if (status === "active") return { verified: true, shopifyStatus: status };
+      }
+    } catch {
+      // Yeni oluşturulan ürün kısa süre görünmeyebilir veya doğrulama isteği geçici kesilebilir.
     }
+    if (attempt < 3) await sleep(500 * attempt);
   }
 
-  return { verified: status === "active", shopifyStatus: status };
+  return { verified: false, shopifyStatus: lastStatus };
 }
 
 function buildAdminProductUrl(productId: string): string | undefined {
@@ -175,13 +183,9 @@ async function uploadSingleItem(
   let csvContent = validation.csvContent;
 
   if (item.individualTags?.length) {
-    const tags = sanitizeShopifyTags(item.individualTags).join(", ");
-    if (tags) {
-      csvContent = csvContent.replace(
-        /("Tags",[^,\n]*?,)([^,\n]*)/i,
-        (_, prefix, _val) => `${prefix}"${tags}"`,
-      );
-    }
+    // İstemci etiketi daha önce eklemiş olsa bile yardımcı fonksiyon tekrar eklemez.
+    // Regex ile CSV değiştirmek virgüllü/quoted hücrelerde kolonları bozuyordu.
+    csvContent = applyTagsToShopifyCsv(csvContent, item.individualTags);
   }
 
   let attempt = 0;

@@ -319,7 +319,9 @@ export async function upsertProductFromSource(
     if (createResult.productId) {
       await setSourceMetafields(createResult.productId, canonical);
     }
-    console.log(`[ShopifyUpsert] mode=created productId=${createResult.productId}`);
+    console.log(
+      `[ShopifyUpsert] mode=${createResult.mode ?? "create"} success=${createResult.success} productId=${createResult.productId ?? "none"} message=${createResult.message}`,
+    );
     return createResult;
   } finally {
     releaseUploadLock(lockKey);
@@ -577,6 +579,7 @@ async function createNewProduct(
   if (!response.ok) {
     const err = await parseShopifyAdminResponse(response);
     const errStr = JSON.stringify(err);
+    console.error(`[ShopifyUpsert] create failed HTTP ${response.status}: ${errStr}`);
     if (
       parsed.variants.length > REST_VARIANT_CREATE_LIMIT &&
       errStr.includes("more than 100 variants")

@@ -60,6 +60,9 @@ ALTER TABLE tracked_products ADD COLUMN IF NOT EXISTS shopify_sync_status TEXT;
 ALTER TABLE tracked_products ADD COLUMN IF NOT EXISTS last_shopify_sync_at TIMESTAMP;
 ALTER TABLE tracked_products ADD COLUMN IF NOT EXISTS paused_reason TEXT;
 ALTER TABLE tracked_products ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_tracked_products_shopify_product_id
+  ON tracked_products(shopify_product_id)
+  WHERE shopify_product_id IS NOT NULL;
 
 -- tracked_variants extensions
 ALTER TABLE tracked_variants ADD COLUMN IF NOT EXISTS source_option_key TEXT;

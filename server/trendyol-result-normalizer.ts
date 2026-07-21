@@ -84,6 +84,7 @@ function finalizeEnrichedResult(url: string, result: any): any {
   result.success = hasTitle && (hasPrice || hasImages);
   result.variants = sanitizeTrendyolVariants(result.variants, {
     productTitle: result.title,
+    sourceUrl: url,
   });
   return result;
 }
@@ -351,7 +352,10 @@ export async function ensureTrendyolVariantsOnResult(
   const productTitle = result.title;
   const candidates: SanitizedVariants[] = [];
 
-  const existing = sanitizeTrendyolVariants(result.variants, { productTitle });
+  const existing = sanitizeTrendyolVariants(result.variants, {
+    productTitle,
+    sourceUrl: url,
+  });
   if (hasRealTrendyolVariants(existing)) {
     candidates.push(existing);
   }
@@ -431,6 +435,11 @@ export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {
   ) {
     const sanitized = sanitizeTrendyolVariants(scrapeVariants, {
       productTitle: merged.title || scrapeResult.title || apiResult.title,
+      sourceUrl:
+        scrapeResult.sourceUrl ||
+        scrapeResult.url ||
+        apiResult.sourceUrl ||
+        apiResult.url,
     });
     if (hasRealTrendyolVariants(sanitized)) {
       merged.variants = sanitized;

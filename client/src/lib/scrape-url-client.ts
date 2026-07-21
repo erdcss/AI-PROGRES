@@ -1,5 +1,6 @@
 import { normalizeTrendyolDisplayPrice } from "@/utils/price-utils";
 import { extractImagesFromCsv, resolveOriginalImageUrl } from "@/lib/product-image-url";
+import { mergeCanonicalPreviewVariants } from "@/lib/preview-variants";
 import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
 import { deriveProductStockLabel, summarizeStockFromVariants } from "@shared/stock-status";
 import { filterValidProductImages, prioritizeProductImagesForPreview } from "@shared/trendyol-product-images";
@@ -48,6 +49,13 @@ export type ScrapedUrlPayload = {
       size: string;
       inStock: boolean;
       colorCode?: string;
+      image?: string;
+      images?: string[];
+      sourceProductId?: string;
+      sourceUrl?: string;
+      listingId?: string;
+      price?: string | number;
+      stockCount?: number | null;
     }>;
   };
   features?: Array<{ key: string; value: string }>;
@@ -85,10 +93,62 @@ export type ScrapedUrlPayload = {
   stageErrors?: string[];
   originalUrl: string;
   sourceUrl: string;
+  colorFamilyStatus?: {
+    attempted: boolean;
+    crawlAttempted?: boolean;
+    applicable: boolean;
+    state: "success" | "partial" | "failed" | "not_applicable";
+    candidateCount: number;
+    fetchedMemberCount: number;
+    failedMemberCount: number;
+    colorCount: number;
+    variantCount: number;
+    imageCount: number;
+    galleriesWithImages: number;
+    expectedGalleryCount: number;
+    variantsWithImage: number;
+    aliasesCount: number;
+    rootProductId?: string;
+    familySourceKey?: string;
+    colors: string[];
+    sourceAliases: string[];
+    failedMembers: Array<{
+      productId?: string;
+      url?: string;
+      error?: string;
+    }>;
+    message: string;
+  };
+  colorFamily?: {
+    familyId?: string;
+    familySourceKey?: string;
+    rootProductId?: string;
+    rootUrl?: string;
+    colors?: string[];
+    imagesByColor?: Record<string, string[]>;
+    sourceAliases?: string[];
+    members?: Array<{
+      productId: string;
+      url: string;
+      color: string;
+      images: string[];
+      ok: boolean;
+      error?: string;
+    }>;
+  };
+  imagesByColor?: Record<string, string[]>;
+  sourceAliases?: string[];
+  familySourceKey?: string;
   canonicalProduct?: {
     sourceKey: string;
     sourceProductId: string;
     variants: Array<{
+      color: string;
+      size: string;
+      inStock: boolean;
+      inventoryQty?: number;
+    }>;
+    outOfStockVariants?: Array<{
       color: string;
       size: string;
       inStock: boolean;
@@ -106,6 +166,8 @@ export type ScrapedUrlPayload = {
   scrapeRunId?: string;
   variantBlockReason?: string;
   variantExtractionFailed?: boolean;
+  variantCollapseDetected?: boolean;
+  variantCollapseMessage?: string;
   manualReviewRequired?: boolean;
   shopifyUploadBlocked?: boolean;
   urlProductId?: string | null;
@@ -171,20 +233,50 @@ export function normalizeScrapedPayload(
     ? [canonicalProduct.sourceKey]
     : (raw.tags as string[]) || [];
 
-  const variantSource = canonicalProduct?.variants?.length
+  const canonicalPreviewRows = mergeCanonicalPreviewVariants(canonicalProduct);
+  const variantSource = canonicalPreviewRows.length
     ? {
-        colors: [...new Set(canonicalProduct.variants.map((v) => v.color))],
-        sizes: [...new Set(canonicalProduct.variants.map((v) => v.size))],
-        allVariants: canonicalProduct.variants.map((v) => ({
+        colors: [...new Set(canonicalPreviewRows.map((v) => v.color).filter(Boolean))],
+        sizes: [...new Set(canonicalPreviewRows.map((v) => v.size).filter(Boolean))],
+        allVariants: canonicalPreviewRows.map((v) => ({
           color: v.color,
           size: v.size,
           inStock: v.inStock,
         })),
-        items: canonicalProduct.variants,
+        items: canonicalPreviewRows,
       }
     : sanitizeTrendyolVariants(raw.variants, {
         productTitle: String(raw.title || "Ürün"),
+        sourceUrl: url,
       });
+
+  if (import.meta.env.DEV) {
+    const sizes = [
+      ...new Set(
+        (variantSource.allVariants || [])
+          .map((v) => v.size)
+          .filter((s) => s && String(s).trim() !== ""),
+      ),
+    ];
+    console.log(
+      `[VARIANT_TRACE] ${JSON.stringify({
+        requestId: raw.scrapeRunId ?? "client",
+        stage: "client_received",
+        sourceUrl: url.split("?")[0],
+        productId: url.match(/p-(\d+)/)?.[1] ?? null,
+        count: variantSource.allVariants?.length ?? 0,
+        options: { sizes },
+        variants: (variantSource.allVariants || []).slice(0, 50).map((v) => ({
+          size: v.size,
+          color: v.color,
+          sku: "",
+          inStock: v.inStock,
+          quantity: null,
+          source: "client_received",
+        })),
+      })}`,
+    );
+  }
 
   return {
     title: String(raw.title || "Ürün"),
@@ -232,9 +324,24 @@ export function normalizeScrapedPayload(
     originalUrl: url,
     sourceUrl: url,
     canonicalProduct,
+    colorFamilyStatus: raw.colorFamilyStatus as ScrapedUrlPayload["colorFamilyStatus"],
+    colorFamily: raw.colorFamily as ScrapedUrlPayload["colorFamily"],
+    imagesByColor:
+      raw.imagesByColor && typeof raw.imagesByColor === "object"
+        ? (raw.imagesByColor as Record<string, string[]>)
+        : undefined,
+    sourceAliases: Array.isArray(raw.sourceAliases)
+      ? (raw.sourceAliases as string[]).filter((s) => typeof s === "string")
+      : undefined,
+    familySourceKey:
+      typeof raw.familySourceKey === "string" ? raw.familySourceKey : undefined,
     scrapeRunId: raw.scrapeRunId ? String(raw.scrapeRunId) : undefined,
     variantBlockReason: raw.variantBlockReason ? String(raw.variantBlockReason) : undefined,
     variantExtractionFailed: raw.variantExtractionFailed === true,
+    variantCollapseDetected: raw.variantCollapseDetected === true,
+    variantCollapseMessage: raw.variantCollapseMessage
+      ? String(raw.variantCollapseMessage)
+      : undefined,
     manualReviewRequired: raw.manualReviewRequired === true,
     shopifyUploadBlocked: raw.shopifyUploadBlocked === true,
     urlProductId: raw.urlProductId != null ? String(raw.urlProductId) : undefined,
@@ -376,19 +483,20 @@ export function buildCsvPreviewEntry(
   idPrefix = "csv",
 ) {
   const urlSlug = url.split("/").pop()?.split("?")[0] || `url-${Date.now()}`;
-  const canonicalVariants = data.canonicalProduct?.variants;
-  const sanitizedVariants = canonicalVariants?.length
+  const canonicalPreviewRows = mergeCanonicalPreviewVariants(data.canonicalProduct);
+  const sanitizedVariants = canonicalPreviewRows.length
     ? sanitizeTrendyolVariants(
         {
-          colors: [...new Set(canonicalVariants.map((v) => v.color))],
-          sizes: [...new Set(canonicalVariants.map((v) => v.size))],
-          allVariants: canonicalVariants,
-          items: canonicalVariants,
+          colors: [...new Set(canonicalPreviewRows.map((v) => v.color).filter(Boolean))],
+          sizes: [...new Set(canonicalPreviewRows.map((v) => v.size).filter(Boolean))],
+          allVariants: canonicalPreviewRows,
+          items: canonicalPreviewRows,
         },
-        { productTitle: data.title },
+        { productTitle: data.title, sourceUrl: url },
       )
     : sanitizeTrendyolVariants(data.variants, {
         productTitle: data.title,
+        sourceUrl: url,
       });
   const hasCsv = (data.csvContent || "").trim().length > 50;
   const baseCsvInfo = data.csvInfo;
@@ -406,16 +514,11 @@ export function buildCsvPreviewEntry(
           productCount: 1,
         }
       : undefined;
-  const stockSummary = canonicalVariants?.length
+  const stockSummary = canonicalPreviewRows.length
     ? summarizeStockFromVariants(
-        canonicalVariants.map((v) => ({
+        canonicalPreviewRows.map((v) => ({
           inStock: v.inStock,
-          stockStatus:
-            (v as { stockConfidence?: string }).stockConfidence === "low" && !v.inStock
-              ? "unknown"
-              : v.inStock
-                ? "in_stock"
-                : "out_of_stock",
+          stockStatus: v.inStock ? "in_stock" : "out_of_stock",
         })),
       )
     : undefined;
@@ -445,7 +548,7 @@ export function buildCsvPreviewEntry(
       colors: sanitizedVariants.colors,
       sizes: sanitizedVariants.sizes,
       allVariants: sanitizedVariants.allVariants,
-      items: canonicalVariants,
+      items: canonicalPreviewRows,
     },
     images: data.images,
     price: {
@@ -455,6 +558,11 @@ export function buildCsvPreviewEntry(
     brand: data.brand,
     createdAt: new Date().toISOString(),
     approvedForShopify: true,
+    colorFamilyStatus: data.colorFamilyStatus,
+    colorFamily: data.colorFamily,
+    imagesByColor: data.imagesByColor,
+    sourceAliases: data.sourceAliases,
+    familySourceKey: data.familySourceKey,
   };
 }
 

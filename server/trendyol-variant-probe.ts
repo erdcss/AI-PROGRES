@@ -3,8 +3,12 @@
  */
 import type { Page } from "puppeteer";
 import { isConfirmedClothingProduct } from "@shared/clothing-keywords";
-import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
-import { VALID_SIZE_LABEL } from "./variant-shape-normalizer";
+import {
+  decodeTrendyolSizeValue,
+  expandComboSizeToLabels,
+  sanitizeTrendyolVariants,
+} from "@shared/trendyol-variant-utils";
+import { isValidSizeLabel } from "./variant-shape-normalizer";
 import { resolveTrendyolSourceIds } from "./shopify-source-key";
 import { isValidTrendyolProductTitle } from "./trendyol-title-utils";
 import { filterValidProductImages } from "./trendyol-image-utils";
@@ -23,6 +27,12 @@ export interface DomSizeProbeButton {
   opacity: string;
   textDecoration: string;
   html?: string;
+  inStock?: boolean;
+}
+
+export interface SizeBoxProbeEntry {
+  label: string;
+  inStock: boolean;
 }
 
 export interface DomSizeProbeResult {
@@ -34,6 +44,7 @@ export interface DomSizeProbeResult {
   filteredSizes: string[];
   stateSizes?: string[];
   filteredButtons: DomSizeProbeButton[];
+  sizeBoxButtons?: SizeBoxProbeEntry[];
   html?: string;
 }
 
@@ -107,7 +118,7 @@ export function uniqueValidSizes(sizes: string[]): string[] {
   const out: string[] = [];
   for (const raw of sizes) {
     const t = String(raw || "").trim();
-    if (!t || !VALID_SIZE_LABEL.test(t)) continue;
+    if (!t || !isValidSizeLabel(t)) continue;
     const norm = t.toUpperCase() === "STD" ? "Standart" : t.toUpperCase();
     const key = norm.toUpperCase();
     if (!out.some((x) => x.toUpperCase() === key)) out.push(norm);
@@ -115,34 +126,45 @@ export function uniqueValidSizes(sizes: string[]): string[] {
   return out;
 }
 
-export function countValidSizesFromAnySource(result: Record<string, unknown>): number {
-  return extractFastSizes(result).length;
+export function countValidSizesFromAnySource(
+  result: Record<string, unknown>,
+  sourceUrl?: string,
+): number {
+  return extractFastSizes(result, sourceUrl).length;
 }
 
-export function extractFastSizes(result: Record<string, unknown>): string[] {
+export function extractFastSizes(
+  result: Record<string, unknown>,
+  sourceUrl?: string,
+): string[] {
+  const title = String(result.title || "");
+  const allowClothingSizes = isConfirmedClothingProduct(title, sourceUrl);
+  if (!allowClothingSizes) return [];
+
   const sizes = new Set<string>();
   const v = result.variants;
   if (v && typeof v === "object") {
     const sanitized = sanitizeTrendyolVariants(v, {
-      productTitle: String(result.title || ""),
+      productTitle: title,
+      sourceUrl,
     });
     for (const s of sanitized.sizes ?? []) {
-      if (VALID_SIZE_LABEL.test(s)) sizes.add(s);
+      if (isValidSizeLabel(s)) sizes.add(s);
     }
     for (const item of sanitized.allVariants ?? []) {
-      if (item.size && VALID_SIZE_LABEL.test(item.size)) sizes.add(item.size);
+      if (item.size && isValidSizeLabel(item.size)) sizes.add(item.size);
     }
     const stockMap = (v as Record<string, unknown>).stockMap;
     if (stockMap && typeof stockMap === "object") {
       for (const key of Object.keys(stockMap as Record<string, boolean>)) {
         const part = key.split("-").pop() || key;
-        if (VALID_SIZE_LABEL.test(part)) sizes.add(part);
+        if (isValidSizeLabel(part)) sizes.add(part);
       }
     }
   }
   if (Array.isArray(result.domSizeButtons)) {
     for (const s of result.domSizeButtons as string[]) {
-      if (VALID_SIZE_LABEL.test(s)) sizes.add(s);
+      if (isValidSizeLabel(s)) sizes.add(s);
     }
   }
   return uniqueValidSizes([...sizes]);
@@ -179,8 +201,13 @@ export function probeScriptVariantsFromHtml(html: string): ScriptVariantProbeRes
     let m: RegExpExecArray | null;
     SCRIPT_SIZE_KEYS.lastIndex = 0;
     while ((m = SCRIPT_SIZE_KEYS.exec(script)) !== null) {
-      const size = m[1]?.trim();
-      if (size && VALID_SIZE_LABEL.test(size)) extractedSizes.add(size);
+      const size = decodeTrendyolSizeValue(m[1]?.trim() || "");
+      const expanded = expandComboSizeToLabels(size);
+      if (expanded) {
+        for (const s of expanded) extractedSizes.add(s);
+      } else if (size && isValidSizeLabel(size)) {
+        extractedSizes.add(size);
+      }
     }
 
     const sizeNameMatches = script.matchAll(
@@ -188,7 +215,7 @@ export function probeScriptVariantsFromHtml(html: string): ScriptVariantProbeRes
     );
     for (const sm of sizeNameMatches) {
       const size = sm[1]?.trim();
-      if (size && VALID_SIZE_LABEL.test(size)) extractedSizes.add(size);
+      if (size && isValidSizeLabel(size)) extractedSizes.add(size);
     }
 
     const colorMatches = script.matchAll(
@@ -220,12 +247,14 @@ export function probeScriptVariantsFromHtml(html: string): ScriptVariantProbeRes
 export function stateSizeProbeEvaluateScript(): string[] {
   const sizeRegex =
     /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL|32|34|36|38|40|42|44|46|48|50|52|Standart|STD|Tek Ebat)$/i;
+  const comboRegex =
+    /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i;
   const sizes: string[] = [];
   const seen = new Set<string>();
 
   const push = (raw: string) => {
-    const t = raw.trim();
-    if (!t || !sizeRegex.test(t)) return;
+    const t = raw.trim().replace(/\\u002[fF]/g, "/");
+    if (!t || (!sizeRegex.test(t) && !comboRegex.test(t))) return;
     const norm = t.toUpperCase() === "STD" ? "Standart" : t;
     const key = norm.toUpperCase();
     if (seen.has(key)) return;
@@ -287,7 +316,7 @@ export function extractSizesFromPuppeteerSnapshot(snapshot: unknown): string[] {
     if (!Array.isArray(list)) continue;
     for (const item of list) {
       const name = String(item?.name ?? "").trim();
-      if (name && VALID_SIZE_LABEL.test(name)) sizes.push(name);
+      if (name && isValidSizeLabel(name)) sizes.push(name);
     }
   }
   return uniqueValidSizes(sizes);
@@ -302,7 +331,7 @@ export async function collectSizesFromHtml(html: string): Promise<string[]> {
   const { parseSlicingAttributesFromHtml } = await import("./trendyol-slicing-parser");
   const slicing = parseSlicingAttributesFromHtml(html);
   for (const s of slicing.sizes) {
-    if (VALID_SIZE_LABEL.test(s.name)) sizes.add(s.name);
+    if (isValidSizeLabel(s.name)) sizes.add(s.name);
   }
 
   try {
@@ -311,19 +340,62 @@ export async function collectSizesFromHtml(html: string): Promise<string[]> {
     const $ = cheerio.load(html);
     const real = detectRealStockStatus($, html);
     for (const v of real) {
-      if (v.size && VALID_SIZE_LABEL.test(v.size)) sizes.add(v.size);
+      if (v.size && isValidSizeLabel(v.size)) sizes.add(v.size);
     }
   } catch {
     /* optional */
   }
 
-  return uniqueValidSizes([...sizes]);
+  return expandMergedSizeLabels([...sizes]);
+}
+
+/** Combo bedenleri atomik bedenlere açarak birleştirir (S/M,M/L,L/XL → S,M,L,XL). */
+export function expandMergedSizeLabels(sizes: string[]): string[] {
+  const out: string[] = [];
+  for (const raw of sizes) {
+    const decoded = decodeTrendyolSizeValue(raw).trim();
+    const expanded = expandComboSizeToLabels(decoded);
+    if (expanded && expanded.length >= 2) {
+      out.push(...expanded);
+      continue;
+    }
+    if (isValidSizeLabel(decoded)) out.push(decoded);
+  }
+  return uniqueValidSizes(out);
+}
+
+/** page.evaluate — Trendyol size-box butonları (hydrate sonrası gerçek beden listesi) */
+export function sizeBoxProbeEvaluateScript(): SizeBoxProbeEntry[] {
+  const boxes = Array.from(document.querySelectorAll('[data-testid="size-box"]'));
+  return boxes
+    .map((el) => {
+      const htmlEl = el as HTMLElement;
+      const label = (htmlEl.innerText || htmlEl.textContent || "").trim().replace(/\s+/g, " ");
+      if (!label || label.length > 12) return null;
+      const disabled =
+        Boolean((el as HTMLButtonElement).disabled) || el.getAttribute("aria-disabled") === "true";
+      const style = window.getComputedStyle(htmlEl);
+      const className = String(htmlEl.className || "");
+      const deco = `${style.textDecoration || ""} ${style.textDecorationLine || ""}`.toLowerCase();
+      const oos =
+        disabled ||
+        className.includes("disabled") ||
+        className.includes("passive") ||
+        className.includes("line-through") ||
+        deco.includes("line-through") ||
+        parseFloat(style.opacity || "1") < 0.45 ||
+        style.pointerEvents === "none";
+      return { label, inStock: !oos };
+    })
+    .filter((x): x is SizeBoxProbeEntry => x !== null);
 }
 
 /** page.evaluate içinde çalışır — tüm beden butonlarını tarar (sadece selected değil) */
 export function domSizeProbeEvaluateScript(): DomSizeProbeResult {
   const sizeRegex =
     /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL|32|34|36|38|40|42|44|46|48|50|52|Standart|STD|Tek Ebat)$/i;
+  const comboRegex =
+    /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i;
   const rejectRegex =
     /sepete|ekle|kupon|favori|yorum|kargo|satıcı|fiyat|ürün|son\s+\d+|stok|beden\s+seç|tüm bedenler|önerilen/i;
 
@@ -375,7 +447,7 @@ export function domSizeProbeEvaluateScript(): DomSizeProbeResult {
     .map((x) => ({ ...x, text: x.text.replace(/\s+/g, " ").trim() }))
     .filter((x) => x.text && x.text.length <= 20)
     .filter((x) => !rejectRegex.test(x.text))
-    .filter((x) => sizeRegex.test(x.text));
+    .filter((x) => sizeRegex.test(x.text) || comboRegex.test(x.text));
 
   const uniqueSizes = Array.from(new Set(filtered.map((x) => x.text.toUpperCase())));
 
@@ -392,15 +464,25 @@ export function domSizeProbeEvaluateScript(): DomSizeProbeResult {
 export async function probeTrendyolDomSizes(page: Page): Promise<DomSizeProbeResult> {
   try {
     await page.waitForSelector("body", { timeout: 10_000 }).catch(() => undefined);
-    await new Promise((r) => setTimeout(r, 2500));
+    await new Promise((r) => setTimeout(r, 1500));
     try {
-      await page.waitForFunction(
-        'document.querySelectorAll("button, [role=button], .pr-in-sz span, .sp-itm").length > 0',
-        { timeout: 8000 },
-      );
+      await page.waitForSelector('[data-testid="size-box"], .slicing-attribute-section-value button', {
+        timeout: 12_000,
+      });
     } catch {
       /* hydrate timeout — still probe */
     }
+    try {
+      await page.waitForFunction(
+        'document.querySelectorAll("[data-testid=\\"size-box\\"], button, [role=button], .pr-in-sz span, .sp-itm").length > 0',
+        { timeout: 8000 },
+      );
+    } catch {
+      /* optional */
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+
+    const sizeBoxButtons = await page.evaluate(sizeBoxProbeEvaluateScript);
     const result = await page.evaluate(domSizeProbeEvaluateScript);
     let stateSizes: string[] = [];
     try {
@@ -408,12 +490,36 @@ export async function probeTrendyolDomSizes(page: Page): Promise<DomSizeProbeRes
     } catch {
       stateSizes = [];
     }
-    const mergedFiltered = uniqueValidSizes([...result.filteredSizes, ...stateSizes]);
+
+    const sizeBoxLabels = sizeBoxButtons.map((b) => b.label);
+    const mergedFiltered = expandMergedSizeLabels([
+      ...sizeBoxLabels,
+      ...result.filteredSizes,
+      ...stateSizes,
+    ]);
+    const filteredButtons: DomSizeProbeButton[] =
+      sizeBoxButtons.length > 0
+        ? sizeBoxButtons.map((b) => ({
+            text: b.label,
+            tagName: "BUTTON",
+            className: "size-box",
+            parentClassName: "",
+            disabled: !b.inStock,
+            ariaDisabled: b.inStock ? null : "true",
+            pointerEvents: "auto",
+            opacity: b.inStock ? "1" : "0.4",
+            textDecoration: "none",
+            inStock: b.inStock,
+          }))
+        : result.filteredButtons;
+
     return {
       ...result,
       started: true,
       success: mergedFiltered.length > 0,
       filteredSizes: mergedFiltered,
+      filteredButtons,
+      sizeBoxButtons,
       stateSizes,
     };
   } catch (err) {
@@ -455,7 +561,7 @@ export async function runTrendyolDomSizeProbe(url: string): Promise<DomSizeProbe
     const fp = getSessionBrowserFingerprint();
     await page.setUserAgent(fp.userAgent);
     await page.setViewport(fp.viewport);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 60_000 });
     const probe = await probeTrendyolDomSizes(page);
     const html = await page.content();
     return { ...probe, html };
@@ -479,7 +585,7 @@ export function applySparseApparelPolicy(
   url: string,
 ): { requiresFullVariantScrape: boolean; rawSizeCount: number } {
   const isLikelyApparel = isLikelyApparelProduct(result, url);
-  const rawSizeCount = countValidSizesFromAnySource(result);
+  const rawSizeCount = countValidSizesFromAnySource(result, url);
 
   if (isLikelyApparel && rawSizeCount <= 1) {
     result.requiresFullVariantScrape = true;
@@ -503,7 +609,28 @@ export async function applyFullVariantScrapeToResult(
   result: Record<string, unknown>,
   opts: { html?: string | null; mode?: string; browserWorkerEnabled?: boolean } = {},
 ): Promise<void> {
-  const fastSizes = extractFastSizes(result);
+  const productTitle = String(result.title || "");
+  const isApparel = isLikelyApparelProduct(result, url);
+  const cleanedExisting = sanitizeTrendyolVariants(result.variants, {
+    productTitle,
+    sourceUrl: url,
+  });
+  result.variants = cleanedExisting;
+
+  // Ürün sayfasındaki öneri/reklam scriptlerinde S/M/L bulunabilir. Giyim dışı
+  // ürünlerde bunlar varyant kanıtı değildir; DOM probu da gereksiz ve pahalıdır.
+  if (!isApparel) {
+    result.domSizeButtons = [];
+    result.variantDiagnostics = {
+      ...((result.variantDiagnostics as Record<string, unknown>) || {}),
+      nonApparelSizeEvidenceDiscarded: true,
+      rawDomSizeCount: 0,
+      domSizeButtons: [],
+    };
+    return;
+  }
+
+  const fastSizes = extractFastSizes(result, url);
   const policy = applySparseApparelPolicy(result, url);
   const forcing = policy.requiresFullVariantScrape;
 
@@ -580,13 +707,13 @@ export async function applyFullVariantScrapeToResult(
       apiSizes = extractFastSizes({
         variants: apiProduct?.variants,
         title: apiProduct?.title || "",
-      });
+      }, url);
     } catch {
       /* API fallback optional */
     }
   }
 
-  let merged = uniqueValidSizes([
+  let merged = expandMergedSizeLabels([
     ...fastSizes,
     ...scriptSizes,
     ...domProbe.filteredSizes,
@@ -601,18 +728,39 @@ export async function applyFullVariantScrapeToResult(
     result.domSizeButtons = merged;
     const existing = sanitizeTrendyolVariants(result.variants, {
       productTitle: String(result.title || ""),
+      sourceUrl: url,
     });
     const color = existing.colors?.[0] || "Tek Renk";
+
+    const resolveComboStock = (size: string): boolean | undefined => {
+      const boxes = domProbe.sizeBoxButtons ?? [];
+      let found = false;
+      let inStock = false;
+      for (const btn of boxes) {
+        const labels = expandComboSizeToLabels(btn.label) ?? [btn.label];
+        if (labels.some((s) => s.toUpperCase() === size.toUpperCase())) {
+          found = true;
+          inStock = inStock || btn.inStock;
+        }
+      }
+      return found ? inStock : undefined;
+    };
+
     const allVariants = merged.map((size) => {
       const prev = existing.allVariants?.find((v) => v.size?.toUpperCase() === size.toUpperCase());
+      const comboStock = resolveComboStock(size);
       const domBtn = domProbe.filteredButtons.find(
         (b) => b.text.toUpperCase() === size.toUpperCase(),
       );
       const oos =
         domBtn?.disabled === true ||
         domBtn?.ariaDisabled === "true" ||
+        domBtn?.inStock === false ||
         parseFloat(domBtn?.opacity || "1") < 0.45;
-      return { color, size, inStock: prev?.inStock ?? !oos };
+      const inStock =
+        prev?.inStock ??
+        (comboStock !== undefined ? comboStock : !oos);
+      return { color, size, inStock };
     });
     const stockMap: Record<string, boolean> = {};
     for (const v of allVariants) {
@@ -697,9 +845,10 @@ export async function collectTrendyolVariantSources(url: string): Promise<Trendy
     title: apiProduct?.title || "",
     variants: apiProduct?.variants,
   };
-  const fastSizes = extractFastSizes(fastResult);
+  const fastSizes = extractFastSizes(fastResult, url);
   const sanitized = sanitizeTrendyolVariants(apiProduct?.variants, {
     productTitle: apiProduct?.title || "",
+    sourceUrl: url,
   });
 
   const domProbe = await runTrendyolDomSizeProbe(url);

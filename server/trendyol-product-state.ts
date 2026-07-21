@@ -68,3 +68,24 @@ export function getTrendyolProductFromState(html: string): Record<string, unknow
   const product = state?.product;
   return product && typeof product === "object" ? (product as Record<string, unknown>) : null;
 }
+
+/** __NEXT_DATA__ içinden ürün — state bloğu yoksa (canlı sayfa / bot yanıtı) */
+export function getTrendyolProductFromNextData(html: string): Record<string, unknown> | null {
+  const match = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (!match?.[1]) return null;
+  try {
+    const data = JSON.parse(match[1]);
+    const product =
+      data?.props?.pageProps?.product ||
+      data?.props?.pageProps?.initialState?.product ||
+      data?.props?.pageProps?.initialState?.productDetail?.product;
+    return product && typeof product === "object" ? (product as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** State veya __NEXT_DATA__ — hangisi doluysa */
+export function getTrendyolProductFromHtml(html: string): Record<string, unknown> | null {
+  return getTrendyolProductFromState(html) || getTrendyolProductFromNextData(html);
+}

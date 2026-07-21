@@ -3,7 +3,12 @@
  */
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
-import { getTrendyolProductFromState } from "./trendyol-product-state";
+import { getTrendyolProductFromHtml } from "./trendyol-product-state";
+import { traceVariants } from "./variant-trace";
+import {
+  sanitizeTrendyolVariants,
+  variantRichnessScore,
+} from "@shared/trendyol-variant-utils";
 import {
   buildVariantMatrixFromSlicingData,
   buildVariantsFromSlicing,
@@ -67,6 +72,9 @@ const DEFAULT_COLOR = "Tek Renk";
 const SIZE_PATTERN =
   /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|STD|STANDART|TEK\s*EBAT|TEK\s*BEDEN|ONE\s*SIZE|OS|\d{2,3})$/i;
 
+const COMBO_SIZE_PATTERN =
+  /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i;
+
 const REJECTED_SIZE_TEXT =
   /sepete ekle|şimdi al|son \d+ ürün|kupon|popüler|yorum|marka|açıklama|fiyat|tl$/i;
 
@@ -96,6 +104,7 @@ export function isValidTrendyolSizeLabel(text: unknown): boolean {
   const t = String(text).trim();
   if (!t || t.length > 12) return false;
   if (REJECTED_SIZE_TEXT.test(t)) return false;
+  if (COMBO_SIZE_PATTERN.test(t)) return true;
   return SIZE_PATTERN.test(t);
 }
 
@@ -243,7 +252,7 @@ function parseScriptJsonVariants(html: string): TrendyolVariantStockItem[] {
     }
   };
 
-  const product = getTrendyolProductFromState(html);
+  const product = getTrendyolProductFromHtml(html);
   if (product) tryParseObject(product);
 
   const stateMarker = "__PRODUCT_DETAIL_APP_INITIAL_STATE__";
@@ -473,12 +482,22 @@ function collectStockHints(
 }
 
 export function normalizeTrendyolVariantStock(input: NormalizeStockInput): TrendyolVariantStockResult {
+  traceVariants("stock_normalizer_input", {
+    sizes: [],
+  }, {
+    source: "normalizeInput",
+    options: {
+      hasHtml: Boolean(input.html),
+      hasProduct: Boolean(input.product),
+      hasPuppeteer: Boolean(input.puppeteerSnapshot),
+    },
+  });
   const warnings: string[] = [];
   const html = input.html || "";
   const $ = input.$ || (html ? cheerio.load(html) : cheerio.load("<html></html>"));
   const product =
     input.product ||
-    (html ? getTrendyolProductFromState(html) : null);
+    (html ? getTrendyolProductFromHtml(html) : null);
 
   const scriptItems = html ? parseScriptJsonVariants(html) : [];
 
@@ -507,9 +526,23 @@ export function normalizeTrendyolVariantStock(input: NormalizeStockInput): Trend
     }
 
     const sku = parseSkuComboVariantsFromProduct(product);
+    const currentProductId = (() => {
+      for (const key of ["productId", "contentId", "id"]) {
+        const digits = String((product as Record<string, unknown>)[key] ?? "").replace(/\D/g, "");
+        if (digits.length >= 5) return digits;
+      }
+      return undefined;
+    })();
     slicingMatrix = buildVariantMatrixFromSlicingData(
       { colors: merged.colors, sizes: merged.sizes },
       sku,
+      {
+        currentProductId,
+        currentColor:
+          typeof (product as { color?: string }).color === "string"
+            ? (product as { color: string }).color
+            : undefined,
+      },
     );
     slicingColors = merged.colors.map((c) => c.name);
     slicingSizes = merged.sizes.map((s) => s.name);
@@ -603,7 +636,7 @@ export function normalizeTrendyolVariantStock(input: NormalizeStockInput): Trend
     input.puppeteerSnapshot?.productInStock ??
     availableVariants.length > 0;
 
-  return {
+  const stockResult = {
     colors,
     sizes,
     variants,
@@ -614,6 +647,11 @@ export function normalizeTrendyolVariantStock(input: NormalizeStockInput): Trend
     confidence,
     warnings: [...new Set(warnings)],
   };
+  traceVariants("stock_normalizer_output", { allVariants: variants }, {
+    source: "stock-normalizer",
+    options: { confidence, sizes: stockResult.sizes },
+  });
+  return stockResult;
 }
 
 export function buildStockSummary(result: TrendyolVariantStockResult): StockSummaryPayload {
@@ -660,39 +698,92 @@ export function logTrendyolStockResult(url: string, result: TrendyolVariantStock
   }
 }
 
-/** Mevcut scrape sonucuna stok normalizasyonu uygula */
+/** Mevcut scrape sonucuna stok normalizasyonu uygula — zengin varyant setini EZMEZ */
 export function applyStockNormalizationToScrapeResult(
   scrapeResult: Record<string, unknown>,
   input: Omit<NormalizeStockInput, "productTitle"> & { url: string; rawProduct?: Record<string, unknown> | null },
 ): void {
+  const productTitle = String(scrapeResult.title || "");
   const normalized = normalizeTrendyolVariantStock({
     html: input.html,
     $: input.$,
     product: input.product ?? input.rawProduct ?? undefined,
     puppeteerSnapshot: input.puppeteerSnapshot,
     url: input.url,
-    productTitle: String(scrapeResult.title || ""),
+    productTitle,
   });
 
   logTrendyolStockResult(input.url, normalized);
 
   const legacy = toLegacyVariantsPayload(normalized);
-  scrapeResult.variants = legacy;
+  const existing = sanitizeTrendyolVariants(scrapeResult.variants, {
+    productTitle,
+    sourceUrl: input.url,
+  });
+  const incoming = sanitizeTrendyolVariants(legacy, { productTitle, sourceUrl: input.url });
+
+  traceVariants("richer_variant_selection_before", existing, {
+    source: "stock-norm:existing",
+    options: { score: variantRichnessScore(existing) },
+  });
+  traceVariants("richer_variant_selection_before", incoming, {
+    source: "stock-norm:incoming",
+    options: { score: variantRichnessScore(incoming) },
+  });
+
+  const existingSizes = new Set(existing.sizes.map((s) => s.toLowerCase()));
+  const incomingRicher = variantRichnessScore(incoming) > variantRichnessScore(existing);
+
+  let finalVariants = incomingRicher ? incoming : existing;
+
+  // Mevcut set daha zengin: yalnızca stok ipuçlarını birleştir, bedenleri silme
+  if (!incomingRicher && existing.sizes.length > 0) {
+    const stockBySize = new Map<string, boolean>();
+    for (const it of legacy.items) {
+      if (it.size) stockBySize.set(it.size.toLowerCase(), it.inStock);
+    }
+    finalVariants = {
+      ...existing,
+      allVariants: existing.allVariants.map((v) => {
+        const sk = (v.size || "").toLowerCase();
+        return {
+          ...v,
+          inStock: stockBySize.has(sk) ? stockBySize.get(sk)! : v.inStock !== false,
+        };
+      }),
+      stockMap: {} as Record<string, boolean>,
+    };
+    for (const v of finalVariants.allVariants) {
+      finalVariants.stockMap![`${v.color || "Tek Renk"}-${v.size}`] = v.inStock !== false;
+    }
+    console.log(
+      `[StockNorm] Zengin mevcut set korundu (${existing.sizes.length} beden) — normalizer ${incoming.sizes.length} beden ile EZMEDİ`,
+    );
+  }
+
+  traceVariants("richer_variant_selection_after", finalVariants, { source: "stock-norm:final" });
+
+  scrapeResult.variants = finalVariants;
   scrapeResult.stockSummary = buildStockSummary(normalized);
-  scrapeResult.domSizeButtons = normalized.sizes;
+  // Yalnızca sanitize edilmiş final bedenleri dışarı taşı. Ham HTML'deki
+  // öneri/reklam ürünlerinin bedenleri (özellikle giyim dışı ürünlerde) tekrar
+  // domSizeButtons üzerinden canonical ürüne sızmamalı.
+  const domSizes = [...new Set(finalVariants.sizes)];
+  scrapeResult.domSizeButtons = domSizes;
   scrapeResult.variantDiagnostics = {
     ...(scrapeResult.variantDiagnostics as Record<string, unknown> | undefined),
-    rawDomSizeCount: normalized.sizes.length,
-    domSizeButtons: normalized.sizes,
+    rawDomSizeCount: Math.max(normalized.sizes.length, finalVariants.sizes.length),
+    domSizeButtons: domSizes,
+    mergedSizeCount: finalVariants.sizes.length,
   };
   scrapeResult.stockAnalysis = {
     ...buildStockSummary(normalized),
-    variants: normalized.variants.map((v) => ({
+    variants: finalVariants.allVariants.map((v) => ({
       color: v.color,
       size: v.size,
       inStock: v.inStock,
     })),
-    stockMap: normalized.stockMap,
+    stockMap: finalVariants.stockMap ?? normalized.stockMap,
     warnings: normalized.warnings,
   };
 }

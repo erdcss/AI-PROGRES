@@ -3512,17 +3512,62 @@ export async function scenarioBasedScrape(
 
       if (stockNorm.variants.length > 0) {
         const legacy = toLegacyVariantsPayload(stockNorm);
-        validatedVariants.colors = legacy.colors;
-        validatedVariants.sizes = legacy.sizes;
-        validatedVariants.stockMap = legacy.stockMap;
-        validatedVariants.allVariants = legacy.allVariants.map((v) => ({
-          color: v.color,
-          colorCode: getColorCode(v.color) || '',
-          size: v.size,
-          inStock: v.inStock,
-        }));
-        variantStockItems = legacy.items;
-        stockSummaryPayload = buildStockSummary(stockNorm);
+        const normSizeSet = new Set(legacy.sizes.map((s) => s.toLowerCase()));
+        const enrichedSizes = validatedVariants.sizes || [];
+        // Embedded JSON / slicedAttributes / allVariants zenginleştirmesi, normalizer'ın
+        // (çoğunlukla DOM'daki seçili beden) bulduğundan DAHA FAZLA beden içeriyorsa,
+        // dar DOM setinin zengin seti ezmesine izin verme — yalnızca stok bilgisini uygula.
+        const enrichedRicher =
+          enrichedSizes.length > legacy.sizes.length &&
+          enrichedSizes.some((s) => !normSizeSet.has(s.toLowerCase()));
+
+        if (enrichedRicher) {
+          console.log(
+            `ℹ️ VARIANT MERGE: enrichment ${enrichedSizes.length} beden > normalizer ${legacy.sizes.length} beden — zengin beden seti korunuyor, stok bilgisi eşleşen bedenlere uygulanıyor`,
+          );
+          const stockBySize = new Map<string, boolean>();
+          for (const it of legacy.items) {
+            if (it.size) stockBySize.set(it.size.toLowerCase(), it.inStock);
+          }
+          validatedVariants.allVariants = validatedVariants.allVariants.map((v) => {
+            const sizeKey = (v.size || '').toLowerCase();
+            return {
+              ...v,
+              inStock: stockBySize.has(sizeKey) ? stockBySize.get(sizeKey)! : v.inStock !== false,
+            };
+          });
+          validatedVariants.sizes = enrichedSizes;
+          validatedVariants.stockMap = {};
+          for (const v of validatedVariants.allVariants) {
+            validatedVariants.stockMap[`${v.color || 'Tek Renk'}-${v.size}`] = v.inStock !== false;
+          }
+          variantStockItems = validatedVariants.allVariants.map((v) => ({
+            color: v.color || 'Tek Renk',
+            size: v.size,
+            key: `${v.color || 'Tek Renk'}-${v.size}`,
+            inStock: v.inStock !== false,
+            source: 'script-json' as const,
+          }));
+          stockSummaryPayload = {
+            productInStock: variantStockItems.some((i) => i.inStock),
+            totalVariants: variantStockItems.length,
+            inStockVariants: variantStockItems.filter((i) => i.inStock).length,
+            outOfStockVariants: variantStockItems.filter((i) => !i.inStock).length,
+            confidence: stockNorm.confidence,
+          };
+        } else {
+          validatedVariants.colors = legacy.colors;
+          validatedVariants.sizes = legacy.sizes;
+          validatedVariants.stockMap = legacy.stockMap;
+          validatedVariants.allVariants = legacy.allVariants.map((v) => ({
+            color: v.color,
+            colorCode: getColorCode(v.color) || '',
+            size: v.size,
+            inStock: v.inStock,
+          }));
+          variantStockItems = legacy.items;
+          stockSummaryPayload = buildStockSummary(stockNorm);
+        }
       }
     } catch (stockNormErr: any) {
       console.log(`⚠️ Stock normalization failed (non-fatal): ${stockNormErr?.message || stockNormErr}`);
@@ -4086,9 +4131,20 @@ function smartCurrencyConversion(price: number, context: string = ''): number {
 }
 
 /**
- * Extract price information with universal support for all price ranges
+ * ✅ TEK FİYAT SİSTEMİ — legacy DOM/regex fiyat çıkarımı devre dışı.
+ * Fiyat artık YALNIZCA ultimatePriceExtract → trendyol-price-utils merkezî
+ * resolver'ı üzerinden çözülür (öncelik: originalPrice/listPrice → sellingPrice;
+ * Trendyol Plus / sepette / discountedPrice / kampanya fiyatı ASLA kullanılmaz).
+ * Bu sarmalayıcı geriye dönük çağrılar için merkezî resolver'a yönlendirir.
  */
-function extractPrice($: any, htmlContent: string): any {
+async function extractPrice($: any, htmlContent: string): Promise<any> {
+  return ultimatePriceExtract($, htmlContent);
+}
+
+// ⛔ DEPRECATED: aşağıdaki eski gövde artık çağrılmıyor; yalnızca referans için
+// korunuyor ve hiçbir canlı yolda kullanılmaz.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function __legacyExtractPriceDeprecated($: any, htmlContent: string): any {
   console.log('🚨 REAL PRICE EXTRACTION DEBUG - FINDING ACTUAL PRICES');
   console.log(`💰 HTML content length: ${htmlContent.length} characters`);
   

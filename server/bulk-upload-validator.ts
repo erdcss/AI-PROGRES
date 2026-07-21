@@ -107,9 +107,17 @@ export async function validateBulkUploadItem(
     return { ok: false, errorCode: "export_gate_blocked", error: gate.reason ?? "Export engellendi" };
   }
 
+  // `variants` is the authoritative export list and, in the current canonical
+  // shape, already contains stock-out rows. `outOfStockVariants` is also kept
+  // as a convenience subset. Concatenating both lists therefore duplicated
+  // every stock-out SKU and blocked otherwise valid uploads as duplicate_sku.
+  // Keep supplemental legacy rows only when they are not already represented.
+  const primaryVariants = canonical.variants ?? [];
+  const supplementalOutOfStock = canonical.outOfStockVariants ?? [];
+  const primarySkus = new Set(primaryVariants.map((v) => v.sku));
   const allVariants = [
-    ...(canonical.variants ?? []),
-    ...(canonical.outOfStockVariants ?? []),
+    ...primaryVariants,
+    ...supplementalOutOfStock.filter((v) => !primarySkus.has(v.sku)),
   ];
   if (allVariants.length === 0) {
     return { ok: false, errorCode: "no_variants", error: "Canonical varyant yok" };
@@ -136,12 +144,16 @@ export async function validateBulkUploadItem(
     };
   }
 
-  const seenSku = new Set<string>();
-  for (const v of allVariants) {
-    if (seenSku.has(v.sku)) {
-      return { ok: false, errorCode: "duplicate_sku", error: `Tekrarlayan SKU: ${v.sku}`, canonical };
-    }
-    seenSku.add(v.sku);
+  const duplicateSku =
+    findDuplicateSku(primaryVariants.map((v) => v.sku)) ??
+    findDuplicateSku(supplementalOutOfStock.map((v) => v.sku));
+  if (duplicateSku) {
+    return {
+      ok: false,
+      errorCode: "duplicate_sku",
+      error: `Tekrarlayan SKU: ${duplicateSku}`,
+      canonical,
+    };
   }
 
   const resolvedCsv = await resolveUploadCsvContent(item.csvContent, item.productData, {
@@ -174,6 +186,15 @@ export async function validateBulkUploadItem(
   sanitizeShopifyTags(item.individualTags ?? []);
 
   return { ok: true, canonical, csvContent: resolvedCsv.csvContent };
+}
+
+function findDuplicateSku(skus: string[]): string | null {
+  const seen = new Set<string>();
+  for (const sku of skus) {
+    if (seen.has(sku)) return sku;
+    seen.add(sku);
+  }
+  return null;
 }
 
 export function classifyUploadHttpResult(

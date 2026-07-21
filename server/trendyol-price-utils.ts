@@ -51,18 +51,15 @@ export function extractOriginalTrendyolPriceFromProduct(product: unknown): numbe
     return Math.max(...originalCandidates);
   }
 
-  const saleCandidates = [
+  // Öncelik 2: yalnızca normal satış fiyatı (sellingPrice).
+  // Plus / sepette / discountedPrice ASLA fiyat kaynağı değildir.
+  const sellingCandidates = [
     readNestedPriceValue(price?.sellingPrice),
-    readNestedPriceValue(price?.discountedPrice),
     readNestedPriceValue(root.sellingPrice),
-    readNestedPriceValue(root.discountedPrice),
     readNestedPriceValue(priceInfo?.sellingPrice),
-    readNestedPriceValue(priceInfo?.discountedPrice),
-    readNestedPriceValue(priceInfo?.price),
-    readNestedPriceValue(root.price),
   ].filter((value) => value > 0);
 
-  return saleCandidates.length > 0 ? Math.max(...saleCandidates) : 0;
+  return sellingCandidates.length > 0 ? Math.max(...sellingCandidates) : 0;
 }
 
 /** HTML script içindeki tüm originalPrice değerleri (benzersiz) */

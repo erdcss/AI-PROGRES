@@ -1,6 +1,7 @@
 import { db } from "../db";
 import {
   detectedChanges,
+  shopifyTransferredProducts,
   trackedProducts,
   trackedVariants,
   type DetectedChange,
@@ -65,7 +66,8 @@ async function resolveTrackedVariant(
       .from(trackedVariants)
       .where(eq(trackedVariants.id, change.trackedVariantId))
       .limit(1);
-    if (v) return v;
+    if (v?.trackedProductId === product.id && v.shopifyVariantId) return v;
+    return null;
   }
 
   const meta = variantMetaFromValue(change.newValue ?? change.oldValue);
@@ -81,22 +83,53 @@ async function resolveTrackedVariant(
       .from(trackedVariants)
       .where(and(...conditions))
       .limit(5);
-    const matched = rows.find((r) => r.shopifyVariantId);
-    if (matched) return matched;
+    const matched = rows.filter((r) => r.shopifyVariantId);
+    if (matched.length === 1) return matched[0];
   }
 
-  const [fallback] = await db
+  return null;
+}
+
+async function getMappedShopifyVariants(productId: number): Promise<TrackedVariant[]> {
+  return db
     .select()
     .from(trackedVariants)
     .where(
       and(
-        eq(trackedVariants.trackedProductId, product.id),
+        eq(trackedVariants.trackedProductId, productId),
         isNotNull(trackedVariants.shopifyVariantId),
       ),
-    )
+    );
+}
+
+async function calculateShopifySalePrice(
+  product: TrackedProduct,
+  sourcePrice: number,
+): Promise<number> {
+  const [transfer] = await db
+    .select({
+      profitMargin: shopifyTransferredProducts.profitMargin,
+      originalPrice: shopifyTransferredProducts.originalPrice,
+      shopifyPrice: shopifyTransferredProducts.shopifyPrice,
+    })
+    .from(shopifyTransferredProducts)
+    .where(eq(shopifyTransferredProducts.sourceUrl, product.sourceUrl))
     .limit(1);
 
-  return fallback ?? null;
+  let marginPercent = num(transfer?.profitMargin);
+  if (marginPercent == null) {
+    const original = num(transfer?.originalPrice);
+    const shopify = num(transfer?.shopifyPrice);
+    if (original && shopify && original > 0) {
+      marginPercent = ((shopify / original) - 1) * 100;
+    }
+  }
+  if (marginPercent == null || marginPercent < 0 || marginPercent > 200) {
+    throw new Error(
+      "Shopify satış fiyatı güvenle hesaplanamadı — ürünün kâr marjı kaydı eksik",
+    );
+  }
+  return Math.round(sourcePrice * (1 + marginPercent / 100) * 100) / 100;
 }
 
 async function verifyShopifyProduct(product: TrackedProduct): Promise<string> {
@@ -138,15 +171,45 @@ export async function applyDetectedChangeToShopify(changeId: number): Promise<Sh
     .where(eq(trackedProducts.id, change.trackedProductId))
     .limit(1);
   if (!product) throw new Error("Takip ürünü bulunamadı");
+  if (
+    product.trackingEnabled !== true ||
+    product.currentStatus !== "active" ||
+    product.archivedAt != null
+  ) {
+    throw new Error("Takip ürünü aktif değil veya Shopify senkronunda arşivlenmiş");
+  }
 
   const shopifyProductId = await verifyShopifyProduct(product);
   const trackingUid = product.trackingUid!;
 
   switch (change.changeType) {
-    case "price_changed":
+    case "price_changed": {
+      const sourcePrice = num(change.newValue);
+      if (sourcePrice == null || sourcePrice <= 0) throw new Error("Geçersiz fiyat değeri");
+      const price = await calculateShopifySalePrice(product, sourcePrice);
+
+      const variants = await getMappedShopifyVariants(product.id);
+      if (variants.length === 0) {
+        throw new Error(`Shopify varyant eşleşmesi yok — UID: ${trackingUid}`);
+      }
+      for (const variant of variants) {
+        await shopifyApiService.updateVariantPrice(variant.shopifyVariantId!, price);
+      }
+
+      return {
+        success: true,
+        changeId,
+        trackingUid,
+        shopifyProductId,
+        action: change.changeType,
+        message: `${variants.length} Shopify varyantının fiyatı ${price} TRY olarak güncellendi`,
+      };
+    }
+
     case "variant_price_changed": {
-      const price = num(change.newValue);
-      if (price == null || price <= 0) throw new Error("Geçersiz fiyat değeri");
+      const sourcePrice = num(change.newValue);
+      if (sourcePrice == null || sourcePrice <= 0) throw new Error("Geçersiz fiyat değeri");
+      const price = await calculateShopifySalePrice(product, sourcePrice);
 
       const variant = await resolveTrackedVariant(product, change);
       if (!variant?.shopifyVariantId) {
@@ -187,36 +250,26 @@ export async function applyDetectedChangeToShopify(changeId: number): Promise<Sh
 
       const qty = num(change.newValue);
       if (qty == null || qty < 0) throw new Error("Geçersiz stok miktarı");
-
-      const variant = await resolveTrackedVariant(product, change);
-      if (!variant?.shopifyVariantId) {
-        throw new Error(`Stok güncellemesi için varyant eşleşmesi yok — UID: ${trackingUid}`);
-      }
-
-      await shopifyApiService.updateInventory(variant.shopifyVariantId, qty);
-
-      return {
-        success: true,
-        changeId,
-        trackingUid,
-        variantUid: variant.variantUid,
-        shopifyProductId,
-        shopifyVariantId: variant.shopifyVariantId,
-        action: change.changeType,
-        message: `Stok ${qty} olarak güncellendi (UID: ${trackingUid})`,
-      };
+      throw new Error(
+        "Toplam ürün stoku tek bir Shopify varyantına güvenli biçimde uygulanamaz",
+      );
     }
 
     case "variant_stock_changed": {
       const inStock = bool(change.newValue);
       if (inStock == null) throw new Error("Geçersiz varyant stok değeri");
+      if (inStock) {
+        throw new Error(
+          "Stok miktarı bilinmeden Shopify stoğu güvenle açılamaz; kaynak miktarı gerekli",
+        );
+      }
 
       const variant = await resolveTrackedVariant(product, change);
       if (!variant?.shopifyVariantId) {
         throw new Error(`Varyant stok eşleşmesi yok — UID: ${trackingUid}`);
       }
 
-      await shopifyApiService.updateInventory(variant.shopifyVariantId, inStock ? 10 : 0);
+      await shopifyApiService.updateInventory(variant.shopifyVariantId, 0);
 
       return {
         success: true,

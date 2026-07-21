@@ -81,6 +81,8 @@ function applyBrowserWorkerToResult(
     html: string | null;
     rawProductJson: Record<string, unknown> | null;
     durationMs: number;
+    colorSiblingCandidates?: unknown[];
+    colorFamilyMembers?: unknown[];
   },
   diagnostics: ScrapeDiagnostics,
 ) {
@@ -93,6 +95,12 @@ function applyBrowserWorkerToResult(
   diagnostics.browserWorkerSucceeded = true;
   if (access.rawProductJson) {
     result._browserWorkerRawProduct = access.rawProductJson;
+  }
+  if (Array.isArray(access.colorSiblingCandidates)) {
+    result._colorSiblingCandidates = access.colorSiblingCandidates;
+  }
+  if (Array.isArray(access.colorFamilyMembers)) {
+    result._colorFamilyMembers = access.colorFamilyMembers;
   }
 }
 
@@ -295,6 +303,219 @@ async function finalizeTrendyolPipelineWithVariants(
 
   const { ensureTrendyolVariantsOnResult } = await import("./trendyol-result-normalizer");
   await ensureTrendyolVariantsOnResult(url, result, variantOpts);
+
+  // Renk ailesi: Browser Worker üyeleri veya adaylardan merge (≥2 productId)
+  try {
+    const {
+      mergeColorFamilyIntoScrapeResult,
+      normalizeColorSiblingUrl,
+      buildColorFamilyStatus,
+    } = await import("./trendyol-color-family");
+    const rootId =
+      normalizeColorSiblingUrl(url)?.productId ||
+      String(result.sourceProductId || "").replace(/\D/g, "");
+    let members = Array.isArray(result._colorFamilyMembers)
+      ? result._colorFamilyMembers
+      : [];
+    let candidates = Array.isArray(result._colorSiblingCandidates)
+      ? result._colorSiblingCandidates
+      : [];
+
+    // BW adayları productId/görsel içerip renk adını içermeyebilir. Bu nedenle
+    // aday sayısı yeterli olsa bile HTML ve product state ile her zaman zenginleştir.
+    const {
+      extractColorSiblingCandidatesFromHtml,
+      extractColorSiblingCandidatesFromProduct,
+      mergeColorSiblingCandidates,
+      finalizeColorSiblingCandidateList,
+    } = await import("./trendyol-color-family");
+    const fromHtml = variantOpts?.html
+      ? extractColorSiblingCandidatesFromHtml(variantOpts.html)
+      : [];
+    let rawProduct =
+      variantOpts?.rawProduct ??
+      (result._browserWorkerRawProduct as Record<string, unknown> | undefined) ??
+      null;
+    if (!rawProduct && variantOpts?.html) {
+      try {
+        const { getTrendyolProductFromHtml } = await import("./trendyol-product-state");
+        rawProduct = getTrendyolProductFromHtml(variantOpts.html);
+      } catch {
+        rawProduct = null;
+      }
+    }
+    const fromProduct = extractColorSiblingCandidatesFromProduct(rawProduct, url);
+    candidates = finalizeColorSiblingCandidateList(
+      mergeColorSiblingCandidates(candidates, fromHtml, fromProduct),
+      url,
+    );
+    result._colorSiblingCandidates = candidates;
+    console.log(
+      `[ColorFamily] candidates enriched=${candidates.length} named=${candidates.filter((c) => Boolean(c.color)).length}`,
+    );
+
+    if (rootId && candidates.length >= 2 && members.length < 2) {
+      const { fetchColorFamilyMembersViaApi } = await import("./trendyol-color-family");
+      const apiMembers = await fetchColorFamilyMembersViaApi(candidates, rootId);
+      const okApi = apiMembers.filter((m) => m.ok);
+      if (okApi.length >= 2) {
+        members = apiMembers;
+        result._colorFamilyMembers = apiMembers;
+        console.log(
+          `[ColorFamily] API fallback members=${okApi.length}/${apiMembers.length}`,
+        );
+      } else {
+        // API/HTML üye çekimi başarısız — adaylardaki renk adı + thumbnail ile soft birleştir
+        const {
+          buildSoftColorFamilyMembersFromCandidates,
+          extractImagesByColorFromProduct,
+          mergeImagesByColorMaps,
+        } = await import("./trendyol-color-family");
+        const rootColor =
+          (Array.isArray(result.variants?.colors) && result.variants.colors[0]) ||
+          (typeof result.color === "string" ? result.color : "") ||
+          "";
+        const soft = buildSoftColorFamilyMembersFromCandidates({
+          candidates,
+          rootProductId: rootId,
+          rootColor,
+          rootImages: Array.isArray(result.images) ? (result.images as string[]) : [],
+          rootVariants: result.variants as
+            | import("@shared/trendyol-variant-utils").SanitizedVariants
+            | null
+            | undefined,
+        });
+        const okSoft = soft.filter((m) => m.ok);
+        if (okSoft.length >= 2) {
+          members = soft;
+          result._colorFamilyMembers = soft;
+          console.log(
+            `[ColorFamily] soft-candidate members=${okSoft.length}/${soft.length} colors=${okSoft
+              .map((m) => m.color)
+              .join(",")}`,
+          );
+        }
+        // colorImages map'ini her durumda sakla
+        const rawProduct =
+          variantOpts?.rawProduct ??
+          (result._browserWorkerRawProduct as Record<string, unknown> | undefined) ??
+          null;
+        const fromProduct = extractImagesByColorFromProduct(rawProduct);
+        const fromCandidates: Record<string, string[]> = {};
+        for (const c of candidates) {
+          if (!c.color) continue;
+          const imgs = c.images?.length ? c.images : c.image ? [c.image] : [];
+          if (!imgs.length) continue;
+          fromCandidates[c.color] = imgs;
+        }
+        const mergedMap = mergeImagesByColorMaps(
+          result.imagesByColor as Record<string, string[]> | undefined,
+          fromProduct,
+          fromCandidates,
+        );
+        if (Object.keys(mergedMap).length) {
+          result.imagesByColor = mergedMap;
+        }
+      }
+    }
+
+    if (rootId && members.length >= 2) {
+      mergeColorFamilyIntoScrapeResult({
+        result,
+        rootUrl: url,
+        rootProductId: rootId,
+        rootHtml: variantOpts?.html ?? undefined,
+        rootRawProduct:
+          variantOpts?.rawProduct ??
+          (result._browserWorkerRawProduct as Record<string, unknown> | undefined) ??
+          null,
+        members,
+        candidates,
+      });
+    } else {
+      // Color family uygulanmadı — yine de colorImages / aday görsellerini renge bağla
+      try {
+        const {
+          extractImagesByColorFromProduct,
+          mergeImagesByColorMaps,
+          attachVariantImagesFromColorMap,
+        } = await import("./trendyol-color-family");
+        const rawProduct =
+          variantOpts?.rawProduct ??
+          (result._browserWorkerRawProduct as Record<string, unknown> | undefined) ??
+          null;
+        const fromProduct = extractImagesByColorFromProduct(rawProduct);
+        const fromCandidates: Record<string, string[]> = {};
+        for (const c of candidates) {
+          if (!c.color) continue;
+          const imgs = c.images?.length ? c.images : c.image ? [c.image] : [];
+          if (!imgs.length) continue;
+          fromCandidates[c.color] = imgs;
+        }
+        const mergedMap = mergeImagesByColorMaps(
+          result.imagesByColor as Record<string, string[]> | undefined,
+          fromProduct,
+          fromCandidates,
+        );
+        if (Object.keys(mergedMap).length) {
+          result.imagesByColor = mergedMap;
+          // Tek renk varyant + çok renk görsel → görselleri mevcut renge bağla veya yabancıları at
+          attachVariantImagesFromColorMap(result, mergedMap);
+        }
+      } catch {
+        /* soft */
+      }
+
+      if (!result.colorFamilyStatus) {
+        // Aynı sayfada çok renk olabilir; kardeş productId yoksa not_applicable
+        const variantColors = Array.isArray(result.variants?.colors)
+          ? result.variants.colors
+          : [];
+        result.colorFamilyStatus = buildColorFamilyStatus({
+          attempted: Boolean(candidates.length || members.length),
+          rootProductId: rootId || undefined,
+          candidates,
+          members,
+          colors: variantColors,
+        });
+        // Çok renkli ama kardeş URL yok → mesajı netleştir
+        if (
+          result.colorFamilyStatus.state === "not_applicable" &&
+          variantColors.length >= 2
+        ) {
+          result.colorFamilyStatus = {
+            ...result.colorFamilyStatus,
+            colorCount: variantColors.length,
+            colors: variantColors,
+            message:
+              "Aynı ürün sayfasında birden fazla renk var; bağlantılı ayrı productId bulunmadı.",
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(
+      `[ColorFamily] merge soft-fail: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    try {
+      const { buildColorFamilyStatus } = await import("./trendyol-color-family");
+      if (!result.colorFamilyStatus) {
+        result.colorFamilyStatus = buildColorFamilyStatus({
+          attempted: true,
+          candidates: Array.isArray(result._colorSiblingCandidates)
+            ? result._colorSiblingCandidates
+            : [],
+          members: Array.isArray(result._colorFamilyMembers)
+            ? result._colorFamilyMembers
+            : [],
+          mergeError: err instanceof Error ? err.message : String(err),
+        });
+      }
+    } catch {
+      // ignore nested
+    }
+  }
+
   return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
 }
 
@@ -377,8 +598,12 @@ export async function runTrendyolScrapePipeline(
           "./services/browser-worker-client.service"
         );
         const bw = await withStageTimeout(
-          () => scrapeTrendyolWithBrowserWorker(url),
-          Math.min(policy.browserWorkerTimeoutMs, remainingMs()),
+          () =>
+            scrapeTrendyolWithBrowserWorker(url, {
+              includeColorFamily: true,
+              includeSiblingHtml: false,
+            }),
+          Math.min(Math.max(policy.browserWorkerTimeoutMs, 90_000), remainingMs()),
           "direct-html-timeout",
         );
 

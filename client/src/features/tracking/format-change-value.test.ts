@@ -18,7 +18,7 @@ describe("formatChangeValue", () => {
     const raw = "@{key=Tek Renk::S::0; size=S; color=Tek Renk; inStock=True}";
     assert.equal(
       formatChangeValue(raw, "variant_added"),
-      "Tek Renk · Beden S · Stokta",
+      "Beden S · Stokta",
     );
   });
 
@@ -29,7 +29,7 @@ describe("formatChangeValue", () => {
     );
     assert.equal(
       formatChangeDiff("variant_added", null, "@{size=S; color=Tek Renk; inStock=True}"),
-      "Tek Renk · Beden S · Stokta",
+      "Beden S · Stokta",
     );
   });
 });

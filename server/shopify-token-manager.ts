@@ -4,11 +4,10 @@ import { desc, eq } from 'drizzle-orm';
 import {
   envShopDomain,
   getShopifyClientCredentials,
-  isSharedSigningSecret,
+  hasUsableClientSecretForRefresh,
   normalizeShopDomain,
   resolveClientIdSource,
   resolveClientSecretSource,
-  resolveTokenGrantClientSecret,
 } from './shopify-credentials';
 
 export type ShopifyTokenSource =
@@ -18,21 +17,95 @@ export type ShopifyTokenSource =
   | 'db'
   | 'missing';
 
+/**
+ * Token çözümleme amacı:
+ * - normalResolve   : normal istek — cache boş/az kaldıysa taze token çöz.
+ * - proactiveRefresh : süresi dolmadan (≥60 dk) yapılan planlı yenileme.
+ * - forceRefresh    : 401 sonrası veya manuel zorunlu yenileme.
+ *
+ * proactiveRefresh ve forceRefresh, client credentials mevcutken ENV/DB access
+ * token adaylarını KULLANMAZ; doğrudan yeni bir client_credentials tokenı alır.
+ */
+export type TokenAcquireIntent = 'normalResolve' | 'proactiveRefresh' | 'forceRefresh';
+
 const SHOPIFY_API_VERSION = '2024-01';
+/** Süresi bitmeye bu kadar kala token yenilenir (en az 60 dk önce). */
 const REFRESH_BUFFER_MS = 60 * 60 * 1000;
+/** Kalıcı Admin/OAuth token için varsayılan (süresiz kabul edilen) ömür. */
 const DEFAULT_LIFETIME_MS = 23 * 60 * 60 * 1000;
+/** client_credentials tokenı için expires_in dönmezse uygulanan güvenli kısa ömür. */
+const CLIENT_CREDENTIALS_FALLBACK_MS = 2 * 60 * 60 * 1000;
 
 interface TokenCacheEntry {
   accessToken: string;
   shopDomain: string;
   source: ShopifyTokenSource;
+  issuedAt: number;
   expiresAt: number;
 }
 
 let tokenCache: TokenCacheEntry | null = null;
 let refreshInFlight: Promise<TokenCacheEntry> | null = null;
 let lastSuccessfulRefreshAt = 0;
+let lastRefreshAttemptAt = 0;
 let lastRefreshError: string | null = null;
+
+/* -------------------------------------------------------------------------- */
+/* Test edilebilirlik: tüm dış etkiler (network/DB/env/creds) buradan geçer.  */
+/* Böylece token yaşam döngüsü karar mantığı gerçek network olmadan sınanır.  */
+/* -------------------------------------------------------------------------- */
+interface ShopifyTokenManagerDeps {
+  fetchImpl: typeof fetch;
+  getShopDomain(): string;
+  getClientCredentials(): { clientId: string; clientSecret: string; shopDomain: string } | null;
+  getEnvAdminTokens(): Array<{ token?: string; source: ShopifyTokenSource }>;
+  clearEnvAdminTokens(): void;
+  readDbToken(shopDomain: string): Promise<string | null>;
+  saveDbToken(shopDomain: string, accessToken: string): Promise<void>;
+  invalidateDbToken(shopDomain: string, reason: string): Promise<void>;
+}
+
+const realDeps: ShopifyTokenManagerDeps = {
+  fetchImpl: (input: any, init?: any) => fetch(input, init),
+  getShopDomain: () => envShopDomain(),
+  getClientCredentials: () => getShopifyClientCredentials(),
+  getEnvAdminTokens: () => [
+    { token: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN, source: 'env' },
+    { token: process.env.SHOPIFY_ACCESS_TOKEN, source: 'env' },
+  ],
+  clearEnvAdminTokens: () => {
+    delete process.env.SHOPIFY_ACCESS_TOKEN;
+    delete process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+  },
+  readDbToken: (shopDomain) => readDbRawTokenFromDatabase(shopDomain),
+  saveDbToken: async (shopDomain, accessToken) => {
+    const { saveDirectAccessToken } = await import('./shopify-credentials');
+    await saveDirectAccessToken(shopDomain, accessToken);
+  },
+  invalidateDbToken: (shopDomain, reason) => invalidateDbTokenInDatabase(shopDomain, reason),
+};
+
+let deps: ShopifyTokenManagerDeps = realDeps;
+
+/** Yalnızca testler için — dış bağımlılıkları enjekte eder ve runtime state'i sıfırlar. */
+export function __setShopifyTokenManagerTestDeps(
+  partial: Partial<ShopifyTokenManagerDeps>,
+): void {
+  deps = { ...realDeps, ...partial };
+  tokenCache = null;
+  refreshInFlight = null;
+  lastRefreshError = null;
+  lastSuccessfulRefreshAt = 0;
+  lastRefreshAttemptAt = 0;
+}
+
+/** Yalnızca testler için — gerçek bağımlılıklara döner. */
+export function __resetShopifyTokenManagerTestDeps(): void {
+  deps = realDeps;
+  tokenCache = null;
+  refreshInFlight = null;
+  lastRefreshError = null;
+}
 
 /** Token loglarda asla açık yazılmaz */
 export function maskToken(token: string | null | undefined): string {
@@ -127,7 +200,7 @@ function mapOAuthError(data: Record<string, unknown>, status: number): string {
     );
   }
   if (lower.includes('invalid') && lower.includes('client')) {
-    return 'Geçersiz client_id/client_secret — Dev Dashboard Client Secret (shpsec_...) kullanın; shpss_ API secret değildir';
+    return 'Geçersiz client_id/client_secret — Dev Dashboard → Settings sayfasındaki Client ID ve Client Secret değerlerini kontrol edin';
   }
   return raw;
 }
@@ -148,17 +221,22 @@ export function setShopifyTokenCache(input: {
   expiresAt?: number;
   expiresInSeconds?: number;
 }): void {
+  const fallbackMs =
+    input.source === 'client_credentials'
+      ? CLIENT_CREDENTIALS_FALLBACK_MS
+      : DEFAULT_LIFETIME_MS;
   const expiresAt =
     input.expiresAt ??
     Date.now() +
       (input.expiresInSeconds && input.expiresInSeconds > 0
         ? input.expiresInSeconds * 1000
-        : DEFAULT_LIFETIME_MS);
+        : fallbackMs);
 
   tokenCache = {
     accessToken: input.accessToken,
     shopDomain: normalizeShopDomain(input.shopDomain),
     source: input.source,
+    issuedAt: Date.now(),
     expiresAt,
   };
 
@@ -184,23 +262,21 @@ export function clearShopifyRuntimeCredentials(): void {
   lastRefreshError = null;
 }
 
-function invalidateEnvAccessTokens(): void {
-  delete process.env.SHOPIFY_ACCESS_TOKEN;
-  delete process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
-}
-
 async function probeShopToken(shopDomain: string, accessToken: string): Promise<{
   ok: boolean;
   status: number;
   hint?: string;
 }> {
   try {
-    const response = await fetch(`https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/shop.json`, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json',
+    const response = await deps.fetchImpl(
+      `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/shop.json`,
+      {
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
       },
-    });
+    );
     if (response.status === 200) return { ok: true, status: 200 };
     const errBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     const bodyHint =
@@ -219,7 +295,7 @@ async function probeShopToken(shopDomain: string, accessToken: string): Promise<
   }
 }
 
-async function invalidateDbToken(shopDomain: string, reason: string): Promise<void> {
+async function invalidateDbTokenInDatabase(shopDomain: string, reason: string): Promise<void> {
   try {
     const cleanDomain = normalizeShopDomain(shopDomain);
     await db
@@ -232,7 +308,8 @@ async function invalidateDbToken(shopDomain: string, reason: string): Promise<vo
   }
 }
 
-async function readDbToken(shopDomain: string): Promise<string | null> {
+/** DB'deki aktif ham token değerini döndür (doğrulama yapmadan). */
+async function readDbRawTokenFromDatabase(shopDomain: string): Promise<string | null> {
   try {
     const normalizedTarget = normalizeShopDomain(shopDomain);
     const rows = await db
@@ -243,23 +320,7 @@ async function readDbToken(shopDomain: string): Promise<string | null> {
 
     const cred = rows.find((row) => normalizeShopDomain(row.shopDomain || '') === normalizedTarget);
     const token = cred?.accessToken?.trim();
-    if (!token || isDeprecatedToken(token)) return null;
-    if (!token.startsWith('shpat_') && !token.startsWith('shpua_')) {
-      console.warn('[SHOPIFY_TOKEN] DB token formatı tanınmıyor — OAuth yenilemesi gerekli');
-      return null;
-    }
-
-    const domain = normalizeShopDomain(cred!.shopDomain || shopDomain);
-    const probe = await probeShopToken(domain, token);
-    if (probe.ok) {
-      return token;
-    }
-
-    if (probe.status === 401 || probe.status === 403) {
-      await invalidateDbToken(domain, `HTTP ${probe.status}`);
-    }
-    lastRefreshError = probe.hint || mapShopifyProbeError(probe.status);
-    return null;
+    return token || null;
   } catch (err: unknown) {
     if ((err as { code?: string })?.code !== '42P01') {
       console.warn('[SHOPIFY_TOKEN] DB token read failed:', err);
@@ -268,10 +329,33 @@ async function readDbToken(shopDomain: string): Promise<string | null> {
   }
 }
 
+/**
+ * DB'deki KALICI admin/OAuth tokenını çöz (yalnızca client credentials yokken kullanılır).
+ * shpss_ ve tanınmayan formatlar reddedilir; 401/403 alan token DB'den temizlenir.
+ */
+async function resolveDbAdminToken(shopDomain: string): Promise<string | null> {
+  const normalized = normalizeShopDomain(shopDomain);
+  const token = await deps.readDbToken(normalized);
+  if (!token || isDeprecatedToken(token)) return null;
+  if (!token.startsWith('shpat_') && !token.startsWith('shpua_')) {
+    console.warn('[SHOPIFY_TOKEN] DB token formatı tanınmıyor — OAuth yenilemesi gerekli');
+    return null;
+  }
+
+  const probe = await probeShopToken(normalized, token);
+  if (probe.ok) return token;
+
+  if (probe.status === 401 || probe.status === 403) {
+    await deps.invalidateDbToken(normalized, `HTTP ${probe.status}`);
+  }
+  lastRefreshError = probe.hint || mapShopifyProbeError(probe.status);
+  return null;
+}
+
 async function exchangeClientCredentialsToken(
   shopDomain: string,
 ): Promise<{ accessToken: string; expiresInSeconds?: number } | null> {
-  const creds = getShopifyClientCredentials();
+  const creds = deps.getClientCredentials();
   if (!creds) return null;
 
   const domain = normalizeShopDomain(shopDomain || creds.shopDomain);
@@ -286,7 +370,7 @@ async function exchangeClientCredentialsToken(
     grant_type: 'client_credentials',
   });
 
-  const response = await fetch(`https://${domain}/admin/oauth/access_token`, {
+  const response = await deps.fetchImpl(`https://${domain}/admin/oauth/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
@@ -326,6 +410,19 @@ async function exchangeClientCredentialsToken(
   };
 }
 
+async function invalidateApiServiceCredCache(): Promise<void> {
+  try {
+    const { invalidateShopifyCredentialCache } = await import('./shopify-api-service');
+    invalidateShopifyCredentialCache();
+  } catch {
+    /* optional */
+  }
+}
+
+/**
+ * Dışarıdan (OAuth callback / manuel Admin Token) alınan KALICI token'ı etkinleştirir.
+ * Bu yol client_credentials değildir; ENV + DB'ye kalıcı yazılır.
+ */
 export async function activateShopifyAccessToken(
   shopDomain: string,
   accessToken: string,
@@ -348,15 +445,21 @@ async function persistTokenToRuntime(
     expiresInSeconds,
   });
 
-  // client_credentials tokenları geçicidir — ENV'e yazma (sonraki döngüde 'env' kaynağı sanılır)
-  if (source !== 'client_credentials') {
-    process.env.SHOPIFY_ACCESS_TOKEN = accessToken;
-    process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = accessToken;
+  // client_credentials tokenı GEÇİCİDİR: yalnızca memory cache'te tutulur.
+  // ENV veya DB'ye YAZILMAZ — aksi halde sonraki döngüde kalıcı 'env'/'db' token
+  // sanılıp gerçek yenileme geciker (kritik hatanın kök nedeni). Kalıcı kaynak:
+  // client_id + client_secret + shop domain.
+  if (source === 'client_credentials') {
+    await invalidateApiServiceCredCache();
+    return;
   }
 
+  // Kalıcı admin/OAuth token — ENV + DB'ye yaz.
+  process.env.SHOPIFY_ACCESS_TOKEN = accessToken;
+  process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = accessToken;
+
   try {
-    const { saveDirectAccessToken } = await import('./shopify-credentials');
-    await saveDirectAccessToken(shopDomain, accessToken);
+    await deps.saveDbToken(shopDomain, accessToken);
   } catch (err: unknown) {
     console.warn(
       '[SHOPIFY_TOKEN] DB persist skipped:',
@@ -364,16 +467,13 @@ async function persistTokenToRuntime(
     );
   }
 
-  try {
-    const { invalidateShopifyCredentialCache } = await import('./shopify-api-service');
-    invalidateShopifyCredentialCache();
-  } catch {
-    /* optional */
-  }
+  await invalidateApiServiceCredCache();
 }
 
-async function acquireFreshToken(forceRefresh = false): Promise<TokenCacheEntry> {
-  const shopDomain = envShopDomain();
+async function acquireFreshToken(intent: TokenAcquireIntent): Promise<TokenCacheEntry> {
+  lastRefreshAttemptAt = Date.now();
+
+  const shopDomain = deps.getShopDomain();
   if (!shopDomain) {
     throw new Error(
       'Shopify mağaza domain bulunamadı — SHOPIFY_SHOP_DOMAIN / SHOPIFY_STORE_DOMAIN / SHOPIFY_STORE_URL tanımlayın',
@@ -381,17 +481,37 @@ async function acquireFreshToken(forceRefresh = false): Promise<TokenCacheEntry>
   }
 
   const normalizedDomain = normalizeShopDomain(shopDomain);
-
-  if (forceRefresh) {
+  const isRefresh = intent !== 'normalResolve';
+  if (intent === 'forceRefresh') {
     invalidateShopifyTokenCache();
   }
 
-  const envCandidates: Array<{ token?: string; source: ShopifyTokenSource }> = [
-    { token: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN, source: 'env' },
-    { token: process.env.SHOPIFY_ACCESS_TOKEN, source: 'env' },
-  ];
+  const clientCreds = deps.getClientCredentials();
 
-  for (const candidate of envCandidates) {
+  // (1) Kullanılabilir client credentials → HER ZAMAN taze exchange (yalnızca memory).
+  //     proactiveRefresh / forceRefresh: ENV & DB access token adayları KULLANILMAZ,
+  //     böylece Shopify tarafında hâlâ geçerli olan bayat token yeniden seçilmez.
+  if (clientCreds) {
+    const exchanged = await exchangeClientCredentialsToken(normalizedDomain);
+    if (exchanged) {
+      await persistTokenToRuntime(
+        normalizedDomain,
+        exchanged.accessToken,
+        'client_credentials',
+        exchanged.expiresInSeconds,
+      );
+      return tokenCache!;
+    }
+    if (isRefresh) {
+      throw new Error(
+        `Shopify access token yenilenemedi — ${lastRefreshError || 'client_credentials exchange başarısız'}`,
+      );
+    }
+    // normalResolve + exchange başarısız: aşağıda kalıcı admin/OAuth fallback denenir.
+  }
+
+  // (2) Kalıcı ENV admin token (client credentials yoksa veya normalResolve fallback).
+  for (const candidate of deps.getEnvAdminTokens()) {
     const token = candidate.token?.trim();
     if (!token || isDeprecatedToken(token)) continue;
     const probe = await probeShopToken(normalizedDomain, token);
@@ -399,8 +519,8 @@ async function acquireFreshToken(forceRefresh = false): Promise<TokenCacheEntry>
       await persistTokenToRuntime(normalizedDomain, token, candidate.source);
       return tokenCache!;
     }
-    invalidateEnvAccessTokens();
-    if (!forceRefresh) {
+    deps.clearEnvAdminTokens();
+    if (!isRefresh) {
       console.warn('[SHOPIFY_TOKEN] ENV token geçersiz, sonraki kaynak deneniyor', {
         source: candidate.source,
         status: probe.status,
@@ -409,43 +529,41 @@ async function acquireFreshToken(forceRefresh = false): Promise<TokenCacheEntry>
     }
   }
 
-  const dbToken = await readDbToken(normalizedDomain);
+  // (3) Kalıcı DB admin/OAuth token.
+  const dbToken = await resolveDbAdminToken(normalizedDomain);
   if (dbToken) {
     await persistTokenToRuntime(normalizedDomain, dbToken, 'db');
     return tokenCache!;
   }
 
-  const exchanged = await exchangeClientCredentialsToken(normalizedDomain);
-  if (!exchanged) {
-    const { resolveOAuthShopifyCredentials } = await import('./shopify-credentials');
-    const oauth = await resolveOAuthShopifyCredentials();
-    const hint =
-      lastRefreshError ||
-      (oauth
-        ? 'OAuth ile yetkilendirin (Ayarlar → Shopify → OAuth) veya Admin Token (shpat_...) kaydedin'
-        : 'SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard shpsec_...) veya Admin Token tanımlayın');
-    throw new Error(`Shopify access token alınamadı veya doğrulanamadı — ${hint}`);
-  }
-
-  await persistTokenToRuntime(
-    normalizedDomain,
-    exchanged.accessToken,
-    'client_credentials',
-    exchanged.expiresInSeconds,
-  );
-  return tokenCache!;
+  // (4) Hiç kalıcı token yok — client credentials da yoksa son bir kez exchange denenir
+  //     (bu durumda creds null olduğu için no-op'tur; sadece netlik için).
+  const { resolveOAuthShopifyCredentials } = await import('./shopify-credentials');
+  const oauth = await resolveOAuthShopifyCredentials().catch(() => null);
+  const hint =
+    lastRefreshError ||
+    (oauth
+      ? 'OAuth ile yetkilendirin (Ayarlar → Shopify → OAuth) veya Admin Token (shpat_...) kaydedin'
+      : 'SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard → Settings) veya Admin Token tanımlayın');
+  throw new Error(`Shopify access token alınamadı veya doğrulanamadı — ${hint}`);
 }
 
-/** Tek merkezi token resolver — cache, env (opsiyonel), DB, client_credentials */
+/** Tek merkezi token resolver — cache, client_credentials, env, DB */
 export async function getValidShopifyAccessToken(options: {
   forceRefresh?: boolean;
+  intent?: TokenAcquireIntent;
 } = {}): Promise<{
   accessToken: string;
   shopDomain: string;
   source: ShopifyTokenSource;
   expiresAt: number;
 }> {
-  if (!options.forceRefresh && cacheIsValid() && tokenCache) {
+  const forceRefresh = options.forceRefresh === true;
+  const intent: TokenAcquireIntent =
+    options.intent ?? (forceRefresh ? 'forceRefresh' : 'normalResolve');
+
+  // Cache tokenın bitmesine 1 saatten fazla varsa cache kullan.
+  if (!forceRefresh && cacheIsValid() && tokenCache) {
     return {
       accessToken: tokenCache.accessToken,
       shopDomain: tokenCache.shopDomain,
@@ -454,7 +572,8 @@ export async function getValidShopifyAccessToken(options: {
     };
   }
 
-  if (refreshInFlight && !options.forceRefresh) {
+  // Devam eden bir yenileme varsa paralel çağrılar onu paylaşır (tek exchange).
+  if (refreshInFlight && !forceRefresh) {
     const entry = await refreshInFlight;
     return {
       accessToken: entry.accessToken,
@@ -464,9 +583,12 @@ export async function getValidShopifyAccessToken(options: {
     };
   }
 
-  refreshInFlight = acquireFreshToken(options.forceRefresh === true);
+  if (forceRefresh) invalidateShopifyTokenCache();
+
+  const inflight = acquireFreshToken(intent);
+  refreshInFlight = inflight;
   try {
-    const entry = await refreshInFlight;
+    const entry = await inflight;
     return {
       accessToken: entry.accessToken,
       shopDomain: entry.shopDomain,
@@ -474,7 +596,7 @@ export async function getValidShopifyAccessToken(options: {
       expiresAt: entry.expiresAt,
     };
   } finally {
-    refreshInFlight = null;
+    if (refreshInFlight === inflight) refreshInFlight = null;
   }
 }
 
@@ -487,7 +609,7 @@ export async function shopifyAdminFetch(
   const token = await getValidShopifyAccessToken({ forceRefresh: retried });
   const url = buildAdminUrl(token.shopDomain, path, apiVersion);
 
-  const response = await fetch(url, {
+  const response = await deps.fetchImpl(url, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -496,6 +618,7 @@ export async function shopifyAdminFetch(
     },
   });
 
+  // 401 → tek sefer yeni token alıp isteği tekrar et (sonsuz döngü yok).
   if (response.status === 401 && !retried) {
     invalidateShopifyTokenCache();
     return shopifyAdminFetch(path, init, true, apiVersion);
@@ -551,47 +674,36 @@ export function hasEnvAccessToken(): boolean {
 }
 
 export function hasClientCredentialsConfigured(): boolean {
-  return Boolean(getShopifyClientCredentials());
+  return Boolean(deps.getClientCredentials());
 }
 
-/** secret_key / SHOPIFY_CLIENT_SECRET (shpss_) — client_credentials için yeterli değil */
+/**
+ * @deprecated Prefix tabanlı (shpss_) reddetme kaldırıldı — Client Secret'ın
+ * belirli bir prefix'i olması gerekmez. Geriye dönük uyumluluk için korunur,
+ * her zaman false döner.
+ */
 export function secretLooksLikeSharedSecretOnly(): boolean {
-  const clientSecret =
-    process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
-    process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim() ||
-    '';
-  if (clientSecret && isSharedSigningSecret(clientSecret)) return true;
-  const shared =
-    process.env.secret_key?.trim() ||
-    process.env.SHOPIFY_APP_SHARED_SECRET?.trim() ||
-    '';
-  return (
-    shared.startsWith('shpss_') &&
-    !resolveTokenGrantClientSecret()
-  );
+  return false;
 }
 
 /** ENV, önbellek veya DB'de geçerli token var mı */
 export async function hasStoredShopifyToken(): Promise<boolean> {
   if (getTokenCacheStatus().cached) return true;
 
-  const shopDomain = envShopDomain();
+  const shopDomain = deps.getShopDomain();
   if (!shopDomain) return false;
   const normalizedDomain = normalizeShopDomain(shopDomain);
 
-  if (hasEnvAccessToken()) {
-    const token =
-      process.env.SHOPIFY_ACCESS_TOKEN?.trim() ||
-      process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim() ||
-      '';
+  for (const candidate of deps.getEnvAdminTokens()) {
+    const token = candidate.token?.trim();
     if (token && !isDeprecatedToken(token)) {
       const probe = await probeShopToken(normalizedDomain, token);
       if (probe.ok) return true;
-      invalidateEnvAccessTokens();
+      deps.clearEnvAdminTokens();
     }
   }
 
-  const dbToken = await readDbToken(normalizedDomain);
+  const dbToken = await resolveDbAdminToken(normalizedDomain);
   return Boolean(dbToken);
 }
 
@@ -618,13 +730,9 @@ export async function getShopifyHealthResponse(): Promise<{
   const hasClientCredentials = hasClientCredentialsConfigured();
   const clientIdSource = resolveClientIdSource();
   const clientSecretSource = resolveClientSecretSource();
-  const sharedSecretCandidate =
-    process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
-    process.env.secret_key?.trim() ||
-    process.env.SHOPIFY_APP_SHARED_SECRET?.trim() ||
-    '';
-  const secretLooksLikeSharedSecret =
-    isSharedSigningSecret(sharedSecretCandidate) && !resolveTokenGrantClientSecret();
+  // Prefix tabanlı reddetme kaldırıldı — Client Secret geçerliliği yalnızca
+  // gerçek token exchange sonucuyla belirlenir.
+  const secretLooksLikeSharedSecret = false;
 
   const baseFailure = {
     shopDomain: shopDomain ? normalizeShopDomain(shopDomain) : '',
@@ -728,8 +836,10 @@ export function getTokenCacheStatus(): {
   cached: boolean;
   source: ShopifyTokenSource | null;
   shopDomain: string | null;
+  issuedAt: number | null;
   expiresAt: number | null;
   expiresInMs: number | null;
+  refreshAt: number | null;
   needsRefreshSoon: boolean;
 } {
   if (!tokenCache) {
@@ -737,8 +847,10 @@ export function getTokenCacheStatus(): {
       cached: false,
       source: null,
       shopDomain: null,
+      issuedAt: null,
       expiresAt: null,
       expiresInMs: null,
+      refreshAt: null,
       needsRefreshSoon: true,
     };
   }
@@ -747,8 +859,10 @@ export function getTokenCacheStatus(): {
     cached: true,
     source: tokenCache.source,
     shopDomain: tokenCache.shopDomain,
+    issuedAt: tokenCache.issuedAt,
     expiresAt: tokenCache.expiresAt,
     expiresInMs,
+    refreshAt: tokenCache.expiresAt - REFRESH_BUFFER_MS,
     needsRefreshSoon: expiresInMs <= REFRESH_BUFFER_MS,
   };
 }
@@ -757,8 +871,15 @@ export function getShopifyTokenLifecycleStatus(overrides?: {
   hasStoredToken?: boolean;
 }): {
   autoRefreshEnabled: boolean;
+  tokenSource: ShopifyTokenSource | null;
+  issuedAt: number | null;
+  expiresAt: number | null;
+  expiresInSeconds: number | null;
+  refreshAt: number | null;
   lastRefreshTime: number;
   lastSuccessfulRefreshAt: number;
+  lastRefreshAttemptAt: number;
+  lastRefreshError: string | null;
   isRefreshing: boolean;
   msUntilRefresh: number;
   hasClientCredentials: boolean;
@@ -779,8 +900,16 @@ export function getShopifyTokenLifecycleStatus(overrides?: {
   return {
     autoRefreshEnabled:
       clientCredentialsReady || hasEnvAccessToken() || hasStoredToken || cache.cached,
+    tokenSource: cache.source,
+    issuedAt: cache.issuedAt,
+    expiresAt: cache.expiresAt,
+    expiresInSeconds:
+      cache.expiresInMs != null ? Math.max(0, Math.floor(cache.expiresInMs / 1000)) : null,
+    refreshAt: cache.refreshAt,
     lastRefreshTime: lastSuccessfulRefreshAt,
     lastSuccessfulRefreshAt,
+    lastRefreshAttemptAt,
+    lastRefreshError,
     isRefreshing: Boolean(refreshInFlight),
     msUntilRefresh: msUntil,
     hasClientCredentials: clientCredentialsReady,
@@ -794,6 +923,16 @@ export function getShopifyTokenLifecycleStatus(overrides?: {
 
 export async function buildShopifyTokenStatusPayload(): Promise<{
   status: ReturnType<typeof getShopifyTokenLifecycleStatus>;
+  tokenSource: ShopifyTokenSource;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  expiresInSeconds: number | null;
+  refreshAt: string | null;
+  msUntilRefresh: number;
+  lastSuccessfulRefreshAt: number;
+  lastRefreshAttemptAt: number;
+  lastRefreshError: string | null;
+  autoRefreshEnabled: boolean;
   hasActiveToken: boolean;
   hasDbToken: boolean;
   clientCredentialsReady: boolean;
@@ -822,21 +961,29 @@ export async function buildShopifyTokenStatusPayload(): Promise<{
 
   return {
     status: lifecycle,
+    tokenSource: lifecycle.tokenSource ?? 'missing',
+    issuedAt: lifecycle.issuedAt ? new Date(lifecycle.issuedAt).toISOString() : null,
+    expiresAt: lifecycle.expiresAt ? new Date(lifecycle.expiresAt).toISOString() : null,
+    expiresInSeconds: lifecycle.expiresInSeconds,
+    refreshAt: lifecycle.refreshAt ? new Date(lifecycle.refreshAt).toISOString() : null,
+    msUntilRefresh: lifecycle.msUntilRefresh,
+    lastSuccessfulRefreshAt: lifecycle.lastSuccessfulRefreshAt,
+    lastRefreshAttemptAt: lifecycle.lastRefreshAttemptAt,
+    lastRefreshError: lifecycle.lastRefreshError,
+    autoRefreshEnabled: lifecycle.autoRefreshEnabled,
     hasActiveToken: liveConnected,
     hasDbToken: dbHasToken,
     clientCredentialsReady: lifecycle.clientCredentialsReady,
     secretLooksLikeSharedSecret: lifecycle.secretLooksLikeSharedSecret,
     clientSecretUsableForRefresh: hasUsableClientSecretForRefresh(),
     shopDomain,
-    tokenExpiresAt: lifecycle.cache.expiresAt
-      ? new Date(lifecycle.cache.expiresAt).toISOString()
-      : null,
+    tokenExpiresAt: lifecycle.expiresAt ? new Date(lifecycle.expiresAt).toISOString() : null,
     lastError: lifecycle.lastError,
     liveConnected,
   };
 }
 
-/** İstek öncesi cache kontrolü — süresi dolmak üzereyse yenile */
+/** İstek öncesi cache kontrolü — süresi dolmak üzereyse gerçekten yeni token al */
 export async function proactiveRefreshShopifyToken(force = false): Promise<{
   success: boolean;
   source?: ShopifyTokenSource;
@@ -850,18 +997,36 @@ export async function proactiveRefreshShopifyToken(force = false): Promise<{
     return { success: true, source: cache.source || undefined };
   }
 
+  const oldExpiresAt = cache.expiresAt ? new Date(cache.expiresAt).toISOString() : null;
+  console.log('[SHOPIFY_TOKEN] proactive refresh started', {
+    force,
+    source: cache.source,
+    oldExpiresAt,
+  });
+
   try {
-    if (force) invalidateShopifyTokenCache();
-    const token = await getValidShopifyAccessToken({ forceRefresh: force });
+    // forceRefresh:true → cache atlanır ve (client credentials varsa) gerçek exchange yapılır.
+    const token = await getValidShopifyAccessToken({
+      forceRefresh: true,
+      intent: force ? 'forceRefresh' : 'proactiveRefresh',
+    });
+    console.log('[SHOPIFY_TOKEN] proactive refresh completed', {
+      source: token.source,
+      oldExpiresAt,
+      newExpiresAt: new Date(token.expiresAt).toISOString(),
+      token: maskToken(token.accessToken),
+    });
     return { success: true, source: token.source };
   } catch (err: unknown) {
     let message = err instanceof Error ? err.message : 'Token yenileme başarısız';
-    if (secretLooksLikeSharedSecretOnly() && !hasEnvAccessToken()) {
+    // Client credentials tanımlı değilse ve kalıcı token da yoksa yönlendir.
+    if (!hasUsableClientSecretForRefresh() && !hasEnvAccessToken()) {
       message =
-        'secret_key (shpss_) OAuth imza anahtarıdır; otomatik yenileme için Admin Token kaydedin ' +
-        'veya SHOPIFY_CLIENT_SECRET (shpsec_...) tanımlayın.';
+        'Otomatik yenileme için SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard → Settings) ' +
+        'tanımlayın veya Admin Token (shpat_...) kaydedin.';
     }
     lastRefreshError = message;
+    console.warn('[SHOPIFY_TOKEN] proactive refresh failed', { error: message });
     return { success: false, error: message };
   }
 }
@@ -885,20 +1050,33 @@ export async function hydrateShopifyTokenFromDatabase(): Promise<boolean> {
 }
 
 export function warmUpShopifyToken(): void {
-  hydrateShopifyTokenFromDatabase().catch(() => undefined);
+  void (async () => {
+    const hydrated = await hydrateShopifyTokenFromDatabase().catch(() => false);
+    // Warm-up sonrası hâlâ token yoksa ve client credentials varsa gerçek token al.
+    if (!hydrated && !getTokenCacheStatus().cached && hasClientCredentialsConfigured()) {
+      const res = await proactiveRefreshShopifyToken(true).catch(() => null);
+      if (res && !res.success) {
+        console.warn(`[SHOPIFY_TOKEN] Başlangıç token exchange başarısız: ${res.error}`);
+      }
+    }
+  })();
 
   if (tokenRefreshIntervalStarted) return;
   tokenRefreshIntervalStarted = true;
 
   const REFRESH_CHECK_MS = 15 * 60 * 1000;
-  setInterval(() => {
+  const interval = setInterval(() => {
     proactiveRefreshShopifyToken(false).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[SHOPIFY_TOKEN] Periyodik yenileme atlandı: ${message}`);
     });
   }, REFRESH_CHECK_MS);
+  // Interval process kapanmasını engellemesin.
+  if (typeof (interval as { unref?: () => void }).unref === 'function') {
+    (interval as { unref: () => void }).unref();
+  }
 
-  console.log('[SHOPIFY_TOKEN] Periyodik yenileme aktif (15 dk aralık)');
+  console.log('[SHOPIFY_TOKEN] Periyodik yenileme aktif (15 dk aralık, unref)');
 }
 
 /** Upload öncesi bağlantıyı garanti et */

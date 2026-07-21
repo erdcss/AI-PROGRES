@@ -172,8 +172,11 @@ export function stableVariantKey(parts: {
   option1?: string | null;
   option2?: string | null;
   key?: string | null;
+  sku?: string | null;
 }): string {
+  const explicitKey = String(parts.key ?? "").trim();
+  if (explicitKey) return explicitKey.toLocaleLowerCase("tr-TR");
   const color = String(parts.color ?? parts.option1 ?? "Varsayılan").trim();
-  const size = String(parts.size ?? parts.option2 ?? "Tek Beden").trim();
+  const size = String(parts.size ?? parts.option2 ?? parts.sku ?? "Tek Beden").trim();
   return `${color}::${size}`.toLowerCase();
 }

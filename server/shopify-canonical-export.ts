@@ -5,6 +5,7 @@ import {
 } from "./shopify-csv-headers";
 import type { CanonicalProductForShopify } from "./variant-shape-normalizer";
 import { getShopifyInventoryConfig } from "@shared/shopify-inventory-config";
+import { traceVariants } from "./variant-trace";
 import { joinShopifyTags, buildAutomaticProductTags } from "@shared/shopify-tag-sanitizer";
 
 const COL = {
@@ -70,7 +71,11 @@ function buildBodyHtml(product: CanonicalProductForShopify): string {
   return html;
 }
 
-function resolveCsvVariantOptions(variant: CanonicalProductForShopify["variants"][number], isFirst: boolean) {
+function resolveCsvVariantOptions(
+  variant: CanonicalProductForShopify["variants"][number],
+  isFirst: boolean,
+  productHasRealColor: boolean,
+) {
   const colorValue =
     variant.color && variant.color !== "Tek Renk" ? variant.color : "Tek Renk";
   const sizeValue = variant.size && variant.size !== "Standart" ? variant.size : "";
@@ -84,7 +89,13 @@ function resolveCsvVariantOptions(variant: CanonicalProductForShopify["variants"
   let option2Name = "";
   let option2Value = "";
 
-  if (hasRealColor && hasRealSize) {
+  // Ürün seviyesinde gerçek renk varsa tüm satırlar Renk+Beden şemasında kalmalı
+  if (productHasRealColor && hasRealSize) {
+    option1Name = isFirst ? "Renk" : "";
+    option1Value = hasRealColor ? colorValue : "Tek Renk";
+    option2Name = isFirst ? "Beden" : "";
+    option2Value = sizeValue;
+  } else if (hasRealColor && hasRealSize) {
     option1Name = isFirst ? "Renk" : "";
     option1Value = colorValue;
     option2Name = isFirst ? "Beden" : "";
@@ -144,7 +155,7 @@ export function generateCanonicalShopifyCSV(
   const addedImages = new Set<string>();
   const continueSelling = config.allowOverselling ? "CONTINUE" : "DENY";
 
-  const exportVariants =
+  const rawExportVariants =
     product.variants.length > 0
       ? product.variants
       : [
@@ -159,6 +170,37 @@ export function generateCanonicalShopifyCSV(
             price: product.price,
           },
         ];
+
+  const namedColorVariants = rawExportVariants.filter(
+    (v) => v.color && v.color !== "Tek Renk",
+  );
+  const colorScopedVariants =
+    namedColorVariants.length > 0 ? namedColorVariants : rawExportVariants;
+
+  // Stokta olmayan bedenler Shopify CSV'ye yazılmaz (env ile açıkça istenmedikçe)
+  const stockScopedVariants = config.exportOutOfStockVariants
+    ? colorScopedVariants
+    : colorScopedVariants.filter((v) => v.inStock);
+
+  const exportVariants =
+    stockScopedVariants.length > 0 ? stockScopedVariants : colorScopedVariants.filter((v) => v.inStock);
+
+  if (exportVariants.length === 0) {
+    console.error("[CSV] generateCanonicalShopifyCSV — no in-stock variants to export", {
+      title: product.title,
+      total: colorScopedVariants.length,
+    });
+    return null;
+  }
+
+  const productHasRealColor = exportVariants.some(
+    (v) => v.color && v.color !== "Tek Renk",
+  );
+
+  traceVariants("csv_rows", exportVariants, {
+    source: "generateCanonicalShopifyCSV",
+    options: { rowCount: exportVariants.length, handle },
+  });
 
   exportVariants.forEach((variant, index) => {
     const isFirst = index === 0;
@@ -181,7 +223,7 @@ export function generateCanonicalShopifyCSV(
     }
 
     const { option1Name, option1Value, option2Name, option2Value } =
-      resolveCsvVariantOptions(variant, isFirst);
+      resolveCsvVariantOptions(variant, isFirst, productHasRealColor);
 
     row[COL.OPTION1_NAME] = option1Name;
     row[COL.OPTION1_VALUE] = option1Value;
@@ -194,7 +236,7 @@ export function generateCanonicalShopifyCSV(
     row[COL.CHARGE_TAX] = "TRUE";
     row[COL.INVENTORY_TRACKER] = "shopify";
     row[COL.INVENTORY_QUANTITY] = String(
-      variant.inStock ? variant.inventoryQty : config.exportOutOfStockVariants ? 0 : 0,
+      variant.inStock ? variant.inventoryQty : 0,
     );
     row[COL.CONTINUE_SELLING] = continueSelling;
     row[COL.WEIGHT_UNIT] = "g";
@@ -204,7 +246,9 @@ export function generateCanonicalShopifyCSV(
     if (isFirst && product.images[0]) {
       row[COL.PRODUCT_IMAGE_URL] = product.images[0];
       row[COL.IMAGE_POSITION] = String(imagePosition);
-      row[COL.IMAGE_ALT_TEXT] = product.title;
+      row[COL.IMAGE_ALT_TEXT] = productHasRealColor
+        ? `${product.title} - ${variant.color}`
+        : product.title;
       addedImages.add(product.images[0]);
       imagePosition++;
     } else if (variant.image && !addedImages.has(variant.image)) {
@@ -215,8 +259,34 @@ export function generateCanonicalShopifyCSV(
       imagePosition++;
     }
 
+    // Shopify variant ↔ image bağlama
+    if (variant.image) {
+      row[COL.VARIANT_IMAGE_URL] = variant.image;
+    } else if (isFirst && product.images[0]) {
+      row[COL.VARIANT_IMAGE_URL] = product.images[0];
+    }
+
     rows.push(row);
   });
+
+  // Kalan galeri: imagesByColor varsa renge göre alt text; yoksa düz product.images
+  const imagesByColor = product.imagesByColor || {};
+  const colorKeys = Object.keys(imagesByColor);
+  if (colorKeys.length > 0) {
+    for (const color of colorKeys) {
+      for (const imgUrl of imagesByColor[color] || []) {
+        if (!imgUrl || addedImages.has(imgUrl)) continue;
+        const imageRow: string[] = Array(TOTAL_COLUMNS).fill("");
+        imageRow[COL.URL_HANDLE] = handle;
+        imageRow[COL.PRODUCT_IMAGE_URL] = imgUrl;
+        imageRow[COL.IMAGE_POSITION] = String(imagePosition);
+        imageRow[COL.IMAGE_ALT_TEXT] = `${product.title} - ${color}`;
+        rows.push(imageRow);
+        addedImages.add(imgUrl);
+        imagePosition++;
+      }
+    }
+  }
 
   product.images.forEach((imgUrl) => {
     if (!imgUrl || addedImages.has(imgUrl)) return;
@@ -236,8 +306,9 @@ export function generateCanonicalShopifyCSV(
 
   console.log("[FlowTrace] CSV generator=shopify-canonical-export.ts", {
     handle,
-    variantRows: product.variants.length,
+    variantRows: exportVariants.length,
     imageRows: addedImages.size,
+    skippedOutOfStock: colorScopedVariants.length - exportVariants.length,
   });
 
   return sanitizeShopifyCsvHeaders(csvBody);

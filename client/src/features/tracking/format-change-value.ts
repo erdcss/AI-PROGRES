@@ -1,5 +1,11 @@
 /** Değişiklik değerlerini okunabilir metne çevirir */
 
+import {
+  buildTrackingVariantLabel,
+  isPlaceholderColor,
+  isPlaceholderSize,
+} from "@shared/trendyol-variant-utils";
+
 function parseChangeValue(raw: unknown): unknown {
   if (raw == null) return null;
   if (typeof raw === "object") return raw;
@@ -66,9 +72,14 @@ export function formatChangeValue(raw: unknown, changeType: string): string {
   if (typeof value === "object") {
     const o = value as Record<string, unknown>;
     if ("size" in o || "color" in o || "key" in o || "inStock" in o) {
+      const color = o.color ? String(o.color) : null;
+      const size = o.size ? String(o.size) : null;
+      const label = buildTrackingVariantLabel(
+        color && !isPlaceholderColor(color) ? color : null,
+        size && !isPlaceholderSize(size) ? size : null,
+      );
       const parts: string[] = [];
-      if (o.color) parts.push(String(o.color));
-      if (o.size) parts.push(`Beden ${o.size}`);
+      if (label) parts.push(label);
       if ("inStock" in o) parts.push(isTruthyStock(o.inStock) ? "Stokta" : "Tükendi");
       if (o.price != null && o.price !== "") parts.push(`${o.price} ₺`);
       return parts.join(" · ") || "Yeni varyant";

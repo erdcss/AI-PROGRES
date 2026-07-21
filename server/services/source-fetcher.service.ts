@@ -41,7 +41,7 @@ function normalizeVariants(raw: unknown): FetchedSourceSnapshot["variants"] {
       key: `${color}::${size}`.toLowerCase(),
       color,
       size,
-      inStock: item.inStock === true,
+      inStock: typeof item.inStock === "boolean" ? item.inStock : undefined,
       sku: item.sku,
       price: item.price,
     };
@@ -50,8 +50,17 @@ function normalizeVariants(raw: unknown): FetchedSourceSnapshot["variants"] {
 
 function totalStock(variants: FetchedSourceSnapshot["variants"]): number | null {
   if (variants.length === 0) return null;
-  const inStockCount = variants.filter((v) => v.inStock !== false).length;
+  if (variants.some((variant) => typeof variant.inStock !== "boolean")) return null;
+  const inStockCount = variants.filter((v) => v.inStock === true).length;
   return inStockCount;
+}
+
+export function hasSufficientVariantCoverage(
+  previousVariantCount: number,
+  currentVariantCount: number,
+): boolean {
+  if (previousVariantCount <= 1) return true;
+  return currentVariantCount >= Math.ceil(previousVariantCount * 0.6);
 }
 
 /** Güvenli pipeline ile kaynak veri çeker — scenarioBasedScrape kullanmaz */
@@ -119,7 +128,10 @@ export async function fetchSourceForTracking(
     const images = filterValidProductImages(result.images);
     const variants = normalizeVariants(result.variants);
     const stock = totalStock(variants);
-    const available = variants.length > 0 ? variants.some((v) => v.inStock !== false) : null;
+    const hasKnownStock = variants.some((variant) => typeof variant.inStock === "boolean");
+    const available = hasKnownStock
+      ? variants.some((variant) => variant.inStock === true)
+      : null;
 
     return {
       valid: true,

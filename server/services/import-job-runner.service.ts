@@ -215,12 +215,14 @@ export async function registerTrackingFromUpsert(
     variants: canonical.variants.map((v) => {
       const mapped = mappingBySku.get(v.sku || "");
       return {
-        color: v.color,
-        size: v.size,
-        sku: v.sku,
+        option1Name: v.option1Name,
+        option1Value: v.option1Value,
+        option2Name: v.option2Name,
+        option2Value: v.option2Value,
+        sku: v.sku ?? undefined,
         shopifyVariantId: mapped?.shopifyVariantId,
-        price: v.price,
-        inStock: v.inStock,
+        price: v.sourcePrice ?? v.price ?? undefined,
+        inStock: v.available !== false,
       };
     }),
   });

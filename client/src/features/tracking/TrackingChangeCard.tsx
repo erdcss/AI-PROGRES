@@ -10,10 +10,15 @@ import {
   formatChangeValue,
 } from "./format-change-value";
 import { TrackingProductImage } from "./TrackingProductImage";
+import {
+  isActionableTrackingChangeStatus,
+  isDirectlyApplicableTrackingChange,
+} from "@shared/tracking-change-policy";
 
 export type TrackingChangeItem = {
   id: number;
   trackedProductId: number;
+  trackedVariantId?: number | null;
   changeType: string;
   fieldName?: string;
   oldValue: unknown;
@@ -27,6 +32,10 @@ export type TrackingChangeItem = {
   productImageUrl?: string | null;
   shopifyProductId?: string | null;
   trackingUid?: string | null;
+  variantUid?: string | null;
+  variantLabel?: string | null;
+  variantSku?: string | null;
+  shopifyVariantId?: string | null;
 };
 
 type TrackingChangeCardProps = {
@@ -66,7 +75,8 @@ export function TrackingChangeCard({
   const diff = formatChangeDiff(c.changeType, c.oldValue, c.newValue);
   const canAct = c.status === "pending" || c.status === "manual_review";
   const canShopify =
-    c.status !== "applied" && c.status !== "ignored" && c.status !== "rejected";
+    isActionableTrackingChangeStatus(c.status) &&
+    isDirectlyApplicableTrackingChange(c.changeType, c.fieldName, c.newValue);
   const needsReview = c.status === "manual_review" || c.status === "pending";
 
   return (
@@ -120,7 +130,7 @@ export function TrackingChangeCard({
                   }
                   onClick={onShopifySync}
                 >
-                  Shopify&apos;da güncelle
+                  Shopify&apos;da düzelt
                 </Button>
               )}
               {c.status === "approved" && onApply && (

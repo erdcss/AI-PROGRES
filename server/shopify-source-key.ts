@@ -64,6 +64,48 @@ export function buildTrendyolSourceIdentity(url: string): TrendyolSourceIdentity
   };
 }
 
+/** Canonical source key: trendyol:{productId} veya renk ailesi trendyol-group:{id} */
+export function buildFamilySourceKey(familyId: string): string {
+  return `trendyol-group:${String(familyId).replace(/\D/g, "") || familyId}`;
+}
+
+export function buildTrendyolChildAlias(productId: string): string {
+  return `trendyol:${String(productId).replace(/\D/g, "")}`;
+}
+
+/**
+ * Aynı renk ailesindeki farklı productId URL'leri aynı Shopify ürününe bağlanır.
+ * groupId varsa onu kullan; yoksa üye productId'lerinin en küçüğü.
+ */
+export function resolveColorFamilySourceKey(input: {
+  groupId?: string | null;
+  memberProductIds: Array<string | number>;
+}): { familyId: string; sourceKey: string; sourceAliases: string[] } {
+  const ids = [
+    ...new Set(
+      input.memberProductIds
+        .map((id) => String(id).replace(/\D/g, ""))
+        .filter((id) => id.length >= 5),
+    ),
+  ].sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0));
+
+  const sourceAliases = ids.map((id) => buildTrendyolChildAlias(id));
+  if (input.groupId && String(input.groupId).trim()) {
+    const familyId = String(input.groupId).trim();
+    return {
+      familyId,
+      sourceKey: `trendyol-group:${familyId}`,
+      sourceAliases,
+    };
+  }
+  const familyId = ids[0] || "unknown";
+  return {
+    familyId,
+    sourceKey: buildFamilySourceKey(familyId),
+    sourceAliases,
+  };
+}
+
 export function buildUploadLockKey(sourceKey: string): string {
   return `shopify-upload:${sourceKey}`;
 }

@@ -116,10 +116,25 @@ export default function ShopifySettingsDialog() {
 
   const rotateNowMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/shopify/rotate-token", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Yenileme başarısız");
-      return data;
+      // Zaman aşımı: istek askıda kalırsa buton tekrar etkinleşsin.
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 30_000);
+      try {
+        const res = await fetch("/api/shopify/rotate-token", {
+          method: "POST",
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || data.message || "Yenileme başarısız");
+        return data;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          throw new Error("Yenileme zaman aşımına uğradı (30sn). Tekrar deneyin.");
+        }
+        throw err;
+      } finally {
+        window.clearTimeout(timeout);
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
@@ -464,11 +479,9 @@ export default function ShopifySettingsDialog() {
                 trs?.envVarsConfigured?.SHOPIFY_CLIENT_ID ?? trs?.envVarsConfigured?.SHOPIFY_API_KEY;
               const clientCredentialsReady =
                 trs?.clientCredentialsReady ?? trs?.status?.clientCredentialsReady ?? false;
-              const sharedSecretOnly =
-                trs?.secretLooksLikeSharedSecret ??
-                trs?.status?.secretLooksLikeSharedSecret ??
-                (trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET === true &&
-                  trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET_USABLE === false);
+              // Client Secret tanımlı mı — prefix'e (shpss_/shpsec_) bakılmaz.
+              const clientSecretConfigured =
+                trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET === true || clientCredentialsReady;
               const refreshActive =
                 trs?.status?.autoRefreshEnabled || trs?.hasActiveToken || trs?.hasDbToken;
               const lastMs = trs?.status?.lastSuccessfulRefreshAt || trs?.status?.lastRefreshTime || 0;
@@ -524,36 +537,34 @@ export default function ShopifySettingsDialog() {
                     </div>
                     <div>
                       <span className="block text-foreground/70">Client Secret</span>
-                      <span className={clientCredentialsReady ? 'text-green-600' : sharedSecretOnly ? 'text-amber-600' : 'text-red-500'}>
-                        {clientCredentialsReady
-                          ? '✅ shpsec_ (OAuth yenileme)'
-                          : sharedSecretOnly
-                            ? '⚠️ shpss_ (yalnızca imza)'
-                            : '❌ Eksik'}
+                      <span className={clientSecretConfigured ? 'text-green-600' : 'text-red-500'}>
+                        {clientSecretConfigured ? '✅ Tanımlı' : '❌ Eksik'}
                       </span>
                     </div>
                   </div>
-                  {sharedSecretOnly && !clientCredentialsReady && (
-                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                      secret_key (shpss_) otomatik token yenileme için yeterli değil. Admin Token kaydedin
-                      veya SHOPIFY_CLIENT_SECRET (shpsec_...) ekleyin.
-                    </p>
-                  )}
                   {lastErr && (
                     <p className="text-xs text-red-600 dark:text-red-400 line-clamp-3">{lastErr}</p>
                   )}
+                  {/* Manuel token yenileme — sunucudaki isRefreshing bayrağı takılsa bile
+                      buton daima tıklanabilir kalır; yalnızca yerel istek sürerken kilitlenir. */}
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="w-full gap-2 h-7 text-xs"
+                    variant="default"
+                    className="w-full gap-2 h-8 text-xs"
                     onClick={() => rotateNowMutation.mutate()}
-                    disabled={rotateNowMutation.isPending || isRefreshing}
+                    disabled={rotateNowMutation.isPending}
                   >
-                    {(rotateNowMutation.isPending || isRefreshing)
+                    {rotateNowMutation.isPending
                       ? <Loader2 className="h-3 w-3 animate-spin" />
                       : <RefreshCw className="h-3 w-3" />}
-                    {(rotateNowMutation.isPending || isRefreshing) ? 'Yenileniyor...' : 'Şimdi Yenile'}
+                    {rotateNowMutation.isPending ? 'Yenileniyor...' : 'Token’ı Şimdi Yenile'}
                   </Button>
+                  {isRefreshing && !rotateNowMutation.isPending && (
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Arka planda otomatik yenileme sürüyor…
+                    </p>
+                  )}
                 </div>
               );
             })()}
@@ -564,7 +575,7 @@ export default function ShopifySettingsDialog() {
                 {status?.oauthReady ? (
                   <>
                     <p className="text-blue-700 dark:text-blue-300 mb-1">
-                      Kimlik bilgileri hazır. <strong>shpss_</strong> yalnızca imza anahtarıdır — otomatik yenileme için OAuth veya Admin Token gerekir:
+                      Kimlik bilgileri hazır. Bağlantı doğrulanamadıysa Client ID/Secret değerlerini kontrol edin veya alternatif olarak:
                     </p>
                     <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-300">
                       <li>"OAuth" sekmesinden <strong>Shopify'da Yetkilendir</strong>'e tıklayın</li>
@@ -575,10 +586,10 @@ export default function ShopifySettingsDialog() {
                 ) : (
                   <>
                     <p className="text-blue-700 dark:text-blue-300 mb-1">
-                      Shopify Client ID ve Client Secret (shpsec_...) tanımlayın veya Admin Token girin:
+                      Shopify Client ID ve Client Secret (Dev Dashboard → Settings) tanımlayın veya Admin Token girin:
                     </p>
                     <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-300">
-                      <li>Dev Dashboard → Client Secret (shpsec_...) alın</li>
+                      <li>Dev Dashboard → Settings → Client ID ve Client Secret'ı alın</li>
                       <li>OAuth sekmesinden yetkilendirin veya Admin Token kaydedin</li>
                     </ol>
                   </>

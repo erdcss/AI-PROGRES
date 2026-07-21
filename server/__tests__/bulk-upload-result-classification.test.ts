@@ -1,4 +1,8 @@
 import { classifyUploadHttpResult } from "../bulk-upload-validator";
+import {
+  applyTagsToShopifyCsv,
+  parseShopifyCsvRow,
+} from "../../shared/shopify-csv-tags";
 
 let passed = 0;
 let failed = 0;
@@ -38,6 +42,30 @@ console.log("\n=== Bulk Upload Result Classification ===\n");
 {
   const r = classifyUploadHttpResult(408, { success: false, errorCode: "timeout" });
   assert(r.status === "unknown", "timeout unknown");
+}
+
+{
+  const csv = [
+    "Handle,Title,Tags,Description",
+    'urun,Ürün,"eski, yaz","Açıklama ""alıntı"", devam"',
+    "urun,,,",
+  ].join("\n");
+  const once = applyTagsToShopifyCsv(csv, ["yeni", '"tırnaksız"']);
+  const twice = applyTagsToShopifyCsv(once, ["yeni", '"tırnaksız"']);
+  const firstProductRow = parseShopifyCsvRow(twice.split("\n")[1]!);
+
+  assert(
+    firstProductRow[2] === "eski, yaz, yeni, tırnaksız",
+    "bulk tags are decoded, sanitized and merged once",
+  );
+  assert(
+    !firstProductRow[2]?.includes('"'),
+    "bulk tags do not contain automatic quote characters",
+  );
+  assert(
+    parseShopifyCsvRow(twice.split("\n")[2]!)[2] === "",
+    "tags are only written to the product row",
+  );
 }
 
 console.log(`\n=== Sonuç: ${passed} geçti, ${failed} başarısız ===\n`);

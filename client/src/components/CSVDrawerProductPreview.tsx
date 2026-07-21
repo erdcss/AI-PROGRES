@@ -3,10 +3,13 @@ import { ChevronLeft, ChevronRight, Package, Tag, X, Download, ShoppingCart, Che
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ColorFamilyStatusPanel } from "@/components/ColorFamilyStatusPanel";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { resolvePreviewImagesForEntry, resolvePreviewProxyUrl } from "@/lib/product-image-url";
 import { resolvePreviewVariants } from "@/lib/preview-variants";
-import { sanitizeTrendyolVariants, pickVariantsForPreview, summarizeVariantStock } from "@shared/trendyol-variant-utils";
+import type { ScrapedUrlPayload } from "@/lib/scrape-url-client";
+import { sanitizeTrendyolVariants, pickVariantsForPreview, summarizeVariantStock, isPlaceholderColor } from "@shared/trendyol-variant-utils";
+import { normalizeTrendyolColorName, KNOWN_TRENDYOL_COLORS } from "@shared/trendyol-color-normalizer";
 import { getTrendyolImageFallbackUrls } from "@shared/trendyol-product-images";
 import {
   normalizeTrendyolDisplayPrice,
@@ -16,6 +19,35 @@ import {
 } from "@/utils/price-utils";
 import { isBlockedShopifyTag } from "@shared/shopify-tag-sanitizer";
 import type { CsvStatusResponse } from "@/lib/shopify-csv-download";
+
+/** Features / başlıktan gerçek renk adı çıkarır — "Tek Renk" placeholder'ı yerine */
+function resolveScrapedColorName(input: {
+  features?: Array<{ key: string; value: string }>;
+  title?: string;
+  variantColors?: string[];
+}): string | null {
+  for (const name of input.variantColors || []) {
+    if (name && !isPlaceholderColor(name)) {
+      const normalized = normalizeTrendyolColorName(name);
+      if (normalized && !isPlaceholderColor(normalized)) return normalized;
+    }
+  }
+
+  for (const feature of input.features || []) {
+    if (!/renk|color/i.test(feature.key || "")) continue;
+    const normalized = normalizeTrendyolColorName(feature.value);
+    if (normalized && !isPlaceholderColor(normalized)) return normalized;
+  }
+
+  const title = (input.title || "").toLocaleLowerCase("tr-TR");
+  if (title) {
+    for (const color of [...KNOWN_TRENDYOL_COLORS].sort((a, b) => b.length - a.length)) {
+      if (title.includes(color.toLocaleLowerCase("tr-TR"))) return color;
+    }
+  }
+
+  return null;
+}
 
 function PreviewCarouselImage({
   directUrl,
@@ -198,7 +230,7 @@ function StatPreviewCard({
                       } ${light ? "ring-1 ring-zinc-600" : ""}`}
                       style={{ backgroundColor: fill }}
                     />
-                    <span className="text-[9px] text-zinc-500 max-w-[48px] truncate">{entry.name}</span>
+                    <span className="text-[9px] text-zinc-400 max-w-[72px] truncate text-center leading-tight">{entry.name}</span>
                   </div>
                 );
               })}
@@ -208,15 +240,19 @@ function StatPreviewCard({
 
         {kind === "size" && (
           <div className="space-y-2">
-            <p className="text-[10px] uppercase tracking-wide text-zinc-500 font-medium">Bedenler</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wide text-zinc-500 font-medium">Bedenler</p>
+              <span className="text-[9px] text-zinc-600">üstü çizili = tükendi</span>
+            </div>
             <div className="flex flex-wrap gap-1.5 max-w-[272px]">
               {sizes.map((entry, i) => (
                 <span
                   key={`${entry.name}-${i}`}
+                  title={entry.inStock ? entry.name : `${entry.name} — Tükendi`}
                   className={`inline-flex min-w-[2rem] justify-center px-2 py-1 rounded-md text-[11px] font-medium border animate-in fade-in slide-in-from-bottom-1 duration-300 fill-mode-both ${
                     entry.inStock
                       ? "border-emerald-800/50 bg-emerald-950/40 text-emerald-300"
-                      : "border-zinc-700 bg-zinc-900/60 text-zinc-500 line-through opacity-60"
+                      : "border-red-900/40 bg-red-950/20 text-zinc-500 line-through opacity-70"
                   }`}
                   style={{ animationDelay: `${i * 30}ms` }}
                 >
@@ -278,7 +314,10 @@ export interface CSVPreviewData {
   csvContent: string;
   sourceUrl?: string;
   canonicalProduct?: {
+    sourceProductId?: string;
+    handle?: string;
     variants?: Array<{ color: string; size: string; inStock: boolean }>;
+    outOfStockVariants?: Array<{ color: string; size: string; inStock: boolean }>;
     manualReviewRequired?: boolean;
     shopifyUploadBlocked?: boolean;
     blockReason?: string;
@@ -290,9 +329,16 @@ export interface CSVPreviewData {
     sizes: string[];
     allVariants?: Array<{
       color: string;
-      colorCode: string;
+      colorCode?: string;
       size: string;
       inStock: boolean;
+      image?: string;
+      images?: string[];
+      sourceProductId?: string;
+      sourceUrl?: string;
+      listingId?: string;
+      price?: string | number;
+      stockCount?: number | null;
     }>;
     items?: Array<{
       color: string;
@@ -301,6 +347,8 @@ export interface CSVPreviewData {
       inStock: boolean;
       disabledReason?: string;
       source?: string;
+      image?: string;
+      sourceProductId?: string;
     }>;
     stockMap?: Record<string, boolean>;
   };
@@ -317,6 +365,11 @@ export interface CSVPreviewData {
     withProfit: number;
   };
   brand?: string;
+  colorFamilyStatus?: ScrapedUrlPayload["colorFamilyStatus"];
+  colorFamily?: ScrapedUrlPayload["colorFamily"];
+  imagesByColor?: Record<string, string[]>;
+  sourceAliases?: string[];
+  familySourceKey?: string;
   createdAt: string;
   description?: string;
   category?: string;
@@ -493,16 +546,76 @@ export const ProductPreview = memo(function ProductPreview({
               allVariants: canonicalPreview.variants,
               items: canonicalPreview.variants,
             },
-            { productTitle: safeTitle },
+            { productTitle: safeTitle, sourceUrl: safePreview.sourceUrl },
           )
         : sanitizeTrendyolVariants(safePreview.variants, {
             productTitle: safeTitle,
+            sourceUrl: safePreview.sourceUrl,
           });
     const sanitizedFromCsv = sanitizeTrendyolVariants(variantsFromCsv, {
       productTitle: safeTitle,
+      sourceUrl: safePreview.sourceUrl,
     });
     const sanitizedVariants = pickVariantsForPreview(sanitizedFromPayload, sanitizedFromCsv);
-    const stockSummary = summarizeVariantStock(sanitizedVariants);
+    const scrapedColorName = resolveScrapedColorName({
+      features: safePreview.features,
+      title: safeTitle,
+      variantColors: [
+        ...sanitizedVariants.colors,
+        ...sanitizedVariants.allVariants.map((v) => v.color),
+        ...(Array.isArray(safePreview.variants?.colors) ? safePreview.variants.colors : []),
+      ],
+    });
+
+    const displayVariants =
+      scrapedColorName &&
+      sanitizedVariants.allVariants.every(
+        (v) => !v.color?.trim() || isPlaceholderColor(v.color),
+      )
+        ? {
+            ...sanitizedVariants,
+            colors: [scrapedColorName],
+            allVariants: sanitizedVariants.allVariants.map((v) => ({
+              ...v,
+              color: scrapedColorName,
+            })),
+          }
+        : {
+            ...sanitizedVariants,
+            colors: sanitizedVariants.colors.filter((c) => !isPlaceholderColor(c)),
+            allVariants: sanitizedVariants.allVariants.map((v) => ({
+              ...v,
+              color:
+                v.color && !isPlaceholderColor(v.color)
+                  ? v.color
+                  : scrapedColorName || v.color || "",
+            })),
+          };
+
+    const stockSummary = summarizeVariantStock(displayVariants);
+    useEffect(() => {
+      if (!import.meta.env.DEV) return;
+      const productId = safePreview.sourceUrl?.match(/-p-(\d+)/i)?.[1] ?? null;
+      console.log(
+        "[VARIANT_TRACE]",
+        JSON.stringify({
+          requestId: safePreview.scrapeRunId || safePreview.id,
+          stage: "preview_rendered",
+          sourceUrl: safePreview.sourceUrl,
+          productId,
+          count: displayVariants.allVariants.length,
+          options: displayVariants.sizes,
+          variants: displayVariants.allVariants.map((variant) => ({
+            size: variant.size || "",
+            color: variant.color || "",
+            sku: "",
+            inStock: variant.inStock !== false,
+            quantity: null,
+            source: "CSVDrawerProductPreview",
+          })),
+        }),
+      );
+    }, [safePreview.id, safePreview.scrapeRunId, safePreview.sourceUrl, safePreview.csvContent]);
     const { urls: previewImages } = resolvePreviewImagesForEntry({
       images: safeImages,
       csvContent: safeCsvContent,
@@ -670,7 +783,7 @@ export const ProductPreview = memo(function ProductPreview({
 
     const sizeCount = stockSummary.sizes.length;
     const colorCount = stockSummary.colors.length;
-    const variantCount = sanitizedVariants.allVariants.length;
+    const variantCount = displayVariants.allVariants.length;
     const imageCount = previewImages.length;
 
     const hasCsvTable = csvHeaders.length > 0 && csvRows.length > 0;
@@ -678,7 +791,7 @@ export const ProductPreview = memo(function ProductPreview({
     const colorEntries = stockSummary.colors.map((entry) => ({
       name: entry.name,
       inStock: entry.inStock,
-      colorCode: sanitizedVariants.allVariants.find((v) => v.color === entry.name)?.colorCode,
+      colorCode: displayVariants.allVariants.find((v) => v.color === entry.name)?.colorCode,
     }));
 
     const statCards: Array<{
@@ -760,6 +873,7 @@ export const ProductPreview = memo(function ProductPreview({
                       {preview.brand}
                     </span>
                   )}
+                  <ColorFamilyStatusPanel preview={preview} compact />
                   {preview.restoredFromDisk && (
                     <Badge variant="outline" className="border-amber-700/50 text-amber-300 text-[10px] h-5">
                       Diskten geri yüklendi
@@ -787,7 +901,7 @@ export const ProductPreview = memo(function ProductPreview({
                         images={previewImages}
                         colors={colorEntries}
                         sizes={stockSummary.sizes}
-                        variants={sanitizedVariants.allVariants}
+                        variants={displayVariants.allVariants}
                         productTitle={safeTitle}
                       />
                     ))}
@@ -906,6 +1020,7 @@ export const ProductPreview = memo(function ProductPreview({
           {/* Genişletilmiş detay */}
           {isExpanded && (
             <div className="border-t border-zinc-800/80 px-4 py-4 space-y-4 bg-zinc-950/50">
+              <ColorFamilyStatusPanel preview={preview} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
@@ -941,10 +1056,11 @@ export const ProductPreview = memo(function ProductPreview({
                         <Badge
                           key={idx}
                           variant="outline"
+                          title={entry.inStock ? entry.name : `${entry.name} — Tükendi`}
                           className={
                             entry.inStock
                               ? "border-emerald-800/40 text-emerald-300 text-xs"
-                              : "border-zinc-700 text-zinc-500 text-xs line-through opacity-60"
+                              : "border-red-900/40 text-zinc-500 text-xs line-through opacity-70"
                           }
                         >
                           {entry.name}

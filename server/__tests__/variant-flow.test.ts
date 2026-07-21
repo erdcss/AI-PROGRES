@@ -22,6 +22,11 @@ import {
 } from "../scrape-csv-builder";
 import { parseCSVRow } from "../csv-paths";
 import { analyzeShopifyCsvContent } from "../csv-paths";
+import {
+  evaluateVariantCollapse,
+  runWithVariantTrace,
+  traceVariants,
+} from "../variant-trace";
 
 let passed = 0;
 let failed = 0;
@@ -91,6 +96,42 @@ console.log("\n=== Variant Flow Tests ===\n");
   assert(ids.sourceKey === "trendyol:897305689", "sourceKey=trendyol:897305689");
 }
 
+// OOS bedenlerin CSV'den çıkarılması varyant çökmesi değildir
+{
+  const report = runWithVariantTrace(
+    {
+      requestId: "oos-collapse-regression",
+      sourceUrl: "https://www.trendyol.com/bianco-lucci/elbise-p-712280973",
+    },
+    () => {
+      const sourceVariants = {
+        allVariants: [
+          { color: "Tek Renk", size: "S", inStock: true },
+          { color: "Tek Renk", size: "M", inStock: false },
+          { color: "Tek Renk", size: "L", inStock: false },
+        ],
+      };
+      traceVariants("resolver_input", sourceVariants, { source: "test" });
+      const canonical = buildCanonicalProductForShopify({
+        sourceUrl: "https://www.trendyol.com/bianco-lucci/elbise-p-712280973",
+        scrapeResult: {
+          title: "Bianco Lucci Elbise",
+          brand: "Bianco Lucci",
+          price: { original: 869 },
+          variants: sourceVariants,
+        },
+      });
+      return evaluateVariantCollapse([
+        ...(canonical?.variants ?? []),
+        ...(canonical?.outOfStockVariants ?? []),
+      ]);
+    },
+  );
+  assert(report.richestCount === 3, "collapse test source=3");
+  assert(report.finalCount === 3, "collapse test canonical stocklu+OOS=3");
+  assert(report.collapsed === false, "OOS filtresi collapse sayılmaz");
+}
+
 // Test 5 — renk bilgisi yok → Beden option
 {
   const canonical = buildCanonicalProductForShopify({
@@ -137,6 +178,8 @@ console.log("\n=== Variant Flow Tests ===\n");
 // Geçerli beden filtresi
 {
   assert(isValidSizeLabel("S"), "S geçerli beden");
+  assert(isValidSizeLabel("S/M"), "S/M combo geçerli beden");
+  assert(isValidSizeLabel("L/XL"), "L/XL combo geçerli beden");
   assert(!isValidSizeLabel("Sepete Ekle"), "Sepete Ekle beden değil");
 }
 
@@ -416,6 +459,64 @@ async function runAttachCsvTests() {
 }
 
 await runAttachCsvTests();
+
+// Renk adı + kendi görseli → CSV Variant Image
+{
+  const canonical = buildCanonicalProductForShopify({
+    sourceUrl: "https://www.trendyol.com/lacase/ewo-bordo-p-975907095",
+    scrapeResult: {
+      title: "Ewo Kuyruklu Abiye",
+      brand: "LACASE",
+      price: { original: 1200 },
+      images: [
+        "https://cdn.dsmcdn.com/bordo1.jpg",
+        "https://cdn.dsmcdn.com/siyah1.jpg",
+      ],
+      imagesByColor: {
+        Bordo: ["https://cdn.dsmcdn.com/bordo1.jpg", "https://cdn.dsmcdn.com/bordo2.jpg"],
+        Siyah: ["https://cdn.dsmcdn.com/siyah1.jpg"],
+      },
+      variants: {
+        colors: ["Bordo", "Siyah"],
+        sizes: ["M", "L"],
+        allVariants: [
+          {
+            color: "Bordo",
+            size: "M",
+            inStock: true,
+            image: "https://cdn.dsmcdn.com/bordo1.jpg",
+          },
+          {
+            color: "Bordo",
+            size: "L",
+            inStock: true,
+            image: "https://cdn.dsmcdn.com/bordo1.jpg",
+          },
+          {
+            color: "Siyah",
+            size: "M",
+            inStock: true,
+            image: "https://cdn.dsmcdn.com/siyah1.jpg",
+          },
+          {
+            color: "Siyah",
+            size: "L",
+            inStock: true,
+            image: "https://cdn.dsmcdn.com/siyah1.jpg",
+          },
+        ],
+      },
+    },
+  });
+  assert(canonical != null, "multi-color canonical");
+  assert(canonical!.variants.some((v) => v.color === "Bordo" && v.image?.includes("bordo")), "Bordo image");
+  assert(canonical!.variants.some((v) => v.color === "Siyah" && v.image?.includes("siyah")), "Siyah image");
+  const csv = generateCanonicalShopifyCSV(canonical!);
+  assert(csv != null && csv.includes("bordo1.jpg"), "CSV bordo image");
+  assert(csv != null && csv.includes("siyah1.jpg"), "CSV siyah image");
+  assert(csv != null && /Ewo Kuyruklu Abiye - Bordo/.test(csv), "CSV alt text Bordo");
+  assert(csv != null && /Ewo Kuyruklu Abiye - Siyah/.test(csv), "CSV alt text Siyah");
+}
 
 console.log(`\n=== Sonuç: ${passed} geçti, ${failed} başarısız ===\n`);
 if (failed > 0) process.exit(1);

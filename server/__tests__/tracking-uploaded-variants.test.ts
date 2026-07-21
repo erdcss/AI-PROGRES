@@ -1,4 +1,8 @@
 import { strict as assert } from "node:assert";
+import {
+  buildTrackingVariantLabel,
+  resolveTrackingVariantColorSize,
+} from "../../shared/trendyol-variant-utils";
 import { filterUploadedVariantsForTracking } from "../services/tracking.service";
 
 function testFilterPrefersShopifyMappedVariants() {
@@ -24,4 +28,40 @@ function testFilterInStockWhenNoShopifyIds() {
 
 testFilterPrefersShopifyMappedVariants();
 testFilterInStockWhenNoShopifyIds();
+
+function testResolveColorSizeFromCanonicalOptions() {
+  const resolved = resolveTrackingVariantColorSize({
+    option1Name: "Renk",
+    option1Value: "Lacivert",
+    option2Name: "Beden",
+    option2Value: "M",
+  });
+  assert.equal(resolved.color, "Lacivert");
+  assert.equal(resolved.size, "M");
+  assert.equal(buildTrackingVariantLabel(resolved.color, resolved.size), "Lacivert · Beden M");
+}
+
+function testResolveBedenOnlyVariant() {
+  const resolved = resolveTrackingVariantColorSize({
+    option1Name: "Beden",
+    option1Value: "XL",
+  });
+  assert.equal(resolved.color, null);
+  assert.equal(resolved.size, "XL");
+}
+
+function testPlaceholderColorIgnored() {
+  const resolved = resolveTrackingVariantColorSize({
+    option1Name: "Renk",
+    option1Value: "Tek Renk",
+    option2Name: "Beden",
+    option2Value: "Tek Beden",
+  });
+  assert.equal(resolved.color, null);
+  assert.equal(resolved.size, null);
+}
+
+testResolveColorSizeFromCanonicalOptions();
+testResolveBedenOnlyVariant();
+testPlaceholderColorIgnored();
 console.log("tracking-uploaded-variants.test.ts OK");

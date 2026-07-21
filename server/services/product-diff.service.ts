@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { detectedChanges, trackedVariants, type ProductSnapshot } from "@shared/schema";
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull } from "drizzle-orm";
 import type { FetchedSourceSnapshot } from "./source-fetcher.service";
 import {
   assessPriceChange,
@@ -28,7 +28,19 @@ export type CompareContext = {
 
 function snapshotVariants(snapshot: ProductSnapshot): Array<Record<string, unknown>> {
   const v = snapshot.variants;
-  return Array.isArray(v) ? (v as Array<Record<string, unknown>>) : [];
+  if (!Array.isArray(v)) return [];
+  return (v as Array<Record<string, unknown>>).map((variant) => ({
+    ...variant,
+    color: variant.color ?? variant.option1 ?? variant.option1Value,
+    size: variant.size ?? variant.option2 ?? variant.option2Value,
+    sku: variant.sku ?? variant.sourceSku,
+    inStock:
+      typeof variant.inStock === "boolean"
+        ? variant.inStock
+        : typeof variant.currentAvailable === "boolean"
+          ? variant.currentAvailable
+          : undefined,
+  }));
 }
 
 function variantKey(v: Record<string, unknown>): string {
@@ -38,6 +50,7 @@ function variantKey(v: Record<string, unknown>): string {
     option1: v.option1 as string | undefined,
     option2: v.option2 as string | undefined,
     key: v.key as string | undefined,
+    sku: v.sku as string | undefined,
   });
 }
 
@@ -45,6 +58,10 @@ function numPrice(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function normalizeComparableText(value: string): string {
+  return value.replace(/\s+/g, " ").trim().toLocaleLowerCase("tr-TR");
 }
 
 /** Stok sayısı varyant sayısından geliyorsa küçük farkları yok say */
@@ -154,12 +171,12 @@ export async function compareSnapshots(
   const knownGood = context?.knownGoodPrice ?? null;
   const oldPrice = resolveReliableBaselinePrice(numPrice(previous.price), knownGood);
   const newPrice = current.price;
+  const oldVariants = snapshotVariants(previous);
+  const hasVariantStockData = oldVariants.length > 0 && current.variants.length > 0;
+  const productPriceChanged =
+    oldPrice != null && newPrice > 0 && Math.abs(oldPrice - newPrice) > 0.009;
 
-  if (
-    oldPrice != null &&
-    newPrice > 0 &&
-    Math.abs(oldPrice - newPrice) > 0.009
-  ) {
+  if (productPriceChanged) {
     const assessment = assessPriceChange(oldPrice, newPrice);
     if (assessment.shouldRecord) {
       changes.push({
@@ -180,6 +197,7 @@ export async function compareSnapshots(
     oldStock != null &&
     newStock != null &&
     oldStock !== newStock &&
+    !hasVariantStockData &&
     !(looksLikeStockOnlyNoise(oldStock, newStock, oldPrice, newPrice))
   ) {
     changes.push({
@@ -203,7 +221,11 @@ export async function compareSnapshots(
     });
   }
 
-  if (previous.title && current.title && previous.title.trim() !== current.title.trim()) {
+  if (
+    previous.title &&
+    current.title &&
+    normalizeComparableText(previous.title) !== normalizeComparableText(current.title)
+  ) {
     changes.push({
       changeType: "title_changed",
       fieldName: "title",
@@ -215,7 +237,6 @@ export async function compareSnapshots(
     });
   }
 
-  const oldVariants = snapshotVariants(previous);
   const newVariants = current.variants.map((v) => ({
     key: v.key,
     color: v.color,
@@ -228,37 +249,14 @@ export async function compareSnapshots(
   const newMap = new Map(newVariants.map((v) => [variantKey(v), v]));
   const trackedKeys = await loadTrackedVariantKeys(trackedProductId);
 
-  for (const [key, nv] of newMap) {
-    if (!oldMap.has(key)) {
-      if (!shouldTrackVariantChange(key, trackedKeys)) continue;
-      changes.push({
-        changeType: "variant_added",
-        fieldName: "variant",
-        oldValue: null,
-        newValue: nv,
-        confidence: 70,
-        status: "manual_review",
-        reason: "Yeni varyant — manuel inceleme gerekiyor",
-        variantKey: key,
-      });
-    }
-  }
+  // Kaynak snapshot'ında geçici olarak görünmeyip sonraki kontrolde geri dönen
+  // mevcut Shopify varyantları "yeni varyant" değildir. Gerçek varyant ekleme,
+  // ayrı bir eşleme akışı olmadan güvenli biçimde ayırt edilemediği için bildirim üretme.
 
-  for (const [key, ov] of oldMap) {
-    if (!newMap.has(key)) {
-      if (!shouldTrackVariantChange(key, trackedKeys)) continue;
-      changes.push({
-        changeType: "variant_removed",
-        fieldName: "variant",
-        oldValue: ov,
-        newValue: null,
-        confidence: 60,
-        status: "manual_review",
-        reason: "Varyant kaldırıldı — eşleşme emin değil, manuel inceleme gerekiyor",
-        variantKey: key,
-      });
-    }
-  }
+  // Tek bir kaynak ölçümünde görünmeyen varyantı "kaldırıldı" sayma.
+  // Trendyol seçili satıcı, renk ailesi veya geçici eksik DOM nedeniyle aynı
+  // varyantı sonraki ölçümde tekrar döndürebiliyor. Kalıcı kaldırma için ardışık
+  // tam snapshot kanıtı kurulana kadar yanlış alarm üretmemek daha güvenlidir.
 
   for (const [key, nv] of newMap) {
     const ov = oldMap.get(key);
@@ -282,6 +280,12 @@ export async function compareSnapshots(
     const oldVp = numPrice(ov.price);
     const newVp = numPrice((nv as { price?: number }).price);
     if (oldVp != null && newVp != null && Math.abs(oldVp - newVp) > 0.009) {
+      const mirrorsProductPrice =
+        productPriceChanged &&
+        oldPrice != null &&
+        Math.abs(oldVp - oldPrice) <= 0.009 &&
+        Math.abs(newVp - newPrice) <= 0.009;
+      if (mirrorsProductPrice) continue;
       changes.push({
         changeType: "variant_price_changed",
         fieldName: "variant_price",
@@ -344,6 +348,24 @@ export async function persistDetectedChanges(input: {
   const rows = [];
   for (const c of input.diff.changes) {
     const trackedVariantId = await resolveTrackedVariantId(input.trackedProductId, c);
+    const sameTarget = [
+      eq(detectedChanges.trackedProductId, input.trackedProductId),
+      eq(detectedChanges.changeType, c.changeType),
+      eq(detectedChanges.fieldName, c.fieldName),
+      inArray(detectedChanges.status, ["pending", "manual_review", "approved", "failed"]),
+      trackedVariantId == null
+        ? isNull(detectedChanges.trackedVariantId)
+        : eq(detectedChanges.trackedVariantId, trackedVariantId),
+    ];
+    await db
+      .update(detectedChanges)
+      .set({
+        status: "superseded",
+        reason: "Daha yeni bir değişiklik kaydıyla güncellendi",
+        updatedAt: new Date(),
+      })
+      .where(and(...sameTarget));
+
     const [row] = await db
       .insert(detectedChanges)
       .values({

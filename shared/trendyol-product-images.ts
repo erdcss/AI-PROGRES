@@ -91,7 +91,11 @@ export function filterValidProductImages(images: unknown): string[] {
       /\/QC_|\/PIM_|QC_PREP|ENRICHMENT|org_zoom|_org_/i.test(img);
     if (!isProductCdn) return false;
     const path = img.split("?")[0];
-    return /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(path) || /org_zoom/i.test(path);
+    // Uzantısız CDN, webp/avif ve query parametreli URL'leri koru
+    return (
+      /\.(jpg|jpeg|png|webp|gif|bmp|avif)$/i.test(path) ||
+      /org_zoom|_org_|\/prod\/|\/product\/|\/media\//i.test(path)
+    );
   });
 }
 

@@ -12,6 +12,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { getRequestId } from "../request-context";
 import { applyDetectedChangeToShopify } from "./change-shopify-apply.service";
+import { isDirectlyApplicableTrackingChange } from "@shared/tracking-change-policy";
 
 export const CHANGE_STATUSES = [
   "pending",
@@ -207,6 +208,15 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
   if (!product[0]?.trackingUid) {
     warnings.push("Benzersiz takip UID eksik");
   }
+  if (
+    !isDirectlyApplicableTrackingChange(
+      change.changeType,
+      change.fieldName,
+      change.newValue,
+    )
+  ) {
+    warnings.push("Bu değişiklik Shopify'da doğrudan düzeltilemez");
+  }
 
   const safeToApply =
     warnings.length === 0 &&
@@ -246,10 +256,26 @@ export async function applyChange(changeId: number, actor = "user", dryRun = fal
 
   const idempotencyKey = change.idempotencyKey ?? `apply-${changeId}-${uuidv4()}`;
 
-  await db
+  const [claimed] = await db
     .update(detectedChanges)
-    .set(changePatch({ status: "applying", applyStatus: "applying", updatedAt: new Date() }))
-    .where(eq(detectedChanges.id, changeId));
+    .set(
+      changePatch({
+        status: "applying",
+        applyStatus: "applying",
+        idempotencyKey,
+        updatedAt: new Date(),
+      }),
+    )
+    .where(
+      and(
+        eq(detectedChanges.id, changeId),
+        inArray(detectedChanges.status, ["approved", "failed"]),
+      ),
+    )
+    .returning({ id: detectedChanges.id });
+  if (!claimed) {
+    throw new Error("Değişiklik başka bir işlem tarafından uygulanıyor veya tamamlandı");
+  }
 
   try {
     const shopifyResult = await applyDetectedChangeToShopify(changeId);
@@ -362,6 +388,9 @@ export async function shopifySyncChange(id: number, actor = "user") {
   const row = await getChangeOrThrow(id);
   if (row.status === "applied") {
     throw new Error("Bu değişiklik zaten Shopify'a uygulanmış");
+  }
+  if (!isDirectlyApplicableTrackingChange(row.changeType, row.fieldName, row.newValue)) {
+    throw new Error("Bu değişiklik Shopify'da doğrudan düzeltilemez");
   }
   if (row.status === "pending" || row.status === "manual_review") {
     await approveChange(id, actor);

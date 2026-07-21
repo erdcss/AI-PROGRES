@@ -180,16 +180,13 @@ function parsePriceOnlyPayload(data: any, url: string, base: TrendyolApiProduct)
   };
 }
 
+// Yalnızca DNS'te çözülen host'lar — public-mdc/public/mdc/mobile-api.trendyol.com
+// artık ENOTFOUND döndürüyor ve her denemede saniyelerce boşa DNS beklemesine yol açıyordu.
 const API_ENDPOINTS = (productId: string) => [
   `https://apigw.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
   `https://apigw.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`,
-  `https://public-mdc.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`,
-  `https://public-mdc.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
-  `https://mdc.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`,
-  `https://public.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
   `https://api.trendyol.com/webmobileapi/v1/product/${productId}`,
-  `https://mobile-api.trendyol.com/api/v1/product/${productId}`,
-  `https://public.trendyol.com/discovery-web-productgw-service/api/price/${productId}`,
+  `https://apigw.trendyol.com/discovery-web-productgw-service/api/price/${productId}`,
 ];
 
 /** Tüm API endpoint'lerinden görsel topla — deploy'da fiyat endpoint'i görsel içerebilir */
@@ -202,8 +199,7 @@ export async function fetchTrendyolImagesFromApi(url: string): Promise<string[]>
     `https://apigw.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
     `https://apigw.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`,
     `https://api.trendyol.com/webmobileapi/v1/product/${productId}`,
-    `https://mobile-api.trendyol.com/api/v1/product/${productId}`,
-    `https://public.trendyol.com/discovery-web-productgw-service/api/price/${productId}`,
+    `https://apigw.trendyol.com/discovery-web-productgw-service/api/price/${productId}`,
   ];
   const results = await Promise.allSettled(
     fastEndpoints.map((endpoint) =>

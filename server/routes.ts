@@ -79,7 +79,7 @@ import { ImageTelegramService } from './image-telegram-service';
 import { CanvaService } from './canva-service';
 import { initCanvaOAuth, generateAuthUrl, exchangeCodeForToken, isCanvaConnected, disconnectCanva, getCanvaAccessToken } from './canva-oauth';
 import { productStatisticsService } from './product-statistics-service';
-import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
+import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct, isConfirmedClothingProduct } from './clothing-keywords';
 import { aiProductStatisticsService } from './ai-product-statistics';
 import { shopifyProductsSync } from './shopify-products-sync';
 import { getShopifyConfig, getShopifyHealthSnapshot, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials, saveDirectAccessToken, normalizeShopDomain } from './shopify-credentials';
@@ -90,6 +90,7 @@ import { registerImportJobRoutes } from './routes/import-job-routes';
 import { registerControlCenterRoutes } from './routes/control-center-routes';
 import { registerTrackingApprovalRoutes } from './routes/tracking-approval-routes';
 import { registerSourceAccessRoutes } from './routes/source-access-routes';
+import { registerShopifyCategoryRoutes } from './routes/shopify-category-routes';
 import { getRequestId } from './request-context';
 import { shopifyCredentials } from '@shared/schema';
 
@@ -1231,6 +1232,7 @@ export function registerRoutes(app: Express): Server {
   registerControlCenterRoutes(app);
   registerTrackingApprovalRoutes(app);
   registerSourceAccessRoutes(app);
+  registerShopifyCategoryRoutes(app);
 
   // Initialize Canva OAuth on startup
   initCanvaOAuth();
@@ -2173,6 +2175,8 @@ setTimeout(check, 1000);
           try {
         const scrapeStartTime = Date.now();
         const scrapeRunId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+        const { enterVariantTrace } = await import("./variant-trace");
+        enterVariantTrace({ requestId: scrapeRunId, sourceUrl: url });
         const { resolveTrendyolSourceIds } = await import("./shopify-source-key");
         const { invalidateStaleCsvCache } = await import("./scrape-csv-builder");
         const { logFlowTrace } = await import("./flow-trace");
@@ -2616,8 +2620,7 @@ setTimeout(check, 1000);
           console.log(`ğŸ“¸ ROUTES: Images format:`, JSON.stringify(result.images?.slice(0, 2)));
           
           // ğŸš« CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
-          // Using centralized CLOTHING_KEYWORDS and FAKE_CLOTHING_SIZES from clothing-keywords.ts
-          const hasClothingKeyword = isClothingProduct(result.title);
+          const hasClothingKeyword = isConfirmedClothingProduct(result.title, url);
           
           if (!hasClothingKeyword && normalizedVariants) {
             console.log(`ğŸš« ROUTES FINAL GATE: "${result.title?.substring(0, 40)}..." is NOT clothing`);
@@ -2652,6 +2655,36 @@ setTimeout(check, 1000);
             }
           } else if (hasClothingKeyword) {
             console.log(`âœ… ROUTES FINAL GATE: Product IS clothing - sizes preserved`);
+          }
+
+          const { traceVariants, evaluateVariantCollapse } = await import("./variant-trace");
+          traceVariants("api_response", normalizedVariants, { source: "routes:job-result" });
+          // canonicalProduct.variants yalnızca CSV'ye girecek stoklu satırlardır.
+          // OOS bedenlerin bilinçli olarak dışarıda bırakılması veri kaybı değildir;
+          // çökme kontrolünde stoklu + stoksuz canonical kümesini birlikte değerlendir.
+          const canonicalForCollapse = result.canonicalProduct
+            ? [
+                ...(Array.isArray(result.canonicalProduct.variants)
+                  ? result.canonicalProduct.variants
+                  : []),
+                ...(Array.isArray(result.canonicalProduct.outOfStockVariants)
+                  ? result.canonicalProduct.outOfStockVariants
+                  : []),
+              ]
+            : normalizedVariants;
+          const variantCollapse = evaluateVariantCollapse(canonicalForCollapse);
+          let variantCollapseBlocked = false;
+          if (variantCollapse.collapsed) {
+            const collapseMsg = `VARIANT_COLLAPSE_DETECTED: richestCount=${variantCollapse.richestCount} finalCount=${variantCollapse.finalCount} collapsedAt=${variantCollapse.collapsedAt}`;
+            console.error(collapseMsg);
+            variantCollapseBlocked = true;
+            result.shopifyUploadBlocked = true;
+            result.manualReviewRequired = true;
+            result.variantCollapseDetected = true;
+            result.variantCollapse = variantCollapse;
+            result.variantBlockReason =
+              result.variantBlockReason ||
+              "Varyant verileri işlem sırasında kayboldu; ürün aktarılmadı.";
           }
           
           let csvContent = result.csvContent || '';
@@ -2717,7 +2750,12 @@ setTimeout(check, 1000);
               shopifyUploadBlocked:
                 result.shopifyUploadBlocked ||
                 result.canonicalProduct?.shopifyUploadBlocked ||
-                false,
+                variantCollapseBlocked,
+              variantCollapseDetected: result.variantCollapseDetected === true,
+              variantCollapse: result.variantCollapse,
+              variantCollapseMessage: variantCollapseBlocked
+                ? "Varyant verileri işlem sırasında kayboldu; ürün aktarılmadı."
+                : undefined,
               scrapeRunId: result.scrapeRunId ?? scrapeRunId,
               sourceUrl: url,
               urlProductId: result.urlProductId,
@@ -2729,6 +2767,11 @@ setTimeout(check, 1000);
               csvPreview: result.csvPreview,
               csvErrorCode: result.csvErrorCode,
               csvDiagnostics: result.csvDiagnostics,
+              colorFamilyStatus: result.colorFamilyStatus,
+              colorFamily: result.colorFamily,
+              imagesByColor: result.imagesByColor,
+              sourceAliases: result.sourceAliases,
+              familySourceKey: result.familySourceKey,
               trackingActive: false,
               extractionDetails: result.extractionDetails,
               scrapeDiagnostics,
@@ -4425,13 +4468,6 @@ setTimeout(check, 1000);
       if (!shopDomain || !apiKey || !apiSecret) {
         return res.status(400).json({ error: 'shopDomain, apiKey ve apiSecret zorunludur.' });
       }
-      const { isSharedSigningSecret } = await import('./shopify-credentials');
-      if (isSharedSigningSecret(apiSecret)) {
-        return res.status(400).json({
-          error:
-            'shpss_ OAuth imza anahtarı API secret olarak kullanılamaz. Dev Dashboard Client Secret (shpsec_...) girin.',
-        });
-      }
       const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
       await saveShopifyCredentials({ shopDomain: cleanDomain, apiKey, apiSecret });
       res.json({ success: true, shopDomain: cleanDomain });
@@ -4552,8 +4588,6 @@ setTimeout(check, 1000);
       const {
         proactiveRefreshShopifyToken,
         buildShopifyTokenStatusPayload,
-        secretLooksLikeSharedSecretOnly,
-        hasEnvAccessToken,
       } = await import('./shopify-token-manager');
       const result = await proactiveRefreshShopifyToken(true);
       const statusPayload = await buildShopifyTokenStatusPayload();
@@ -4571,12 +4605,9 @@ setTimeout(check, 1000);
             ...statusPayload,
           });
         } catch {
-          let hint =
-            'Token yenileme başarısız. Admin Token sekmesinden shpat_... kaydedin veya SHOPIFY_CLIENT_SECRET (shpsec_...) tanımlayın.';
-          if (secretLooksLikeSharedSecretOnly() && !hasEnvAccessToken()) {
-            hint =
-              'secret_key (shpss_) yalnızca OAuth imzasıdır. Otomatik yenileme için Admin Token kaydedin veya Dev Dashboard Client Secret (shpsec_...) ekleyin.';
-          }
+          const hint =
+            result.error ||
+            'Token yenileme başarısız. Admin Token sekmesinden shpat_... kaydedin veya SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard → Settings) tanımlayın.';
           return res.status(500).json({
             success: false,
             error: result.error,
@@ -4645,9 +4676,7 @@ setTimeout(check, 1000);
         hasClientCredentials: hasClientCredentialsConfigured(),
         clientIdSource: resolveClientIdSource(),
         clientSecretSource: resolveClientSecretSource(),
-        secretLooksLikeSharedSecret: Boolean(
-          (process.env.secret_key?.trim() || process.env.SHOPIFY_APP_SHARED_SECRET?.trim() || '').startsWith('shpss_'),
-        ),
+        secretLooksLikeSharedSecret: false,
         tokenSource: 'missing',
         expiresAt: null,
         expiresInSeconds: null,

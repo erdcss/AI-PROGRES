@@ -8,7 +8,9 @@ import {
   runManualProductCheck,
   getTrackingSchedulerStatus,
   getTrackingNotifications,
+  triggerShopifyTrackingReconcile,
 } from "../services/tracking.scheduler";
+import { getLastShopifyTrackingReconcileStatus } from "../services/shopify-tracking-reconciliation.service";
 import { db } from "../db";
 import { detectedChanges } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -58,9 +60,10 @@ export function registerTrackingRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/tracking/products", async (_req, res) => {
+  app.get("/api/tracking/products", async (req, res) => {
     try {
-      const products = await trackingService.listProductsForPanel();
+      const includeArchived = req.query.includeArchived === "true";
+      const products = await trackingService.listProductsForPanel({ includeArchived });
       return res.json({ success: true, products });
     } catch (err) {
       return migrationErrorResponse(res, err);
@@ -100,6 +103,28 @@ export function registerTrackingRoutes(app: Express): void {
     try {
       const status = await getTrackingSchedulerStatus();
       return res.json({ success: true, ...status });
+    } catch (err) {
+      return migrationErrorResponse(res, err);
+    }
+  });
+
+  app.get("/api/tracking/shopify-reconcile-status", async (_req, res) => {
+    try {
+      const last = await getLastShopifyTrackingReconcileStatus();
+      return res.json({ success: true, last });
+    } catch (err) {
+      return migrationErrorResponse(res, err);
+    }
+  });
+
+  app.post("/api/tracking/shopify-reconcile", async (_req, res) => {
+    try {
+      const result = await triggerShopifyTrackingReconcile(true);
+      if (!result) {
+        return res.status(409).json({ success: false, error: "Senkron zaten çalışıyor" });
+      }
+      const statusCode = result.success ? 200 : result.locked ? 409 : 422;
+      return res.status(statusCode).json(result);
     } catch (err) {
       return migrationErrorResponse(res, err);
     }

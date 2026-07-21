@@ -558,6 +558,10 @@ export const trackedProducts = pgTable('tracked_products', {
   lastErrorAt: timestamp('last_error_at'),
   lastErrorMessage: text('last_error_message'),
   checkIntervalMinutes: integer('check_interval_minutes').notNull().default(1440),
+  shopifySyncStatus: text('shopify_sync_status'),
+  lastShopifySyncAt: timestamp('last_shopify_sync_at'),
+  pausedReason: text('paused_reason'),
+  archivedAt: timestamp('archived_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });

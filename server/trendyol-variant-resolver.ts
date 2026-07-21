@@ -9,20 +9,25 @@ import {
   extractVariantsFromSlicingRegex,
   parseSlicingAttributesFromProduct,
   parseSkuComboVariantsFromProduct,
+  parseInlineListingVariantsFromHtml,
   type SlicingVariant,
 } from "./trendyol-slicing-parser";
-import { getTrendyolProductFromState } from "./trendyol-product-state";
+import { getTrendyolProductFromState, getTrendyolProductFromHtml } from "./trendyol-product-state";
+import { extractTrendyolProductId } from "./trendyol-title-utils";
 import {
   EMPTY_TRENDYOL_VARIANTS,
   hasRealTrendyolVariants,
   pickRicherTrendyolVariants,
   sanitizeTrendyolVariants,
+  variantRichnessScore,
   type SanitizedVariants,
 } from "@shared/trendyol-variant-utils";
+import { traceVariants } from "./variant-trace";
 import {
   buildStockAnalysisFromVariants,
   type TrendyolStockAnalysis,
 } from "./trendyol-html-enrichment";
+import { resolveColorFromProductState } from "./trendyol-hydrated-member";
 
 const URL_COLOR_SLUGS: Array<[string, string]> = [
   ["acik-haki", "Açık Haki"],
@@ -87,8 +92,9 @@ export function unwrapTrendyolApiProductRoot(data: unknown): Record<string, unkn
 function buildMatrixFromSlicing(
   slicing: ReturnType<typeof parseSlicingAttributesFromProduct>,
   skuVariants: SlicingVariant[] = [],
+  opts?: { currentProductId?: string; currentColor?: string },
 ): SlicingVariant[] {
-  return buildVariantMatrixFromSlicingData(slicing, skuVariants);
+  return buildVariantMatrixFromSlicingData(slicing, skuVariants, opts);
 }
 
 function applyUrlColorToVariants(
@@ -109,6 +115,7 @@ function applyUrlColorToVariants(
 function toSanitizedVariants(
   rawVariants: SlicingVariant[],
   productTitle?: string,
+  sourceUrl?: string,
 ): SanitizedVariants {
   return sanitizeTrendyolVariants(
     {
@@ -119,7 +126,7 @@ function toSanitizedVariants(
         colorCode: v.colorCode,
       })),
     },
-    { productTitle },
+    { productTitle, sourceUrl },
   );
 }
 
@@ -135,7 +142,17 @@ export function resolveTrendyolVariants(input: {
 
   let product = input.product;
   if (!product && input.html) {
-    product = getTrendyolProductFromState(input.html);
+    product = getTrendyolProductFromHtml(input.html);
+  }
+
+  traceVariants("resolver_input", { sizes: [] }, {
+    options: { hasHtml: Boolean(input.html), hasProduct: Boolean(product), title },
+  });
+  if (product) {
+    traceVariants("embedded_state", { sizes: [] }, {
+      source: getTrendyolProductFromState(input.html || "") ? "state" : "next_data",
+      options: { present: true },
+    });
   }
 
   const candidates: SanitizedVariants[] = [];
@@ -143,50 +160,80 @@ export function resolveTrendyolVariants(input: {
   if (input.html) {
     const $ = cheerio.load(input.html);
     const fromSlicing = buildVariantsFromSlicing($, input.html);
+    traceVariants("raw_dom", fromSlicing, { source: "dom-slicing" });
     if (fromSlicing.length > 0) {
-      candidates.push(toSanitizedVariants(fromSlicing, title));
+      candidates.push(toSanitizedVariants(fromSlicing, title, input.url));
     }
 
     const fromJsonLd = extractVariantsFromJsonLd(input.html);
+    traceVariants("json_ld", fromJsonLd, { source: "json-ld" });
     if (fromJsonLd.length > 0) {
-      candidates.push(toSanitizedVariants(fromJsonLd, title));
+      candidates.push(toSanitizedVariants(fromJsonLd, title, input.url));
     }
 
     const fromRegex = extractVariantsFromSlicingRegex(input.html);
     if (fromRegex.length > 0) {
-      candidates.push(toSanitizedVariants(fromRegex, title));
+      candidates.push(toSanitizedVariants(fromRegex, title, input.url));
+    }
+
+    const fromInline = parseInlineListingVariantsFromHtml(input.html);
+    traceVariants("raw_dom", fromInline, { source: "inline-listing-variants" });
+    if (fromInline.length > 0) {
+      candidates.push(toSanitizedVariants(fromInline, title, input.url));
     }
   }
 
   if (product) {
     const skuVariants = parseSkuComboVariantsFromProduct(product);
+    traceVariants("all_variants", skuVariants, { source: "allVariants/sku-combo" });
     if (skuVariants.length > 0) {
-      candidates.push(toSanitizedVariants(skuVariants, title));
+      candidates.push(toSanitizedVariants(skuVariants, title, input.url));
     }
 
+    const currentProductId =
+      extractTrendyolProductId(input.url || "") ||
+      String(product.productId ?? product.contentId ?? product.id ?? "").replace(/\D/g, "") ||
+      undefined;
+    const currentColor = resolveColorFromProductState(product).color || undefined;
+
     const slicingAttrs = parseSlicingAttributesFromProduct(product);
-    const matrixVariants = buildMatrixFromSlicing(slicingAttrs, skuVariants);
+    const matrixVariants = buildMatrixFromSlicing(slicingAttrs, skuVariants, {
+      currentProductId,
+      currentColor,
+    });
+    traceVariants("sliced_attributes", matrixVariants, { source: "slicedAttributes" });
     if (matrixVariants.length > 0) {
-      candidates.push(toSanitizedVariants(matrixVariants, title));
+      candidates.push(toSanitizedVariants(matrixVariants, title, input.url));
     }
 
     const ml = product.merchantListing;
     if (ml && typeof ml === "object") {
       const mlSlicing = parseSlicingAttributesFromProduct(ml);
       const mlSku = parseSkuComboVariantsFromProduct(ml);
-      const mlMatrix = buildMatrixFromSlicing(mlSlicing, mlSku);
+      const mlMatrix = buildMatrixFromSlicing(mlSlicing, mlSku, {
+        currentProductId,
+        currentColor,
+      });
+      traceVariants("merchant_listing", mlMatrix, { source: "merchantListing" });
       if (mlMatrix.length > 0) {
-        candidates.push(toSanitizedVariants(mlMatrix, title));
+        candidates.push(toSanitizedVariants(mlMatrix, title, input.url));
       }
     }
   }
 
   const urlColorVariants = applyUrlColorToVariants([], input.url);
   if (urlColorVariants.length > 0) {
-    candidates.push(toSanitizedVariants(urlColorVariants, title));
+    candidates.push(toSanitizedVariants(urlColorVariants, title, input.url));
   }
 
+  for (const [i, c] of candidates.entries()) {
+    traceVariants("richer_variant_selection_before", c, {
+      source: `candidate[${i}]`,
+      options: { score: variantRichnessScore(c) },
+    });
+  }
   let result = pickRicherTrendyolVariants(...candidates);
+  traceVariants("richer_variant_selection_after", result, { source: "pickRicher" });
   const urlColor = input.url ? colorFromTrendyolProductUrl(input.url) : null;
   if (urlColor && result.sizes.length > 0 && result.colors.length === 0) {
     result = toSanitizedVariants(
@@ -197,9 +244,11 @@ export function resolveTrendyolVariants(input: {
         inStock: v.inStock,
       })),
       title,
+      input.url,
     );
   }
 
+  traceVariants("resolver_output", result, { source: "resolveTrendyolVariants" });
   return result;
 }
 

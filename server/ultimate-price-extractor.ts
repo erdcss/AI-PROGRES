@@ -6,7 +6,13 @@
 import * as cheerio from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
 import { openaiPriceEnhancer } from './openai-price-enhancer';
-import { isTrendyolPromotionalPriceText } from './trendyol-price-utils';
+import {
+  isTrendyolPromotionalPriceText,
+  resolveTrendyolOriginalListPrice,
+  buildTrendyolPriceObject,
+  parseTurkishPriceText,
+} from './trendyol-price-utils';
+import { getTrendyolProductFromState } from './trendyol-product-state';
 
 // 10% standardized profit margin
 const PROFIT_MARGIN = 1.10;
@@ -38,6 +44,16 @@ export class UltimatePriceExtractor {
     console.log('🚨🚨🚨 DEBUGGING: ULTIMATE PRICE EXTRACTOR ENTRY POINT 🚨🚨🚨');
     console.log('🎯 ULTIMATE PRICE EXTRACTOR - Starting comprehensive extraction');
     console.log(`📄 HTML content length: ${this.htmlContent.length} characters`);
+
+    // ✅ TEK FİYAT SİSTEMİ: Merkezî resolver (originalPrice/listPrice → sellingPrice).
+    // Trendyol Plus / sepette / discountedPrice ASLA seçilmez. Yalnızca bu kaynak
+    // hiçbir şey bulamazsa aşağıdaki DOM/JSON stratejilerine (son çare) düşülür.
+    const centralPrice = this.tryCentralResolver();
+    if (centralPrice && centralPrice.original > 0) {
+      console.log(`✅ CENTRAL RESOLVER PRICE (authoritative): ${centralPrice.original} TL via ${centralPrice.method}`);
+      return centralPrice;
+    }
+    console.log('⚠️ Central resolver returned no price — falling back to DOM/JSON strategies');
 
     const allResults: ExtractedPrice[] = [];
 
@@ -180,6 +196,74 @@ export class UltimatePriceExtractor {
 
     console.log('❌ ALL EXTRACTION STRATEGIES FAILED');
     return this.createFallbackPrice();
+  }
+
+  /**
+   * ✅ Merkezî fiyat çözümleyici — tek doğruluk kaynağı.
+   * Öncelik: originalPrice / listPrice → sellingPrice.
+   * Plus / sepette / discountedPrice / kampanya fiyatı asla kullanılmaz.
+   */
+  private tryCentralResolver(): ExtractedPrice | null {
+    try {
+      const product = getTrendyolProductFromState(this.htmlContent);
+      const jsonLdPrice = this.extractJsonLdPriceValue();
+      const domPrice = this.extractOriginalDomPrice();
+      const original = resolveTrendyolOriginalListPrice({
+        html: this.htmlContent,
+        product: product ?? undefined,
+        jsonLdPrice,
+        domPrice,
+      });
+      if (original > 0) {
+        const built = buildTrendyolPriceObject(original);
+        return {
+          original: built.original,
+          currency: 'TL',
+          formatted: built.formatted,
+          withProfit: built.withProfit,
+          profitFormatted: built.profitFormatted,
+          method: 'Central Resolver (originalPrice/listPrice → sellingPrice)',
+          raw: `central:${built.original}`,
+        };
+      }
+    } catch (err) {
+      console.log('⚠️ Central resolver price failed:', (err as Error)?.message);
+    }
+    return null;
+  }
+
+  /** JSON-LD offers fiyatı (indirimli olabilir; resolver yalnızca gerektiğinde kullanır) */
+  private extractJsonLdPriceValue(): number {
+    try {
+      const scripts = this.$('script[type="application/ld+json"]');
+      for (let i = 0; i < scripts.length; i++) {
+        const content = this.$(scripts[i]).html();
+        if (!content) continue;
+        const data = JSON.parse(content);
+        const offers = Array.isArray(data.offers) ? data.offers[0] : data.offers;
+        const raw = offers?.price ?? offers?.lowPrice ?? data.price;
+        if (raw != null) {
+          const value = parseTurkishPriceText(String(raw)) || Number(raw);
+          if (Number.isFinite(value) && value > 0) return value;
+        }
+      }
+    } catch {
+      /* JSON-LD yoksa yok say */
+    }
+    return 0;
+  }
+
+  /** DOM'daki orijinal/üstü çizili fiyat — promosyon metinleri elenir */
+  private extractOriginalDomPrice(): number {
+    const selectors = ['.prc-org', '.original-price', '.price-original', '.was-price'];
+    for (const selector of selectors) {
+      const text = this.$(selector).first().text().trim();
+      if (text && !isTrendyolPromotionalPriceText(text)) {
+        const value = parseTurkishPriceText(text);
+        if (value > 0) return value;
+      }
+    }
+    return 0;
   }
 
   /**

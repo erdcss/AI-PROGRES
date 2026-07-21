@@ -4,10 +4,13 @@
 
 import type { CheerioAPI, Cheerio } from "cheerio";
 import { getTrendyolProductFromState, parseTrendyolProductDetailState } from "./trendyol-product-state";
+import { decodeTrendyolSizeValue } from "@shared/trendyol-variant-utils";
 
 export interface SlicingOption {
   name: string;
   inStock: boolean;
+  /** Renk seçeneğinin ayrı productId’si varsa kardeş ürün — çapraz beden uygulanmaz */
+  contentId?: string;
 }
 
 export interface SlicingAttributesData {
@@ -24,15 +27,25 @@ function isOutOfStockFlag(raw: unknown): boolean {
     s === "sold_out" ||
     s === "false" ||
     s.includes("tükendi") ||
-    s.includes("tukendi")
+    s.includes("tukendi") ||
+    s.includes("out_of_stock") ||
+    s.includes("outofstock")
   );
 }
 
 function itemInStock(item: Record<string, unknown>): boolean {
-  const stockState = item.stockState ?? item.stock ?? item.availability;
-  if (stockState != null && isOutOfStockFlag(stockState)) return false;
   if (item.inStock === false || item.available === false || item.selectable === false) return false;
-  if (item.disabled === true) return false;
+  if (item.disabled === true || item.isSoldOut === true || item.soldOut === true) return false;
+  if (item.hasStock === false || item.sellable === false || item.isSellable === false) return false;
+
+  const stockCount = item.stockCount ?? item.quantity ?? item.qty;
+  if (typeof stockCount === "number" && stockCount <= 0) return false;
+  if (typeof stockCount === "string" && stockCount.trim() !== "" && Number(stockCount) <= 0) {
+    return false;
+  }
+
+  const stockState = item.stockState ?? item.stock ?? item.availability ?? item.stockStatus;
+  if (stockState != null && isOutOfStockFlag(stockState)) return false;
   return true;
 }
 
@@ -52,11 +65,15 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
   const sizes: SlicingOption[] = [];
   if (!product || typeof product !== "object") return { colors, sizes };
 
-  const mergeOption = (list: SlicingOption[], entry: SlicingOption) => {
+  const mergeOption = (list: SlicingOption[], entry: SlicingOption, preferOos: boolean) => {
     const key = entry.name.toLowerCase();
     const existing = list.find((x) => x.name.toLowerCase() === key);
     if (existing) {
-      existing.inStock = existing.inStock || entry.inStock;
+      // Bedenlerde OOS kazanır; renklerde stoklu kazanabilir
+      existing.inStock = preferOos
+        ? existing.inStock && entry.inStock
+        : existing.inStock || entry.inStock;
+      if (!existing.contentId && entry.contentId) existing.contentId = entry.contentId;
       return;
     }
     list.push(entry);
@@ -91,9 +108,18 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
         const rec = item as Record<string, unknown>;
         const name = optionName(rec);
         if (!name || name.length > 40) continue;
-        const entry = { name, inStock: itemInStock(rec) };
-        if (isColor) mergeOption(colors, entry);
-        else if (isSize) mergeOption(sizes, entry);
+        const contentId = (() => {
+          for (const key of ["contentId", "productId", "productContentId", "id"]) {
+            const v = rec[key];
+            if (v == null) continue;
+            const digits = String(v).replace(/\D/g, "");
+            if (digits.length >= 5) return digits;
+          }
+          return undefined;
+        })();
+        const entry = { name, inStock: itemInStock(rec), contentId };
+        if (isColor) mergeOption(colors, entry, false);
+        else if (isSize) mergeOption(sizes, entry, true);
       }
     }
   }
@@ -107,12 +133,12 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
       const name = optionName(rec);
       if (!name) continue;
       const entry = { name, inStock: itemInStock(rec) };
-      if (attrType === 1 || attrType === "1") mergeOption(colors, entry);
-      else if (attrType === 2 || attrType === "2") mergeOption(sizes, entry);
+      if (attrType === 1 || attrType === "1") mergeOption(colors, entry, false);
+      else if (attrType === 2 || attrType === "2") mergeOption(sizes, entry, true);
       else {
         const attrName = String(rec.attributeName ?? "").toLowerCase();
-        if (attrName === "renk" || attrName === "color") mergeOption(colors, entry);
-        else if (attrName === "beden" || attrName === "size") mergeOption(sizes, entry);
+        if (attrName === "renk" || attrName === "color") mergeOption(colors, entry, false);
+        else if (attrName === "beden" || attrName === "size") mergeOption(sizes, entry, true);
       }
     }
   }
@@ -124,7 +150,7 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
       const rec = merchant as Record<string, unknown>;
       for (const key of ["color", "renk", "variantName", "name", "title"]) {
         const val = String(rec[key] ?? "").trim();
-        if (val && val.length < 40) mergeOption(colors, { name: val, inStock: true });
+        if (val && val.length < 40) mergeOption(colors, { name: val, inStock: true }, false);
       }
     }
   }
@@ -134,20 +160,20 @@ export function parseSlicingAttributesFromProduct(product: unknown): SlicingAttr
       (product as Record<string, unknown>).renk ??
       "",
   ).trim();
-  if (directColor) mergeOption(colors, { name: directColor, inStock: true });
+  if (directColor) mergeOption(colors, { name: directColor, inStock: true }, false);
 
   const colorOptions = (product as { colorOptions?: unknown[] }).colorOptions;
   if (Array.isArray(colorOptions)) {
     for (const opt of colorOptions) {
       if (typeof opt === "string") {
         const name = opt.trim();
-        if (name) mergeOption(colors, { name, inStock: true });
+        if (name) mergeOption(colors, { name, inStock: true }, false);
         continue;
       }
       if (!opt || typeof opt !== "object") continue;
       const rec = opt as Record<string, unknown>;
       const name = optionName(rec) || String(rec.text ?? rec.label ?? "").trim();
-      if (name) mergeOption(colors, { name, inStock: itemInStock(rec) });
+      if (name) mergeOption(colors, { name, inStock: itemInStock(rec) }, false);
     }
   }
 
@@ -249,6 +275,17 @@ export function parseSlicingAttributesFromHtml(htmlContent: string): SlicingAttr
     for (const s of parsed.sizes) mergeOption(sizes, s);
   }
 
+  const fromRegex = extractVariantsFromSlicingRegex(htmlContent);
+  for (const v of fromRegex) {
+    if (v.size) mergeOption(sizes, { name: v.size, inStock: v.inStock });
+    if (v.color) mergeOption(colors, { name: v.color, inStock: v.inStock });
+  }
+
+  for (const v of parseInlineListingVariantsFromHtml(htmlContent)) {
+    if (v.size) mergeOption(sizes, { name: v.size, inStock: v.inStock });
+    if (v.color) mergeOption(colors, { name: v.color, inStock: v.inStock });
+  }
+
   return { colors, sizes };
 }
 
@@ -345,6 +382,7 @@ export function parseSizeVariantsFromProduct(product: unknown): SlicingOption[] 
 
 export function isDomElementOutOfStock($el: Cheerio<unknown>): boolean {
   if ($el.is("[disabled]") || $el.attr("aria-disabled") === "true") return true;
+  if ($el.attr("data-disabled") === "true") return true;
   const cls = ($el.attr("class") || "").toLowerCase();
   if (
     cls.includes("disabled") ||
@@ -352,14 +390,20 @@ export function isDomElementOutOfStock($el: Cheerio<unknown>): boolean {
     cls.includes("sold-out") ||
     cls.includes("soldout") ||
     cls.includes("out-of-stock") ||
+    cls.includes("outofstock") ||
     cls.includes("not-available") ||
     cls.includes("unavailable") ||
     cls.includes("no-stock") ||
     cls.includes("tukendi") ||
-    cls.includes("tükendi")
+    cls.includes("tükendi") ||
+    cls.includes("strikethrough") ||
+    cls.includes("line-through") ||
+    cls.includes("crossed")
   ) {
     return true;
   }
+  const style = ($el.attr("style") || "").toLowerCase();
+  if (style.includes("line-through") || /opacity\s*:\s*0?\.[0-4]/.test(style)) return true;
   const text = ($el.text() || "").toLowerCase();
   if (/tükendi|tukendi|stokta yok|gelince haber ver/.test(text)) return true;
 
@@ -370,7 +414,10 @@ export function isDomElementOutOfStock($el: Cheerio<unknown>): boolean {
       pCls.includes("disabled") ||
       pCls.includes("passive") ||
       pCls.includes("sold-out") ||
-      pCls.includes("out-of-stock")
+      pCls.includes("soldout") ||
+      pCls.includes("out-of-stock") ||
+      pCls.includes("strikethrough") ||
+      pCls.includes("line-through")
     ) {
       return true;
     }
@@ -574,6 +621,39 @@ export function extractVariantsFromSlicingRegex(html: string): SlicingVariant[] 
   return variants;
 }
 
+/** Ham HTML içindeki listing variants[] (value + inStock) kayıtları */
+export function parseInlineListingVariantsFromHtml(html: string): SlicingVariant[] {
+  const variants: SlicingVariant[] = [];
+  const seen = new Set<string>();
+
+  const push = (size: string, inStock: boolean) => {
+    const decoded = decodeTrendyolSizeValue(size).trim();
+    if (!decoded || decoded.length > 12) return;
+    const key = decoded.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    variants.push({ color: "", colorCode: "", size: decoded, inStock });
+  };
+
+  for (const match of html.matchAll(
+    /\{[^{}]*"value"\s*:\s*"((?:\\.|[^"\\])*)"[^{}]*"inStock"\s*:\s*(true|false)/gi,
+  )) {
+    const raw = match[1] ?? "";
+    const decoded = decodeTrendyolSizeValue(raw);
+    if (
+      !/^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|S\/M|M\/L|L\/XL)$/i.test(decoded) &&
+      !/^(XXS|XS|S|M|L|XL|XXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|2XL|3XL)$/i.test(
+        decoded,
+      )
+    ) {
+      continue;
+    }
+    push(decoded, match[2] !== "false");
+  }
+
+  return variants;
+}
+
 export interface SlicingVariant {
   color: string;
   colorCode: string;
@@ -581,13 +661,29 @@ export interface SlicingVariant {
   inStock: boolean;
 }
 
-function mergeSlicingOptions(...lists: SlicingOption[][]): SlicingOption[] {
+function mergeSlicingOptions(
+  ...lists: SlicingOption[][]
+): SlicingOption[] {
+  return mergeSlicingOptionLists(lists, false);
+}
+
+function mergeSlicingSizeOptions(...lists: SlicingOption[][]): SlicingOption[] {
+  return mergeSlicingOptionLists(lists, true);
+}
+
+function mergeSlicingOptionLists(
+  lists: SlicingOption[][],
+  preferOos: boolean,
+): SlicingOption[] {
   const merged: SlicingOption[] = [];
   const mergeOption = (entry: SlicingOption) => {
     const key = entry.name.toLowerCase();
     const existing = merged.find((x) => x.name.toLowerCase() === key);
     if (existing) {
-      existing.inStock = existing.inStock || entry.inStock;
+      existing.inStock = preferOos
+        ? existing.inStock && entry.inStock
+        : existing.inStock || entry.inStock;
+      if (!existing.contentId && entry.contentId) existing.contentId = entry.contentId;
       return;
     }
     merged.push({ ...entry });
@@ -598,10 +694,13 @@ function mergeSlicingOptions(...lists: SlicingOption[][]): SlicingOption[] {
   return merged;
 }
 
-/** slicedAttributes renk×beden — SKU kombinasyon stoku öncelikli */
+/** slicedAttributes renk×beden — SKU kombinasyon stoku öncelikli.
+ *  Çok renkli ürünlerde global beden çaprazı YAPILMAZ; yalnızca mevcut renk veya SKU kanıtı.
+ */
 export function buildVariantMatrixFromSlicingData(
   slicing: SlicingAttributesData,
   skuVariants: SlicingVariant[] = [],
+  opts?: { currentProductId?: string; currentColor?: string },
 ): SlicingVariant[] {
   const colors = slicing.colors.filter((c) => c.name && c.name !== "Standart" && c.name !== "Varsayılan");
   const sizes = slicing.sizes.filter(
@@ -609,23 +708,80 @@ export function buildVariantMatrixFromSlicingData(
   );
 
   const skuWithBoth = skuVariants.filter((v) => v.color?.trim() && v.size?.trim());
+  const skuSizeOnly = skuVariants.filter((v) => !v.color?.trim() && v.size?.trim());
   const stockByKey = new Map(
     skuWithBoth.map((v) => [`${v.color.toLowerCase()}::${v.size.toLowerCase()}`, v.inStock]),
   );
   const hasSkuStock = stockByKey.size > 0;
 
+  // 1) SKU renk+beden kanıtı varsa yalnızca bunları kullan — uydurma çapraz YOK
+  if (hasSkuStock) {
+    const out: SlicingVariant[] = [];
+    const seen = new Set<string>();
+    for (const v of skuWithBoth) {
+      const key = `${v.color.toLowerCase()}::${v.size.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        color: v.color,
+        colorCode: "",
+        size: v.size,
+        inStock: v.inStock,
+      });
+    }
+    return out;
+  }
+
   const variants: SlicingVariant[] = [];
+  const distinctColorIds = [
+    ...new Set(colors.map((c) => c.contentId).filter((id): id is string => Boolean(id))),
+  ];
+  const multiColor = colors.length >= 2 || distinctColorIds.length >= 2;
+
+  const resolveCurrentColorName = (): string => {
+    const currentId = opts?.currentProductId?.replace(/\D/g, "") || "";
+    const currentColorOpt =
+      (currentId ? colors.find((c) => c.contentId === currentId) : undefined) ||
+      (opts?.currentColor
+        ? colors.find(
+            (c) =>
+              c.name.toLocaleLowerCase("tr-TR") ===
+              opts.currentColor!.toLocaleLowerCase("tr-TR"),
+          )
+        : undefined) ||
+      colors.find((c) => !c.contentId) ||
+      colors[0];
+    return currentColorOpt?.name || opts?.currentColor || colors[0]?.name || "";
+  };
+
+  // 2) Çok renk: yalnızca mevcut ürün rengi × bedenler (kardeşler ayrı çekilir)
+  if (multiColor && sizes.length > 0) {
+    const colorName = resolveCurrentColorName();
+    if (!colorName) return variants;
+    const sizeStockFromSku = new Map(
+      skuSizeOnly.map((v) => [v.size.toLowerCase(), v.inStock]),
+    );
+    for (const size of sizes) {
+      const fromSku = sizeStockFromSku.get(size.name.toLowerCase());
+      variants.push({
+        color: colorName,
+        colorCode: "",
+        size: size.name,
+        inStock: fromSku != null ? fromSku : size.inStock,
+      });
+    }
+    return variants;
+  }
 
   if (colors.length > 0 && sizes.length > 0) {
     for (const color of colors) {
       for (const size of sizes) {
-        const key = `${color.name.toLowerCase()}::${size.name.toLowerCase()}`;
-        const inStock = stockByKey.has(key)
-          ? stockByKey.get(key)!
-          : hasSkuStock
-            ? false
-            : color.inStock && size.inStock;
-        variants.push({ color: color.name, colorCode: "", size: size.name, inStock });
+        variants.push({
+          color: color.name,
+          colorCode: "",
+          size: size.name,
+          inStock: color.inStock && size.inStock,
+        });
       }
     }
     return variants;
@@ -639,14 +795,16 @@ export function buildVariantMatrixFromSlicingData(
   }
 
   if (sizes.length > 0) {
+    const sizeStockFromSku = new Map(
+      skuSizeOnly.map((v) => [v.size.toLowerCase(), v.inStock]),
+    );
     for (const size of sizes) {
+      const fromSku = sizeStockFromSku.get(size.name.toLowerCase());
       variants.push({
         color: "",
         colorCode: "",
         size: size.name,
-        inStock: stockByKey.has(`::${size.name.toLowerCase()}`)
-          ? stockByKey.get(`::${size.name.toLowerCase()}`)!
-          : size.inStock,
+        inStock: fromSku != null ? fromSku : size.inStock,
       });
     }
   }
@@ -665,7 +823,7 @@ function mergeSkuVariants(primary: SlicingVariant[], secondary: SlicingVariant[]
       byKey.set(key, v);
       continue;
     }
-    existing.inStock = existing.inStock || v.inStock;
+    existing.inStock = existing.inStock && v.inStock;
     if (!existing.color && v.color) existing.color = v.color;
     if (!existing.size && v.size) existing.size = v.size;
   }
@@ -694,7 +852,7 @@ export function buildVariantsFromSlicing(
 
   const mergedSlicing: SlicingAttributesData = {
     colors: mergeSlicingOptions(slicing.colors, ...extraSlicingSources.map((s) => s.colors)),
-    sizes: mergeSlicingOptions(slicing.sizes, ...extraSlicingSources.map((s) => s.sizes)),
+    sizes: mergeSlicingSizeOptions(slicing.sizes, ...extraSlicingSources.map((s) => s.sizes)),
   };
 
   const skuFromProduct = product ? parseSkuComboVariantsFromProduct(product) : [];
@@ -704,7 +862,18 @@ export function buildVariantsFromSlicing(
       : [];
   const skuVariants = mergeSkuVariants(skuFromProduct, skuFromState);
 
-  const matrixFromSlicing = buildVariantMatrixFromSlicingData(mergedSlicing, skuVariants);
+  const matrixFromSlicing = buildVariantMatrixFromSlicingData(mergedSlicing, skuVariants, {
+    currentProductId: (() => {
+      const p = product as Record<string, unknown> | null | undefined;
+      if (!p) return undefined;
+      for (const key of ["productId", "contentId", "id"]) {
+        const digits = String(p[key] ?? "").replace(/\D/g, "");
+        if (digits.length >= 5) return digits;
+      }
+      return undefined;
+    })(),
+    currentColor: typeof product?.color === "string" ? product.color : undefined,
+  });
   if (matrixFromSlicing.length > 0 && skuVariants.filter((v) => v.color && v.size).length === 0) {
     return matrixFromSlicing;
   }
@@ -793,41 +962,52 @@ export function buildVariantsFromSlicing(
   const domMatrix = buildVariantMatrixFromSlicingData(
     { colors: domColorOptions, sizes: domSizeOptions },
     skuVariants,
+    {
+      currentProductId: (() => {
+        const p = product as Record<string, unknown> | null | undefined;
+        if (!p) return undefined;
+        for (const key of ["productId", "contentId", "id"]) {
+          const digits = String(p[key] ?? "").replace(/\D/g, "");
+          if (digits.length >= 5) return digits;
+        }
+        return undefined;
+      })(),
+      currentColor: typeof product?.color === "string" ? product.color : undefined,
+    },
   );
   if (domMatrix.length > 0) return domMatrix;
 
+  // Fallback: çok renk çaprazı YOK — mevcut renk × bedenler
   const variants: SlicingVariant[] = [];
-  if (domColorOptions.length > 0 && domSizeOptions.length > 0) {
-    for (const color of domColorOptions) {
-      for (const size of domSizeOptions) {
-        variants.push({
-          color: color.name,
-          colorCode: "",
-          size: size.name,
-          inStock: color.inStock && size.inStock,
-        });
-      }
+  if (domSizeOptions.length > 0) {
+    const colorName =
+      (typeof product?.color === "string" && product.color) ||
+      domColorOptions[0]?.name ||
+      "";
+    for (const size of domSizeOptions) {
+      variants.push({
+        color: colorName,
+        colorCode: "",
+        size: size.name,
+        inStock: size.inStock,
+      });
     }
   } else if (domColorOptions.length > 0) {
     for (const color of domColorOptions) {
       variants.push({ color: color.name, colorCode: "", size: "", inStock: color.inStock });
     }
-  } else if (domSizeOptions.length >= 1) {
-    for (const size of domSizeOptions) {
-      variants.push({ color: "", colorCode: "", size: size.name, inStock: size.inStock });
-    }
   }
 
   if (variants.length === 0 && product) {
-    const skuVariants = parseSkuComboVariantsFromProduct(product);
-    if (skuVariants.length > 0) return skuVariants;
+    const skuOnly = parseSkuComboVariantsFromProduct(product);
+    if (skuOnly.length > 0) return skuOnly;
   }
 
   if (variants.length > 0 && product) {
-    const skuVariants = parseSkuComboVariantsFromProduct(product);
-    if (skuVariants.length > 0) {
+    const skuOnly = parseSkuComboVariantsFromProduct(product);
+    if (skuOnly.length > 0) {
       const stockByKey = new Map(
-        skuVariants.map((v) => [`${v.color.toLowerCase()}::${v.size.toLowerCase()}`, v.inStock]),
+        skuOnly.map((v) => [`${v.color.toLowerCase()}::${v.size.toLowerCase()}`, v.inStock]),
       );
       return variants.map((v) => {
         const key = `${v.color.toLowerCase()}::${v.size.toLowerCase()}`;
@@ -860,6 +1040,14 @@ export function extractSizesWithStockFromDom($: CheerioAPI): SlicingOption[] {
     const t = text.trim();
     if (!t || t.length > 12) return false;
     if (/^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i.test(t)) return true;
+    // Combo beden: S/M, M/L, L/XL (üstü çizili OOS dahil)
+    if (
+      /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i.test(
+        t,
+      )
+    ) {
+      return true;
+    }
     if (/^\d{2}$/.test(t)) {
       const n = parseInt(t, 10);
       return n >= 20 && n <= 60;

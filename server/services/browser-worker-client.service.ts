@@ -23,6 +23,29 @@ export type BrowserWorkerHealthStatus = {
   errorCategory: BrowserWorkerErrorCategory | null;
 };
 
+export type BrowserWorkerColorSiblingCandidate = {
+  productId: string;
+  url: string;
+  color?: string;
+  image?: string;
+  images?: string[];
+  inStock?: boolean;
+  source?: string;
+};
+
+export type BrowserWorkerColorFamilyMember = {
+  productId: string;
+  url: string;
+  finalUrl?: string;
+  color: string;
+  images: string[];
+  rawProductJson?: Record<string, unknown> | null;
+  html?: string;
+  ok: boolean;
+  error?: string;
+  hydratedSnapshot?: Record<string, unknown>;
+};
+
 export type BrowserWorkerTrendyolResponse = {
   ok: boolean;
   url?: string;
@@ -31,6 +54,8 @@ export type BrowserWorkerTrendyolResponse = {
   html?: string;
   jsonLd?: unknown[];
   rawProductJson?: Record<string, unknown>;
+  colorSiblingCandidates?: BrowserWorkerColorSiblingCandidate[];
+  colorFamilyMembers?: BrowserWorkerColorFamilyMember[];
   durationMs?: number;
   error?: string;
   errorCategory?: string;
@@ -44,6 +69,8 @@ export type BrowserWorkerScrapeResult = {
   finalUrl: string | null;
   status: number | null;
   durationMs: number;
+  colorSiblingCandidates?: BrowserWorkerColorSiblingCandidate[];
+  colorFamilyMembers?: BrowserWorkerColorFamilyMember[];
   error?: string;
   errorCategory?: BrowserWorkerErrorCategory;
   stageError?: string;
@@ -337,11 +364,15 @@ export async function fetchHtmlWithBrowserWorker(url: string): Promise<BrowserWo
   }
 }
 
-export async function scrapeTrendyolWithBrowserWorker(url: string): Promise<BrowserWorkerScrapeResult> {
+export async function scrapeTrendyolWithBrowserWorker(
+  url: string,
+  options?: { includeColorFamily?: boolean; includeSiblingHtml?: boolean },
+): Promise<BrowserWorkerScrapeResult> {
   const start = Date.now();
   const { endpoint, token, configured, endpointConfigured, tokenConfigured, timeoutMs } =
     getBrowserWorkerConfig();
   const endpointHost = extractSafeBrowserWorkerHost(endpoint);
+  const includeColorFamily = options?.includeColorFamily !== false;
 
   logBrowserWorker(`endpoint configured: ${endpointConfigured ? "yes" : "no"}`);
   logBrowserWorker(`endpoint host: ${endpointHost ?? "(yok)"}`);
@@ -369,9 +400,14 @@ export async function scrapeTrendyolWithBrowserWorker(url: string): Promise<Brow
   try {
     const response = await axios.post(
       `${base}/scrape/trendyol`,
-      { url },
       {
-        timeout: timeoutMs,
+        url,
+        includeColorFamily,
+        includeSiblingHtml: options?.includeSiblingHtml === true,
+      },
+      {
+        // Renk ailesi crawl için ekstra süre
+        timeout: includeColorFamily ? Math.max(timeoutMs, 90_000) : timeoutMs,
         headers: authHeaders(token),
         validateStatus: () => true,
       },
@@ -406,6 +442,8 @@ export async function scrapeTrendyolWithBrowserWorker(url: string): Promise<Brow
         finalUrl: data.finalUrl ?? null,
         status: data.status ?? response.status,
         durationMs,
+        colorSiblingCandidates: data.colorSiblingCandidates,
+        colorFamilyMembers: data.colorFamilyMembers,
         error: data.error ?? "browser-worker-failed",
         errorCategory: (data.errorCategory as BrowserWorkerErrorCategory) ?? "unknown",
         stageError: "browser-worker-failed",
@@ -424,6 +462,8 @@ export async function scrapeTrendyolWithBrowserWorker(url: string): Promise<Brow
       finalUrl: data.finalUrl ?? null,
       status: data.status ?? response.status,
       durationMs,
+      colorSiblingCandidates: data.colorSiblingCandidates,
+      colorFamilyMembers: data.colorFamilyMembers,
     };
   } catch (err) {
     const categorized = categorizeBrowserWorkerError(err);

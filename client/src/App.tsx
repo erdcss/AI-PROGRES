@@ -43,6 +43,7 @@ import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import MemoryDashboard from "@/pages/memory-dashboard";
 import ShopifySystemPage from "@/pages/ShopifySystemPage";
+import ShopifyCategoriesPage from "@/pages/shopify-categories";
 import { MatrixBackground } from "@/components/MatrixBackground";
 import {
   ensureAppSessionRestored,
@@ -405,6 +406,11 @@ function Router() {
       <Route path="/urun-takip">
         <PageTransition>
           <UrunTakipPage />
+        </PageTransition>
+      </Route>
+      <Route path="/kategoriler">
+        <PageTransition>
+          <ShopifyCategoriesPage />
         </PageTransition>
       </Route>
       <Route path="/memory-dashboard">

@@ -2,6 +2,7 @@
 
 import {
   isClothingProduct,
+  isConfirmedClothingProduct,
   isStandardClothingSize,
 } from "./clothing-keywords";
 import { normalizeTrendyolColorName } from "./trendyol-color-normalizer";
@@ -36,6 +37,62 @@ const PLACEHOLDER_COLORS = new Set([
 
 export interface SanitizeVariantOptions {
   productTitle?: string;
+  sourceUrl?: string;
+}
+
+/** Varyant birleştirme anahtarı — SKU veya productId TEK BAŞINA kullanılmaz. */
+export function trendyolVariantDedupeKey(color: string, size: string): string {
+  const c = (color || "").trim().toLowerCase();
+  const s = (size || "").trim().toLowerCase();
+  return `${c}::${s}`;
+}
+
+function variantMetadataRichness(v: SanitizedVariant): number {
+  return (
+    (v.image ? 2 : 0) +
+    (v.images?.length ?? 0) +
+    (v.sourceProductId ? 2 : 0) +
+    (v.sourceUrl ? 1 : 0) +
+    (v.listingId ? 1 : 0) +
+    (v.price != null && String(v.price).trim() !== "" ? 1 : 0) +
+    (typeof v.stockCount === "number" ? 1 : 0) +
+    (v.colorCode ? 1 : 0)
+  );
+}
+
+function dedupeVariantList(list: SanitizedVariant[]): SanitizedVariant[] {
+  const map = new Map<string, SanitizedVariant>();
+  for (const v of list) {
+    const key = trendyolVariantDedupeKey(v.color, v.size);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, v);
+      continue;
+    }
+    // Aynı renk+beden: stok + daha zengin metadata öncelikli
+    const preferIncomingStock = existing.inStock === false && v.inStock !== false;
+    const keepExistingStock = v.inStock === false && existing.inStock !== false;
+    if (keepExistingStock) {
+      map.set(key, existing);
+      continue;
+    }
+    if (preferIncomingStock || variantMetadataRichness(v) >= variantMetadataRichness(existing)) {
+      map.set(key, {
+        ...existing,
+        ...v,
+        inStock: preferIncomingStock ? true : v.inStock !== false && existing.inStock !== false,
+        image: v.image || existing.image,
+        images: (v.images?.length ?? 0) >= (existing.images?.length ?? 0) ? v.images : existing.images,
+        sourceProductId: v.sourceProductId || existing.sourceProductId,
+        sourceUrl: v.sourceUrl || existing.sourceUrl,
+        listingId: v.listingId || existing.listingId,
+        price: v.price ?? existing.price,
+        stockCount: v.stockCount ?? existing.stockCount,
+        colorCode: v.colorCode || existing.colorCode,
+      });
+    }
+  }
+  return [...map.values()];
 }
 
 export function isPlaceholderSize(size: unknown): boolean {
@@ -46,7 +103,76 @@ export function isPlaceholderSize(size: unknown): boolean {
 
 export function isPlaceholderColor(color: unknown): boolean {
   if (color == null) return true;
+  const normalized = String(color).trim().toLowerCase();
+  if (normalized === "" || PLACEHOLDER_COLORS.has(normalized)) return true;
   return normalizeTrendyolColorName(color) === null;
+}
+
+export type TrackingVariantInput = {
+  color?: string | null;
+  size?: string | null;
+  option1Name?: string | null;
+  option1Value?: string | null;
+  option2Name?: string | null;
+  option2Value?: string | null;
+};
+
+function isRenkOptionName(name: string): boolean {
+  const n = name.toLowerCase();
+  return n.includes("renk") || n === "color";
+}
+
+function isBedenOptionName(name: string): boolean {
+  const n = name.toLowerCase();
+  return n.includes("beden") || n === "size";
+}
+
+/** Canonical / Shopify varyantından takip için renk ve beden çıkarır */
+export function resolveTrackingVariantColorSize(input: TrackingVariantInput): {
+  color: string | null;
+  size: string | null;
+} {
+  const explicitColor = input.color?.trim();
+  if (explicitColor && !isPlaceholderColor(explicitColor)) {
+    const explicitSize = input.size?.trim();
+    return {
+      color: explicitColor,
+      size: explicitSize && !isPlaceholderSize(explicitSize) ? explicitSize : null,
+    };
+  }
+
+  const o1n = input.option1Name || "";
+  const o2n = input.option2Name || "";
+  const o1v = input.option1Value?.trim() || "";
+  const o2v = input.option2Value?.trim() || "";
+
+  let color: string | null = null;
+  let size: string | null = null;
+
+  if (isRenkOptionName(o1n)) {
+    if (o1v && !isPlaceholderColor(o1v)) color = o1v;
+    if (o2v && isBedenOptionName(o2n) && !isPlaceholderSize(o2v)) size = o2v;
+  } else if (isBedenOptionName(o1n)) {
+    if (o1v && !isPlaceholderSize(o1v)) size = o1v;
+    if (o2v && isRenkOptionName(o2n) && !isPlaceholderColor(o2v)) color = o2v;
+  }
+
+  const fallbackSize = input.size?.trim();
+  if (!size && fallbackSize && !isPlaceholderSize(fallbackSize)) size = fallbackSize;
+
+  return { color, size };
+}
+
+export function buildTrackingVariantLabel(
+  color: string | null | undefined,
+  size: string | null | undefined,
+  fallback?: string | null,
+): string | null {
+  const parts: string[] = [];
+  if (color && !isPlaceholderColor(color)) parts.push(color);
+  if (size && !isPlaceholderSize(size)) parts.push(`Beden ${size}`);
+  if (parts.length > 0) return parts.join(" · ");
+  return fallback?.trim() || null;
 }
 
 export interface SanitizedVariant {
@@ -54,6 +180,13 @@ export interface SanitizedVariant {
   size: string;
   inStock: boolean;
   colorCode?: string;
+  image?: string;
+  images?: string[];
+  sourceProductId?: string;
+  sourceUrl?: string;
+  listingId?: string;
+  price?: string | number;
+  stockCount?: number | null;
 }
 
 export interface SanitizedVariants {
@@ -78,47 +211,153 @@ function normalizeStringList(items: unknown): string[] {
   return [...new Set(out)];
 }
 
-function isFakeSizeForProduct(size: unknown, productTitle?: string): boolean {
+function isFakeSizeForProduct(
+  size: unknown,
+  productTitle?: string,
+  sourceUrl?: string,
+): boolean {
   if (isPlaceholderSize(size)) return true;
-  if (productTitle && !isClothingProduct(productTitle) && isStandardClothingSize(size)) {
+  if (
+    !isConfirmedClothingProduct(productTitle || "", sourceUrl) &&
+    isStandardClothingSize(size)
+  ) {
     return true;
   }
   return false;
 }
 
+const COMBO_SIZE_PATTERN =
+  /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i;
+
+/** Trendyol combo beden etiketi (ör. S/M, M/L, L/XL) */
+export function isComboSizeLabel(size: string): boolean {
+  return COMBO_SIZE_PATTERN.test(decodeTrendyolSizeValue(size).trim());
+}
+
+/** JSON/HTML kaçışlı beden değerini düz metne çevirir (S\u002FM → S/M). */
+export function decodeTrendyolSizeValue(raw: string): string {
+  const t = String(raw ?? "").trim();
+  if (!t) return t;
+  return t.replace(/\\u002[fF]/g, "/").replace(/\\\//g, "/");
+}
+
+function normalizeAtomicSizeLabel(size: string): string | null {
+  const t = decodeTrendyolSizeValue(size).trim().toUpperCase();
+  if (t === "STD") return "Standart";
+  if (/^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL)$/.test(t)) return t;
+  return null;
+}
+
+/**
+ * Combo bedeni atomik bedenlere açar.
+ * S/M → [S, M], M/L → [M, L], L/XL → [L, XL]
+ */
+export function expandComboSizeToLabels(size: string): string[] | null {
+  const decoded = decodeTrendyolSizeValue(size).trim();
+  const m = decoded.match(COMBO_SIZE_PATTERN);
+  if (!m) return null;
+  const a = normalizeAtomicSizeLabel(m[1]!);
+  const b = normalizeAtomicSizeLabel(m[2]!);
+  if (!a || !b) return null;
+  return [...new Set([a, b])];
+}
+
+function expandComboVariants(list: SanitizedVariant[]): SanitizedVariant[] {
+  const byKey = new Map<string, SanitizedVariant>();
+  for (const v of list) {
+    const expanded = expandComboSizeToLabels(v.size);
+    const targets = expanded ?? [decodeTrendyolSizeValue(v.size)];
+    for (const size of targets) {
+      const key = trendyolVariantDedupeKey(v.color, size);
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, { ...v, size });
+        continue;
+      }
+      // Aynı atomik beden birden fazla combo'dan geliyorsa: herhangi biri tükendiyse OOS.
+      existing.inStock = existing.inStock !== false && v.inStock !== false;
+      byKey.set(key, existing);
+    }
+  }
+  return [...byKey.values()];
+}
+
 function toVariantRecord(
   raw: unknown,
   productTitle?: string,
+  sourceUrl?: string,
 ): SanitizedVariant | null {
   if (!raw || typeof raw !== "object") return null;
   const v = raw as Record<string, unknown>;
   const colorRaw = String(v.color ?? v.colorName ?? v.name ?? "").trim();
   const size = String(v.size ?? v.sizeName ?? v.value ?? "").trim();
-  const color = normalizeTrendyolColorName(colorRaw) ?? (colorRaw ? "" : "");
+  const normalizedColor = normalizeTrendyolColorName(colorRaw);
+  // "Tek Renk" gibi placeholder'lar gerçek renk sayılmaz
+  const color =
+    normalizedColor && !isPlaceholderColor(normalizedColor) ? normalizedColor : "";
   const inStock = v.inStock !== false && v.inStock !== "false";
   const colorCode = v.colorCode ? String(v.colorCode) : undefined;
 
   const fakeColor = !color;
-  const fakeSize = isFakeSizeForProduct(size, productTitle);
+  const decodedSize = decodeTrendyolSizeValue(size);
+  if (
+    isComboSizeLabel(decodedSize) &&
+    !isConfirmedClothingProduct(productTitle || "", sourceUrl)
+  ) {
+    return null;
+  }
+  const fakeSize = isFakeSizeForProduct(decodedSize, productTitle, sourceUrl);
   if (fakeColor && fakeSize) return null;
+
+  const images = Array.isArray(v.images)
+    ? v.images.filter((u): u is string => typeof u === "string" && /^https?:\/\//i.test(u))
+    : undefined;
+  const image =
+    typeof v.image === "string" && /^https?:\/\//i.test(v.image)
+      ? v.image
+      : images?.[0];
+  const sourceProductId = v.sourceProductId != null ? String(v.sourceProductId) : undefined;
+  const variantSourceUrl = typeof v.sourceUrl === "string" ? v.sourceUrl : undefined;
+  const listingId =
+    v.listingId != null
+      ? String(v.listingId)
+      : v.sourceListingId != null
+        ? String(v.sourceListingId)
+        : undefined;
+  const price =
+    typeof v.price === "number" || typeof v.price === "string" ? v.price : undefined;
+  const stockCount =
+    typeof v.stockCount === "number"
+      ? v.stockCount
+      : typeof v.sourceStockQty === "number"
+        ? v.sourceStockQty
+        : null;
 
   return {
     color: fakeColor ? "" : color,
-    size: fakeSize ? "" : size,
+    size: fakeSize ? "" : decodedSize,
     inStock,
     colorCode,
+    image,
+    images,
+    sourceProductId,
+    sourceUrl: variantSourceUrl,
+    listingId,
+    price,
+    stockCount,
   };
 }
 
 function finalizeVariants(
   rawList: SanitizedVariant[],
   productTitle?: string,
+  sourceUrl?: string,
 ): SanitizedVariants {
   const hasRealSizes = rawList.some(
-    (v) => v.size && !isFakeSizeForProduct(v.size, productTitle),
+    (v) => v.size && !isFakeSizeForProduct(v.size, productTitle, sourceUrl),
   );
 
-  let list = rawList;
+  let list = dedupeVariantList(expandComboVariants(rawList));
   if (!hasRealSizes) {
     list = list.map((v) => ({ ...v, size: "" }));
   }
@@ -133,7 +372,7 @@ function finalizeVariants(
     ...new Set(
       allVariants
         .map((v) => v.size)
-        .filter((s) => s && !isFakeSizeForProduct(s, productTitle)),
+        .filter((s) => s && !isFakeSizeForProduct(s, productTitle, sourceUrl)),
     ),
   ];
 
@@ -153,11 +392,12 @@ export function sanitizeTrendyolVariants(
   if (!variants) return empty;
 
   const productTitle = options?.productTitle;
+  const sourceUrl = options?.sourceUrl;
   let rawList: SanitizedVariant[] = [];
 
   if (Array.isArray(variants)) {
     rawList = variants
-      .map((v) => toVariantRecord(v, productTitle))
+      .map((v) => toVariantRecord(v, productTitle, sourceUrl))
       .filter((v): v is SanitizedVariant => v !== null);
   } else if (typeof variants === "object") {
     const record = variants as {
@@ -171,7 +411,7 @@ export function sanitizeTrendyolVariants(
 
     if (Array.isArray(record.items) && record.items.length > 0) {
       rawList = record.items
-        .map((v) => toVariantRecord(v, productTitle))
+        .map((v) => toVariantRecord(v, productTitle, sourceUrl))
         .filter((v): v is SanitizedVariant => v !== null);
     } else if (record.stockMap && typeof record.stockMap === "object") {
       const colors = normalizeStringList(record.colors);
@@ -191,19 +431,20 @@ export function sanitizeTrendyolVariants(
         const rec = toVariantRecord(
           { color: color || undefined, size: size || undefined, inStock },
           productTitle,
+          sourceUrl,
         );
         if (rec) rawList.push(rec);
       }
     } else if (Array.isArray(record.allVariants) && record.allVariants.length > 0) {
       rawList = record.allVariants
-        .map((v) => toVariantRecord(v, productTitle))
+        .map((v) => toVariantRecord(v, productTitle, sourceUrl))
         .filter((v): v is SanitizedVariant => v !== null);
     } else {
       const colors = normalizeStringList(record.colors)
         .map((c) => normalizeTrendyolColorName(c))
         .filter((c): c is string => Boolean(c));
-      const sizes = (record.sizes || []).filter(
-        (s) => !isFakeSizeForProduct(s, productTitle),
+      const sizes = normalizeStringList(record.sizes || record.availableSizes).filter(
+        (s) => !isFakeSizeForProduct(s, productTitle, sourceUrl),
       );
 
       if (colors.length > 0 && sizes.length > 0) {
@@ -220,7 +461,7 @@ export function sanitizeTrendyolVariants(
     }
   }
 
-  return finalizeVariants(rawList, productTitle);
+  return finalizeVariants(rawList, productTitle, sourceUrl);
 }
 
 export const EMPTY_TRENDYOL_VARIANTS: SanitizedVariants = {
@@ -236,13 +477,34 @@ export function hasRealTrendyolVariants(variants: SanitizedVariants | null | und
   return variants.colors.length > 0 || variants.sizes.length > 0;
 }
 
-/** Daha zengin varyant setini seç (renk × beden matrisi öncelikli) */
+/** Daha zengin varyant setini seç — benzersiz beden sayısı öncelikli */
 export function variantRichnessScore(variants: SanitizedVariants | null | undefined): number {
   if (!variants) return 0;
   const colorCount = variants.colors?.length ?? 0;
-  const sizeCount = variants.sizes?.length ?? 0;
+  const uniqueSizes = new Set<string>();
+  for (const v of variants.allVariants || []) {
+    const expanded = expandComboSizeToLabels(v.size || "");
+    if (expanded) {
+      for (const s of expanded) uniqueSizes.add(s.toLowerCase());
+    } else if (v.size?.trim()) {
+      uniqueSizes.add(v.size.trim().toLowerCase());
+    }
+  }
+  const sizeCount = uniqueSizes.size || variants.sizes?.length || 0;
   const matrixCount = variants.allVariants?.length ?? 0;
-  return matrixCount * 100 + colorCount * 10 + sizeCount;
+  const allInStock =
+    matrixCount > 0 && (variants.allVariants || []).every((v) => v.inStock !== false);
+  // Kör renk×beden çaprazı (hepsi stoklu) — zengin sayma; gerçek stoklu setleri ezmesin
+  const looksLikeBlindCross =
+    colorCount >= 2 &&
+    sizeCount >= 2 &&
+    matrixCount >= colorCount * sizeCount &&
+    allInStock;
+  if (looksLikeBlindCross) {
+    return sizeCount * 50 + colorCount * 5;
+  }
+  // Beden çeşitliliği en yüksek öncelik (4 beden > 1 beden her zaman).
+  return sizeCount * 1000 + matrixCount * 100 + colorCount * 10;
 }
 
 export function pickRicherTrendyolVariants(
@@ -253,12 +515,15 @@ export function pickRicherTrendyolVariants(
 
   for (const candidate of candidates) {
     if (!candidate) continue;
-    const sanitized = sanitizeTrendyolVariants(candidate);
-    if (!hasRealTrendyolVariants(sanitized)) continue;
-    const score = variantRichnessScore(sanitized);
+    // Adaylar zaten sanitize edildiyse context kaybetmemek için tekrar sanitize etme.
+    const ready = hasRealTrendyolVariants(candidate)
+      ? candidate
+      : sanitizeTrendyolVariants(candidate);
+    if (!hasRealTrendyolVariants(ready)) continue;
+    const score = variantRichnessScore(ready);
     if (score > bestScore) {
       bestScore = score;
-      best = sanitized;
+      best = ready;
     }
   }
 
@@ -303,26 +568,28 @@ export function summarizeVariantStock(variants: SanitizedVariants): VariantStock
   };
 
   for (const v of variants.allVariants) {
-    if (v.color?.trim()) {
+    if (v.color?.trim() && !isPlaceholderColor(v.color)) {
       upsert(colorStock, v.color.trim(), v.inStock !== false);
     }
-    if (v.size?.trim()) {
+    if (v.size?.trim() && !isPlaceholderSize(v.size)) {
       upsert(sizeStock, v.size.trim(), v.inStock !== false);
     }
   }
 
+  // Matris yoksa eski davranış; matris varsa listede olup matriste olmayanlar stokta sayılmaz
+  const hasMatrix = variants.allVariants.length > 0;
   for (const c of variants.colors) {
-    if (!c?.trim()) continue;
+    if (!c?.trim() || isPlaceholderColor(c)) continue;
     const key = c.trim().toLowerCase();
     if (!colorStock.has(key)) {
-      colorStock.set(key, { name: c.trim(), inStock: true });
+      colorStock.set(key, { name: c.trim(), inStock: !hasMatrix });
     }
   }
   for (const s of variants.sizes) {
     if (!s?.trim()) continue;
     const key = s.trim().toLowerCase();
     if (!sizeStock.has(key)) {
-      sizeStock.set(key, { name: s.trim(), inStock: true });
+      sizeStock.set(key, { name: s.trim(), inStock: !hasMatrix });
     }
   }
 

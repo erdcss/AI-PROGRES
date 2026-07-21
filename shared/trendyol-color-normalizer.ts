@@ -20,6 +20,18 @@ const REJECT_COLOR_TEXT =
 
 const SLUG_LIKE = /^[A-Z0-9ÇĞİÖŞÜ]{10,}$/;
 
+const COLOR_ALIASES: Record<string, string> = {
+  fusya: "Fuşya",
+  kirmizi: "Kırmızı",
+  sari: "Sarı",
+  yesil: "Yeşil",
+  "fistik-yesili": "Fıstık Yeşili",
+  "neon-yesili": "Neon Yeşili",
+  "neon-sari": "Neon Sarı",
+  "gul-kurusu": "Gül Kurusu",
+  "mavi-c": "Mavi",
+};
+
 export const KNOWN_TRENDYOL_COLORS = [
   "Antrasit",
   "Bej",
@@ -64,7 +76,15 @@ export const KNOWN_TRENDYOL_COLORS = [
 function titleCaseTurkish(value: string): string {
   const t = value.trim();
   if (!t) return t;
-  return t.charAt(0).toLocaleUpperCase("tr-TR") + t.slice(1).toLocaleLowerCase("tr-TR");
+  return t
+    .split(/([\s/-]+)/)
+    .map((part) =>
+      /^[\s/-]+$/.test(part)
+        ? part
+        : part.charAt(0).toLocaleUpperCase("tr-TR") +
+          part.slice(1).toLocaleLowerCase("tr-TR"),
+    )
+    .join("");
 }
 
 function stripTrailingVariantIndex(raw: string): string {
@@ -119,9 +139,9 @@ export function normalizeTrendyolColorName(input: unknown): string | null {
   if (raw.length > 40) return null;
 
   const lower = raw.toLocaleLowerCase("tr-TR");
-  if (lower === "tek renk") return "Tek Renk";
   if (INVALID_COLOR_LABELS.has(lower)) return null;
   if (REJECT_COLOR_TEXT.test(raw)) return null;
+  if (COLOR_ALIASES[lower]) return COLOR_ALIASES[lower];
 
   const knownDirect = findKnownColor(raw);
   if (knownDirect) return knownDirect;

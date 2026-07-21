@@ -61,16 +61,9 @@ export interface ResolvedShopifyConfig {
   error?: string;
 }
 
-/** OAuth authorize + code exchange — önce shpsec_, yoksa legacy shpss_ (imza anahtarı) */
+/** OAuth authorize + code exchange için Client Secret (prefix'e bakılmaz) */
 export function resolveOAuthExchangeSecret(): string {
-  const grant = resolveTokenGrantClientSecret();
-  if (grant) return grant;
-  const legacy = [
-    process.env.SHOPIFY_CLIENT_SECRET?.trim(),
-    process.env.secret_key?.trim(),
-    process.env.SHOPIFY_APP_SHARED_SECRET?.trim(),
-  ].filter(Boolean) as string[];
-  return legacy[0] || '';
+  return resolveTokenGrantClientSecret();
 }
 
 function readEnvOAuthCredentials(): {
@@ -220,21 +213,22 @@ export function resolveClientSecretSource():
   return 'missing';
 }
 
-/** shpss_ yalnızca OAuth imza / webhook doğrulama içindir — token grant ile kullanılamaz */
-export function isSharedSigningSecret(value: string): boolean {
-  return value.trim().startsWith('shpss_');
-}
-
-/** client_credentials ve OAuth token exchange için kullanılabilir secret */
+/**
+ * client_credentials ve OAuth token exchange için Client Secret.
+ *
+ * Resmi Shopify Dev Dashboard akışında Client Secret'ın belirli bir prefix'i
+ * (shpsec_ vb.) olması ŞART DEĞİLDİR — shpss_ ile başlayan gerçek secret'lar da
+ * geçerlidir. Bu nedenle prefix'e göre eleme yapılmaz; değer mevcut ve boş
+ * olmadığı sürece kullanılır.
+ */
 export function resolveTokenGrantClientSecret(): string {
   const candidates = [
     process.env.SHOPIFY_CLIENT_SECRET?.trim(),
     process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim(),
+    process.env.secret_key?.trim(),
+    process.env.SHOPIFY_APP_SHARED_SECRET?.trim(),
   ].filter(Boolean) as string[];
-  for (const secret of candidates) {
-    if (!isSharedSigningSecret(secret)) return secret;
-  }
-  return '';
+  return candidates[0] || '';
 }
 
 export function hasUsableClientSecretForRefresh(): boolean {
@@ -368,17 +362,10 @@ export async function syncEnvApiKeyToDB(): Promise<void> {
 export async function syncNewTokenToDB(): Promise<void> {
   const newToken =
     process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ||
-    process.env.SHOPIFY_ACCESS_TOKEN ||
-    process.env.SHOPIFY_APP_SECRET_NEW;
+    process.env.SHOPIFY_ACCESS_TOKEN;
   const shopDomain = envShopDomain();
 
   if (!newToken || !shopDomain) return;
-
-  if (process.env.SHOPIFY_APP_SECRET_NEW && !process.env.SHOPIFY_ADMIN_ACCESS_TOKEN && !process.env.SHOPIFY_ACCESS_TOKEN) {
-    console.warn(
-      '[SHOPIFY] SHOPIFY_APP_SECRET_NEW kullanılıyor — bu isim yanıltıcı. SHOPIFY_ADMIN_ACCESS_TOKEN kullanın.',
-    );
-  }
 
   try {
     const rows = await db
@@ -418,11 +405,6 @@ export async function saveShopifyCredentials(data: {
   apiSecret: string;
   accessToken?: string;
 }): Promise<void> {
-  if (isSharedSigningSecret(data.apiSecret)) {
-    throw new Error(
-      'shpss_ OAuth imza anahtarı API secret olarak kaydedilemez. Dev Dashboard Client Secret (shpsec_...) kullanın.',
-    );
-  }
   const cleanDomain = normalizeShopDomain(data.shopDomain);
   const existing = await db
     .select()

@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { 
   Store, ShoppingCart, Package, Truck, ArrowLeft, ArrowRight,
   BarChart3, MessageSquare, Database, Shield, Bot, 
-  ExternalLink, TrendingUp, Activity, Zap, Settings, Bell, Star
+  ExternalLink, TrendingUp, Activity, Zap, Settings, Bell, Star, FolderTree
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -70,6 +70,13 @@ const MarketplaceSelection = () => {
       icon: <Activity className="w-8 h-8 text-white" />,
       available: true,
       path: "/urun-takip"
+    },
+    {
+      name: "Kategoriler",
+      description: "Shopify etiketleri, ürün sayıları ve koleksiyonlar",
+      icon: <FolderTree className="w-8 h-8 text-white" />,
+      available: true,
+      path: "/kategoriler"
     },
     {
       name: "Otomatik Takip Sistemi",

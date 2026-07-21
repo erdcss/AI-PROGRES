@@ -10,7 +10,12 @@ export function sanitizeShopifyTags(tags: Iterable<string>): string[] {
   const result: string[] = [];
 
   for (const raw of tags) {
-    const tag = String(raw ?? "").trim();
+    // CSV'nin önceki çift-escape çıktılarından veya kullanıcı girişinden kalan
+    // dış tırnakları Shopify etiketi olarak saklama.
+    const tag = String(raw ?? "")
+      .trim()
+      .replace(/^["']+|["']+$/g, "")
+      .trim();
     if (!tag || isBlockedShopifyTag(tag)) continue;
 
     const key = tag.toLowerCase();

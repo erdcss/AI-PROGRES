@@ -2,18 +2,67 @@ export type PreviewVariantRow = {
   color: string;
   size: string;
   inStock: boolean;
+  image?: string;
+  images?: string[];
+  sourceProductId?: string;
+  sourceUrl?: string;
+  listingId?: string;
+  price?: string | number;
+  stockCount?: number | null;
 };
 
+/** CSV yalnızca stoktakileri taşır; önizleme stok dışı bedenleri de göstermek için birleştirir. */
+export function mergeCanonicalPreviewVariants(canonical?: {
+  variants?: PreviewVariantRow[];
+  outOfStockVariants?: PreviewVariantRow[];
+}): PreviewVariantRow[] {
+  const map = new Map<string, PreviewVariantRow>();
+  for (const v of canonical?.outOfStockVariants ?? []) {
+    const key = `${(v.color || "").trim().toLowerCase()}|${(v.size || "").trim().toLowerCase()}`;
+    map.set(key, {
+      color: v.color || "",
+      size: v.size || "",
+      inStock: false,
+      image: v.image,
+      images: v.images,
+      sourceProductId: v.sourceProductId,
+      sourceUrl: v.sourceUrl,
+      listingId: v.listingId,
+      price: v.price,
+      stockCount: v.stockCount,
+    });
+  }
+  for (const v of canonical?.variants ?? []) {
+    const key = `${(v.color || "").trim().toLowerCase()}|${(v.size || "").trim().toLowerCase()}`;
+    map.set(key, {
+      color: v.color || "",
+      size: v.size || "",
+      inStock: v.inStock !== false,
+      image: v.image,
+      images: v.images,
+      sourceProductId: v.sourceProductId,
+      sourceUrl: v.sourceUrl,
+      listingId: v.listingId,
+      price: v.price,
+      stockCount: v.stockCount,
+    });
+  }
+  return [...map.values()];
+}
+
 export function resolvePreviewVariants(product: {
-  canonicalProduct?: { variants?: PreviewVariantRow[] };
+  canonicalProduct?: {
+    variants?: PreviewVariantRow[];
+    outOfStockVariants?: PreviewVariantRow[];
+  };
   variants?: {
     items?: PreviewVariantRow[];
     allVariants?: PreviewVariantRow[];
     sizes?: string[];
   };
 }): { source: string; variants: PreviewVariantRow[]; sizes: string[] } {
-  const canonical = product.canonicalProduct?.variants;
-  if (canonical?.length) {
+  const canonical = mergeCanonicalPreviewVariants(product.canonicalProduct);
+  if (canonical.length) {
     const sizes = [...new Set(canonical.map((v) => v.size).filter(Boolean))];
     console.log("[PreviewTrace] source=canonicalProduct");
     console.log(`[PreviewTrace] displayedSizes=${sizes.join(",")}`);
