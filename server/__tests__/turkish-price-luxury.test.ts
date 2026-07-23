@@ -6,7 +6,7 @@ import {
   parseTurkishPriceText,
   extractOriginalTrendyolPriceFromProduct,
   pickPlausibleTrendyolPrice,
-  resolveTrendyolOriginalListPrice,
+  resolveTrendyolActivePayablePrice,
 } from "../trendyol-price-utils.ts";
 
 describe("parseTurkishPriceText — 5+ digit TL", () => {
@@ -66,16 +66,18 @@ describe("100x kuruş/TL confusion recovery", () => {
     assert.equal(pickPlausibleTrendyolPrice(128.75, 12885), 12885);
   });
 
-  it("resolver prefers DOM thousand-price over wrong API kuruş", () => {
-    const resolved = resolveTrendyolOriginalListPrice({
+  it("resolver prefers DOM/JSON-LD active TL over wrong API kuruş under-conversion", () => {
+    const resolved = resolveTrendyolActivePayablePrice({
       product: {
         price: {
           // Yanlış/eksik kuruş: 12875 → 128.75 TL sanılır
           originalPrice: { value: 12875 },
+          sellingPrice: { value: 12875 },
         },
       },
-      domPrice: 12885,
+      domActivePrice: 12885,
+      jsonLdPrice: 12885,
     });
-    assert.equal(resolved, 12885);
+    assert.equal(resolved.active, 12885);
   });
 });

@@ -8,14 +8,16 @@ import type { CheerioAPI } from 'cheerio';
 import { openaiPriceEnhancer } from './openai-price-enhancer';
 import {
   isTrendyolPromotionalPriceText,
-  resolveTrendyolOriginalListPrice,
+  isTrendyolNonProductPriceText,
+  resolveTrendyolActivePayablePrice,
   buildTrendyolPriceObject,
   parseTurkishPriceText,
+  TRENDYOL_PROFIT_MARGIN,
 } from './trendyol-price-utils';
 import { getTrendyolProductFromState } from './trendyol-product-state';
 
 // 10% standardized profit margin
-const PROFIT_MARGIN = 1.10;
+const PROFIT_MARGIN = 1 + TRENDYOL_PROFIT_MARGIN;
 
 export interface ExtractedPrice {
   original: number;
@@ -30,11 +32,13 @@ export interface ExtractedPrice {
 export class UltimatePriceExtractor {
   private $: CheerioAPI;
   private htmlContent: string;
+  private url?: string;
   private debugMode: boolean = true;
 
-  constructor($: CheerioAPI, htmlContent: string) {
+  constructor($: CheerioAPI, htmlContent: string, url?: string) {
     this.$ = $;
     this.htmlContent = htmlContent;
+    this.url = url;
   }
 
   /**
@@ -45,9 +49,7 @@ export class UltimatePriceExtractor {
     console.log('🎯 ULTIMATE PRICE EXTRACTOR - Starting comprehensive extraction');
     console.log(`📄 HTML content length: ${this.htmlContent.length} characters`);
 
-    // ✅ TEK FİYAT SİSTEMİ: Merkezî resolver (originalPrice/listPrice → sellingPrice).
-    // Trendyol Plus / sepette / discountedPrice ASLA seçilmez. Yalnızca bu kaynak
-    // hiçbir şey bulamazsa aşağıdaki DOM/JSON stratejilerine (son çare) düşülür.
+    // Merkezî resolver: aktif ödenecek fiyat (selling/discounted → DOM/JSON-LD → list fallback)
     const centralPrice = this.tryCentralResolver();
     if (centralPrice && centralPrice.original > 0) {
       console.log(`✅ CENTRAL RESOLVER PRICE (authoritative): ${centralPrice.original} TL via ${centralPrice.method}`);
@@ -199,30 +201,32 @@ export class UltimatePriceExtractor {
   }
 
   /**
-   * ✅ Merkezî fiyat çözümleyici — tek doğruluk kaynağı.
-   * Öncelik: originalPrice / listPrice → sellingPrice.
-   * Plus / sepette / discountedPrice / kampanya fiyatı asla kullanılmaz.
+   * Merkezî fiyat çözümleyici — aktif ödenecek fiyat.
+   * Öncelik: selling/discounted/active → DOM/JSON-LD → original/list fallback.
    */
   private tryCentralResolver(): ExtractedPrice | null {
     try {
       const product = getTrendyolProductFromState(this.htmlContent);
       const jsonLdPrice = this.extractJsonLdPriceValue();
-      const domPrice = this.extractOriginalDomPrice();
-      const original = resolveTrendyolOriginalListPrice({
+      const { active: domActivePrice, list: domListPrice } = this.extractDomPriceParts();
+      const resolved = resolveTrendyolActivePayablePrice({
         html: this.htmlContent,
         product: product ?? undefined,
         jsonLdPrice,
-        domPrice,
+        domActivePrice,
+        domListPrice,
+        domPrice: domActivePrice || domListPrice,
+        url: this.url,
       });
-      if (original > 0) {
-        const built = buildTrendyolPriceObject(original);
+      if (resolved.active > 0) {
+        const built = buildTrendyolPriceObject(resolved.active, TRENDYOL_PROFIT_MARGIN, resolved);
         return {
           original: built.original,
           currency: 'TL',
           formatted: built.formatted,
           withProfit: built.withProfit,
           profitFormatted: built.profitFormatted,
-          method: 'Central Resolver (originalPrice/listPrice → sellingPrice)',
+          method: `Central Resolver (${resolved.selectedKind}/${resolved.selectedSource})`,
           raw: `central:${built.original}`,
         };
       }
@@ -253,36 +257,61 @@ export class UltimatePriceExtractor {
     return 0;
   }
 
-  /** DOM'daki orijinal/üstü çizili fiyat — promosyon metinleri elenir */
-  private extractOriginalDomPrice(): number {
-    const selectors = [
-      ".prc-org",
-      ".original-price",
-      ".price-original",
-      ".was-price",
+  /** DOM: aktif ödenecek + üstü çizili liste fiyatı ayrı */
+  private extractDomPriceParts(): { active: number; list: number } {
+    const activeSelectors = [
       '[data-testid="price-current-price"]',
-      ".prc-dsc",
-      ".product-price-container",
-      ".price-container",
+      '.prc-dsc',
+      '.product-price-container',
+      '.price-container',
+      '.price',
     ];
-    const candidates: number[] = [];
-    for (const selector of selectors) {
-      this.$(selector).each((_, el) => {
-        const text = this.$(el).text().replace(/\s+/g, " ").trim();
-        if (!text || isTrendyolPromotionalPriceText(text)) return;
-        // "Sepette …" satırını atla; aynı blokta "12.885 TL" kalabilir
-        const withoutPromo = text
-          .replace(/sepette\s*[\d.,]+\s*tl/gi, " ")
-          .replace(/sepette\s*\d+\s*tl\s*indirim/gi, " ")
-          .trim();
-        const value = parseTurkishPriceText(withoutPromo) || parseTurkishPriceText(text);
-        if (value >= 29 && value <= 500_000) candidates.push(value);
-      });
+    const listSelectors = ['.prc-org', '.original-price', '.price-original', '.was-price'];
+
+    const collect = (selectors: string[], preferPromoAsActive: boolean) => {
+      const values: number[] = [];
+      for (const selector of selectors) {
+        this.$(selector).each((_, el) => {
+          const text = this.$(el).text().replace(/\s+/g, ' ').trim();
+          if (!text || isTrendyolNonProductPriceText(text)) return;
+          if (!preferPromoAsActive && isTrendyolPromotionalPriceText(text)) {
+            // Sepette satırı: tutarı aktif aday olarak al
+            const promoVal = parseTurkishPriceText(text);
+            if (promoVal >= 29) values.push(promoVal);
+            return;
+          }
+          const cleaned = text
+            .replace(/sepette\s*[\d.,]+\s*tl/gi, ' ')
+            .replace(/sepette\s*\d+\s*tl\s*indirim/gi, ' ');
+          const value = parseTurkishPriceText(cleaned) || parseTurkishPriceText(text);
+          if (value >= 29 && value <= 500_000) values.push(value);
+        });
+      }
+      return values;
+    };
+
+    const activeVals = collect(activeSelectors, true);
+    const listVals = collect(listSelectors, false);
+    // Aktif: en yüksek güven — skorlayıcıya bırakmak için tipik buy-box fiyatı (medyan/üst değil, en sık mantıklı)
+    // Kör min/max yok: birden fazla varsa, liste fiyatından düşük olanları tercih et
+    let active = 0;
+    if (activeVals.length === 1) active = activeVals[0];
+    else if (activeVals.length > 1) {
+      const listMax = listVals.length ? Math.max(...listVals) : 0;
+      const belowList = listMax > 0 ? activeVals.filter((v) => v < listMax * 0.98) : activeVals;
+      const pool = belowList.length ? belowList : activeVals;
+      pool.sort((a, b) => a - b);
+      active = pool[Math.floor(pool.length / 2)];
     }
-    if (candidates.length === 0) return 0;
-    // 5+ basamaklı gerçek TL varsa onu tercih et (128.75 tuzağına düşme)
-    candidates.sort((a, b) => b - a);
-    return candidates[0];
+
+    const list = listVals.length ? Math.max(...listVals) : 0;
+    return { active, list };
+  }
+
+  /** @deprecated extractDomPriceParts kullan */
+  private extractOriginalDomPrice(): number {
+    const { active, list } = this.extractDomPriceParts();
+    return active || list;
   }
 
   /**
@@ -977,10 +1006,14 @@ export class UltimatePriceExtractor {
 /**
  * Main function to use the Ultimate Price Extractor
  */
-export async function ultimatePriceExtract($: CheerioAPI, htmlContent: string): Promise<ExtractedPrice> {
+export async function ultimatePriceExtract(
+  $: CheerioAPI,
+  htmlContent: string,
+  url?: string,
+): Promise<ExtractedPrice> {
   console.log('🔥 ULTIMATE PRICE EXTRACT FUNCTION ENTRY POINT 🔥');
   try {
-    const extractor = new UltimatePriceExtractor($, htmlContent);
+    const extractor = new UltimatePriceExtractor($, htmlContent, url);
     console.log('✅ UltimatePriceExtractor instance created');
     const result = await extractor.extractPrice();
     console.log('✅ extractPrice completed successfully');

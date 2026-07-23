@@ -2,7 +2,7 @@
  * Trendyol fiyat + beden regression testi
  *
  * Kapsam:
- *  - Tek fiyat sistemi: originalPrice/listPrice → sellingPrice; Plus/discounted asla.
+ *  - Tek fiyat sistemi: aktif selling/discounted → original/list fallback; Plus tuzağı reddedilir.
  *  - Beden çıkarımı: API 556 olsa bile embedded JSON (__PRODUCT_DETAIL_APP_INITIAL_STATE__),
  *    slicedAttributes, allVariants, merchantListing ve JSON-LD kaynakları birleştirilir.
  *  - Regresyon URL'si: framgan Y2k Beyaz Born to Reat Oversize T-Shirt (p-941825789)
@@ -12,7 +12,7 @@
 import * as cheerio from "cheerio";
 import {
   extractOriginalTrendyolPriceFromProduct,
-  resolveTrendyolOriginalListPrice,
+  resolveTrendyolActivePayablePrice,
 } from "../trendyol-price-utils";
 import { getTrendyolProductFromState } from "../trendyol-product-state";
 import { resolveTrendyolVariants } from "../trendyol-variant-resolver";
@@ -23,8 +23,8 @@ const REGRESSION_URL =
   "https://www.trendyol.com/framgan/y2k-beyaz-born-to-reat-baskili-oversize-t-shirt-p-941825789?boutiqueId=61&merchantId=1032714&sav=true";
 
 // Beklenenler:
-//   Normal (liste) satış fiyatı: 279.92 TL  (originalPrice/sellingPrice)
-//   Trendyol Plus / kampanya fiyatı: 151.28 TL  → ASLA seçilmemeli
+//   Aktif satış fiyatı: 279.92 TL  (sellingPrice = originalPrice)
+//   Trendyol Plus / kampanya fiyatı: 151.28 TL  → üyelik tuzağı, seçilmemeli
 //   Bedenler: S, M, L (tükendi), XL — API 556 olsa da embedded JSON'dan gelmeli
 const EXPECTED_ORIGINAL = 279.92;
 const PLUS_PRICE = 151.28;
@@ -146,11 +146,11 @@ async function run() {
 
   // --- FİYAT ---
   const fromProduct = extractOriginalTrendyolPriceFromProduct(product);
-  const resolved = resolveTrendyolOriginalListPrice({
+  const resolved = resolveTrendyolActivePayablePrice({
     html,
     product: product ?? undefined,
     jsonLdPrice: PLUS_PRICE,
-  });
+  }).active;
   const upe = await ultimatePriceExtract($, html);
 
   assert(
@@ -159,7 +159,7 @@ async function run() {
   );
   assert(
     Math.abs(resolved - EXPECTED_ORIGINAL) < 0.01,
-    `resolveTrendyolOriginalListPrice → ${fmt(resolved)} (Plus ${fmt(PLUS_PRICE)} DEĞİL)`,
+    `resolveTrendyolActivePayablePrice → ${fmt(resolved)} (Plus ${fmt(PLUS_PRICE)} DEĞİL)`,
   );
   assert(
     Math.abs(upe.original - EXPECTED_ORIGINAL) < 0.01,

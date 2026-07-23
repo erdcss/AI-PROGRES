@@ -10,7 +10,7 @@ import {
   extractOriginalTrendyolPriceFromProduct,
   normalizeTrendyolKurus,
   parseTurkishPriceText,
-  resolveTrendyolOriginalListPrice,
+  resolveTrendyolActivePayablePrice,
 } from './trendyol-price-utils';
 import { getTrendyolProductFromState } from './trendyol-product-state';
 import {
@@ -173,29 +173,43 @@ export function parseTrendyolProductFromHtmlContent(
     brandFromTrendyolUrl(url) ||
     'Marka';
 
-  let original = resolveTrendyolOriginalListPrice({
+  const product = getTrendyolProductFromState(html);
+  const listNodes = $(".prc-org, .original-price, .price-original, .was-price");
+  const activeNodes = $(
+    ".prc-dsc, [data-testid=\"price-current-price\"], .product-price-container, .price-container",
+  );
+  const readVals = ($nodes: cheerio.Cheerio<any>) => {
+    const vals: number[] = [];
+    $nodes.each((_, el) => {
+      const text = $(el).text().replace(/\s+/g, " ").trim();
+      if (!text) return;
+      const v = parseTurkishPriceText(text);
+      if (v >= 29 && v <= 500_000) vals.push(v);
+    });
+    return vals;
+  };
+  const listVals = readVals(listNodes);
+  const activeVals = readVals(activeNodes);
+  const domListPrice = listVals.length ? Math.max(...listVals) : 0;
+  let domActivePrice = 0;
+  if (activeVals.length === 1) domActivePrice = activeVals[0];
+  else if (activeVals.length > 1) {
+    const below = domListPrice > 0 ? activeVals.filter((v) => v < domListPrice * 0.98) : activeVals;
+    const pool = below.length ? below : activeVals;
+    pool.sort((a, b) => a - b);
+    domActivePrice = pool[Math.floor(pool.length / 2)];
+  }
+
+  const resolved = resolveTrendyolActivePayablePrice({
     html,
-    product: getTrendyolProductFromState(html),
+    product: product ?? undefined,
     jsonLdPrice: fromLdPrice,
-    domPrice: (() => {
-      const nodes = $(
-        ".prc-org, .original-price, .price-original, .prc-dsc, [data-testid=\"price-current-price\"], .product-price-container, .price",
-      );
-      const vals: number[] = [];
-      nodes.each((_, el) => {
-        const text = $(el).text().replace(/\s+/g, " ").trim();
-        if (!text) return;
-        const cleaned = text
-          .replace(/sepette\s*[\d.,]+\s*tl/gi, " ")
-          .replace(/sepette\s*\d+\s*tl\s*indirim/gi, " ");
-        const v = parseTurkishPriceText(cleaned) || parseTurkishPriceText(text);
-        if (v >= 29 && v <= 500_000) vals.push(v);
-      });
-      if (vals.length === 0) return 0;
-      vals.sort((a, b) => b - a);
-      return vals[0];
-    })(),
+    domActivePrice,
+    domListPrice,
+    domPrice: domActivePrice || domListPrice,
+    url,
   });
+  let original = resolved.active;
 
   if (original <= 0) {
     original = fromState.price || fromNext.price?.original || 0;
@@ -218,7 +232,7 @@ export function parseTrendyolProductFromHtmlContent(
   return {
     title,
     brand,
-    price: original > 0 ? buildTrendyolPriceObject(original) : { original: 0, withProfit: 0, currency: 'TRY' },
+    price: original > 0 ? buildTrendyolPriceObject(original, undefined, resolved) : { original: 0, withProfit: 0, currency: 'TRY' },
     images,
     description: fromState.description || fromNext.description || '',
     category: fromState.category || fromNext.category || 'Genel',
