@@ -948,22 +948,33 @@ export function buildCanonicalProductForShopify(
   const mergeFailed =
     mergedSourceCount > 1 && rowsForColor.length === 1 && (extractDiag.rawDomSizeCount ?? 0) > 1;
 
-  const apparelOneSizeBlock =
+  const fullVariantScrapeAttempted =
+    variantDiagnostics.fullVariantScrapeAttempted === true ||
+    input.scrapeResult.fullVariantScrapeAttempted === true;
+
+  // Kaynaklar ≥2 beden görüp final 1 kaldıysa eksik çıkarım → engelle (mergeFailed/domMismatch).
+  // Kaynaklar da 1 beden diyorsa gerçek tek beden / tek SKU → Shopify'a izin ver.
+  const apparelSingleSizeNoted =
     likelyApparel &&
     rowsForColor.length <= 1 &&
-    (variantDiagnostics.fullVariantScrapeAttempted === true ||
-      input.scrapeResult.fullVariantScrapeAttempted === true);
+    fullVariantScrapeAttempted &&
+    !mergeFailed &&
+    !domMismatch;
 
-  const blockReason = apparelOneSizeBlock
-    ? "Kıyafet ürünü için sadece 1 beden tespit edildi. Full DOM/API varyant taraması yeterli veri döndürmedi."
-    : mergeFailed
-      ? `Variant merge failed: raw sources found ${mergedSourceCount} sizes but canonical has ${canonicalRows.length}`
+  const blockReason = mergeFailed
+    ? `Variant merge failed: raw sources found ${mergedSourceCount} sizes but canonical has ${canonicalRows.length}`
+    : domMismatch
+      ? `Canlı sayfada ${extractDiag.rawDomSizeCount} beden bulundu fakat aktarım datasında ${rowsForColor.length} beden var.`
       : undefined;
 
   const manualReviewRequired =
-    lowConfidenceOnly || domMismatch || canonicalRows.length === 0 || apparelOneSizeBlock || mergeFailed;
+    lowConfidenceOnly ||
+    domMismatch ||
+    canonicalRows.length === 0 ||
+    apparelSingleSizeNoted ||
+    mergeFailed;
   const shopifyUploadBlocked =
-    exportVariants.length === 0 || domMismatch || apparelOneSizeBlock || mergeFailed;
+    exportVariants.length === 0 || domMismatch || mergeFailed;
 
   if (domMismatch || mergeFailed) {
     console.warn(
@@ -992,7 +1003,8 @@ export function buildCanonicalProductForShopify(
       outOfStock: exportOutOfStock.length,
       sizes,
       mergeFailed,
-      apparelOneSizeBlock,
+      apparelOneSizeBlock: false,
+      apparelSingleSizeNoted,
     },
   });
 

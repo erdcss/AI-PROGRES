@@ -4125,7 +4125,9 @@ function extractBrand(url: string): string {
 
 // ✅ UNIVERSAL KURUŞ/TL CONVERSION
 function smartCurrencyConversion(price: number, context: string = ''): number {
-  const converted = normalizeTrendyolKurus(price, 'api');
+  // DOM / JSON-LD / HTML metinleri zaten TL'dir (12.875 → 12875).
+  // api kuruş dönüşümü uygulanırsa 12875 → 128.75 olur — bu yüzden "dom".
+  const converted = normalizeTrendyolKurus(price, 'dom');
   console.log(`💰 SMART CONVERSION: ${price} → ${converted} TL (${context})`);
   return converted;
 }

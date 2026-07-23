@@ -177,8 +177,24 @@ export function parseTrendyolProductFromHtmlContent(
     html,
     product: getTrendyolProductFromState(html),
     jsonLdPrice: fromLdPrice,
-    domPrice: parseTurkishPriceText($('.prc-org, .original-price, .price-original').first().text()) ||
-      parseTurkishPriceText($('.prc-dsc, [data-testid="price-current-price"], .price').first().text()),
+    domPrice: (() => {
+      const nodes = $(
+        ".prc-org, .original-price, .price-original, .prc-dsc, [data-testid=\"price-current-price\"], .product-price-container, .price",
+      );
+      const vals: number[] = [];
+      nodes.each((_, el) => {
+        const text = $(el).text().replace(/\s+/g, " ").trim();
+        if (!text) return;
+        const cleaned = text
+          .replace(/sepette\s*[\d.,]+\s*tl/gi, " ")
+          .replace(/sepette\s*\d+\s*tl\s*indirim/gi, " ");
+        const v = parseTurkishPriceText(cleaned) || parseTurkishPriceText(text);
+        if (v >= 29 && v <= 500_000) vals.push(v);
+      });
+      if (vals.length === 0) return 0;
+      vals.sort((a, b) => b - a);
+      return vals[0];
+    })(),
   });
 
   if (original <= 0) {

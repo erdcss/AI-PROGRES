@@ -104,72 +104,124 @@ export function resolveTrendyolOriginalListPrice(input: {
   const fromProduct = input.product ? extractOriginalTrendyolPriceFromProduct(input.product) : 0;
   const scriptPrices = input.html ? collectOriginalPricesFromHtmlScript(input.html) : [];
   const jsonLd = input.jsonLdPrice ?? 0;
+  const dom = input.domPrice ?? 0;
+
+  /** Yalnızca ~100× kuruş/TL düzeltmesi veya güvenilir tek kaynak */
+  const recover = (base: number, candidate: number): number => {
+    if (candidate <= 0) return base;
+    if (base <= 0) return candidate;
+    return pickPlausibleTrendyolPrice(base, candidate);
+  };
 
   if (fromProduct > 0) {
-    return fromProduct;
+    let best = fromProduct;
+    // API 12875 kuruş → 128.75 TL yanlışlığı: DOM/JSON-LD 12.885 TL ile düzelt
+    best = recover(best, dom);
+    best = recover(best, jsonLd);
+    if (scriptPrices.length === 1) {
+      best = recover(best, scriptPrices[0]);
+    } else {
+      for (const sp of scriptPrices) {
+        const lo = Math.min(best, sp);
+        const hi = Math.max(best, sp);
+        if (lo > 0 && Math.abs(hi / lo - 100) < 1.05) {
+          best = recover(best, sp);
+        }
+      }
+    }
+    return best;
   }
 
   // Tek originalPrice script değeri güvenilir (ör. Daniel Klein → 2750 TL)
   if (scriptPrices.length === 1) {
-    return scriptPrices[0];
+    return recover(recover(scriptPrices[0], jsonLd), dom);
   }
 
   // Birden fazla script fiyatı = öneri/çapraz satış karışımı → JSON-LD ürün fiyatı
   if (scriptPrices.length > 1 && jsonLd > 0) {
-    return jsonLd;
+    return recover(jsonLd, dom);
   }
 
-  if (jsonLd > 0) return jsonLd;
+  if (jsonLd > 0) return recover(jsonLd, dom);
 
   if (scriptPrices.length > 0) {
-    return Math.min(...scriptPrices);
+    return recover(Math.min(...scriptPrices), dom);
   }
 
-  return input.domPrice ?? 0;
+  return dom;
 }
 
 export function parseTurkishPriceText(text: string): number {
   if (!text) return 0;
 
-  const clean = text.replace(/[₺TLtl\s]/g, "").trim();
+  // Sepette / Plus öneklerini temizle; gömülü binlik fiyat kalsın
+  let clean = text
+    .replace(/[₺]/g, "")
+    .replace(/\bTL\b/gi, "")
+    .replace(/sepette\s*/gi, "")
+    .replace(/trendyol\s*plus\s*/gi, "")
+    .replace(/\s+/g, "")
+    .trim();
   if (!clean) return 0;
 
-  const trThousands = clean.match(/^(\d{1,3}(?:\.\d{3})+),(\d{2})$/);
+  // 26.000,00 / 1.234.567,89 — binlik nokta + ondalık virgül
+  const trThousands = clean.match(/^(\d{1,3}(?:\.\d{3})+),(\d{1,2})$/);
   if (trThousands) {
     const intPart = trThousands[1].replace(/\./g, "");
-    return parseFloat(`${intPart}.${trThousands[2]}`);
+    const dec = trThousands[2].padEnd(2, "0").slice(0, 2);
+    return parseFloat(`${intPart}.${dec}`);
   }
 
-  const decimalComma = clean.match(/^(\d+),(\d{2})$/);
+  // 26.000 / 23.500 / 1.250.000 — yalnızca binlik ayırıcı (ondalık yok)
+  // NOT: "23.50" (1–2 hane) buraya düşmez; aşağıdaki US ondalığa gider.
+  const trThousandsInt = clean.match(/^(\d{1,3}(?:\.\d{3})+)$/);
+  if (trThousandsInt) {
+    return Number(trThousandsInt[1].replace(/\./g, ""));
+  }
+
+  // 26000,50 / 799,00
+  const decimalComma = clean.match(/^(\d+),(\d{1,2})$/);
   if (decimalComma) {
     return parseFloat(`${decimalComma[1]}.${decimalComma[2]}`);
   }
 
-  const decimalDot = clean.match(/^(\d+)\.(\d{2})$/);
+  // 26000.50 — US ondalık (noktadan sonra en fazla 2 hane)
+  const decimalDot = clean.match(/^(\d+)\.(\d{1,2})$/);
   if (decimalDot) {
     return parseFloat(`${decimalDot[1]}.${decimalDot[2]}`);
   }
 
-  const withSuffix = clean.match(/(\d{1,3}(?:\.\d{3})*),(\d{2})/);
-  if (withSuffix) {
-    const intPart = withSuffix[1].replace(/\./g, "");
-    return parseFloat(`${intPart}.${withSuffix[2]}`);
+  // Metin içinde gömülü: "...26.000,00..."
+  const embeddedTr = clean.match(/(\d{1,3}(?:\.\d{3})+),(\d{2})/);
+  if (embeddedTr) {
+    const intPart = embeddedTr[1].replace(/\./g, "");
+    return parseFloat(`${intPart}.${embeddedTr[2]}`);
   }
 
-  const looseDecimal = clean.match(/(\d+)[,.](\d{2})/);
-  if (looseDecimal) {
-    return parseFloat(`${looseDecimal[1]}.${looseDecimal[2]}`);
+  const embeddedThousands = clean.match(/(\d{1,3}(?:\.\d{3})+)/);
+  if (embeddedThousands) {
+    return Number(embeddedThousands[1].replace(/\./g, ""));
   }
 
-  const digits = clean.match(/(\d+)/);
+  // Düz rakam (26000) — görünen fiyat zaten TL; kuruşa çevirme
+  const digits = clean.match(/^(\d+)$/);
   if (digits) {
-    return normalizeTrendyolKurus(Number(digits[1]), "api");
+    return Number(digits[1]);
+  }
+
+  const anyDigits = clean.match(/(\d+)/);
+  if (anyDigits) {
+    return Number(anyDigits[1]);
   }
 
   return 0;
 }
 
-/** API/script sayısal değerleri kuruş → TL */
+/**
+ * API/script sayısal değerleri kuruş → TL.
+ * `source: "dom"` = değer zaten TL (metin/JSON-LD).
+ * `source: "api"` = Trendyol product state `price.*.value` kuruş alanları.
+ */
 export function normalizeTrendyolKurus(
   value: number,
   source: "api" | "dom" = "api",
@@ -180,7 +232,7 @@ export function normalizeTrendyolKurus(
     return Math.round(value * 100) / 100;
   }
 
-  // Trendyol API kuruş: 61000 → 610 TL, 35400 → 354 TL
+  // Trendyol API kuruş: 61000 → 610 TL, 27992 → 279.92 TL, 2350000 → 23500 TL
   if (value >= 10000) {
     return Math.round((value / 100) * 100) / 100;
   }
@@ -196,16 +248,38 @@ export function normalizeTrendyolKurus(
   return Math.round(value * 100) / 100;
 }
 
+/**
+ * Ham sayı TL mi kuruş mu?
+ * Trendyol API kuruşları yalnızca `{ value: N }` → normalizeTrendyolKurus(..., "api") ile gelir.
+ * Düz sayı / JSON-LD / DOM’dan gelen 12875 (= 12.875 TL) ASLA 100’e bölünmez.
+ * Yalnızca ≥ 1_000_000 (ör. 1_287_500 kuruş = 12.875 TL) güvenle kuruş kabul edilir.
+ */
+function normalizeBareNumericPrice(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+
+  if (!Number.isInteger(value)) {
+    return Math.round(value * 100) / 100;
+  }
+
+  // 1_000_000+ = pahalı ürünün kuruş karşılığı (12.875 TL → 1_287_500)
+  if (value >= 1_000_000) {
+    return normalizeTrendyolKurus(value, "api");
+  }
+
+  // 5+ basamaklı düz TL (12875, 26000, 23500…) olduğu gibi kalır
+  return Math.round(value * 100) / 100;
+}
+
 export function normalizeTrendyolPriceValue(raw: unknown): number {
   if (typeof raw === "number") {
-    return normalizeTrendyolKurus(raw, "api");
+    return normalizeBareNumericPrice(raw);
   }
 
   if (typeof raw === "string") {
     const fromText = parseTurkishPriceText(raw);
     if (fromText > 0) return fromText;
     const n = Number(raw.replace(/[^\d.,]/g, "").replace(",", "."));
-    return Number.isFinite(n) && n > 0 ? normalizeTrendyolKurus(n, "api") : 0;
+    return Number.isFinite(n) && n > 0 ? normalizeBareNumericPrice(n) : 0;
   }
 
   if (raw && typeof raw === "object") {
@@ -243,6 +317,16 @@ export function resolvePositiveTrendyolPrice(raw: unknown): number {
 export function pickPlausibleTrendyolPrice(a: number, b: number): number {
   if (a <= 0) return b;
   if (b <= 0) return a;
+
+  const hi = Math.max(a, b);
+  const lo = Math.min(a, b);
+
+  // Tam ~100× fark: kuruş/TL karışıklığı (128.75 vs 12.875 TL)
+  // Makul ürün fiyatı aralığındaysa büyük olanı (gerçek TL) seç.
+  if (lo > 0 && Math.abs(hi / lo - 100) < 1.05) {
+    if (hi >= 29 && hi <= 500_000) return hi;
+  }
+
   if (a > b * 20) return b;
   if (b > a * 20) return a;
   return Math.max(a, b);

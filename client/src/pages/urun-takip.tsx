@@ -60,6 +60,17 @@ type DetectedChange = {
   variantLabel?: string | null;
   variantSku?: string | null;
   shopifyVariantId?: string | null;
+  variantColor?: string | null;
+  variantSize?: string | null;
+  variantAvailable?: boolean | null;
+  profitMarginPercent?: number | null;
+  priceDisplay?: {
+    costOld: number | null;
+    costNew: number | null;
+    saleOld: number | null;
+    saleNew: number | null;
+    marginPercent: number | null;
+  } | null;
 };
 
 type SchedulerStatus = {
@@ -105,11 +116,11 @@ type TrackingSettings = {
 const CHANGE_FILTERS = [
   { value: "actionable", label: "Düzeltilecekler" },
   { value: "pending", label: "Bekleyen" },
-  { value: "manual_review", label: "Manuel" },
+  { value: "manual_review", label: "Kontrol gerekli" },
   { value: "approved", label: "Onaylı" },
-  { value: "failed", label: "Başarısız" },
-  { value: "applied", label: "Uygulanmış" },
-  { value: "", label: "Tüm geçmiş" },
+  { value: "failed", label: "Hatalı" },
+  { value: "applied", label: "Uygulandı" },
+  { value: "", label: "Tümü" },
 ] as const;
 
 function formatDate(value: string | null) {

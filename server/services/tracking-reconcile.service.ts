@@ -88,6 +88,24 @@ export async function supersedeStaleTrackingChanges(): Promise<number> {
     RETURNING changes.id
   `);
 
+  const productClosedNoise = await db.execute(sql`
+    UPDATE detected_changes AS changes
+       SET status = 'ignored',
+           reason = 'Ürün kapanmadı; yalnızca bazı beden/renk stokları değişti',
+           seen_at = NOW(),
+           updated_at = NOW()
+     WHERE changes.status IN ('pending', 'manual_review', 'approved', 'failed')
+       AND changes.change_type = 'stock_changed'
+       AND changes.field_name = 'available'
+       AND EXISTS (
+         SELECT 1
+           FROM tracked_variants AS variants
+          WHERE variants.tracked_product_id = changes.tracked_product_id
+            AND variants.shopify_variant_id IS NOT NULL
+       )
+    RETURNING changes.id
+  `);
+
   const staleVariantAdds = await db.execute(sql`
     UPDATE detected_changes
        SET status = 'ignored',
@@ -146,6 +164,7 @@ export async function supersedeStaleTrackingChanges(): Promise<number> {
 
   const updated =
     (aggregateStockNoise.rowCount ?? 0) +
+    (productClosedNoise.rowCount ?? 0) +
     (staleVariantAdds.rowCount ?? 0) +
     (unreliableVariantRemovals.rowCount ?? 0) +
     (unchanged.rowCount ?? 0) +

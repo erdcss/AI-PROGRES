@@ -72,7 +72,20 @@ function readColumn(headers: string[], row: string[], names: string[]): string {
 
 function parsePriceValue(raw: string): number {
   if (!raw.trim()) return 0;
-  const normalized = raw.replace(/[^0-9.,]/g, "").replace(",", ".");
+  const clean = raw
+    .replace(/[₺]/g, "")
+    .replace(/\bTL\b/gi, "")
+    .replace(/\s+/g, "")
+    .trim();
+  const trFull = clean.match(/^(\d{1,3}(?:\.\d{3})+),(\d{1,2})$/);
+  if (trFull) {
+    return Number.parseFloat(`${trFull[1].replace(/\./g, "")}.${trFull[2]}`);
+  }
+  const trThousands = clean.match(/^(\d{1,3}(?:\.\d{3})+)$/);
+  if (trThousands) {
+    return Number(trThousands[1].replace(/\./g, ""));
+  }
+  const normalized = clean.replace(/[^0-9.,]/g, "").replace(",", ".");
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }

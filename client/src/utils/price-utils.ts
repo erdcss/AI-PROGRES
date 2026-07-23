@@ -38,20 +38,20 @@ export function normalizePrice(price: any, defaultProfitMargin = 0.10): Standard
     }
     // Legacy format with profitFormatted
     else if (price.profitFormatted) {
-      const profitMatch = price.profitFormatted.match(/(\d+[.,]\d+|\d+)/);
-      if (profitMatch) {
-        withProfit = parseFloat(profitMatch[1].replace(',', '.'));
+      original = parseTurkishDisplayPrice(String(price.profitFormatted));
+      if (original > 0) {
+        withProfit = original;
         original = Math.round(withProfit / (1 + defaultProfitMargin) * 100) / 100;
       }
     }
     // Format with formatted field
     else if (price.formatted) {
-      const formattedMatch = price.formatted.match(/(\d+[.,]\d+|\d+)/);
-      if (formattedMatch) {
-        original = parseFloat(formattedMatch[1].replace(',', '.'));
-        withProfit = Math.round(original * (1 + defaultProfitMargin) * 100) / 100;
-      }
+      original = parseTurkishDisplayPrice(String(price.formatted));
+      withProfit = Math.round(original * (1 + defaultProfitMargin) * 100) / 100;
     }
+  } else if (typeof price === 'string') {
+    original = parseTurkishDisplayPrice(price);
+    withProfit = Math.round(original * (1 + defaultProfitMargin) * 100) / 100;
   }
 
   const profitAmount = Math.round((withProfit - original) * 100) / 100;
@@ -66,6 +66,38 @@ export function normalizePrice(price: any, defaultProfitMargin = 0.10): Standard
     profitPercentage,
     currency: 'TL'
   };
+}
+
+/** 26.000 / 26.000,00 / 23500 TL → sayı */
+function parseTurkishDisplayPrice(input: string): number {
+  const clean = input
+    .replace(/[₺]/g, '')
+    .replace(/\bTL\b/gi, '')
+    .replace(/\s+/g, '')
+    .trim();
+  if (!clean) return 0;
+
+  const trFull = clean.match(/^(\d{1,3}(?:\.\d{3})+),(\d{1,2})$/);
+  if (trFull) {
+    return parseFloat(`${trFull[1].replace(/\./g, '')}.${trFull[2]}`);
+  }
+  const trThousands = clean.match(/^(\d{1,3}(?:\.\d{3})+)$/);
+  if (trThousands) {
+    return Number(trThousands[1].replace(/\./g, ''));
+  }
+  const commaDec = clean.match(/^(\d+),(\d{1,2})$/);
+  if (commaDec) {
+    return parseFloat(`${commaDec[1]}.${commaDec[2]}`);
+  }
+  const usDec = clean.match(/^(\d+)\.(\d{1,2})$/);
+  if (usDec) {
+    return parseFloat(`${usDec[1]}.${usDec[2]}`);
+  }
+  const plain = clean.match(/^(\d+)$/);
+  if (plain) return Number(plain[1]);
+
+  const fallback = parseFloat(clean.replace(/[^\d]/g, ''));
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
 }
 
 // Fiyat gösterim utility'leri
@@ -91,16 +123,14 @@ export function validatePriceInput(input: string): { isValid: boolean; value?: n
     return { isValid: false, error: 'Fiyat boş olamaz' };
   }
 
-  // Remove currency symbols and spaces
-  const cleanInput = input.replace(/[₺TLtl\s]/g, '').replace(',', '.');
-  const value = parseFloat(cleanInput);
+  const value = parseTurkishDisplayPrice(input);
 
   if (isNaN(value) || value <= 0) {
     return { isValid: false, error: 'Geçerli bir fiyat giriniz' };
   }
 
-  if (value > 50000) {
-    return { isValid: false, error: 'Fiyat 50.000 TL\'den fazla olamaz' };
+  if (value > 500000) {
+    return { isValid: false, error: 'Fiyat 500.000 TL\'den fazla olamaz' };
   }
 
   if (value < 0.01) {
@@ -130,20 +160,11 @@ export function calculatePriceWithCustomMargin(originalPrice: number, profitMarg
   };
 }
 
+/**
+ * Gösterim için fiyat normalizasyonu.
+ * Sunucu zaten TL döndürür (20.999 TL → 20999). Eski kuruş /100 dönüşümü
+ * 5+ basamaklı gerçek TL fiyatları bozduğu için kaldırıldı.
+ */
 export function normalizeTrendyolDisplayPrice(price: any, defaultProfitMargin = 0.10): StandardPrice {
-  const standard = normalizePrice(price, defaultProfitMargin);
-  const original = standard.original;
-
-  if (original >= 10000) {
-    return calculatePriceWithCustomMargin(original / 100, defaultProfitMargin);
-  }
-
-  if (original >= 1000 && Number.isInteger(original) && original % 100 === 0) {
-    const asTl = original / 100;
-    if (asTl >= 1 && asTl <= 200_000) {
-      return calculatePriceWithCustomMargin(asTl, defaultProfitMargin);
-    }
-  }
-
-  return standard;
+  return normalizePrice(price, defaultProfitMargin);
 }

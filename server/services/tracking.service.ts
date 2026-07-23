@@ -7,6 +7,7 @@ import {
   syncLogs,
   products,
   urlTracking,
+  shopifyTransferredProducts,
   type InsertTrackedProduct,
   type InsertTrackedVariant,
 } from "@shared/schema";
@@ -18,6 +19,10 @@ import {
   resolveTrackingVariantColorSize,
   type TrackingVariantInput,
 } from "@shared/trendyol-variant-utils";
+import {
+  buildPricePairDisplay,
+  resolveProfitMarginPercent,
+} from "@shared/tracking-price-display";
 
 export type SyncLogMeta = Record<string, unknown>;
 
@@ -224,11 +229,27 @@ export class TrackingService {
         sourceUrl: trackedProducts.sourceUrl,
         shopifyProductId: trackedProducts.shopifyProductId,
         trackingUid: trackedProducts.trackingUid,
+        currentSourcePrice: trackedProducts.currentSourcePrice,
       })
       .from(trackedProducts)
       .where(inArray(trackedProducts.id, productIds));
 
     const byId = new Map(products.map((p) => [p.id, p]));
+    const sourceUrls = [...new Set(products.map((p) => p.sourceUrl).filter(Boolean))];
+    const transfers =
+      sourceUrls.length > 0
+        ? await db
+            .select({
+              sourceUrl: shopifyTransferredProducts.sourceUrl,
+              profitMargin: shopifyTransferredProducts.profitMargin,
+              originalPrice: shopifyTransferredProducts.originalPrice,
+              shopifyPrice: shopifyTransferredProducts.shopifyPrice,
+            })
+            .from(shopifyTransferredProducts)
+            .where(inArray(shopifyTransferredProducts.sourceUrl, sourceUrls))
+        : [];
+    const transferByUrl = new Map(transfers.map((row) => [row.sourceUrl, row]));
+
     const variantIds = [
       ...new Set(
         changes
@@ -248,6 +269,8 @@ export class TrackingService {
               option2: trackedVariants.option2,
               option3: trackedVariants.option3,
               shopifyVariantId: trackedVariants.shopifyVariantId,
+              currentSourcePrice: trackedVariants.currentSourcePrice,
+              currentAvailable: trackedVariants.currentAvailable,
             })
             .from(trackedVariants)
             .where(inArray(trackedVariants.id, variantIds))
@@ -255,24 +278,48 @@ export class TrackingService {
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const imageMap = await this.getLatestImageMap(productIds);
     return changes.map((c) => {
+      const product = byId.get(c.trackedProductId);
       const variant = c.trackedVariantId ? variantById.get(c.trackedVariantId) : undefined;
+      const color =
+        variant?.option1 && String(variant.option1).trim() ? String(variant.option1).trim() : null;
+      const size =
+        variant?.option2 && String(variant.option2).trim() ? String(variant.option2).trim() : null;
       const variantLabel = variant
         ? buildTrackingVariantLabel(variant.option1, variant.option2, variant.sourceVariantTitle) ||
           buildTrackingVariantLabel(variant.option1, variant.option3, variant.sourceSku) ||
           variant.sourceSku ||
           null
         : null;
+      const transfer = product?.sourceUrl ? transferByUrl.get(product.sourceUrl) : undefined;
+      const marginPercent = resolveProfitMarginPercent({
+        profitMargin: transfer?.profitMargin,
+        originalPrice: transfer?.originalPrice,
+        shopifyPrice: transfer?.shopifyPrice,
+        fallbackPercent: 10,
+      });
+      const isPriceChange =
+        c.changeType === "price_changed" || c.changeType === "variant_price_changed";
+      const priceDisplay = isPriceChange
+        ? buildPricePairDisplay(c.oldValue, c.newValue, marginPercent)
+        : null;
+
       return {
         ...c,
-        productTitle: byId.get(c.trackedProductId)?.sourceTitle ?? null,
-        productUrl: byId.get(c.trackedProductId)?.sourceUrl ?? null,
-        shopifyProductId: byId.get(c.trackedProductId)?.shopifyProductId ?? null,
-        trackingUid: byId.get(c.trackedProductId)?.trackingUid ?? null,
+        productTitle: product?.sourceTitle ?? null,
+        productUrl: product?.sourceUrl ?? null,
+        shopifyProductId: product?.shopifyProductId ?? null,
+        trackingUid: product?.trackingUid ?? null,
         productImageUrl: imageMap.get(c.trackedProductId) ?? null,
+        currentSourcePrice: product?.currentSourcePrice ?? null,
+        profitMarginPercent: marginPercent,
+        priceDisplay,
         variantUid: variant?.variantUid ?? null,
         variantLabel,
+        variantColor: color,
+        variantSize: size,
         variantSku: variant?.sourceSku ?? null,
         shopifyVariantId: variant?.shopifyVariantId ?? null,
+        variantAvailable: variant?.currentAvailable ?? null,
       };
     });
   }

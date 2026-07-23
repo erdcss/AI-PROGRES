@@ -811,11 +811,25 @@ export async function applyFullVariantScrapeToResult(
     merged.length <= 1 &&
     result.fullVariantScrapeAttempted
   ) {
-    result.manualReviewRequired = true;
-    result.shopifyUploadBlocked = true;
-    result.variantExtractionFailed = true;
-    result.variantBlockReason =
-      "Kıyafet ürünü için sadece 1 beden tespit edildi. Full DOM/API varyant taraması yeterli veri döndürmedi.";
+    const sourceSizeEvidence = Math.max(
+      domProbe.filteredSizes.length,
+      scriptSizes.length,
+      fastSizes.length,
+    );
+    // Kaynaklar da tek beden diyorsa gerçek tek beden — Shopify'ı engelleme.
+    // Yalnızca kaynakta ≥2 beden varken final 1 kaldıysa sert engel.
+    if (sourceSizeEvidence > 1) {
+      result.manualReviewRequired = true;
+      result.shopifyUploadBlocked = true;
+      result.variantExtractionFailed = true;
+      result.variantBlockReason =
+        `Kıyafet ürününde kaynakta ${sourceSizeEvidence} beden görüldü fakat yalnızca 1 beden aktarılabildi.`;
+    } else {
+      result.manualReviewRequired = true;
+      result.shopifyUploadBlocked = false;
+      result.variantExtractionFailed = false;
+      result.variantBlockReason = undefined;
+    }
   }
 }
 

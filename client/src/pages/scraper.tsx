@@ -553,16 +553,18 @@ function ScraperPage() {
         scraped.variantCollapseMessage ||
         scraped.variantBlockReason ||
         scraped.canonicalProduct?.blockReason;
-      const variantBlocked =
+      const hardVariantFailure =
         scraped.variantCollapseDetected === true ||
-        scraped.variantExtractionFailed === true ||
+        scraped.variantExtractionFailed === true;
+      const shopifyBlocked =
         scraped.shopifyUploadBlocked === true ||
         scraped.canonicalProduct?.shopifyUploadBlocked === true;
 
-      if (variantBlocked) {
+      // Ürün/CSV geldiyse soft engeli "veri alınamadı" sanma — yalnızca uyarı ver.
+      if (hardVariantFailure) {
         const variantMsg =
           variantBlockReason ||
-          "Varyant doğrulaması başarısız: Bu kıyafet ürünü için sadece 1 beden bulundu. Shopify'a otomatik aktarım engellendi.";
+          "Varyant doğrulaması başarısız: beden/renk verileri eksik veya işlem sırasında kayboldu.";
         setScrapeError(variantMsg);
         setScrapeErrorMeta({
           reason: "variant_validation_failed",
@@ -576,6 +578,16 @@ function ScraperPage() {
           description: variantMsg,
           variant: "destructive",
           duration: 10000,
+        });
+      } else if (shopifyBlocked) {
+        setScrapeError(null);
+        setScrapeErrorMeta(null);
+        toast({
+          title: "Shopify aktarımı bekliyor",
+          description:
+            variantBlockReason ||
+            "Ürün verisi alındı; Shopify yüklemesi için manuel kontrol gerekli.",
+          duration: 8000,
         });
       } else {
         // Başarılı çekimde önceki ürünün hata mesajını temizle.
@@ -630,11 +642,13 @@ function ScraperPage() {
       }
 
       setWorkflowStep(
-        variantBlocked
+        hardVariantFailure
           ? "Varyant doğrulaması başarısız — manuel kontrol gerekli"
-          : csvReady
-            ? "Ürün hazır — Shopify'a gönderebilirsiniz"
-            : "Ürün çekildi ama CSV oluşturulamadı",
+          : shopifyBlocked
+            ? "Ürün hazır — Shopify aktarımı için kontrol gerekli"
+            : csvReady
+              ? "Ürün hazır — Shopify'a gönderebilirsiniz"
+              : "Ürün çekildi ama CSV oluşturulamadı",
       );
 
       const isPartial = scraped.partialSuccess === true || scraped.success === false;

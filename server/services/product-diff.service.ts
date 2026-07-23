@@ -8,6 +8,7 @@ import {
   resolveReliableBaselinePrice,
   stableVariantKey,
 } from "@shared/tracking-price-sanity";
+import { buildChangeDiagnosis } from "@shared/tracking-change-diagnosis";
 
 export type DiffResult = {
   changes: Array<{
@@ -179,6 +180,13 @@ export async function compareSnapshots(
   if (productPriceChanged) {
     const assessment = assessPriceChange(oldPrice, newPrice);
     if (assessment.shouldRecord) {
+      const diagnosis = buildChangeDiagnosis({
+        changeType: "price_changed",
+        fieldName: "price",
+        oldValue: oldPrice,
+        newValue: newPrice,
+        storedReason: assessment.reason,
+      });
       changes.push({
         changeType: "price_changed",
         fieldName: "price",
@@ -186,7 +194,7 @@ export async function compareSnapshots(
         newValue: newPrice,
         confidence: assessment.confidence,
         status: assessment.status,
-        reason: assessment.reason,
+        reason: diagnosis.diagnosis,
       });
     }
   }
@@ -200,6 +208,12 @@ export async function compareSnapshots(
     !hasVariantStockData &&
     !(looksLikeStockOnlyNoise(oldStock, newStock, oldPrice, newPrice))
   ) {
+    const diagnosis = buildChangeDiagnosis({
+      changeType: "stock_changed",
+      fieldName: "stock",
+      oldValue: oldStock,
+      newValue: newStock,
+    });
     changes.push({
       changeType: "stock_changed",
       fieldName: "stock",
@@ -207,10 +221,22 @@ export async function compareSnapshots(
       newValue: newStock,
       confidence: 90,
       status: "pending",
+      reason: diagnosis.diagnosis,
     });
   }
 
-  if (previous.available != null && current.available != null && previous.available !== current.available) {
+  if (
+    previous.available != null &&
+    current.available != null &&
+    previous.available !== current.available &&
+    !hasVariantStockData
+  ) {
+    const diagnosis = buildChangeDiagnosis({
+      changeType: "stock_changed",
+      fieldName: "available",
+      oldValue: previous.available,
+      newValue: current.available,
+    });
     changes.push({
       changeType: "stock_changed",
       fieldName: "available",
@@ -218,6 +244,7 @@ export async function compareSnapshots(
       newValue: current.available,
       confidence: 85,
       status: "pending",
+      reason: diagnosis.diagnosis,
     });
   }
 
@@ -226,6 +253,12 @@ export async function compareSnapshots(
     current.title &&
     normalizeComparableText(previous.title) !== normalizeComparableText(current.title)
   ) {
+    const diagnosis = buildChangeDiagnosis({
+      changeType: "title_changed",
+      fieldName: "title",
+      oldValue: previous.title,
+      newValue: current.title,
+    });
     changes.push({
       changeType: "title_changed",
       fieldName: "title",
@@ -233,7 +266,7 @@ export async function compareSnapshots(
       newValue: current.title,
       confidence: 80,
       status: "manual_review",
-      reason: "Başlık değişimi manuel inceleme gerektirir",
+      reason: diagnosis.diagnosis,
     });
   }
 
@@ -266,6 +299,13 @@ export async function compareSnapshots(
     const oldInStock = ov.inStock !== false;
     const newInStock = (nv as { inStock?: boolean }).inStock !== false;
     if (oldInStock !== newInStock) {
+      const diagnosis = buildChangeDiagnosis({
+        changeType: "variant_stock_changed",
+        fieldName: "inStock",
+        oldValue: oldInStock,
+        newValue: newInStock,
+        variantLabel: key,
+      });
       changes.push({
         changeType: "variant_stock_changed",
         fieldName: "inStock",
@@ -273,6 +313,7 @@ export async function compareSnapshots(
         newValue: newInStock,
         confidence: 75,
         status: "pending",
+        reason: diagnosis.diagnosis,
         variantKey: key,
       });
     }
@@ -286,6 +327,13 @@ export async function compareSnapshots(
         Math.abs(oldVp - oldPrice) <= 0.009 &&
         Math.abs(newVp - newPrice) <= 0.009;
       if (mirrorsProductPrice) continue;
+      const diagnosis = buildChangeDiagnosis({
+        changeType: "variant_price_changed",
+        fieldName: "variant_price",
+        oldValue: oldVp,
+        newValue: newVp,
+        variantLabel: key,
+      });
       changes.push({
         changeType: "variant_price_changed",
         fieldName: "variant_price",
@@ -293,6 +341,7 @@ export async function compareSnapshots(
         newValue: newVp,
         confidence: 80,
         status: "pending",
+        reason: diagnosis.diagnosis,
         variantKey: key,
       });
     }

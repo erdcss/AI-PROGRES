@@ -59,7 +59,30 @@ export function isFallbackFakePrice(price: unknown): boolean {
 export function parseSourcePrice(price: unknown): number {
   if (typeof price === "number" && price > 0) return price;
   if (typeof price === "string") {
-    const n = Number.parseFloat(price.replace(/[^\d.,]/g, "").replace(",", "."));
+    const clean = price
+      .replace(/[₺]/g, "")
+      .replace(/\bTL\b/gi, "")
+      .replace(/\s+/g, "")
+      .trim();
+    if (!clean) return 0;
+
+    const trFull = clean.match(/^(\d{1,3}(?:\.\d{3})+),(\d{1,2})$/);
+    if (trFull) {
+      return Number.parseFloat(`${trFull[1].replace(/\./g, "")}.${trFull[2]}`);
+    }
+    const trThousands = clean.match(/^(\d{1,3}(?:\.\d{3})+)$/);
+    if (trThousands) {
+      return Number(trThousands[1].replace(/\./g, ""));
+    }
+    const commaDec = clean.match(/^(\d+),(\d{1,2})$/);
+    if (commaDec) {
+      return Number.parseFloat(`${commaDec[1]}.${commaDec[2]}`);
+    }
+    const plain = clean.match(/^(\d+(?:\.\d{1,2})?)$/);
+    if (plain) {
+      return Number.parseFloat(plain[1]);
+    }
+    const n = Number.parseFloat(clean.replace(/[^\d.,]/g, "").replace(/\./g, "").replace(",", "."));
     return Number.isFinite(n) && n > 0 ? n : 0;
   }
   if (price && typeof price === "object") {

@@ -183,7 +183,7 @@ console.log("\n=== Variant Flow Tests ===\n");
   assert(!isValidSizeLabel("Sepete Ekle"), "Sepete Ekle beden değil");
 }
 
-// Test — apparel one-size after full scrape → blocked
+// Test — apparel one-size after full scrape → upload allowed (genuine single size)
 {
   const canonical = buildCanonicalProductForShopify({
     sourceUrl: "https://www.trendyol.com/lela/midi-elbise-p-897305689",
@@ -193,11 +193,33 @@ console.log("\n=== Variant Flow Tests ===\n");
       price: { original: 400 },
       variants: { allVariants: [{ color: "Tek Renk", size: "S", inStock: true }] },
       fullVariantScrapeAttempted: true,
-      variantDiagnostics: { fullVariantScrapeAttempted: true, rawDomSizeCount: 0 },
+      variantDiagnostics: { fullVariantScrapeAttempted: true, rawDomSizeCount: 1 },
     },
   });
   assert(canonical?.manualReviewRequired === true, "apparel one-size manual review");
-  assert(canonical?.shopifyUploadBlocked === true, "apparel one-size upload blocked");
+  assert(canonical?.shopifyUploadBlocked !== true, "apparel genuine one-size upload allowed");
+}
+
+// Test — apparel sizes lost (DOM had many, canonical has one) → blocked
+{
+  const canonical = buildCanonicalProductForShopify({
+    sourceUrl: "https://www.trendyol.com/lela/midi-elbise-p-897305689",
+    scrapeResult: {
+      title: "Midi Elbise",
+      brand: "Lela",
+      price: { original: 400 },
+      variants: { allVariants: [{ color: "Tek Renk", size: "S", inStock: true }] },
+      fullVariantScrapeAttempted: true,
+      variantDiagnostics: {
+        fullVariantScrapeAttempted: true,
+        rawDomSizeCount: 4,
+        mergedSizeCount: 4,
+        domSizeButtons: ["S", "M", "L", "XL"],
+      },
+      domSizeButtons: ["S", "M", "L", "XL"],
+    },
+  });
+  assert(canonical?.shopifyUploadBlocked === true, "apparel size-loss upload blocked");
 }
 
 // Test — tek SKU, bedensiz ürün (kozmetik / aksesuar)

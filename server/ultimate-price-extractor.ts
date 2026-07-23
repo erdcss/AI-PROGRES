@@ -255,15 +255,34 @@ export class UltimatePriceExtractor {
 
   /** DOM'daki orijinal/üstü çizili fiyat — promosyon metinleri elenir */
   private extractOriginalDomPrice(): number {
-    const selectors = ['.prc-org', '.original-price', '.price-original', '.was-price'];
+    const selectors = [
+      ".prc-org",
+      ".original-price",
+      ".price-original",
+      ".was-price",
+      '[data-testid="price-current-price"]',
+      ".prc-dsc",
+      ".product-price-container",
+      ".price-container",
+    ];
+    const candidates: number[] = [];
     for (const selector of selectors) {
-      const text = this.$(selector).first().text().trim();
-      if (text && !isTrendyolPromotionalPriceText(text)) {
-        const value = parseTurkishPriceText(text);
-        if (value > 0) return value;
-      }
+      this.$(selector).each((_, el) => {
+        const text = this.$(el).text().replace(/\s+/g, " ").trim();
+        if (!text || isTrendyolPromotionalPriceText(text)) return;
+        // "Sepette …" satırını atla; aynı blokta "12.885 TL" kalabilir
+        const withoutPromo = text
+          .replace(/sepette\s*[\d.,]+\s*tl/gi, " ")
+          .replace(/sepette\s*\d+\s*tl\s*indirim/gi, " ")
+          .trim();
+        const value = parseTurkishPriceText(withoutPromo) || parseTurkishPriceText(text);
+        if (value >= 29 && value <= 500_000) candidates.push(value);
+      });
     }
-    return 0;
+    if (candidates.length === 0) return 0;
+    // 5+ basamaklı gerçek TL varsa onu tercih et (128.75 tuzağına düşme)
+    candidates.sort((a, b) => b - a);
+    return candidates[0];
   }
 
   /**
