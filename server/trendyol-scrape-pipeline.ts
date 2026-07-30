@@ -238,6 +238,25 @@ function finalizeOutcome(
   logScrapeDiagnostics(diagnostics);
 
   if (!quality.jobSuccess) {
+    console.warn("[scrape-quality] rejected", {
+      hasTitle: quality.hasRealTitle,
+      hasValidPrice: quality.hasValidPrice,
+      hasImages: quality.hasImages,
+      imageCount: filterValidProductImages(result.images).length,
+      variantCount: Array.isArray((result as any).variants?.sizes)
+        ? (result as any).variants.sizes.length
+        : Array.isArray((result as any).variants)
+          ? (result as any).variants.length
+          : 0,
+      finalSuccessReason: quality.finalSuccessReason,
+      stageErrors: diagnostics.stageErrors,
+      rejectionCodes: [
+        !quality.hasValidPrice ? "missing-price" : null,
+        !quality.hasImages ? "missing-images" : null,
+        !quality.hasRealTitle ? "missing-or-slug-title" : null,
+        quality.finalSuccessReason,
+      ].filter(Boolean),
+    });
     console.error(
       "❌ Scrape pipeline provider özeti:",
       JSON.stringify({
@@ -592,24 +611,45 @@ export async function runTrendyolScrapePipeline(
 
     if (providers.includes("browser_worker") && policy.preferBrowserWorker) {
       diagnostics.gatewayStarted = true;
-      console.log("⚡ [1] Browser Worker (primary)...");
+      const correlationId = `scrape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      // Renk ailesi ~45s ek süre ister; bütçe yetmezse yalnızca ana ürün çek.
+      const includeColorFamily = remainingMs() >= 70_000;
+      const bwBudgetMs = Math.min(
+        Math.max(policy.browserWorkerTimeoutMs, includeColorFamily ? 100_000 : 45_000),
+        remainingMs(),
+      );
+      console.log("⚡ [1] Browser Worker (primary)...", {
+        correlationId,
+        includeColorFamily,
+        bwBudgetMs,
+        remainingMs: remainingMs(),
+      });
       try {
-        const { scrapeTrendyolWithBrowserWorker } = await import(
-          "./services/browser-worker-client.service"
-        );
+        const {
+          scrapeTrendyolWithBrowserWorker,
+        } = await import("./services/browser-worker-client.service");
         const bw = await withStageTimeout(
           () =>
             scrapeTrendyolWithBrowserWorker(url, {
-              includeColorFamily: true,
+              includeColorFamily,
               includeSiblingHtml: false,
+              correlationId,
+              clientTimeoutMs: Math.max(5_000, bwBudgetMs - 1_000),
             }),
-          Math.min(Math.max(policy.browserWorkerTimeoutMs, 90_000), remainingMs()),
-          "direct-html-timeout",
+          bwBudgetMs,
+          "browser-worker-timeout",
         );
 
-        if (bw.success && bw.html && bw.html.length >= 500) {
-          directHtml = bw.html;
-          diagnostics.directHtmlSuccess = true;
+        const usableHtml = Boolean(bw.html && bw.html.length >= 500);
+        const usableRaw = Boolean(
+          bw.rawProductJson && Object.keys(bw.rawProductJson).length > 0,
+        );
+
+        if (bw.success && (usableHtml || usableRaw)) {
+          if (usableHtml) {
+            directHtml = bw.html;
+            diagnostics.directHtmlSuccess = true;
+          }
           applyBrowserWorkerToResult(result, url, bw, diagnostics);
           if (bw.rawProductJson) {
             apiProduct = apiProduct
@@ -617,7 +657,8 @@ export async function runTrendyolScrapePipeline(
               : ({ rawProduct: bw.rawProductJson } as typeof apiProduct);
           }
           console.log(
-            `✅ Browser Worker (${bw.durationMs}ms): HTML ${bw.html.length} bytes`,
+            `✅ Browser Worker (${bw.durationMs}ms): HTML ${bw.html?.length ?? 0} bytes raw=${usableRaw} colorFamily=${bw.colorFamilyMembers?.length ?? 0}`,
+            { correlationId },
           );
         } else {
           diagnostics.browserWorkerSucceeded = false;
@@ -626,15 +667,18 @@ export async function runTrendyolScrapePipeline(
           pushStageError(diagnostics, errCode);
           console.warn(
             `⚠️ Browser Worker [${bw.errorCategory ?? "unknown"}]: ${bw.error ?? errCode}`,
+            { correlationId },
           );
         }
       } catch (err) {
         diagnostics.browserWorkerSucceeded = false;
         const code: ScrapeStageErrorCode =
-          err instanceof ScrapeStageTimeoutError ? "direct-html-timeout" : "browser-worker-failed";
+          err instanceof ScrapeStageTimeoutError
+            ? "browser-worker-timeout"
+            : "browser-worker-failed";
         pushStageError(diagnostics, code);
         diagnostics.gatewayError = code;
-        console.warn(`⚠️ Browser Worker soft-fail (${code})`);
+        console.warn(`⚠️ Browser Worker soft-fail (${code})`, { correlationId });
       }
     }
 

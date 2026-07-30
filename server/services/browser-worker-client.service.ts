@@ -78,14 +78,47 @@ export type BrowserWorkerScrapeResult = {
 
 const BROWSER_WORKER_TIMEOUT_MS = 45_000;
 const BROWSER_WORKER_HEALTH_TIMEOUT_MS = 10_000;
+const BROWSER_WORKER_COLOR_FAMILY_TIMEOUT_MS = 100_000;
+
+/** Env secret normalize — trim + optional wrapping quotes */
+export function normalizeBrowserWorkerSecret(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  let v = String(value).trim();
+  if (
+    (v.startsWith('"') && v.endsWith('"') && v.length >= 2) ||
+    (v.startsWith("'") && v.endsWith("'") && v.length >= 2)
+  ) {
+    v = v.slice(1, -1).trim();
+  }
+  // Railway / copy-paste newline leftovers
+  v = v.replace(/\r|\n/g, "").trim();
+  return v || null;
+}
+
+/** Endpoint resolve — URL wins over ENDPOINT; trailing slash stripped */
+export function resolveBrowserWorkerEndpoint(
+  urlValue?: string | null,
+  endpointValue?: string | null,
+): string | null {
+  const raw =
+    normalizeBrowserWorkerSecret(urlValue) ||
+    normalizeBrowserWorkerSecret(endpointValue) ||
+    null;
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
 
 function getBrowserWorkerConfig() {
-  const endpoint =
-    process.env.BROWSER_WORKER_URL?.trim() ||
-    process.env.BROWSER_WORKER_ENDPOINT?.trim() ||
-    null;
-  const token = process.env.BROWSER_WORKER_TOKEN?.trim() || null;
-  const timeoutMs = Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || BROWSER_WORKER_TIMEOUT_MS;
+  const endpoint = resolveBrowserWorkerEndpoint(
+    process.env.BROWSER_WORKER_URL,
+    process.env.BROWSER_WORKER_ENDPOINT,
+  );
+  const token = normalizeBrowserWorkerSecret(process.env.BROWSER_WORKER_TOKEN);
+  const parsedTimeout = Number(process.env.BROWSER_WORKER_TIMEOUT_MS);
+  const timeoutMs =
+    Number.isFinite(parsedTimeout) && parsedTimeout > 0
+      ? parsedTimeout
+      : BROWSER_WORKER_TIMEOUT_MS;
   return {
     endpoint,
     token,
@@ -94,6 +127,27 @@ function getBrowserWorkerConfig() {
     tokenConfigured: Boolean(token),
     configured: Boolean(endpoint && token),
   };
+}
+
+export function mapBrowserWorkerStageError(
+  category: BrowserWorkerErrorCategory | string | null | undefined,
+): string {
+  switch (category) {
+    case "auth":
+      return "browser-worker-unauthorized";
+    case "timeout":
+      return "browser-worker-timeout";
+    case "not-configured":
+      return "browser-worker-not-configured";
+    case "blocked":
+      return "browser-worker-blocked";
+    case "dns":
+    case "connection":
+    case "navigation":
+    case "unknown":
+    default:
+      return "browser-worker-failed";
+  }
 }
 
 export function isBrowserWorkerConfigured(): boolean {
@@ -109,8 +163,16 @@ export function extractSafeBrowserWorkerHost(endpoint: string | null): string | 
   }
 }
 
-function logBrowserWorker(line: string): void {
-  console.log(`[BrowserWorker] ${line}`);
+function logBrowserWorker(line: string, meta?: Record<string, unknown>): void {
+  if (meta && Object.keys(meta).length > 0) {
+    console.log(`[BrowserWorker] ${line}`, meta);
+  } else {
+    console.log(`[BrowserWorker] ${line}`);
+  }
+}
+
+export function createScrapeCorrelationId(): string {
+  return `bw-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function categorizeBrowserWorkerError(
@@ -316,7 +378,7 @@ export async function fetchHtmlWithBrowserWorker(url: string): Promise<BrowserWo
         durationMs,
         error: "browser-worker-unauthorized",
         errorCategory: "auth",
-        stageError: "browser-worker-failed",
+        stageError: "browser-worker-unauthorized",
       };
     }
 
@@ -332,7 +394,7 @@ export async function fetchHtmlWithBrowserWorker(url: string): Promise<BrowserWo
         durationMs,
         error: data.error ?? "browser-worker-empty-html",
         errorCategory: (data.errorCategory as BrowserWorkerErrorCategory) ?? "unknown",
-        stageError: "browser-worker-failed",
+        stageError: mapBrowserWorkerStageError(data.errorCategory),
       };
     }
 
@@ -359,27 +421,44 @@ export async function fetchHtmlWithBrowserWorker(url: string): Promise<BrowserWo
       durationMs: Date.now() - start,
       error: categorized.message,
       errorCategory: categorized.category,
-      stageError: "browser-worker-failed",
+      stageError: mapBrowserWorkerStageError(categorized.category),
     };
   }
 }
 
 export async function scrapeTrendyolWithBrowserWorker(
   url: string,
-  options?: { includeColorFamily?: boolean; includeSiblingHtml?: boolean },
+  options?: {
+    includeColorFamily?: boolean;
+    includeSiblingHtml?: boolean;
+    correlationId?: string;
+    clientTimeoutMs?: number;
+  },
 ): Promise<BrowserWorkerScrapeResult> {
   const start = Date.now();
+  const correlationId = options?.correlationId || createScrapeCorrelationId();
   const { endpoint, token, configured, endpointConfigured, tokenConfigured, timeoutMs } =
     getBrowserWorkerConfig();
   const endpointHost = extractSafeBrowserWorkerHost(endpoint);
   const includeColorFamily = options?.includeColorFamily !== false;
+  const requestTimeoutMs =
+    options?.clientTimeoutMs && options.clientTimeoutMs > 0
+      ? options.clientTimeoutMs
+      : includeColorFamily
+        ? Math.max(timeoutMs, BROWSER_WORKER_COLOR_FAMILY_TIMEOUT_MS)
+        : timeoutMs;
 
-  logBrowserWorker(`endpoint configured: ${endpointConfigured ? "yes" : "no"}`);
-  logBrowserWorker(`endpoint host: ${endpointHost ?? "(yok)"}`);
-  logBrowserWorker(`token configured: ${tokenConfigured ? "yes" : "no"}`);
+  logBrowserWorker("request started: scrape/trendyol", {
+    correlationId,
+    endpointHost,
+    endpointConfigured,
+    tokenConfigured,
+    includeColorFamily,
+    timeoutMs: requestTimeoutMs,
+  });
 
   if (!configured || !endpoint || !token) {
-    logBrowserWorker("request failed category: not-configured");
+    logBrowserWorker("request failed category: not-configured", { correlationId });
     return {
       success: false,
       html: null,
@@ -395,7 +474,6 @@ export async function scrapeTrendyolWithBrowserWorker(
   }
 
   const base = endpoint.replace(/\/$/, "");
-  logBrowserWorker("request started: scrape/trendyol");
 
   try {
     const response = await axios.post(
@@ -404,20 +482,32 @@ export async function scrapeTrendyolWithBrowserWorker(
         url,
         includeColorFamily,
         includeSiblingHtml: options?.includeSiblingHtml === true,
+        correlationId,
       },
       {
-        // Renk ailesi crawl için ekstra süre
-        timeout: includeColorFamily ? Math.max(timeoutMs, 90_000) : timeoutMs,
-        headers: authHeaders(token),
+        timeout: requestTimeoutMs,
+        headers: {
+          ...authHeaders(token),
+          "X-Correlation-Id": correlationId,
+        },
         validateStatus: () => true,
       },
     );
 
     const durationMs = Date.now() - start;
-    const data = response.data as BrowserWorkerTrendyolResponse;
+    const data = (response.data ?? {}) as BrowserWorkerTrendyolResponse;
+    const hasHtml = typeof data.html === "string" && data.html.length >= 500;
+    const hasRaw =
+      Boolean(data.rawProductJson) &&
+      typeof data.rawProductJson === "object" &&
+      Object.keys(data.rawProductJson as object).length > 0;
 
     if (response.status === 401 || response.status === 403) {
-      logBrowserWorker("request failed category: auth");
+      logBrowserWorker("request failed category: auth", {
+        correlationId,
+        httpStatus: response.status,
+        durationMs,
+      });
       return {
         success: false,
         html: null,
@@ -428,36 +518,81 @@ export async function scrapeTrendyolWithBrowserWorker(
         durationMs,
         error: "browser-worker-unauthorized",
         errorCategory: "auth",
+        stageError: "browser-worker-unauthorized",
+      };
+    }
+
+    if (response.status >= 500) {
+      logBrowserWorker("request failed category: connection", {
+        correlationId,
+        httpStatus: response.status,
+        durationMs,
+      });
+      return {
+        success: false,
+        html: hasHtml ? data.html! : null,
+        rawProductJson: hasRaw ? (data.rawProductJson as Record<string, unknown>) : null,
+        jsonLd: data.jsonLd ?? [],
+        finalUrl: data.finalUrl ?? null,
+        status: response.status,
+        durationMs,
+        colorSiblingCandidates: data.colorSiblingCandidates,
+        colorFamilyMembers: data.colorFamilyMembers,
+        error: data.error ?? `browser-worker-http-${response.status}`,
+        errorCategory: "connection",
         stageError: "browser-worker-failed",
       };
     }
 
-    if (!data?.ok) {
-      logBrowserWorker(`request failed category: ${data.errorCategory ?? "unknown"}`);
+    if (!data?.ok || (!hasHtml && !hasRaw)) {
+      const category =
+        (data.errorCategory as BrowserWorkerErrorCategory) ||
+        (response.status === 429 ? "timeout" : "unknown");
+      logBrowserWorker("request failed category: invalid-response", {
+        correlationId,
+        httpStatus: response.status,
+        durationMs,
+        hasHtml,
+        hasRaw,
+        errorCategory: category,
+      });
       return {
         success: false,
-        html: data.html ?? null,
-        rawProductJson: data.rawProductJson ?? null,
+        html: hasHtml ? data.html! : null,
+        rawProductJson: hasRaw ? (data.rawProductJson as Record<string, unknown>) : null,
         jsonLd: data.jsonLd ?? [],
         finalUrl: data.finalUrl ?? null,
         status: data.status ?? response.status,
         durationMs,
         colorSiblingCandidates: data.colorSiblingCandidates,
         colorFamilyMembers: data.colorFamilyMembers,
-        error: data.error ?? "browser-worker-failed",
-        errorCategory: (data.errorCategory as BrowserWorkerErrorCategory) ?? "unknown",
-        stageError: "browser-worker-failed",
+        error: data.error ?? "browser-worker-invalid-response",
+        errorCategory: category,
+        stageError:
+          category === "blocked"
+            ? "browser-worker-blocked"
+            : "browser-worker-invalid-response",
       };
     }
 
-    logBrowserWorker(`request succeeded (${durationMs}ms, html ${data.html?.length ?? 0} bytes)`);
+    logBrowserWorker("request succeeded", {
+      correlationId,
+      durationMs,
+      httpStatus: response.status,
+      htmlBytes: hasHtml ? data.html!.length : 0,
+      hasRawProductJson: hasRaw,
+      colorFamilyMembers: Array.isArray(data.colorFamilyMembers)
+        ? data.colorFamilyMembers.length
+        : 0,
+      colorSiblingCandidates: Array.isArray(data.colorSiblingCandidates)
+        ? data.colorSiblingCandidates.length
+        : 0,
+    });
+
     return {
       success: true,
-      html: data.html ?? null,
-      rawProductJson:
-        data.rawProductJson && Object.keys(data.rawProductJson).length > 0
-          ? data.rawProductJson
-          : null,
+      html: hasHtml ? data.html! : null,
+      rawProductJson: hasRaw ? (data.rawProductJson as Record<string, unknown>) : null,
       jsonLd: data.jsonLd ?? [],
       finalUrl: data.finalUrl ?? null,
       status: data.status ?? response.status,
@@ -467,7 +602,10 @@ export async function scrapeTrendyolWithBrowserWorker(
     };
   } catch (err) {
     const categorized = categorizeBrowserWorkerError(err);
-    logBrowserWorker(`request failed category: ${categorized.category}`);
+    logBrowserWorker(`request failed category: ${categorized.category}`, {
+      correlationId,
+      durationMs: Date.now() - start,
+    });
     return {
       success: false,
       html: null,
@@ -478,7 +616,7 @@ export async function scrapeTrendyolWithBrowserWorker(
       durationMs: Date.now() - start,
       error: categorized.message,
       errorCategory: categorized.category,
-      stageError: "browser-worker-failed",
+      stageError: mapBrowserWorkerStageError(categorized.category),
     };
   }
 }

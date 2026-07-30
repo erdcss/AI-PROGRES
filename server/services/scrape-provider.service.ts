@@ -182,11 +182,18 @@ function defaultSnapshot(): ScrapeProviderSnapshot {
   });
 
   const browserWorkerTimeoutMs =
-    Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || 45_000;
+    Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || (isCloud ? 100_000 : 45_000);
   const localGlobalTimeout =
     Number(process.env.LOCAL_SCRAPE_GLOBAL_TIMEOUT_MS) || 180_000;
   const localScenarioTimeout = Number(process.env.SCENARIO_TIMEOUT_MS) || 120_000;
   const localLaunchTimeout = Number(process.env.PUPPETEER_LAUNCH_TIMEOUT_MS) || 60_000;
+  // Cloud + Browser Worker: renk ailesi crawl ~90s; 55s deadline BW'yi her zaman kesiyordu.
+  const cloudGlobalTimeoutMs =
+    Number(process.env.CLOUD_SCRAPE_GLOBAL_TIMEOUT_MS) ||
+    (browserWorkerConfigured ? 120_000 : 55_000);
+  const cloudJobMaxMs =
+    Number(process.env.CLOUD_SCRAPE_JOB_MAX_MS) ||
+    (browserWorkerConfigured ? 150_000 : 60_000);
 
   return {
     isCloudRuntime: isCloud,
@@ -207,7 +214,7 @@ function defaultSnapshot(): ScrapeProviderSnapshot {
     }),
     warnings,
     fatal,
-    globalTimeoutMs: isCloud ? 55_000 : localGlobalTimeout,
+    globalTimeoutMs: isCloud ? cloudGlobalTimeoutMs : localGlobalTimeout,
     scenarioTimeoutMs: isCloud ? 0 : localScenarioTimeout,
     puppeteerLaunchTimeoutMs: isCloud ? 45_000 : localLaunchTimeout,
     apiTimeoutMs: isCloud ? 8_000 : 10_000,
@@ -217,7 +224,7 @@ function defaultSnapshot(): ScrapeProviderSnapshot {
     localAgentHealthTimeoutMs: isCloud ? 2_000 : 8_000,
     imageFetcherTimeoutMs: isCloud ? 5_000 : 18_000,
     imageFallbackTimeoutMs: isCloud ? 3_000 : 12_000,
-    scrapeJobMaxMs: isCloud ? 60_000 : 180_000,
+    scrapeJobMaxMs: isCloud ? cloudJobMaxMs : 180_000,
     directHtmlRetries: isCloud ? 1 : 4,
   };
 }
@@ -248,11 +255,17 @@ export async function refreshScrapeProviderSnapshot(): Promise<ScrapeProviderSna
   });
 
   const browserWorkerTimeoutMs =
-    Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || 45_000;
+    Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || (isCloud ? 100_000 : 45_000);
   const localGlobalTimeout =
     Number(process.env.LOCAL_SCRAPE_GLOBAL_TIMEOUT_MS) || 180_000;
   const localScenarioTimeout = Number(process.env.SCENARIO_TIMEOUT_MS) || 120_000;
   const localLaunchTimeout = Number(process.env.PUPPETEER_LAUNCH_TIMEOUT_MS) || 60_000;
+  const cloudGlobalTimeoutMs =
+    Number(process.env.CLOUD_SCRAPE_GLOBAL_TIMEOUT_MS) ||
+    (browserWorkerConfigured ? 120_000 : 55_000);
+  const cloudJobMaxMs =
+    Number(process.env.CLOUD_SCRAPE_JOB_MAX_MS) ||
+    (browserWorkerConfigured ? 150_000 : 60_000);
 
   const snapshot: ScrapeProviderSnapshot = {
     isCloudRuntime: isCloud,
@@ -273,7 +286,7 @@ export async function refreshScrapeProviderSnapshot(): Promise<ScrapeProviderSna
     }),
     warnings,
     fatal,
-    globalTimeoutMs: isCloud ? 55_000 : localGlobalTimeout,
+    globalTimeoutMs: isCloud ? cloudGlobalTimeoutMs : localGlobalTimeout,
     scenarioTimeoutMs: isCloud ? 0 : localScenarioTimeout,
     puppeteerLaunchTimeoutMs: isCloud ? 45_000 : localLaunchTimeout,
     apiTimeoutMs: isCloud ? 8_000 : 10_000,
@@ -283,7 +296,7 @@ export async function refreshScrapeProviderSnapshot(): Promise<ScrapeProviderSna
     localAgentHealthTimeoutMs: isCloud ? 2_000 : 8_000,
     imageFetcherTimeoutMs: isCloud ? 5_000 : 18_000,
     imageFallbackTimeoutMs: isCloud ? 3_000 : 12_000,
-    scrapeJobMaxMs: isCloud ? 60_000 : 180_000,
+    scrapeJobMaxMs: isCloud ? cloudJobMaxMs : 180_000,
     directHtmlRetries: isCloud ? 1 : 4,
   };
 

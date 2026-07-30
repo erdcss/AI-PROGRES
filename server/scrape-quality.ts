@@ -302,8 +302,19 @@ export function evaluateScrapeQuality(
   ) {
     finalSuccessReason = "source-access-provider-failed";
   } else if (
+    stageErrors.includes("browser-worker-unauthorized") ||
+    opts.gatewayError === "browser-worker-unauthorized"
+  ) {
+    finalSuccessReason = "browser-worker-failed" as FinalSuccessReason;
+  } else if (
+    stageErrors.includes("browser-worker-timeout") ||
+    opts.gatewayError === "browser-worker-timeout" ||
     stageErrors.includes("browser-worker-failed") ||
-    opts.gatewayError === "browser-worker-failed"
+    opts.gatewayError === "browser-worker-failed" ||
+    stageErrors.includes("browser-worker-invalid-response") ||
+    opts.gatewayError === "browser-worker-invalid-response" ||
+    stageErrors.includes("browser-worker-blocked") ||
+    opts.gatewayError === "browser-worker-blocked"
   ) {
     finalSuccessReason = "browser-worker-failed" as FinalSuccessReason;
   } else if (

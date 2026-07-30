@@ -36,7 +36,11 @@ export type ScrapeStageErrorCode =
   | "local-agent-failed"
   | "browser-worker-failed"
   | "browser-worker-not-configured"
-  | "browser-worker-unhealthy";
+  | "browser-worker-unhealthy"
+  | "browser-worker-timeout"
+  | "browser-worker-unauthorized"
+  | "browser-worker-invalid-response"
+  | "browser-worker-blocked";
 
 export type FinalSuccessReason =
   | "api-only"
@@ -256,6 +260,20 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
   const cloud = diagnostics.isCloudRuntime;
   const reason = diagnostics.finalSuccessReason ?? "no-usable-data";
 
+  if (errors.includes("browser-worker-unauthorized")) {
+    return cloud
+      ? "Tarayıcı Worker yetkilendirmesi başarısız. Ana servis ve Browser Worker token değerlerini kontrol edin."
+      : "Tarayıcı Worker yetkilendirmesi başarısız.";
+  }
+
+  if (errors.includes("browser-worker-not-configured")) {
+    return "Tarayıcı Worker yapılandırılmamış (BROWSER_WORKER_URL/ENDPOINT ve BROWSER_WORKER_TOKEN gerekli).";
+  }
+
+  if (errors.includes("browser-worker-blocked")) {
+    return "Kaynak site tarayıcı erişimini engelledi. Lütfen daha sonra tekrar deneyin.";
+  }
+
   const sourceAccessFailed =
     errors.some((e) => e.startsWith("source-access-")) ||
     reason.startsWith("source-access-") ||
@@ -274,7 +292,15 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
   }
 
   const timeoutLike = errors.some((e) =>
-    ["direct-html-timeout", "api-timeout", "image-proxy-timeout", "image-fallback-timeout", "pipeline-global-timeout", "source-access-direct-timeout"].includes(e),
+    [
+      "direct-html-timeout",
+      "api-timeout",
+      "image-proxy-timeout",
+      "image-fallback-timeout",
+      "pipeline-global-timeout",
+      "source-access-direct-timeout",
+      "browser-worker-timeout",
+    ].includes(e),
   );
   const puppeteerOff = errors.includes("puppeteer-disabled-in-cloud") || diagnostics.scenarioSkippedReason?.includes("puppeteer");
 
@@ -295,6 +321,12 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
   }
   if (errors.includes("direct-html-timeout") || errors.includes("direct-html-error") || errors.includes("source-access-direct-timeout")) {
     parts.push("Ürün sayfası HTML'i alınamadı.");
+  }
+  if (errors.includes("browser-worker-timeout") || errors.includes("browser-worker-failed")) {
+    parts.push("Tarayıcı Worker ürün verisini zamanında tamamlayamadı.");
+  }
+  if (errors.includes("browser-worker-invalid-response")) {
+    parts.push("Tarayıcı Worker geçersiz yanıt döndü.");
   }
   if (errors.includes("image-proxy-timeout") || errors.includes("image-fallback-timeout")) {
     parts.push("Görseller alınamadı.");
@@ -345,6 +377,10 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "browser-worker-failed": "Tarayıcı Worker başarısız",
     "browser-worker-not-configured": "Tarayıcı Worker yapılandırılmamış",
     "browser-worker-unhealthy": "Tarayıcı Worker sağlıksız",
+    "browser-worker-timeout": "Tarayıcı Worker zaman aşımı",
+    "browser-worker-unauthorized": "Tarayıcı Worker yetkisiz (token uyuşmazlığı)",
+    "browser-worker-invalid-response": "Tarayıcı Worker geçersiz yanıt",
+    "browser-worker-blocked": "Tarayıcı Worker engellendi",
     "scenario-timeout": "Senaryo zaman aşımı",
     "scenario-error": "Senaryo hatası",
     "chromium-not-found": "Chromium bulunamadı — PUPPETEER_EXECUTABLE_PATH veya puppeteer browsers install chrome",

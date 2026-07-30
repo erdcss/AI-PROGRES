@@ -39,9 +39,25 @@ type TrendyolColorFamilyMember = {
 };
 
 const PORT = Number(process.env.PORT ?? 8080);
-const TOKEN = process.env.BROWSER_WORKER_TOKEN?.trim();
-const NAV_TIMEOUT_MS = Number(process.env.BROWSER_NAV_TIMEOUT_MS ?? 40_000);
 const STARTED_AT = Date.now();
+const NAV_TIMEOUT_MS = Number(process.env.BROWSER_NAV_TIMEOUT_MS ?? 40_000);
+const SCRAPE_DEADLINE_MS = Number(process.env.BROWSER_SCRAPE_DEADLINE_MS ?? 95_000);
+const WORKER_VERSION = "1.2.0";
+
+function normalizeWorkerSecret(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  let v = String(value).trim();
+  if (
+    (v.startsWith('"') && v.endsWith('"') && v.length >= 2) ||
+    (v.startsWith("'") && v.endsWith("'") && v.length >= 2)
+  ) {
+    v = v.slice(1, -1).trim();
+  }
+  v = v.replace(/\r|\n/g, "").trim();
+  return v || null;
+}
+
+const TOKEN = normalizeWorkerSecret(process.env.BROWSER_WORKER_TOKEN);
 
 if (!TOKEN) {
   console.error("BROWSER_WORKER_TOKEN tanımlı değil — worker başlatılamıyor.");
@@ -1053,7 +1069,7 @@ app.get("/health", (_req, res) => {
     service: "browser-worker",
     browserReady,
     uptimeSeconds: Math.floor((Date.now() - STARTED_AT) / 1000),
-    version: "1.1.0",
+    version: WORKER_VERSION,
   });
 });
 
@@ -1097,6 +1113,10 @@ app.post("/scrape/html", requireAuth, async (req, res) => {
 
 app.post("/scrape/trendyol", requireAuth, async (req, res) => {
   const start = Date.now();
+  const correlationId =
+    (typeof req.headers["x-correlation-id"] === "string" && req.headers["x-correlation-id"]) ||
+    (typeof req.body?.correlationId === "string" && req.body.correlationId) ||
+    `bw-${Date.now().toString(36)}`;
   try {
     const parsed = validatePublicHttpUrl(String(req.body?.url ?? ""));
     const url = parsed.toString();
@@ -1105,15 +1125,28 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
         ok: false,
         error: "Trendyol URL gerekli",
         errorCategory: "invalid-url" satisfies BrowserWorkerErrorCategory,
+        correlationId,
       });
     }
 
-    const includeColorFamily =
+    let includeColorFamily =
       req.body?.includeColorFamily === true ||
       req.body?.includeColorFamily === "true" ||
       req.body?.includeColorFamily === 1;
     const includeSiblingHtml =
       req.body?.includeSiblingHtml === true || req.body?.includeSiblingHtml === "true";
+    const requestDeadlineMs = Math.min(
+      SCRAPE_DEADLINE_MS,
+      Number(req.body?.deadlineMs) > 0 ? Number(req.body.deadlineMs) : SCRAPE_DEADLINE_MS,
+    );
+
+    console.log("[scrape/trendyol] start", {
+      correlationId,
+      includeColorFamily,
+      includeSiblingHtml,
+      requestDeadlineMs,
+      host: parsed.hostname,
+    });
 
     const rootNorm = normalizeColorSiblingUrl(url);
     const rootProductId = rootNorm?.productId || "";
@@ -1124,12 +1157,13 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
     let finalUrl = url;
     let statusCode = 0;
     let rawProductJson: Record<string, unknown> | null = null;
+    let colorFamilySkippedReason: string | null = null;
 
     await withPage(async (context) => {
       const page = await context.newPage();
       let rootMember: TrendyolColorFamilyMember | null = null;
       try {
-        console.log(`[ColorFamilyDebug] root ${url}`);
+        console.log(`[ColorFamilyDebug] root ${url}`, { correlationId });
         rootMember = await buildHydratedMemberSnapshot({
           page,
           requestedUrl: url,
@@ -1148,6 +1182,18 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
           buildRawProductJson(parseTrendyolProductDetailState(pageHtml));
 
         colorSiblingCandidates = extractSiblingCandidates(pageHtml, rawProductJson, url);
+
+        const elapsedAfterRoot = Date.now() - start;
+        const remainingAfterRoot = requestDeadlineMs - elapsedAfterRoot;
+        if (includeColorFamily && remainingAfterRoot < 15_000) {
+          colorFamilySkippedReason = `deadline-budget-low:${remainingAfterRoot}`;
+          includeColorFamily = false;
+          console.log("[scrape/trendyol] color family skipped", {
+            correlationId,
+            reason: colorFamilySkippedReason,
+            elapsedAfterRoot,
+          });
+        }
 
         // Href'siz swatch keşfi — aday sayısı düşükse click fallback
         if (includeColorFamily && colorSiblingCandidates.length < 2) {
@@ -1206,6 +1252,16 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
         colorSiblingCandidates = extractSiblingCandidates(pageHtml, rawProductJson, url);
       }
 
+      const remainingBeforeFamily = requestDeadlineMs - (Date.now() - start);
+      if (includeColorFamily && remainingBeforeFamily < 12_000) {
+        colorFamilySkippedReason = `pre-family-budget-low:${remainingBeforeFamily}`;
+        includeColorFamily = false;
+        console.log("[scrape/trendyol] color family skipped", {
+          correlationId,
+          reason: colorFamilySkippedReason,
+        });
+      }
+
       if (includeColorFamily && colorSiblingCandidates.length > 1 && rootProductId) {
         const siblings = await fetchColorFamilyMembers(
           context,
@@ -1242,11 +1298,41 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
               ok: true,
             };
         colorFamilyMembers = [rootEntry, ...siblings];
-        console.log(`[ColorFamilyDebug] final members=${colorFamilyMembers.length}`);
+        console.log(`[ColorFamilyDebug] final members=${colorFamilyMembers.length}`, {
+          correlationId,
+        });
       }
     });
 
     const jsonLd = extractJsonLdFromHtml(pageHtml);
+    const hasUsablePayload =
+      (typeof pageHtml === "string" && pageHtml.length >= 500) ||
+      Boolean(rawProductJson && Object.keys(rawProductJson).length > 0);
+
+    console.log("[scrape/trendyol] done", {
+      correlationId,
+      durationMs: Date.now() - start,
+      htmlBytes: pageHtml.length,
+      hasRawProductJson: Boolean(rawProductJson && Object.keys(rawProductJson).length > 0),
+      colorSiblingCandidates: colorSiblingCandidates.length,
+      colorFamilyMembers: colorFamilyMembers?.length ?? 0,
+      colorFamilySkippedReason,
+      ok: hasUsablePayload,
+    });
+
+    if (!hasUsablePayload) {
+      return res.status(422).json({
+        ok: false,
+        url,
+        finalUrl,
+        status: statusCode,
+        error: "extraction-empty",
+        errorCategory: "unknown" satisfies BrowserWorkerErrorCategory,
+        durationMs: Date.now() - start,
+        correlationId,
+        colorFamilySkippedReason,
+      });
+    }
 
     return res.json({
       ok: true,
@@ -1255,19 +1341,28 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
       status: statusCode,
       html: pageHtml,
       jsonLd,
-      rawProductJson: rawProductJson ?? {},
+      rawProductJson,
       colorSiblingCandidates,
       colorFamilyMembers,
       durationMs: Date.now() - start,
+      correlationId,
+      colorFamilySkippedReason,
     });
   } catch (err) {
     const category = categorizePlaywrightError(err);
-    const status = category === "invalid-url" ? 400 : 422;
+    const status = category === "invalid-url" ? 400 : category === "auth" ? 401 : 422;
+    console.warn("[scrape/trendyol] failed", {
+      correlationId,
+      category,
+      durationMs: Date.now() - start,
+      message: err instanceof Error ? err.message : String(err),
+    });
     return res.status(status).json({
       ok: false,
       error: err instanceof Error ? err.message : String(err),
       errorCategory: category,
       durationMs: Date.now() - start,
+      correlationId,
     });
   }
 });

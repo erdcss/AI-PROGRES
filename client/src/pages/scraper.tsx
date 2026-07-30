@@ -2355,34 +2355,6 @@ function ScraperPage() {
                 <Trash2 className="w-4 h-4 mr-2" />
                 Tümünü Sil
               </Button>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 flex items-center justify-center">
-                  <svg 
-                    width="64" 
-                    height="64" 
-                    viewBox="0 0 200 200" 
-                    className="rounded-lg"
-                  >
-                    <rect width="200" height="200" rx="25" fill="#FF6000"/>
-                    <rect x="0" y="65" width="200" height="70" fill="#000000"/>
-                    <text 
-                      x="100" 
-                      y="110" 
-                      textAnchor="middle" 
-                      fill="white" 
-                      fontSize="32" 
-                      fontFamily="Arial, sans-serif" 
-                      fontWeight="bold"
-                    >
-                      trendyol
-                    </text>
-                  </svg>
-                </div>
-                <div>
-                  <h1 className="text-zinc-100 font-thin text-xl tracking-wider">TRENDYOL</h1>
-                  <p className="text-zinc-500 text-sm font-thin">Ürün Çıkarıcı</p>
-                </div>
-              </div>
             </div>
           </div>
         </div>

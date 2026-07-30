@@ -390,13 +390,21 @@ export default function ShopifySettingsDialog() {
           {isLoading ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : badgeStatus === "connected" ? (
-            <Badge className="bg-green-500 text-white text-xs px-1 py-0">Bağlı</Badge>
+            <Badge className="!bg-emerald-600 !text-white border-transparent text-[10px] font-semibold px-1.5 py-0 leading-4">
+              Bağlı
+            </Badge>
           ) : badgeStatus === "failed" ? (
-            <Badge className="bg-red-500 text-white text-xs px-1 py-0">Hata</Badge>
+            <Badge className="!bg-red-600 !text-white border-transparent text-[10px] font-semibold px-1.5 py-0 leading-4">
+              Hata
+            </Badge>
           ) : badgeStatus === "unknown" ? (
-            <Badge className="bg-orange-500 text-white text-xs px-1 py-0">Kontrol Et</Badge>
+            <Badge className="!bg-amber-600 !text-white border-transparent text-[10px] font-semibold px-1.5 py-0 leading-4">
+              Kontrol Et
+            </Badge>
           ) : (
-            <Badge variant="destructive" className="text-xs px-1 py-0">Bağlı Değil</Badge>
+            <Badge className="!bg-red-700 !text-white border-transparent text-[10px] font-semibold px-1.5 py-0 leading-4">
+              Bağlı Değil
+            </Badge>
           )}
         </Button>
       </DialogTrigger>
