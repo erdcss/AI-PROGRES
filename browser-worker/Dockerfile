@@ -4,16 +4,17 @@ WORKDIR /app/browser-worker
 
 COPY browser-worker/package*.json ./
 
-# Build için esbuild dahil geliştirme bağımlılıklarını kur
+# Build için esbuild dahil tüm bağımlılıkları kur
 RUN npm install --include=dev
 
-# Browser Worker ve ortak kaynak kodlarını kopyala
+# Worker ve ihtiyaç duyduğu ortak kaynakları kopyala
 COPY browser-worker/ ./
 COPY shared/ /app/shared/
+COPY server/ /app/server/
 
 RUN npm run build
 
-# Build sonrasında geliştirme bağımlılıklarını kaldır
+# Üretimde gerekmeyen geliştirme paketlerini kaldır
 RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
