@@ -144,6 +144,11 @@ export type ChangeDiagnosisInput = {
   storedReason?: string | null;
   /** Kaynak alış → kârlı satış için marj (%) */
   profitMarginPercent?: number | null;
+  /** Canlı Shopify satış fiyatı (Admin'deki gerçek fiyat) */
+  liveSalePrice?: number | null;
+  /** Önceden hesaplanmış satış çiftleri (API priceDisplay) */
+  saleOld?: number | null;
+  saleNew?: number | null;
 };
 
 export type ChangeDiagnosis = {
@@ -186,8 +191,15 @@ export function buildChangeDiagnosis(input: ChangeDiagnosisInput): ChangeDiagnos
       const margin = input.profitMarginPercent;
       if (oldP != null && newP != null) {
         const up = newP > oldP;
-        const saleOld = applyProfitMargin(oldP, margin);
-        const saleNew = applyProfitMargin(newP, margin);
+        const liveSale = asPrice(input.liveSalePrice);
+        const saleOld =
+          liveSale != null && liveSale > 0
+            ? liveSale
+            : input.saleOld != null
+              ? asPrice(input.saleOld)
+              : applyProfitMargin(oldP, margin);
+        const saleNew =
+          input.saleNew != null ? asPrice(input.saleNew) : applyProfitMargin(newP, margin);
         const salePart =
           saleOld != null && saleNew != null
             ? ` Kârlı satış: ${formatTryPrice(saleOld)} → ${formatTryPrice(saleNew)}${

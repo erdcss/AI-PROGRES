@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   CHANGE_STATUS_LABELS,
   changeStatusVariant,
@@ -10,11 +16,13 @@ import {
   getChangeDiffParts,
 } from "./format-change-value";
 import { TrackingProductImage } from "./TrackingProductImage";
-import {
-  isActionableTrackingChangeStatus,
-  isDirectlyApplicableTrackingChange,
-} from "@shared/tracking-change-policy";
+import { isShopifySyncableTrackingChange } from "@shared/tracking-change-policy";
 import { isPlaceholderColor, isPlaceholderSize } from "@shared/trendyol-variant-utils";
+import { formatTryPrice } from "@shared/tracking-price-display";
+import {
+  buildProductTrackingTimeline,
+  formatTrackingDateTime,
+} from "./tracking-timeline";
 
 export type TrackingChangeItem = {
   id: number;
@@ -28,6 +36,8 @@ export type TrackingChangeItem = {
   status: string;
   reason?: string | null;
   createdAt: string;
+  approvedAt?: string | null;
+  appliedAt?: string | null;
   productTitle?: string | null;
   productUrl?: string | null;
   productImageUrl?: string | null;
@@ -41,6 +51,11 @@ export type TrackingChangeItem = {
   variantSize?: string | null;
   variantAvailable?: boolean | null;
   profitMarginPercent?: number | null;
+  productCreatedAt?: string | null;
+  productLastCheckedAt?: string | null;
+  productLastSuccessAt?: string | null;
+  productLastShopifySyncAt?: string | null;
+  shopifyTransferredAt?: string | null;
   priceDisplay?: {
     costOld: number | null;
     costNew: number | null;
@@ -63,12 +78,7 @@ type TrackingChangeCardProps = {
 };
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString("tr-TR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatTrackingDateTime(value);
 }
 
 export function TrackingChangeCard({
@@ -90,93 +100,61 @@ export function TrackingChangeCard({
     profitMarginPercent: c.profitMarginPercent,
     priceDisplay: c.priceDisplay,
   });
-  const priceLines = formatPricePairLines(c.priceDisplay ?? parts.priceDisplay);
+  const price = c.priceDisplay ?? parts.priceDisplay;
+  const priceLines = formatPricePairLines(price);
+  const saleTarget = price?.saleNew != null ? formatTryPrice(price.saleNew) : null;
   const canAct = c.status === "pending" || c.status === "manual_review";
-  const canShopify =
-    isActionableTrackingChangeStatus(c.status) &&
-    isDirectlyApplicableTrackingChange(c.changeType, c.fieldName, c.newValue);
+  const canShopify = isShopifySyncableTrackingChange(c);
   const needsReview = c.status === "manual_review" || c.status === "pending";
   const color =
     c.variantColor && !isPlaceholderColor(c.variantColor) ? c.variantColor : null;
   const size = c.variantSize && !isPlaceholderSize(c.variantSize) ? c.variantSize : null;
+  const isPrice = c.changeType.includes("price");
 
   return (
     <article
-      className={`rounded-xl border bg-card/50 overflow-hidden transition-colors ${
-        needsReview ? "border-amber-500/30" : "border-border/60"
+      className={`rounded-2xl border bg-card/40 ${
+        needsReview ? "border-amber-500/30" : "border-border/50"
       }`}
     >
-      <div className="p-4 flex gap-3 sm:gap-4">
-        <TrackingProductImage imageUrl={c.productImageUrl} title={c.productTitle} size="lg" />
+      <div className="p-4 sm:p-5 flex gap-3 sm:gap-4">
+        <TrackingProductImage imageUrl={c.productImageUrl} title={c.productTitle} size="md" />
 
         <div className="min-w-0 flex-1 space-y-2.5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0 space-y-1.5">
-              <h3 className="font-medium leading-snug line-clamp-2 text-[15px]">
+          <div className="flex gap-3 items-start justify-between">
+            <div className="min-w-0 space-y-1">
+              <h3 className="font-semibold leading-snug line-clamp-2 text-[15px]">
                 {c.productTitle || `Ürün #${c.trackedProductId}`}
               </h3>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {color && (
-                  <Badge variant="outline" className="font-normal text-xs">
-                    Renk: {color}
-                  </Badge>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                {(color || size) && (
+                  <span className="text-foreground/85 font-medium">
+                    {[color, size].filter(Boolean).join(" · ")}
+                  </span>
                 )}
-                {size && (
-                  <Badge variant="outline" className="font-normal text-xs">
-                    Beden: {size}
-                  </Badge>
-                )}
-                <Badge variant="secondary" className="font-normal text-xs">
-                  {parts.headline}
-                </Badge>
-                <Badge variant={changeStatusVariant(c.status)} className="font-normal text-xs">
+                <span className="text-foreground/85 font-medium">{parts.headline}</span>
+                <Badge variant={changeStatusVariant(c.status)} className="font-normal text-[10px] h-5 px-1.5">
                   {CHANGE_STATUS_LABELS[c.status] || c.status}
                 </Badge>
-                <span className="text-xs text-muted-foreground">{formatDate(c.createdAt)}</span>
+                <span>{formatDate(c.createdAt)}</span>
               </div>
-              <p className="text-sm text-foreground/90 leading-snug">{parts.diagnosis}</p>
-              {priceLines.costLine && (
-                <div className="grid sm:grid-cols-2 gap-2 text-sm pt-0.5">
-                  <div className="rounded-md bg-muted/40 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-0.5">
-                      Alış fiyatı
-                    </p>
-                    <p className="font-medium">{priceLines.costLine}</p>
-                  </div>
-                  {priceLines.saleLine && (
-                    <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
-                      <p className="text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-0.5">
-                        Kârlı satış
-                        {priceLines.marginLine ? ` · ${priceLines.marginLine}` : ""}
-                      </p>
-                      <p className="font-medium">{priceLines.saleLine}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-              {parts.advice && (
-                <p className="text-xs text-muted-foreground">{parts.advice}</p>
-              )}
             </div>
 
-            <div className="flex flex-wrap gap-2 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               {canShopify && onShopifySync && (
                 <Button
                   size="sm"
                   disabled={busy || !c.trackingUid || !c.shopifyProductId}
+                  title={
+                    !c.shopifyProductId || !c.trackingUid
+                      ? "Shopify ürün bağlantısı eksik"
+                      : saleTarget
+                        ? `Shopify satış: ${saleTarget}`
+                        : "Shopify güncelle"
+                  }
                   onClick={onShopifySync}
                 >
                   Shopify&apos;da düzelt
-                </Button>
-              )}
-              {canAct && onApprove && (
-                <Button size="sm" variant="outline" disabled={busy} onClick={onApprove}>
-                  Onayla
-                </Button>
-              )}
-              {canAct && onReject && (
-                <Button size="sm" variant="ghost" disabled={busy} onClick={onReject}>
-                  Reddet
                 </Button>
               )}
               {c.status === "approved" && onApply && (
@@ -189,30 +167,100 @@ export function TrackingChangeCard({
                   Tekrar dene
                 </Button>
               )}
+              {(canAct || onMarkSeen || onIgnore) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 px-0 text-muted-foreground"
+                      disabled={busy}
+                      aria-label="Diğer işlemler"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {canAct && onApprove && (
+                      <DropdownMenuItem onClick={onApprove}>Onayla</DropdownMenuItem>
+                    )}
+                    {canAct && onReject && (
+                      <DropdownMenuItem onClick={onReject}>Reddet</DropdownMenuItem>
+                    )}
+                    {onMarkSeen && (
+                      <DropdownMenuItem onClick={onMarkSeen}>Görüldü</DropdownMenuItem>
+                    )}
+                    {onIgnore && c.status !== "ignored" && (
+                      <DropdownMenuItem onClick={onIgnore}>Yok say</DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
 
+          {isPrice && (priceLines.costLine || saleTarget) ? (
+            <div className="space-y-1">
+              {priceLines.costLine && (
+                <p className="text-sm text-muted-foreground">
+                  Alış{" "}
+                  <span className="text-foreground/80 tabular-nums">{priceLines.costLine}</span>
+                </p>
+              )}
+              {saleTarget && (
+                <p className="text-[15px]">
+                  <span className="text-muted-foreground">Shopify satış </span>
+                  <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                    {saleTarget}
+                  </span>
+                  {priceLines.marginLine && (
+                    <span className="text-xs text-muted-foreground ml-1.5">
+                      ({priceLines.marginLine})
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-foreground/85 leading-snug">{parts.diagnosis}</p>
+          )}
+
+          {(() => {
+            const points = buildProductTrackingTimeline({
+              productCreatedAt: c.productCreatedAt,
+              shopifyTransferredAt: c.shopifyTransferredAt,
+              changeDetectedAt: c.createdAt,
+              changeAppliedAt: c.appliedAt,
+              productLastCheckedAt: c.productLastCheckedAt,
+              productLastSuccessAt: c.productLastSuccessAt,
+              productLastShopifySyncAt: c.productLastShopifySyncAt,
+            });
+            if (points.length === 0) return null;
+            return (
+              <div className="rounded-xl border border-border/40 bg-background/25 px-3 py-2.5 space-y-1.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Zaman çizelgesi
+                </p>
+                <dl className="grid gap-1 sm:grid-cols-2">
+                  {points.map((point) => (
+                    <div
+                      key={`${point.label}-${String(point.at)}`}
+                      className="flex items-baseline gap-2 text-xs"
+                    >
+                      <dt className="text-muted-foreground shrink-0 min-w-[7.5rem]">
+                        {point.label}
+                      </dt>
+                      <dd className="font-medium tabular-nums text-foreground/90">
+                        {formatTrackingDateTime(point.at)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            );
+          })()}
+
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {onMarkSeen && (
-              <button
-                type="button"
-                className="hover:text-foreground transition-colors"
-                disabled={busy}
-                onClick={onMarkSeen}
-              >
-                Görüldü
-              </button>
-            )}
-            {onIgnore && c.status !== "ignored" && (
-              <button
-                type="button"
-                className="hover:text-foreground transition-colors"
-                disabled={busy}
-                onClick={onIgnore}
-              >
-                Yok say
-              </button>
-            )}
             {c.productUrl && (
               <a
                 href={c.productUrl}
@@ -232,23 +280,25 @@ export function TrackingChangeCard({
               <ChevronDown
                 className={`w-3.5 h-3.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`}
               />
-              Detay
+              {detailsOpen ? "Gizle" : "Ham değerler"}
             </button>
           </div>
         </div>
       </div>
 
       {detailsOpen && (
-        <div className="px-4 pb-4 border-t border-border/40 mx-4 pt-3 space-y-2 text-sm">
-          <div className="grid sm:grid-cols-2 gap-2">
-            <div className="rounded-lg bg-muted/30 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+        <div className="px-4 sm:px-5 pb-4 border-t border-border/40 pt-3 space-y-2 text-sm">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-0.5">
                 {parts.oldLabel}
               </p>
-              <p className="break-words">{formatChangeValue(c.oldValue, c.changeType)}</p>
+              <p className="break-words text-muted-foreground">
+                {formatChangeValue(c.oldValue, c.changeType)}
+              </p>
             </div>
-            <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-1">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-0.5">
                 {parts.newLabel}
               </p>
               <p className="break-words font-medium">
@@ -256,10 +306,10 @@ export function TrackingChangeCard({
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
-            <span>#{c.id}</span>
-            {c.shopifyProductId && <span>Shopify {c.shopifyProductId}</span>}
-          </div>
+          <p className="font-mono text-[11px] text-muted-foreground">
+            #{c.id}
+            {c.shopifyProductId ? ` · Shopify ${c.shopifyProductId}` : ""}
+          </p>
         </div>
       )}
     </article>

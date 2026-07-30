@@ -8,11 +8,16 @@ import {
   type DetectedChange,
   type InsertDetectedChange,
 } from "@shared/schema";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { getRequestId } from "../request-context";
 import { applyDetectedChangeToShopify } from "./change-shopify-apply.service";
 import { isDirectlyApplicableTrackingChange } from "@shared/tracking-change-policy";
+import {
+  extractSourceCostFromChangeValue,
+  matchTrackedVariantByKey,
+} from "@shared/tracking-variant-resolve";
+import { stableVariantKey } from "@shared/tracking-price-sanity";
 
 export const CHANGE_STATUSES = [
   "pending",
@@ -31,11 +36,11 @@ export type ChangeStatus = (typeof CHANGE_STATUSES)[number];
 const ALLOWED_TRANSITIONS: Record<ChangeStatus, ChangeStatus[]> = {
   pending: ["manual_review", "approved", "rejected", "ignored", "superseded"],
   manual_review: ["approved", "rejected", "ignored", "superseded"],
-  approved: ["applying"],
+  approved: ["applying", "ignored", "superseded"],
   rejected: [],
   applying: ["applied", "failed"],
   applied: [],
-  failed: ["applying"],
+  failed: ["applying", "ignored", "superseded"],
   ignored: [],
   superseded: [],
 };
@@ -191,6 +196,11 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
     .limit(1);
   const warnings: string[] = [];
   let variantShopifyId: string | null = null;
+  let resolvedVariantId = change.trackedVariantId;
+
+  const needsVariant =
+    change.changeType === "variant_price_changed" ||
+    change.changeType === "variant_stock_changed";
 
   if (change.trackedVariantId) {
     const [variant] = await db
@@ -200,6 +210,52 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
       .limit(1);
     variantShopifyId = variant?.shopifyVariantId ?? null;
     if (!variantShopifyId) warnings.push("Shopify varyant eşleşmesi yok");
+  } else if (needsVariant) {
+    const rows = await db
+      .select()
+      .from(trackedVariants)
+      .where(eq(trackedVariants.trackedProductId, change.trackedProductId));
+    const fromReason = String(change.reason ?? "").match(/([^\s“”"]+::[^\s“”"]+)/)?.[1];
+    const meta =
+      change.newValue && typeof change.newValue === "object"
+        ? (change.newValue as Record<string, unknown>)
+        : {};
+    const key =
+      fromReason ||
+      (meta.key ? String(meta.key) : null) ||
+      (meta.color || meta.size
+        ? stableVariantKey({
+            color: meta.color ? String(meta.color) : undefined,
+            size: meta.size ? String(meta.size) : undefined,
+          })
+        : null);
+    const matched = key ? matchTrackedVariantByKey(rows, key) : null;
+    if (matched?.shopifyVariantId) {
+      resolvedVariantId = matched.id;
+      variantShopifyId = matched.shopifyVariantId;
+    } else {
+      warnings.push("Shopify varyant eşleşmesi yok — beden/renk bağlantısı kurulamadı");
+    }
+  }
+
+  if (change.changeType === "price_changed") {
+    const mapped = await db
+      .select({ id: trackedVariants.id })
+      .from(trackedVariants)
+      .where(
+        and(
+          eq(trackedVariants.trackedProductId, change.trackedProductId),
+          isNotNull(trackedVariants.shopifyVariantId),
+        ),
+      )
+      .limit(1);
+    if (mapped.length === 0) {
+      warnings.push("Shopify varyant eşleşmesi yok");
+    }
+    const cost = extractSourceCostFromChangeValue(change.newValue);
+    if (cost == null || cost <= 0) {
+      warnings.push("Geçersiz yeni alış fiyatı");
+    }
   }
 
   if (!product[0]?.shopifyProductId) {
@@ -227,7 +283,7 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
     productId: change.trackedProductId,
     trackingUid: product[0]?.trackingUid ?? null,
     shopifyProductId: product[0]?.shopifyProductId ?? null,
-    variantId: change.trackedVariantId,
+    variantId: resolvedVariantId,
     field: change.fieldName,
     shopifyOldValue: change.oldValue,
     sourceNewValue: change.newValue,
@@ -367,14 +423,23 @@ export async function bulkChangeAction(
     throw new Error(`En fazla ${BULK_ACTION_MAX} kayıt seçilebilir`);
   }
 
-  const results: { id: number; success: boolean; error?: string }[] = [];
+  const results: { id: number; success: boolean; error?: string; message?: string }[] = [];
   for (const id of ids) {
     try {
       if (action === "approve") await approveChange(id, actor);
       else if (action === "reject") await rejectChange(id, actor);
       else if (action === "ignore") await ignoreChange(id, actor);
-      else if (action === "shopify-sync") await shopifySyncChange(id, actor);
-      else await applyChange(id, actor, false);
+      else if (action === "shopify-sync") {
+        const syncResult = await shopifySyncChange(id, actor);
+        results.push({
+          id,
+          success: true,
+          message:
+            (syncResult as { shopify?: { message?: string } })?.shopify?.message ||
+            "Shopify güncellendi",
+        });
+        continue;
+      } else await applyChange(id, actor, false);
       results.push({ id, success: true });
     } catch (err) {
       results.push({ id, success: false, error: (err as Error).message });
@@ -389,9 +454,48 @@ export async function shopifySyncChange(id: number, actor = "user") {
   if (row.status === "applied") {
     throw new Error("Bu değişiklik zaten Shopify'a uygulanmış");
   }
+  if (row.status === "superseded") {
+    throw new Error(
+      "Bu kayıt daha yeni bir değişiklikle geçersiz kılındı — güncel değişikliği kullanın",
+    );
+  }
+  if (row.status === "ignored" || row.status === "rejected") {
+    throw new Error(`Bu değişiklik '${row.status}' durumunda; Shopify'da düzeltilemez`);
+  }
+  if (row.status === "applying") {
+    throw new Error("Bu değişiklik zaten uygulanıyor — birkaç saniye bekleyin");
+  }
   if (!isDirectlyApplicableTrackingChange(row.changeType, row.fieldName, row.newValue)) {
     throw new Error("Bu değişiklik Shopify'da doğrudan düzeltilemez");
   }
+
+  // Eşleşmeyen varyant kayıtları toplu senkronu 1/2 hatasına düşürmesin
+  if (
+    (row.changeType === "variant_stock_changed" ||
+      row.changeType === "variant_price_changed") &&
+    !row.trackedVariantId
+  ) {
+    const dryRun = await buildChangeApplyDryRun(id);
+    const unlinkable = dryRun.warnings.some((w) =>
+      /eşleşmesi yok|bağlantısı kurulamadı/i.test(w),
+    );
+    if (unlinkable || dryRun.variantId == null) {
+      const ignored = await ignoreChange(id, actor);
+      return {
+        change: ignored,
+        dryRun,
+        skipped: true,
+        shopify: {
+          success: true,
+          changeId: id,
+          action: row.changeType,
+          message: "Varyant eşleşmesi yok — kayıt yok sayıldı",
+          skipped: true,
+        },
+      };
+    }
+  }
+
   if (row.status === "pending" || row.status === "manual_review") {
     await approveChange(id, actor);
   }

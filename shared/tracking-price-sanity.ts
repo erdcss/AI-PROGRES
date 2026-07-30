@@ -88,6 +88,16 @@ export type PriceChangeAssessment = {
   reason?: string;
 };
 
+/**
+ * Liste/eski fiyat → aktif satış fiyatı düşüşünü ayırt et.
+ * Örn. 20999 → 17755 (~%15) tipik Trendyol liste→ödenecek geçişi.
+ */
+export function looksLikeListToActiveCorrection(oldPrice: number, newPrice: number): boolean {
+  if (!(oldPrice > 0 && newPrice > 0) || newPrice >= oldPrice) return false;
+  const ratio = newPrice / oldPrice;
+  return ratio >= 0.65 && ratio <= 0.95;
+}
+
 /** İki güvenilir fiyat arasındaki değişimi değerlendir */
 export function assessPriceChange(oldPrice: number, newPrice: number): PriceChangeAssessment {
   if (!isPlausibleProductPrice(oldPrice) || isSuspiciousDefaultPrice(oldPrice)) {
@@ -120,6 +130,15 @@ export function assessPriceChange(oldPrice: number, newPrice: number): PriceChan
   const ratio = newPrice / oldPrice;
   const pct = Math.abs((newPrice - oldPrice) / oldPrice) * 100;
 
+  if (Math.abs(ratio - 100) < 2 || Math.abs(ratio - 0.01) < 0.002) {
+    return {
+      shouldRecord: false,
+      confidence: 0,
+      status: "manual_review",
+      reason: "Kuruş/TL ölçek hatası olası — kayıt oluşturulmadı",
+    };
+  }
+
   if (ratio >= 3 || ratio <= 1 / 3) {
     return {
       shouldRecord: true,
@@ -129,12 +148,40 @@ export function assessPriceChange(oldPrice: number, newPrice: number): PriceChan
     };
   }
 
+  if (looksLikeListToActiveCorrection(oldPrice, newPrice)) {
+    return {
+      shouldRecord: true,
+      confidence: 92,
+      status: "pending",
+      reason: "Aktif satış fiyatı liste/eski fiyattan ayrıldı — Shopify güncellemesi önerilir",
+    };
+  }
+
+  // Belirgin artışlar (litre fiyatı / yanlış merchant) sık yanlış alarm üretir
+  if (pct >= 25 && newPrice > oldPrice) {
+    return {
+      shouldRecord: true,
+      confidence: 55,
+      status: "manual_review",
+      reason: "Belirgin fiyat artışı — kaynak fiyatı manuel doğrulayın",
+    };
+  }
+
   if (pct >= 40) {
     return {
       shouldRecord: true,
       confidence: 65,
       status: "manual_review",
       reason: "Büyük fiyat değişimi",
+    };
+  }
+
+  if (pct < 0.5 && Math.abs(newPrice - oldPrice) < 1) {
+    return {
+      shouldRecord: false,
+      confidence: 0,
+      status: "pending",
+      reason: "Önemsiz fiyat farkı",
     };
   }
 
@@ -165,7 +212,7 @@ export function resolveReliableBaselinePrice(
   return snapshotPrice;
 }
 
-/** Kararlı varyant anahtarı — indeks içermez */
+/** Kararlı varyant anahtarı — indeks içermez; SKU beden yerine geçmez */
 export function stableVariantKey(parts: {
   color?: string | null;
   size?: string | null;
@@ -175,8 +222,57 @@ export function stableVariantKey(parts: {
   sku?: string | null;
 }): string {
   const explicitKey = String(parts.key ?? "").trim();
-  if (explicitKey) return explicitKey.toLocaleLowerCase("tr-TR");
-  const color = String(parts.color ?? parts.option1 ?? "Varsayılan").trim();
-  const size = String(parts.size ?? parts.option2 ?? parts.sku ?? "Tek Beden").trim();
-  return `${color}::${size}`.toLowerCase();
+  if (explicitKey) {
+    // "renk::beden::3" gibi indeksli anahtarları normalize et
+    const segments = explicitKey.split("::").map((s) => s.trim()).filter(Boolean);
+    if (segments.length >= 3 && /^\d+$/.test(segments[segments.length - 1] ?? "")) {
+      return segments
+        .slice(0, -1)
+        .join("::")
+        .toLocaleLowerCase("tr-TR");
+    }
+    return explicitKey.toLocaleLowerCase("tr-TR");
+  }
+  const color = String(parts.color ?? parts.option1 ?? "Varsayılan").trim() || "Varsayılan";
+  // SKU'yu beden sanma — aksi halde siyah::ty-… ile siyah::tek beden eşleşmez ve yanlış OOS üretilir
+  const rawSize = String(parts.size ?? parts.option2 ?? "").trim();
+  const size = rawSize || "Tek Beden";
+  return `${color}::${size}`.toLocaleLowerCase("tr-TR");
+}
+
+/** Beden yok / tek beden / varsayılan — aynı SKU sayılır */
+export function isPlaceholderVariantSize(size: string | null | undefined): boolean {
+  const s = String(size ?? "")
+    .trim()
+    .toLocaleLowerCase("tr-TR");
+  if (!s) return true;
+  return (
+    s === "tek beden" ||
+    s === "standart" ||
+    s === "std" ||
+    s === "one size" ||
+    s === "os" ||
+    s === "varsayılan" ||
+    s === "default" ||
+    /^ty-\d+/i.test(s) // SKU'nun yanlışlıkla beden yazıldığı durum
+  );
+}
+
+/** Renk eşleşmesi + placeholder bedenler için gevşek anahtar denkliği */
+export function variantKeysLooselyEqual(a: string, b: string): boolean {
+  const na = a.trim().toLocaleLowerCase("tr-TR");
+  const nb = b.trim().toLocaleLowerCase("tr-TR");
+  if (na === nb) return true;
+  const [colorA = "", sizeA = ""] = na.split("::");
+  const [colorB = "", sizeB = ""] = nb.split("::");
+  const colorPlaceholders = new Set(["", "varsayılan", "tek renk", "default"]);
+  const colorOk =
+    colorA === colorB ||
+    (colorPlaceholders.has(colorA) && !colorPlaceholders.has(colorB)) ||
+    (colorPlaceholders.has(colorB) && !colorPlaceholders.has(colorA));
+  if (!colorOk && colorA !== colorB) return false;
+  if (colorA !== colorB && !colorPlaceholders.has(colorA) && !colorPlaceholders.has(colorB)) {
+    return false;
+  }
+  return isPlaceholderVariantSize(sizeA) && isPlaceholderVariantSize(sizeB);
 }

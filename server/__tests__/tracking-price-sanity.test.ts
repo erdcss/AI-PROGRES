@@ -7,6 +7,7 @@ import {
   resolveReliableBaselinePrice,
   stableVariantKey,
   validateFetchedPrice,
+  variantKeysLooselyEqual,
 } from "../../shared/tracking-price-sanity.ts";
 
 describe("tracking-price-sanity", () => {
@@ -57,5 +58,24 @@ describe("tracking-price-sanity", () => {
       stableVariantKey({ color: "Siyah", size: "M", key: "Siyah::M::3" }),
       "siyah::m",
     );
+  });
+
+  it("stable variant key does not use sku as size", () => {
+    assert.equal(
+      stableVariantKey({
+        color: "Siyah",
+        size: null,
+        sku: "TY-1027759156-siyah-standart",
+      }),
+      "siyah::tek beden",
+    );
+  });
+
+  it("loosely equates placeholder sizes and sku-as-size mistakes", () => {
+    assert.equal(
+      variantKeysLooselyEqual("siyah::tek beden", "siyah::ty-1027759156-siyah-standart"),
+      true,
+    );
+    assert.equal(variantKeysLooselyEqual("siyah::tek beden", "siyah::m"), false);
   });
 });

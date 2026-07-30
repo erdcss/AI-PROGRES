@@ -142,7 +142,12 @@ export function getChangeDiffParts(
     newValue,
     variantLabel: options?.variantLabel,
     storedReason: options?.storedReason,
-    profitMarginPercent: options?.profitMarginPercent,
+    profitMarginPercent: options?.profitMarginPercent ?? options?.priceDisplay?.marginPercent,
+    liveSalePrice: options?.priceDisplay?.saleOldFromShopify
+      ? options?.priceDisplay?.saleOld
+      : null,
+    saleOld: options?.priceDisplay?.saleOld ?? null,
+    saleNew: options?.priceDisplay?.saleNew ?? null,
   });
 
   let oldLabel = "Önce";

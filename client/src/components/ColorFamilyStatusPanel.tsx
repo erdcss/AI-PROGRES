@@ -144,7 +144,9 @@ export function ColorFamilyStatusPanel({
     ui.state === "success"
       ? `Renk ailesi çalıştı: ${ui.colorCount} renk`
       : ui.state === "partial"
-        ? `Renk ailesi kısmi · ${ui.failedCount} hata`
+        ? ui.failedCount > 0
+          ? `Renk ailesi kısmi · ${ui.failedCount} hata`
+          : `Renk ailesi kısmi · galeri/beden eksik`
         : ui.state === "failed"
           ? "Renk ailesi başarısız"
           : ui.state === "not_applicable"
@@ -192,7 +194,9 @@ export function ColorFamilyStatusPanel({
           <p className="text-[11px] text-zinc-500 mt-0.5">
             {ui.state === "success" && `${ui.colorCount} renk • ${ui.memberCount} ürün`}
             {ui.state === "partial" &&
-              `${ui.memberCount} ürün çekildi • ${ui.failedCount} başarısız`}
+              (ui.failedCount > 0
+                ? `${ui.memberCount} ürün çekildi • ${ui.failedCount} başarısız`
+                : `${ui.memberCount} ürün çekildi • galeri veya beden eksikleri var`)}
             {(ui.state === "failed" ||
               ui.state === "not_applicable" ||
               ui.state === "unknown") &&

@@ -87,7 +87,8 @@ export function parseSourcePrice(price: unknown): number {
   }
   if (price && typeof price === "object") {
     const p = price as Record<string, unknown>;
-    for (const key of ["original", "withProfit", "amount", "value"]) {
+    // active/original = alış; withProfit satış — takip alış üzerinden kıyaslar
+    for (const key of ["active", "original", "selling", "amount", "value", "withProfit"]) {
       const n = Number(p[key]);
       if (Number.isFinite(n) && n > 0) return n;
     }

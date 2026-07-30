@@ -86,15 +86,22 @@ const DEFAULT_SIZE = "Standart";
 const REJECTED_SIZE_TEXT =
   /sepete ekle|son \d+ ürün|kupon|popüler|yorum|marka|açıklama|fiyat|favori|kargo|tl$|tüm bedenler|beden seç|adetten az stok/i;
 
+/** Harf bedenleri + placeholder — sayısal numara isValidSizeLabel içinde aralık ile */
 export const VALID_SIZE_LABEL =
-  /^(XS|S|M|L|XL|XXL|2XL|3XL|4XL|34|36|38|40|42|44|Standart|STD|Tek Ebat)$/i;
+  /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Standart|STD|Tek\s*Ebat|Tek\s*Beden|One\s*Size|OS)$/i;
 
 export function isValidSizeLabel(size: string): boolean {
   const t = size.trim();
   if (!t) return false;
   // Trendyol combo bedenleri (S/M, L/XL) atomik genişletmeden önce kabul edilmeli
   if (isComboSizeLabel(t)) return true;
-  return VALID_SIZE_LABEL.test(t);
+  if (VALID_SIZE_LABEL.test(t)) return true;
+  // EU ayakkabı / numara — tek ve çift (36,37,38,39,40 …); yalnızca çiftleri kabul etme
+  if (/^\d{2}$/.test(t)) {
+    const n = Number.parseInt(t, 10);
+    return n >= 20 && n <= 60;
+  }
+  return false;
 }
 
 function cleanSize(value: string): string | null {

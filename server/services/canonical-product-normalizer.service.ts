@@ -84,7 +84,12 @@ function mapVariantsFromScrape(
   const primaryColor = detectPrimaryColor(titleForColor, sourceUrl);
 
   let filtered = allVariants;
-  if (primaryColor) {
+  const hasColorFamily =
+    Boolean(scrapeResult.familySourceKey) ||
+    Boolean(scrapeResult.colorFamily) ||
+    (Array.isArray(scrapeResult.sourceAliases) && scrapeResult.sourceAliases.length >= 2);
+
+  if (primaryColor && !hasColorFamily) {
     const colorVariants = allVariants.filter((v) => {
       const c = String(v.color ?? v.colorName ?? "").trim();
       return c && c.toLowerCase() === primaryColor.toLowerCase();
@@ -95,10 +100,12 @@ function mapVariantsFromScrape(
       const sizeOnly = allVariants.filter((v) => !v.color && !v.colorName);
       if (sizeOnly.length) filtered = sizeOnly;
     }
-  } else if (allVariants.length > 12) {
+  } else if (!hasColorFamily && allVariants.length > 12) {
     const colors = new Set(
       allVariants.map((v) => String(v.color ?? v.colorName ?? "").trim()).filter(Boolean),
     );
+    // Renk ailesi yokken aşırı renk şişkinliğini budamak için eski güvenlik —
+    // aile birleştirmesinde asla renkli satırları silme.
     if (colors.size > 3) {
       filtered = allVariants.filter((v) => !v.color && !v.colorName);
     }

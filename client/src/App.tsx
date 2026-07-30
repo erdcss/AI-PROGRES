@@ -1,5 +1,6 @@
 import { Switch, Route, Redirect } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
+import { TrackingStartupNotifier } from "@/components/TrackingStartupNotifier";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ScraperPage from "@/pages/scraper";
 import PriceComparisonPage from "@/pages/price-comparison";
@@ -493,6 +494,7 @@ function App() {
   return (
     <>
       <AppShell />
+      <TrackingStartupNotifier />
       <Toaster />
     </>
   );

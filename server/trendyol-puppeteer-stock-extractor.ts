@@ -42,8 +42,12 @@ export function domStockEvaluateScript(): PuppeteerStockSnapshot {
     const aria = el.getAttribute("aria-disabled");
     const disabled = el.hasAttribute("disabled") || aria === "true";
     const text = (htmlEl.innerText || htmlEl.textContent || "").toLowerCase();
+    const attrBlob = `${cls} ${el.getAttribute("aria-label") || ""} ${el.getAttribute("title") || ""} ${el.getAttribute("data-testid") || ""}`.toLowerCase();
 
     if (disabled) return { inStock: false, reason: "disabled attribute" };
+    if (el.getAttribute("data-available") === "false" || el.getAttribute("data-instock") === "false") {
+      return { inStock: false, reason: "data-available false" };
+    }
     if (
       cls.includes("disabled") ||
       cls.includes("passive") ||
@@ -51,10 +55,20 @@ export function domStockEvaluateScript(): PuppeteerStockSnapshot {
       cls.includes("soldout") ||
       cls.includes("out-of-stock") ||
       cls.includes("unavailable") ||
-      cls.includes("tukendi")
+      cls.includes("tukendi") ||
+      cls.includes("locked") ||
+      /\block(?:ed)?\b|\bkilit\b|i-lock|icon-lock|has-lock|size-lock/.test(attrBlob)
     ) {
       return { inStock: false, reason: "disabled class" };
     }
+
+    // Trendyol OOS bedenler çoğu zaman disabled değil — kilit ikonu ile işaretlenir
+    const hasLockChild = Boolean(
+      el.querySelector(
+        '[class*="lock"], [class*="Lock"], [class*="kilit"], [data-testid*="lock"], [aria-label*="lock"], [aria-label*="kilit"]',
+      ),
+    );
+    if (hasLockChild) return { inStock: false, reason: "lock icon" };
 
     const style = window.getComputedStyle(htmlEl);
     if (parseFloat(style.opacity) > 0 && parseFloat(style.opacity) < 0.45) {
@@ -77,7 +91,9 @@ export function domStockEvaluateScript(): PuppeteerStockSnapshot {
         pCls.includes("disabled") ||
         pCls.includes("passive") ||
         pCls.includes("sold-out") ||
-        pCls.includes("out-of-stock")
+        pCls.includes("out-of-stock") ||
+        pCls.includes("locked") ||
+        /\block(?:ed)?\b|\bkilit\b/.test(pCls)
       ) {
         return { inStock: false, reason: "parent disabled class" };
       }
@@ -98,19 +114,22 @@ export function domStockEvaluateScript(): PuppeteerStockSnapshot {
   }> => {
     const isValidSizeLabelInDom = (text: string): boolean => {
       const t = text.trim();
-      if (!t || t.length > 12) return false;
-      const oosText = /tükendi|tukendi|stokta yok|satışa kapalı|gelince haber ver|ürün tükenmiştir|beden tükendi/i;
+      if (!t || t.length > 20) return false;
+      if (/sepete ekle|şimdi al|son \d+ ürün|kupon|popüler|yorum/i.test(t)) return false;
       const sizePattern =
         /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|STD|STANDART|TEK\s*EBAT|TEK\s*BEDEN|ONE\s*SIZE|\d{2,3})$/i;
-      if (oosText.test(t)) return false;
-      if (/sepete ekle|şimdi al|son \d+ ürün|kupon|popüler|yorum/i.test(t)) return false;
-      return sizePattern.test(t);
+      if (sizePattern.test(t)) return true;
+      // "XS Tükendi" / kilit yanındaki gürültü — beden token'ını kabul et
+      const token = t.match(/^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d{2,3})\b/i);
+      return Boolean(token && sizePattern.test(token[1]));
     };
 
     const sizes: Array<{ name: string; inStock: boolean; disabledReason?: string }> = [];
     const seen = new Set<string>();
 
     const selectors = [
+      '[data-testid="size-box"]',
+      '[data-testid*="size-box"]',
       '[data-testid*="size"] button',
       '[data-testid="size-variant-item"]',
       '.slicing-attribute-section-value button',
@@ -118,26 +137,46 @@ export function domStockEvaluateScript(): PuppeteerStockSnapshot {
       '.slicing-attribute-section-value span',
       '[class*="slicing-attribute"] button',
       '.pr-in-sz button',
+      '.pr-in-sz .sp-itm',
+      '.sp-itm',
       '[class*="size-variant"] button',
     ];
 
     for (const sel of selectors) {
       document.querySelectorAll(sel).forEach((el) => {
         const htmlEl = el as HTMLElement;
-        const text = (
+        const raw = (
           htmlEl.innerText ||
           htmlEl.textContent ||
           htmlEl.getAttribute("title") ||
           htmlEl.getAttribute("aria-label") ||
           ""
-        ).trim();
-        if (!isValidSizeLabelInDom(text)) return;
-        const key = text.toLowerCase();
-        if (seen.has(key)) return;
+        )
+          .replace(/\s+/g, " ")
+          .trim();
+        if (!isValidSizeLabelInDom(raw)) return;
+        const token =
+          raw.match(/^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d{2,3})\b/i)?.[1] || raw;
+        const key = token.toLowerCase();
+        if (seen.has(key)) {
+          // Aynı beden tekrar: OOS kazanır
+          const idx = sizes.findIndex((s) => s.name.toLowerCase() === key);
+          if (idx >= 0) {
+            const stock = inspectElement(el);
+            if (sizes[idx].inStock && !stock.inStock) {
+              sizes[idx] = {
+                name: token,
+                inStock: false,
+                disabledReason: stock.reason,
+              };
+            }
+          }
+          return;
+        }
         seen.add(key);
         const stock = inspectElement(el);
         sizes.push({
-          name: text,
+          name: token,
           inStock: stock.inStock,
           disabledReason: stock.reason,
         });
@@ -196,11 +235,36 @@ export function domStockEvaluateScript(): PuppeteerStockSnapshot {
   }
 
   const addToCart = document.querySelector(
-    '[data-testid="add-to-cart"], button[class*="add-to-basket"], .add-to-basket',
+    [
+      '[data-testid="add-to-cart"]',
+      '[data-testid*="add-to-basket"]',
+      'button[class*="add-to-basket"]',
+      '.add-to-basket',
+      'button[class*="AddToBasket"]',
+      'button[class*="addToCart"]',
+      'button[class*="sold-out"]',
+      'button[class*="SoldOut"]',
+    ].join(', '),
   );
   if (addToCart) {
     const btn = inspectElement(addToCart);
     snapshot.productInStock = btn.inStock;
+  } else {
+    const bodyText = (document.body?.innerText || '').slice(0, 8000);
+    if (/Stoklar\s+Tükendi/i.test(bodyText) || /Ürün\s+tükenmiştir/i.test(bodyText)) {
+      snapshot.productInStock = false;
+    } else {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const tukendiBtn = buttons.find((b) => /^\s*Tükendi!?\s*$/i.test(b.innerText || ''));
+      if (tukendiBtn) {
+        snapshot.productInStock = false;
+      } else if (
+        /Gelince\s+Haber\s+Ver/i.test(bodyText) &&
+        !/Sepete\s+Ekle/i.test(bodyText)
+      ) {
+        snapshot.productInStock = false;
+      }
+    }
   }
 
   return snapshot;

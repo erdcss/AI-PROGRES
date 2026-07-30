@@ -21,8 +21,11 @@ import {
 } from "@shared/trendyol-variant-utils";
 import {
   buildPricePairDisplay,
+  pickRepresentativeShopifyPrice,
+  resolveMarginPercentPreferringLive,
   resolveProfitMarginPercent,
 } from "@shared/tracking-price-display";
+import { shopifyApiService } from "../shopify-api-service";
 
 export type SyncLogMeta = Record<string, unknown>;
 
@@ -166,9 +169,23 @@ export class TrackingService {
       .orderBy(desc(trackedProducts.updatedAt));
 
     const imageMap = await this.getLatestImageMap(products.map((p) => p.id));
+    const sourceUrls = [...new Set(products.map((p) => p.sourceUrl).filter(Boolean))];
+    const transfers =
+      sourceUrls.length > 0
+        ? await db
+            .select({
+              sourceUrl: shopifyTransferredProducts.sourceUrl,
+              transferredAt: shopifyTransferredProducts.transferredAt,
+            })
+            .from(shopifyTransferredProducts)
+            .where(inArray(shopifyTransferredProducts.sourceUrl, sourceUrls))
+        : [];
+    const transferByUrl = new Map(transfers.map((row) => [row.sourceUrl, row.transferredAt]));
+
     return products.map((p) => ({
       ...p,
       productImageUrl: imageMap.get(p.id) ?? null,
+      shopifyTransferredAt: transferByUrl.get(p.sourceUrl) ?? null,
     }));
   }
 
@@ -196,14 +213,24 @@ export class TrackingService {
           ),
       ),
     );
-    if (filters?.status === "actionable") {
-      conditions.push(
-        inArray(detectedChanges.status, ["pending", "manual_review", "approved", "failed"]),
-      );
-    } else if (filters?.status) {
+    const openStatuses = ["pending", "manual_review", "failed"] as const;
+
+    if (filters?.status === "actionable" || !filters?.status) {
+      conditions.push(inArray(detectedChanges.status, [...openStatuses]));
+      conditions.push(isNull(detectedChanges.seenAt));
+    } else if (filters.status === "ignored") {
+      conditions.push(eq(detectedChanges.status, "ignored"));
+    } else if (filters.status === "seen") {
+      // Görüldü: işaretlenmiş ama yok sayılmamış açık kayıtlar
+      conditions.push(inArray(detectedChanges.status, [...openStatuses]));
+      conditions.push(isNotNull(detectedChanges.seenAt));
+    } else if (filters.status === "pending" || filters.status === "manual_review" || filters.status === "failed") {
       conditions.push(eq(detectedChanges.status, filters.status));
+      conditions.push(isNull(detectedChanges.seenAt));
+    } else if (filters.status === "approved" || filters.status === "applied" || filters.status === "rejected" || filters.status === "superseded") {
+      conditions.push(sql`false`);
     } else {
-      conditions.push(ne(detectedChanges.status, "superseded"));
+      conditions.push(eq(detectedChanges.status, filters.status));
     }
     if (filters?.productId) conditions.push(eq(detectedChanges.trackedProductId, filters.productId));
     if (filters?.changeType) conditions.push(eq(detectedChanges.changeType, filters.changeType));
@@ -211,6 +238,54 @@ export class TrackingService {
     const query = db.select().from(detectedChanges).orderBy(desc(detectedChanges.createdAt));
     if (conditions.length === 0) return query;
     return query.where(and(...conditions));
+  }
+
+  /** Değişiklik sekmesi filtre sayıları */
+  async countChangesForPanel(): Promise<{
+    actionable: number;
+    pending: number;
+    manual_review: number;
+    failed: number;
+    ignored: number;
+    seen: number;
+  }> {
+    const visibleProductIds = db
+      .select({ id: trackedProducts.id })
+      .from(trackedProducts)
+      .where(
+        and(
+          ne(trackedProducts.currentStatus, "shopify_deleted"),
+          isNull(trackedProducts.archivedAt),
+          or(
+            isNotNull(trackedProducts.shopifyProductId),
+            isNotNull(trackedProducts.shopifyProductGid),
+          ),
+        ),
+      );
+
+    const openStatuses = ["pending", "manual_review", "failed"] as const;
+    const base = inArray(detectedChanges.trackedProductId, visibleProductIds);
+
+    const countWhere = async (condition: ReturnType<typeof and> | undefined) => {
+      const [row] = await db
+        .select({ c: sql<number>`count(*)::int` })
+        .from(detectedChanges)
+        .where(condition ? and(base, condition) : base);
+      return Number(row?.c ?? 0);
+    };
+
+    const [actionable, pending, manual_review, failed, ignored, seen] = await Promise.all([
+      countWhere(and(inArray(detectedChanges.status, [...openStatuses]), isNull(detectedChanges.seenAt))),
+      countWhere(and(eq(detectedChanges.status, "pending"), isNull(detectedChanges.seenAt))),
+      countWhere(and(eq(detectedChanges.status, "manual_review"), isNull(detectedChanges.seenAt))),
+      countWhere(and(eq(detectedChanges.status, "failed"), isNull(detectedChanges.seenAt))),
+      countWhere(eq(detectedChanges.status, "ignored")),
+      countWhere(
+        and(inArray(detectedChanges.status, [...openStatuses]), isNotNull(detectedChanges.seenAt)),
+      ),
+    ]);
+
+    return { actionable, pending, manual_review, failed, ignored, seen };
   }
 
   async listChangesWithProductForPanel(filters?: {
@@ -230,6 +305,10 @@ export class TrackingService {
         shopifyProductId: trackedProducts.shopifyProductId,
         trackingUid: trackedProducts.trackingUid,
         currentSourcePrice: trackedProducts.currentSourcePrice,
+        createdAt: trackedProducts.createdAt,
+        lastCheckedAt: trackedProducts.lastCheckedAt,
+        lastSuccessAt: trackedProducts.lastSuccessAt,
+        lastShopifySyncAt: trackedProducts.lastShopifySyncAt,
       })
       .from(trackedProducts)
       .where(inArray(trackedProducts.id, productIds));
@@ -244,6 +323,7 @@ export class TrackingService {
               profitMargin: shopifyTransferredProducts.profitMargin,
               originalPrice: shopifyTransferredProducts.originalPrice,
               shopifyPrice: shopifyTransferredProducts.shopifyPrice,
+              transferredAt: shopifyTransferredProducts.transferredAt,
             })
             .from(shopifyTransferredProducts)
             .where(inArray(shopifyTransferredProducts.sourceUrl, sourceUrls))
@@ -277,6 +357,67 @@ export class TrackingService {
         : [];
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const imageMap = await this.getLatestImageMap(productIds);
+
+    // Fiyat değişiklikleri için canlı Shopify satış fiyatını çek (alış×marj tahmini yerine)
+    const liveSaleByProductId = new Map<number, number>();
+    const priceChangeProductIds = [
+      ...new Set(
+        changes
+          .filter(
+            (c) =>
+              c.changeType === "price_changed" || c.changeType === "variant_price_changed",
+          )
+          .map((c) => c.trackedProductId),
+      ),
+    ];
+    const shopifyIdsToFetch = priceChangeProductIds
+      .map((id) => {
+        const p = byId.get(id);
+        return p?.shopifyProductId ? { productId: id, shopifyId: String(p.shopifyProductId) } : null;
+      })
+      .filter((x): x is { productId: number; shopifyId: string } => x != null);
+
+    const uniqueShopify = [...new Map(shopifyIdsToFetch.map((x) => [x.shopifyId, x])).values()];
+    const concurrency = 4;
+    for (let i = 0; i < uniqueShopify.length; i += concurrency) {
+      const batch = uniqueShopify.slice(i, i + concurrency);
+      await Promise.all(
+        batch.map(async ({ productId, shopifyId }) => {
+          try {
+            const result = await shopifyApiService.getDirectProductData(shopifyId);
+            if (!result.success || !result.product) return;
+            const prices = (result.product.variants ?? []).map(
+              (v: { price?: string | number }) => Number(v.price) || 0,
+            );
+            const live = pickRepresentativeShopifyPrice(prices);
+            if (live != null) {
+              for (const row of shopifyIdsToFetch) {
+                if (row.shopifyId === shopifyId) liveSaleByProductId.set(row.productId, live);
+              }
+              const product = byId.get(productId);
+              if (product?.sourceUrl) {
+                try {
+                  await db
+                    .update(shopifyTransferredProducts)
+                    .set({
+                      shopifyPrice: String(live),
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(shopifyTransferredProducts.sourceUrl, product.sourceUrl));
+                } catch {
+                  /* ignore cache update errors */
+                }
+              }
+            }
+          } catch (err) {
+            console.warn(
+              `⚠️ Canlı Shopify fiyatı alınamadı (#${productId}): ${(err as Error).message}`,
+            );
+          }
+        }),
+      );
+    }
+
     return changes.map((c) => {
       const product = byId.get(c.trackedProductId);
       const variant = c.trackedVariantId ? variantById.get(c.trackedVariantId) : undefined;
@@ -291,16 +432,32 @@ export class TrackingService {
           null
         : null;
       const transfer = product?.sourceUrl ? transferByUrl.get(product.sourceUrl) : undefined;
-      const marginPercent = resolveProfitMarginPercent({
-        profitMargin: transfer?.profitMargin,
-        originalPrice: transfer?.originalPrice,
-        shopifyPrice: transfer?.shopifyPrice,
-        fallbackPercent: 10,
-      });
       const isPriceChange =
         c.changeType === "price_changed" || c.changeType === "variant_price_changed";
+      const liveSalePrice = isPriceChange
+        ? liveSaleByProductId.get(c.trackedProductId) ??
+          (Number(transfer?.shopifyPrice) > 0 ? Number(transfer!.shopifyPrice) : null)
+        : null;
+      const baselineCost = Number(c.oldValue);
+      const marginPercent = isPriceChange
+        ? resolveMarginPercentPreferringLive({
+            transferProfitMargin: transfer?.profitMargin,
+            transferOriginalPrice: transfer?.originalPrice,
+            transferShopifyPrice: transfer?.shopifyPrice,
+            baselineCost: Number.isFinite(baselineCost) && baselineCost > 0 ? baselineCost : null,
+            liveSalePrice,
+            fallbackPercent: 10,
+          })
+        : resolveProfitMarginPercent({
+            profitMargin: transfer?.profitMargin,
+            originalPrice: transfer?.originalPrice,
+            shopifyPrice: transfer?.shopifyPrice,
+            fallbackPercent: 10,
+          });
       const priceDisplay = isPriceChange
-        ? buildPricePairDisplay(c.oldValue, c.newValue, marginPercent)
+        ? buildPricePairDisplay(c.oldValue, c.newValue, marginPercent, {
+            liveSalePrice,
+          })
         : null;
 
       return {
@@ -311,8 +468,14 @@ export class TrackingService {
         trackingUid: product?.trackingUid ?? null,
         productImageUrl: imageMap.get(c.trackedProductId) ?? null,
         currentSourcePrice: product?.currentSourcePrice ?? null,
+        productCreatedAt: product?.createdAt ?? null,
+        productLastCheckedAt: product?.lastCheckedAt ?? null,
+        productLastSuccessAt: product?.lastSuccessAt ?? null,
+        productLastShopifySyncAt: product?.lastShopifySyncAt ?? null,
+        shopifyTransferredAt: transfer?.transferredAt ?? null,
         profitMarginPercent: marginPercent,
         priceDisplay,
+        liveShopifySalePrice: liveSalePrice,
         variantUid: variant?.variantUid ?? null,
         variantLabel,
         variantColor: color,

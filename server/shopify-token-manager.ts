@@ -605,6 +605,7 @@ export async function shopifyAdminFetch(
   init: RequestInit = {},
   retried = false,
   apiVersion = SHOPIFY_API_VERSION,
+  rateLimitAttempt = 0,
 ): Promise<{ response: Response; shopDomain: string; tokenSource: ShopifyTokenSource }> {
   const token = await getValidShopifyAccessToken({ forceRefresh: retried });
   const url = buildAdminUrl(token.shopDomain, path, apiVersion);
@@ -621,7 +622,21 @@ export async function shopifyAdminFetch(
   // 401 → tek sefer yeni token alıp isteği tekrar et (sonsuz döngü yok).
   if (response.status === 401 && !retried) {
     invalidateShopifyTokenCache();
-    return shopifyAdminFetch(path, init, true, apiVersion);
+    return shopifyAdminFetch(path, init, true, apiVersion, rateLimitAttempt);
+  }
+
+  // 429 Too Many Requests → Retry-After / exponential backoff ile tekrar dene
+  if (response.status === 429 && rateLimitAttempt < 6) {
+    const retryAfterRaw = response.headers.get("Retry-After");
+    const retryAfterSec = retryAfterRaw ? Number.parseFloat(retryAfterRaw) : NaN;
+    const waitMs = Number.isFinite(retryAfterSec)
+      ? Math.min(Math.max(retryAfterSec * 1000, 750), 30_000)
+      : Math.min(1000 * 2 ** rateLimitAttempt, 16_000);
+    console.warn(
+      `⏳ Shopify 429 — ${Math.round(waitMs)}ms sonra yeniden denenecek (${rateLimitAttempt + 1}/6) ${path}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return shopifyAdminFetch(path, init, retried, apiVersion, rateLimitAttempt + 1);
   }
 
   return {

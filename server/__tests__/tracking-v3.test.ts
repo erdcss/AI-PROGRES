@@ -4,6 +4,7 @@ import { resolveChangeSeverity } from "../services/change-group.service";
 import {
   isActionableTrackingChangeStatus,
   isDirectlyApplicableTrackingChange,
+  isShopifySyncableTrackingChange,
 } from "../../shared/tracking-change-policy";
 import { hasSufficientVariantCoverage } from "../services/source-fetcher.service";
 
@@ -47,6 +48,13 @@ describe("direct Shopify correction policy", () => {
       isDirectlyApplicableTrackingChange("variant_stock_changed", "inStock", true),
       false,
     );
+    assert.equal(
+      isDirectlyApplicableTrackingChange("variant_stock_changed", "inStock", {
+        inStock: false,
+        key: "siyah::m",
+      }),
+      true,
+    );
   });
 
   it("hides historical and unsafe aggregate changes", () => {
@@ -55,6 +63,43 @@ describe("direct Shopify correction policy", () => {
     assert.equal(isDirectlyApplicableTrackingChange("stock_changed", "stock"), false);
     assert.equal(isDirectlyApplicableTrackingChange("variant_added", "variant"), false);
     assert.equal(isDirectlyApplicableTrackingChange("variant_removed", "variant"), false);
+  });
+
+  it("requires variant link for Shopify-syncable stock/price changes", () => {
+    assert.equal(
+      isShopifySyncableTrackingChange({
+        status: "approved",
+        changeType: "variant_stock_changed",
+        newValue: false,
+        trackingUid: "TRK-1",
+        shopifyProductId: "1",
+        trackedVariantId: null,
+        shopifyVariantId: null,
+      }),
+      false,
+    );
+    assert.equal(
+      isShopifySyncableTrackingChange({
+        status: "approved",
+        changeType: "variant_stock_changed",
+        newValue: false,
+        trackingUid: "TRK-1",
+        shopifyProductId: "1",
+        trackedVariantId: 42,
+        shopifyVariantId: null,
+      }),
+      true,
+    );
+    assert.equal(
+      isShopifySyncableTrackingChange({
+        status: "approved",
+        changeType: "price_changed",
+        newValue: 100,
+        trackingUid: "TRK-1",
+        shopifyProductId: "1",
+      }),
+      true,
+    );
   });
 });
 

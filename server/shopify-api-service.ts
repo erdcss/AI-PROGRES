@@ -88,7 +88,11 @@ export class ShopifyApiService {
     if (!response.ok) {
       const errBody = await parseShopifyAdminResponse(response);
       console.error(`❌ Shopify API error for ${endpoint}: HTTP ${response.status}`);
-      const err = new Error(`Shopify API HTTP ${response.status}`) as Error & {
+      const message =
+        response.status === 429
+          ? "Shopify geçici olarak yoğun (429). Birkaç saniye sonra tekrar deneyin."
+          : `Shopify API HTTP ${response.status}`;
+      const err = new Error(message) as Error & {
         response?: { status: number; data: unknown };
       };
       err.response = { status: response.status, data: errBody };
@@ -736,6 +740,63 @@ export class ShopifyApiService {
       console.error(`❌ Failed to update variant price:`, error.message);
       throw error;
     }
+  }
+
+  /**
+   * Tüm varyant fiyatlarını tek GraphQL çağrısıyla güncelle (429 riskini azaltır)
+   */
+  async updateProductVariantsPrices(
+    productId: string,
+    updates: Array<{ variantId: string; price: number; compareAtPrice?: number }>,
+  ): Promise<{ success: boolean; updated: number }> {
+    if (updates.length === 0) return { success: true, updated: 0 };
+
+    const productGid = productId.startsWith("gid://")
+      ? productId
+      : `gid://shopify/Product/${productId}`;
+    const variants = updates.map((u) => ({
+      id: u.variantId.startsWith("gid://")
+        ? u.variantId
+        : `gid://shopify/ProductVariant/${u.variantId}`,
+      price: Number(u.price).toFixed(2),
+      ...(u.compareAtPrice != null
+        ? { compareAtPrice: Number(u.compareAtPrice).toFixed(2) }
+        : {}),
+    }));
+
+    const { shopifyAdminGraphql } = await import("./shopify-token-manager");
+    const mutation = `
+      mutation TrackingProductVariantsBulkUpdate(
+        $productId: ID!
+        $variants: [ProductVariantsBulkInput!]!
+      ) {
+        productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+          productVariants { id }
+          userErrors { field message }
+        }
+      }
+    `;
+
+    const result = await shopifyAdminGraphql<{
+      productVariantsBulkUpdate?: {
+        productVariants?: Array<{ id: string }> | null;
+        userErrors?: Array<{ field?: string[] | null; message: string }> | null;
+      };
+    }>(mutation, { productId: productGid, variants });
+
+    if (!result.response.ok) {
+      throw new Error(`Shopify API HTTP ${result.response.status}`);
+    }
+
+    const payload = result.data?.productVariantsBulkUpdate;
+    const userErrors = payload?.userErrors ?? [];
+    if (userErrors.length > 0) {
+      throw new Error(userErrors.map((e) => e.message).join("; ") || "Shopify fiyat güncellemesi başarısız");
+    }
+
+    const updated = payload?.productVariants?.length ?? updates.length;
+    console.log(`✅ Bulk variant prices updated: ${updated}/${updates.length}`);
+    return { success: true, updated };
   }
 
   /**

@@ -3525,15 +3525,31 @@ export async function scenarioBasedScrape(
           console.log(
             `ℹ️ VARIANT MERGE: enrichment ${enrichedSizes.length} beden > normalizer ${legacy.sizes.length} beden — zengin beden seti korunuyor, stok bilgisi eşleşen bedenlere uygulanıyor`,
           );
-          const stockBySize = new Map<string, boolean>();
+          const stockByKey = new Map<string, boolean>();
+          const namedColors = new Set(
+            validatedVariants.allVariants
+              .map((v) => (v.color || "").trim())
+              .filter((c) => c && c !== "Tek Renk"),
+          );
           for (const it of legacy.items) {
-            if (it.size) stockBySize.set(it.size.toLowerCase(), it.inStock);
+            const ck = (it.color || "Tek Renk").toLowerCase();
+            const sk = (it.size || "").toLowerCase();
+            if (!sk) continue;
+            stockByKey.set(`${ck}::${sk}`, it.inStock);
+            if (!stockByKey.has(`::${sk}`)) stockByKey.set(`::${sk}`, it.inStock);
+            else if (stockByKey.get(`::${sk}`) === true && !it.inStock) {
+              stockByKey.set(`::${sk}`, false);
+            }
           }
           validatedVariants.allVariants = validatedVariants.allVariants.map((v) => {
-            const sizeKey = (v.size || '').toLowerCase();
+            const ck = (v.color || "Tek Renk").toLowerCase();
+            const sizeKey = (v.size || "").toLowerCase();
+            const hit =
+              stockByKey.get(`${ck}::${sizeKey}`) ??
+              (namedColors.size <= 1 ? stockByKey.get(`::${sizeKey}`) : undefined);
             return {
               ...v,
-              inStock: stockBySize.has(sizeKey) ? stockBySize.get(sizeKey)! : v.inStock !== false,
+              inStock: hit !== undefined ? hit : v.inStock !== false,
             };
           });
           validatedVariants.sizes = enrichedSizes;

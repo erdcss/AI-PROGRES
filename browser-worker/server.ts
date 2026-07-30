@@ -319,7 +319,8 @@ type DomHydrationExtract = {
 async function extractDomHydration(page: Page): Promise<DomHydrationExtract> {
   return page.evaluate(() => {
     const VALID_SIZE =
-      /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|32|34|36|38|40|42|44|46|48|50|Standart|STD|Tek Ebat)$/i;
+      /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Standart|STD|Tek Ebat)$/i;
+    const NUMERIC_SIZE = /^(?:[2-5]\d|60)$/;
     const COMBO_SIZE =
       /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i;
 
@@ -406,38 +407,69 @@ async function extractDomHydration(page: Page): Promise<DomHydrationExtract> {
       ),
     ];
     const sizes: Array<{ name: string; inStock: boolean; disabledReason?: string }> = [];
-    const seenSize = new Set<string>();
+    const sizeIndex = new Map<string, number>();
     const pushSize = (name: string, el: Element) => {
       const n = name.trim();
-      if ((!VALID_SIZE.test(n) && !COMBO_SIZE.test(n)) || seenSize.has(n.toUpperCase())) return;
-      seenSize.add(n.toUpperCase());
+      if (!VALID_SIZE.test(n) && !COMBO_SIZE.test(n) && !NUMERIC_SIZE.test(n)) return;
+      const key = n.toUpperCase();
       const cls = `${el.className || ""} ${el.getAttribute("aria-disabled") || ""}`.toLowerCase();
       const style = window.getComputedStyle(el);
       const deco = `${style.textDecoration || ""} ${style.textDecorationLine || ""}`.toLowerCase();
       const parentCls = `${el.parentElement?.className || ""}`.toLowerCase();
+      const attrBlob = `${cls} ${el.getAttribute("aria-label") || ""} ${el.getAttribute("title") || ""} ${el.getAttribute("data-testid") || ""}`.toLowerCase();
+      const inner = ((el as HTMLElement).innerHTML || "").toLowerCase();
+      const hasLock =
+        /\block\b|\blocked\b|\bkilit\b|i-lock|icon-lock|has-lock|size-lock/.test(attrBlob) ||
+        /class=["'][^"']*(?:lock|kilit)|data-testid=["'][^"']*lock|aria-label=["'][^"']*(?:lock|kilit)|#lock|i-lock|icon-lock/.test(
+          inner,
+        ) ||
+        Boolean(
+          el.querySelector(
+            '[class*="lock"], [class*="Lock"], [class*="kilit"], [data-testid*="lock"], [aria-label*="lock"], [aria-label*="kilit"]',
+          ),
+        );
       const disabled =
         (el as HTMLButtonElement).disabled === true ||
         el.getAttribute("aria-disabled") === "true" ||
         el.getAttribute("data-disabled") === "true" ||
-        /disabled|passive|sold-out|outofstock|out-of-stock|tükendi|tukendi|line-through|strikethrough|crossed/.test(
+        el.getAttribute("data-available") === "false" ||
+        el.getAttribute("data-instock") === "false" ||
+        el.getAttribute("data-stock") === "0" ||
+        hasLock ||
+        /disabled|passive|sold-out|outofstock|out-of-stock|tükendi|tukendi|line-through|strikethrough|crossed|locked/.test(
           cls,
         ) ||
-        /disabled|passive|line-through|strikethrough/.test(parentCls) ||
-        deco.includes("line-through");
-      sizes.push({
+        /disabled|passive|line-through|strikethrough|locked/.test(parentCls) ||
+        deco.includes("line-through") ||
+        style.cursor === "not-allowed" ||
+        parseFloat(style.opacity || "1") < 0.45;
+      const entry = {
         name: n,
         inStock: !disabled,
-        disabledReason: disabled ? "dom-disabled" : undefined,
-      });
+        disabledReason: disabled ? (hasLock ? "dom-lock" : "dom-disabled") : undefined,
+      };
+      const existingIdx = sizeIndex.get(key);
+      if (existingIdx !== undefined) {
+        // OOS kazanır
+        if (sizes[existingIdx].inStock && !entry.inStock) {
+          sizes[existingIdx] = entry;
+        }
+        return;
+      }
+      sizeIndex.set(key, sizes.length);
+      sizes.push(entry);
     };
 
     const sizeSelectors =
-      '[data-testid*="size"], [data-test*="size"], .pr-in-sz .sp-itm, .sp-itm, [class*="size-variant"] button, [class*="size-variant"] span, button, [role="button"]';
+      '[data-testid="size-box"], [data-testid*="size"], [data-test*="size"], .pr-in-sz .sp-itm, .sp-itm, [class*="size-variant"] button, [class*="size-variant"] span, button, [role="button"]';
     for (const root of sizeRoots.length ? sizeRoots : [document.body]) {
       // Beden bölümü yoksa body taraması yapma — gürültü riski
       if (root === document.body && sizeRoots.length === 0) break;
       root.querySelectorAll(sizeSelectors).forEach((el) => {
-        const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+        const raw = (el.textContent || "").replace(/\s+/g, " ").trim();
+        if (raw.length > 20) return;
+        const token = raw.match(/^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d{2})\b/i);
+        const text = token ? token[1] : raw;
         if (text.length > 12) return;
         pushSize(text, el);
       });

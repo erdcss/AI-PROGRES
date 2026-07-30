@@ -328,7 +328,8 @@ function inferFromLegacy(preview: PreviewLike): ColorFamilyUiStatus {
   );
   const fetchedMemberCount = okMembers.length || (familySourceKey && colors.length >= 2 ? colors.length : 0);
   const failedCount = failedMembers.length;
-  const expectedGalleryCount = Math.max(colors.length, fetchedMemberCount);
+  // Üye sayısı galeri beklenenine karışmasın
+  const expectedGalleryCount = Math.max(colors.length, Object.keys(imagesByColor).length);
 
   let state: ColorFamilyUiState = "unknown";
   if (

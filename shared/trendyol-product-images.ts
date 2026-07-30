@@ -144,7 +144,20 @@ export function getTrendyolImageFallbackUrls(url: string): string[] {
       add(`https://cdn.dsmcdn.com/mnresize/620/920/${barePath.replace("/prod/QC/", "/prod/QC_PREP/")}`);
     }
     if (barePath.includes("/prod/QC_PREP/")) {
-      add(`https://cdn.dsmcdn.com/${barePath.replace("/prod/QC_PREP/", "/prod/QC/")}`);
+      const qcPath = barePath.replace("/prod/QC_PREP/", "/prod/QC/");
+      add(`https://cdn.dsmcdn.com/${qcPath}`);
+      add(`https://cdn.dsmcdn.com/mnresize/620/920/${qcPath}`);
+      add(`https://cdn.dsmcdn.com/mnresize/1200/1800/${qcPath}`);
+    }
+
+    // tyXXXX klasör numarası CDN'de kayabiliyor — hash aynı kalınca alternatif dene
+    const tyMatch = barePath.match(/^(ty\d+)\//i);
+    if (tyMatch) {
+      const rest = barePath.slice(tyMatch[0].length);
+      for (const ty of ["ty1660", "ty1814", "ty1813", "ty1929", "ty1835"]) {
+        if (ty.toLowerCase() === tyMatch[1].toLowerCase()) continue;
+        add(`https://cdn.dsmcdn.com/${ty}/${rest}`);
+      }
     }
   }
 

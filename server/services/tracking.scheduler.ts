@@ -11,7 +11,8 @@ import {
   fetchSourceForTracking,
   hasSufficientVariantCoverage,
 } from "./source-fetcher.service";
-import { compareSnapshots, persistDetectedChanges } from "./product-diff.service";
+import { compareSnapshots, persistDetectedChanges, clearFalsePendingVariantOos } from "./product-diff.service";
+import { detectShopifyPriceDriftChanges } from "./change-shopify-apply.service";
 import {
   getLastShopifyTrackingReconcileStatus,
   reconcileShopifyTracking,
@@ -250,6 +251,23 @@ export async function runManualProductCheck(trackedProductId: number) {
       const diff = await compareSnapshots(trackedProductId, previousSnapshot, data, {
         knownGoodPrice: baselinePrice,
       });
+
+      // Kaynak fiyat aynı kalsa bile Shopify satışı sapmışsa düzeltilebilir kayıt üret
+      const hasSourcePriceChange = diff.changes.some(
+        (c) => c.changeType === "price_changed" || c.changeType === "variant_price_changed",
+      );
+      if (!hasSourcePriceChange && product.shopifyProductId && data.price > 0) {
+        try {
+          const drift = await detectShopifyPriceDriftChanges(product, data.price);
+          for (const d of drift) diff.changes.push(d);
+        } catch (err) {
+          console.warn(
+            `[tracking] Shopify fiyat sapması kontrolü atlandı #${trackedProductId}:`,
+            (err as Error).message,
+          );
+        }
+      }
+
       if (diff.changes.length > 0) {
         const rows = await persistDetectedChanges({
           trackedProductId,
@@ -273,12 +291,20 @@ export async function runManualProductCheck(trackedProductId: number) {
       }
     }
 
+    // Satın alınabilir ürünlerde biriken yanlış "tükendi" alarmlarını temizle
+    const clearedFalseOos = await clearFalsePendingVariantOos({
+      trackedProductId,
+      available: data.available,
+      stock: data.stock,
+      variants: data.variants,
+    });
+
     await trackingService.writeSyncLog({
       trackedProductId,
       action: "shopify_sync_skipped",
       status: "skipped",
       message: "Otomatik Shopify güncelleme kapalı",
-      meta: { changeCount: changesCreated },
+      meta: { changeCount: changesCreated, clearedFalseOos },
     });
 
     return {
@@ -287,11 +313,15 @@ export async function runManualProductCheck(trackedProductId: number) {
       validSource: true,
       snapshotId: newSnapshot.id,
       changesCreated,
+      clearedFalseOos,
       price: data.price,
       title: data.title,
       finalSuccessReason: data.quality?.finalSuccessReason ?? "full-data",
       stageErrors: (data.quality?.stageErrors as string[]) ?? [],
-      userMessage: "Kontrol başarılı",
+      userMessage:
+        clearedFalseOos > 0
+          ? `Kontrol başarılı — ${clearedFalseOos} yanlış stok dışı alarmı temizlendi`
+          : "Kontrol başarılı",
     };
   } finally {
     checkingProducts.delete(trackedProductId);
@@ -546,6 +576,12 @@ export async function getTrackingNotifications() {
       sql`${detectedChanges.changeType} IN ('variant_added','variant_removed','variant_changed','variant_price_changed','variant_stock_changed') AND ${detectedChanges.status} = 'pending'`,
     );
 
+  const { getLastStartupAuditResult, isStartupAuditRunning, listRecentStartupNotifications } =
+    await import("./tracking-startup-audit.service");
+
+  const startupRecent = await listRecentStartupNotifications(15).catch(() => []);
+  const startupAudit = getLastStartupAuditResult();
+
   return {
     pendingChangesCount: status.pendingChangesCount,
     manualReviewCount: status.manualReviewCount,
@@ -553,5 +589,8 @@ export async function getTrackingNotifications() {
     stockChangeCount: Number(stockChangeCount[0]?.c ?? 0),
     variantChangeCount: Number(variantChangeCount[0]?.c ?? 0),
     lastChanges,
+    startupAuditRunning: isStartupAuditRunning(),
+    startupAudit,
+    startupNotifications: startupRecent,
   };
 }

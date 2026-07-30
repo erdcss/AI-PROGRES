@@ -15,6 +15,42 @@ const INVALID_COLOR_LABELS = new Set([
   "",
 ]);
 
+/** Ürün tipi / özellik kelimeleri — renk sanılmamalı (örn. slug: kalin-taban-beyaz) */
+const NON_COLOR_PRODUCT_TOKENS = new Set([
+  "kalin",
+  "kalın",
+  "ince",
+  "taban",
+  "sneaker",
+  "snekaer",
+  "ayakkabi",
+  "ayakkabı",
+  "erkek",
+  "kadin",
+  "kadın",
+  "unisex",
+  "cocuk",
+  "çocuk",
+  "polo",
+  "model",
+  "spor",
+  "gunluk",
+  "günlük",
+  "yazlik",
+  "yazlık",
+  "kis",
+  "kış",
+  "yeni",
+  "orijinal",
+  "original",
+  "set",
+  "paket",
+  "adet",
+  "beden",
+  "size",
+  "numara",
+]);
+
 const REJECT_COLOR_TEXT =
   /slicing|attribute\s*product|kaydırıcı|içerik\s*göstergesi|kolsuz|vyak|sepete|favori|trendyol|undefined|null|button|slider|carousel|gösterge|daha\s*fazla|t-shirt|tişört|elbise|pantolon|gömlek|oversize|boyfriend|kolsuz|v\s*yaka|yuvarlak|productdetail|variant-option/i;
 
@@ -140,8 +176,21 @@ export function normalizeTrendyolColorName(input: unknown): string | null {
 
   const lower = raw.toLocaleLowerCase("tr-TR");
   if (INVALID_COLOR_LABELS.has(lower)) return null;
-  if (REJECT_COLOR_TEXT.test(raw)) return null;
+  if (NON_COLOR_PRODUCT_TOKENS.has(lower)) return null;
   if (COLOR_ALIASES[lower]) return COLOR_ALIASES[lower];
+
+  // Ürün tipi token'ı içeren etiketlerden bilinen rengi ayıkla (örn. "Kalın Taban Beyaz")
+  const tokens = lower.split(/[\s\-/]+/).filter(Boolean);
+  if (tokens.some((t) => NON_COLOR_PRODUCT_TOKENS.has(t)) && !findKnownColor(raw)) {
+    const knownFromParts = tokens
+      .map((t) => findKnownColor(t) || findKnownColor(titleCaseTurkish(t)))
+      .filter((c): c is string => Boolean(c));
+    if (knownFromParts.length === 1) return knownFromParts[0]!;
+    if (knownFromParts.length > 1) return knownFromParts[knownFromParts.length - 1]!;
+    return null;
+  }
+
+  if (REJECT_COLOR_TEXT.test(raw)) return null;
 
   const knownDirect = findKnownColor(raw);
   if (knownDirect) return knownDirect;

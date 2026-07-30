@@ -156,6 +156,22 @@ export async function validateBulkUploadItem(
     };
   }
 
+  const optionKeys = new Set<string>();
+  for (const v of primaryVariants) {
+    const o1 = String(v.option1Value ?? "").trim().toLocaleLowerCase("tr-TR");
+    const o2 = String(v.option2Value ?? "").trim().toLocaleLowerCase("tr-TR");
+    const key = `${o1}::${o2}`;
+    if (optionKeys.has(key)) {
+      return {
+        ok: false,
+        errorCode: "duplicate_option_combination",
+        error: `Tekrarlayan varyant seçeneği: ${v.option1Value}${v.option2Value ? ` / ${v.option2Value}` : ""}`,
+        canonical,
+      };
+    }
+    optionKeys.add(key);
+  }
+
   const resolvedCsv = await resolveUploadCsvContent(item.csvContent, item.productData, {
     sourceUrl,
     productTitle: title,

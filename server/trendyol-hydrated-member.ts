@@ -13,7 +13,8 @@ export const COLOR_FAMILY_CONCURRENCY = 2;
 export const COLOR_FAMILY_MAX_MEMBERS = 20;
 
 export const VALID_SIZE_LABEL_RE =
-  /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|32|34|36|38|40|42|44|46|48|50|Standart|STD|Tek Ebat)$/i;
+  /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Standart|STD|Tek Ebat)$/i;
+const NUMERIC_SIZE_RE = /^(?:[2-5]\d|60)$/;
 
 export type HydratedColorSource =
   | "state"
@@ -96,7 +97,7 @@ export function isValidHydratedSizeLabel(size: string): boolean {
   const t = String(size || "").trim();
   if (!t) return false;
   if (isComboSizeLabel(t)) return true;
-  return VALID_SIZE_LABEL_RE.test(t);
+  return VALID_SIZE_LABEL_RE.test(t) || NUMERIC_SIZE_RE.test(t);
 }
 
 function scrubColorLabelNoise(raw: string): string {

@@ -245,8 +245,9 @@ export function probeScriptVariantsFromHtml(html: string): ScriptVariantProbeRes
 
 /** page.evaluate — Trendyol JS state slicedAttributes beden listesi */
 export function stateSizeProbeEvaluateScript(): string[] {
-  const sizeRegex =
-    /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL|32|34|36|38|40|42|44|46|48|50|52|Standart|STD|Tek Ebat)$/i;
+  const letterSize =
+    /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Standart|STD|Tek Ebat)$/i;
+  const numericSize = /^(?:[2-5]\d|60)$/;
   const comboRegex =
     /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i;
   const sizes: string[] = [];
@@ -254,7 +255,7 @@ export function stateSizeProbeEvaluateScript(): string[] {
 
   const push = (raw: string) => {
     const t = raw.trim().replace(/\\u002[fF]/g, "/");
-    if (!t || (!sizeRegex.test(t) && !comboRegex.test(t))) return;
+    if (!t || (!letterSize.test(t) && !numericSize.test(t) && !comboRegex.test(t))) return;
     const norm = t.toUpperCase() === "STD" ? "Standart" : t;
     const key = norm.toUpperCase();
     if (seen.has(key)) return;
@@ -370,21 +371,43 @@ export function sizeBoxProbeEvaluateScript(): SizeBoxProbeEntry[] {
   return boxes
     .map((el) => {
       const htmlEl = el as HTMLElement;
-      const label = (htmlEl.innerText || htmlEl.textContent || "").trim().replace(/\s+/g, " ");
+      const rawLabel = (htmlEl.innerText || htmlEl.textContent || "").trim().replace(/\s+/g, " ");
+      const token = rawLabel.match(
+        /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d{2})\b/i,
+      );
+      const label = token ? token[1] : rawLabel;
       if (!label || label.length > 12) return null;
       const disabled =
         Boolean((el as HTMLButtonElement).disabled) || el.getAttribute("aria-disabled") === "true";
       const style = window.getComputedStyle(htmlEl);
       const className = String(htmlEl.className || "");
       const deco = `${style.textDecoration || ""} ${style.textDecorationLine || ""}`.toLowerCase();
+      const attrBlob = `${className} ${el.getAttribute("aria-label") || ""} ${el.getAttribute("title") || ""} ${el.getAttribute("data-testid") || ""}`.toLowerCase();
+      const inner = (htmlEl.innerHTML || "").toLowerCase();
+      const hasLock =
+        /\block\b|\blocked\b|\bkilit\b|i-lock|icon-lock|has-lock|size-lock/.test(attrBlob) ||
+        /class=["'][^"']*(?:lock|kilit)|data-testid=["'][^"']*lock|aria-label=["'][^"']*(?:lock|kilit)|#lock|i-lock|icon-lock/.test(
+          inner,
+        ) ||
+        Boolean(
+          el.querySelector(
+            '[class*="lock"], [class*="Lock"], [class*="kilit"], [data-testid*="lock"], [aria-label*="lock"], [aria-label*="kilit"]',
+          ),
+        );
       const oos =
         disabled ||
-        className.includes("disabled") ||
-        className.includes("passive") ||
-        className.includes("line-through") ||
+        hasLock ||
+        el.getAttribute("data-available") === "false" ||
+        el.getAttribute("data-instock") === "false" ||
+        el.getAttribute("data-stock") === "0" ||
+        className.toLowerCase().includes("disabled") ||
+        className.toLowerCase().includes("passive") ||
+        className.toLowerCase().includes("line-through") ||
+        className.toLowerCase().includes("locked") ||
         deco.includes("line-through") ||
         parseFloat(style.opacity || "1") < 0.45 ||
-        style.pointerEvents === "none";
+        style.pointerEvents === "none" ||
+        style.cursor === "not-allowed";
       return { label, inStock: !oos };
     })
     .filter((x): x is SizeBoxProbeEntry => x !== null);
@@ -392,8 +415,9 @@ export function sizeBoxProbeEvaluateScript(): SizeBoxProbeEntry[] {
 
 /** page.evaluate içinde çalışır — tüm beden butonlarını tarar (sadece selected değil) */
 export function domSizeProbeEvaluateScript(): DomSizeProbeResult {
-  const sizeRegex =
-    /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL|32|34|36|38|40|42|44|46|48|50|52|Standart|STD|Tek Ebat)$/i;
+  const letterSize =
+    /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Standart|STD|Tek Ebat)$/i;
+  const numericSize = /^(?:[2-5]\d|60)$/;
   const comboRegex =
     /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i;
   const rejectRegex =
@@ -447,7 +471,7 @@ export function domSizeProbeEvaluateScript(): DomSizeProbeResult {
     .map((x) => ({ ...x, text: x.text.replace(/\s+/g, " ").trim() }))
     .filter((x) => x.text && x.text.length <= 20)
     .filter((x) => !rejectRegex.test(x.text))
-    .filter((x) => sizeRegex.test(x.text) || comboRegex.test(x.text));
+    .filter((x) => letterSize.test(x.text) || numericSize.test(x.text) || comboRegex.test(x.text));
 
   const uniqueSizes = Array.from(new Set(filtered.map((x) => x.text.toUpperCase())));
 
@@ -735,15 +759,15 @@ export async function applyFullVariantScrapeToResult(
     const resolveComboStock = (size: string): boolean | undefined => {
       const boxes = domProbe.sizeBoxButtons ?? [];
       let found = false;
-      let inStock = false;
+      let anyOos = false;
       for (const btn of boxes) {
         const labels = expandComboSizeToLabels(btn.label) ?? [btn.label];
         if (labels.some((s) => s.toUpperCase() === size.toUpperCase())) {
           found = true;
-          inStock = inStock || btn.inStock;
+          if (!btn.inStock) anyOos = true;
         }
       }
-      return found ? inStock : undefined;
+      return found ? !anyOos : undefined;
     };
 
     const allVariants = merged.map((size) => {
@@ -756,10 +780,16 @@ export async function applyFullVariantScrapeToResult(
         domBtn?.disabled === true ||
         domBtn?.ariaDisabled === "true" ||
         domBtn?.inStock === false ||
-        parseFloat(domBtn?.opacity || "1") < 0.45;
+        parseFloat(domBtn?.opacity || "1") < 0.45 ||
+        /lock|kilit|locked/i.test(String(domBtn?.className || "")) ||
+        /lock|kilit|locked/i.test(String(domBtn?.html || ""));
+      // DOM OOS her zaman kazanır; aksi halde combo → önceki → varsayılan stokta
       const inStock =
-        prev?.inStock ??
-        (comboStock !== undefined ? comboStock : !oos);
+        oos || comboStock === false
+          ? false
+          : comboStock === true
+            ? true
+            : (prev?.inStock ?? true);
       return { color, size, inStock };
     });
     const stockMap: Record<string, boolean> = {};

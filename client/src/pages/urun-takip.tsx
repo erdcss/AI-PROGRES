@@ -19,8 +19,17 @@ import {
   Settings,
   Clock,
 } from "lucide-react";
-import { TrackingChangeGroupCard } from "@/features/tracking/TrackingChangeGroupCard";
+import {
+  TrackingChangeGroupCard,
+  selectInstantShopifySyncIds,
+} from "@/features/tracking/TrackingChangeGroupCard";
 import { TrackingProductImage } from "@/features/tracking/TrackingProductImage";
+import {
+  buildProductTrackingTimeline,
+  formatTrackingDateTime,
+} from "@/features/tracking/tracking-timeline";
+import { isPlaceholderVariantSize } from "@shared/tracking-price-sanity";
+import { isPlaceholderColor } from "@shared/trendyol-variant-utils";
 
 type TrackedProduct = {
   id: number;
@@ -32,10 +41,13 @@ type TrackedProduct = {
   currentSourceStock: number | null;
   currentStatus: string;
   trackingEnabled: boolean;
+  createdAt: string;
   lastCheckedAt: string | null;
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
   lastErrorMessage: string | null;
+  lastShopifySyncAt?: string | null;
+  shopifyTransferredAt?: string | null;
   productImageUrl?: string | null;
 };
 
@@ -51,6 +63,9 @@ type DetectedChange = {
   status: string;
   reason: string | null;
   createdAt: string;
+  seenAt?: string | null;
+  approvedAt?: string | null;
+  appliedAt?: string | null;
   productTitle?: string | null;
   productUrl?: string | null;
   productImageUrl?: string | null;
@@ -64,6 +79,11 @@ type DetectedChange = {
   variantSize?: string | null;
   variantAvailable?: boolean | null;
   profitMarginPercent?: number | null;
+  productCreatedAt?: string | null;
+  productLastCheckedAt?: string | null;
+  productLastSuccessAt?: string | null;
+  productLastShopifySyncAt?: string | null;
+  shopifyTransferredAt?: string | null;
   priceDisplay?: {
     costOld: number | null;
     costNew: number | null;
@@ -114,29 +134,119 @@ type TrackingSettings = {
 };
 
 const CHANGE_FILTERS = [
-  { value: "actionable", label: "Düzeltilecekler" },
-  { value: "pending", label: "Bekleyen" },
-  { value: "manual_review", label: "Kontrol gerekli" },
-  { value: "approved", label: "Onaylı" },
-  { value: "failed", label: "Hatalı" },
-  { value: "applied", label: "Uygulandı" },
-  { value: "", label: "Tümü" },
+  { value: "actionable", label: "Düzeltilecekler", countKey: "actionable" },
+  { value: "pending", label: "Bekleyen", countKey: "pending" },
+  { value: "manual_review", label: "Kontrol gerekli", countKey: "manual_review" },
+  { value: "failed", label: "Hatalı", countKey: "failed" },
+  { value: "ignored", label: "Yok sayılan", countKey: "ignored" },
+  { value: "seen", label: "Görüldü", countKey: "seen" },
 ] as const;
 
+type ChangeKindFilter = "price" | "color_oos" | "size_oos" | "product_oos";
+
+const CHANGE_KIND_FILTERS: Array<{ value: ChangeKindFilter; label: string }> = [
+  { value: "price", label: "Fiyatı değişen ürünler" },
+  { value: "color_oos", label: "Renk seçeneği tükenen ürünler" },
+  { value: "size_oos", label: "Beden seçeneği tükenen ürünler" },
+  { value: "product_oos", label: "Stoğu biten ürünler" },
+];
+
+type ChangeFilterCounts = {
+  actionable: number;
+  pending: number;
+  manual_review: number;
+  failed: number;
+  ignored: number;
+  seen: number;
+};
+
 function formatDate(value: string | null) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("tr-TR");
+  return formatTrackingDateTime(value);
 }
 
 function getChangeProductKey(change: DetectedChange): string {
   return `tracked:${change.trackedProductId}`;
 }
 
+function isOutOfStockNewValue(newValue: unknown): boolean {
+  if (newValue === false || newValue === "false" || newValue === 0 || newValue === "0") {
+    return true;
+  }
+  if (newValue && typeof newValue === "object" && "inStock" in (newValue as object)) {
+    const stock = (newValue as { inStock: unknown }).inStock;
+    return stock === false || stock === "false" || stock === 0;
+  }
+  return false;
+}
+
+function resolveChangeSize(change: DetectedChange): string {
+  if (change.variantSize) return String(change.variantSize);
+  const key = String(change.variantLabel ?? change.variantUid ?? "");
+  if (key.includes("::")) return key.split("::").slice(1).join("::");
+  if (key.includes("-")) {
+    const parts = key.split("-");
+    if (parts.length >= 2) return parts.slice(1).join("-");
+  }
+  return "";
+}
+
+function resolveChangeColor(change: DetectedChange): string {
+  if (change.variantColor) return String(change.variantColor);
+  const key = String(change.variantLabel ?? change.variantUid ?? "");
+  if (key.includes("::")) return key.split("::")[0] ?? "";
+  if (key.includes("-")) return key.split("-")[0] ?? "";
+  return "";
+}
+
+/** Ürün grubunun hangi sınıf filtrelerine girdiğini döner */
+function getProductChangeKinds(changes: DetectedChange[]): Set<ChangeKindFilter> {
+  const kinds = new Set<ChangeKindFilter>();
+
+  for (const change of changes) {
+    if (
+      change.changeType === "price_changed" ||
+      change.changeType === "variant_price_changed"
+    ) {
+      kinds.add("price");
+    }
+
+    if (change.changeType === "stock_changed") {
+      if (change.fieldName === "available" && isOutOfStockNewValue(change.newValue)) {
+        kinds.add("product_oos");
+      }
+      if (change.fieldName === "stock" && Number(change.newValue) === 0) {
+        kinds.add("product_oos");
+      }
+    }
+
+    if (
+      change.changeType === "variant_stock_changed" &&
+      isOutOfStockNewValue(change.newValue)
+    ) {
+      const size = resolveChangeSize(change);
+      const color = resolveChangeColor(change);
+      if (!isPlaceholderVariantSize(size)) {
+        kinds.add("size_oos");
+      } else if (color && !isPlaceholderColor(color)) {
+        kinds.add("color_oos");
+      } else {
+        kinds.add("product_oos");
+      }
+    }
+  }
+
+  return kinds;
+}
+
 async function runBulkTrackingAction(
   action: "approve" | "shopify-sync",
   ids: number[],
-): Promise<{ summary: { total: number; succeeded: number; failed: number } }> {
+): Promise<{
+  summary: { total: number; succeeded: number; failed: number };
+  results: Array<{ id: number; success: boolean; error?: string; message?: string }>;
+}> {
   const summary = { total: ids.length, succeeded: 0, failed: 0 };
+  const results: Array<{ id: number; success: boolean; error?: string; message?: string }> = [];
   const chunkSize = 100;
 
   for (let index = 0; index < ids.length; index += chunkSize) {
@@ -150,20 +260,28 @@ async function runBulkTrackingAction(
     if (!res.ok) throw new Error(data.error || "Toplu işlem başarısız");
     summary.succeeded += Number(data.summary?.succeeded || 0);
     summary.failed += Number(data.summary?.failed || 0);
+    if (Array.isArray(data.results)) results.push(...data.results);
   }
 
-  return { summary };
+  if (summary.succeeded === 0 && summary.failed > 0) {
+    const firstError = results.find((r) => !r.success)?.error;
+    throw new Error(firstError || "Shopify güncellemesi başarısız");
+  }
+
+  return { summary, results };
 }
 
 export default function UrunTakipPage({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("actionable");
+  const [kindFilter, setKindFilter] = useState<ChangeKindFilter | null>(null);
   const [settingsForm, setSettingsForm] = useState<Partial<TrackingSettings>>({});
 
   const refreshTrackingQueries = () => {
     queryClient.invalidateQueries({ queryKey: ["tracking-products"] });
     queryClient.invalidateQueries({ queryKey: ["tracking-changes"] });
+    queryClient.invalidateQueries({ queryKey: ["tracking-change-counts"] });
     queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
     queryClient.invalidateQueries({ queryKey: ["tracking-notifications"] });
   };
@@ -214,6 +332,24 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     retry: 2,
   });
 
+  const changeCountsQuery = useQuery({
+    queryKey: ["tracking-change-counts"],
+    queryFn: async () => {
+      const res = await fetch("/api/tracking/change-counts", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sayımlar alınamadı");
+      return (data.counts || {
+        actionable: 0,
+        pending: 0,
+        manual_review: 0,
+        failed: 0,
+        ignored: 0,
+        seen: 0,
+      }) as ChangeFilterCounts;
+    },
+    refetchInterval: 15_000,
+  });
+
   const saveSettingsMutation = useMutation({
     mutationFn: async (patch: Partial<TrackingSettings>) => {
       const res = await fetch("/api/tracking/settings", {
@@ -247,12 +383,15 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       queryClient.invalidateQueries({ queryKey: ["tracking-changes"] });
       queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
       if (data.success) {
+        const cleared = Number(data.clearedFalseOos || 0);
         toast({
-          title: "Kontrol tamamlandı",
+          title: "Tekrar kontrol tamamlandı",
           description:
-            data.changesCreated > 0
-              ? `${data.changesCreated} değişiklik tespit edildi`
-              : "Değişiklik tespit edilmedi",
+            cleared > 0
+              ? `${cleared} yanlış stok dışı alarmı temizlendi`
+              : data.changesCreated > 0
+                ? `${data.changesCreated} yeni değişiklik tespit edildi`
+                : data.userMessage || "Kaynak teyit edildi — yeni değişiklik yok",
         });
       } else {
         toast({
@@ -315,10 +454,16 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       if (!res.ok) throw new Error(data.error || "İşlem başarısız");
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["tracking-changes"] });
+      queryClient.invalidateQueries({ queryKey: ["tracking-change-counts"] });
       queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
       queryClient.invalidateQueries({ queryKey: ["tracking-notifications"] });
+      if (vars.action === "mark-seen") {
+        toast({ title: "Görüldü olarak işaretlendi" });
+      } else if (vars.action === "ignore") {
+        toast({ title: "Yok sayıldı" });
+      }
     },
   });
 
@@ -329,14 +474,15 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       if (!res.ok) throw new Error(data.error || data.message || "Shopify güncellemesi başarısız");
       return data;
     },
+    onMutate: () => {
+      toast({ title: "Shopify güncelleniyor…", description: "Fiyat doğrudan mağazaya yazılıyor" });
+    },
     onSuccess: (data) => {
       toast({
         title: "Shopify güncellendi",
         description: data.shopify?.message || "Değişiklik uygulandı",
       });
-      queryClient.invalidateQueries({ queryKey: ["tracking-changes"] });
-      queryClient.invalidateQueries({ queryKey: ["tracking-products"] });
-      queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
+      refreshTrackingQueries();
     },
     onError: (err: Error) => {
       toast({ title: "Shopify hatası", description: err.message, variant: "destructive" });
@@ -352,8 +498,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         description: `${s.succeeded}/${s.total} değişiklik onaylandı`,
         variant: s.failed > 0 ? "destructive" : "default",
       });
-      queryClient.invalidateQueries({ queryKey: ["tracking-changes"] });
-      queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
+      refreshTrackingQueries();
     },
     onError: (err: Error) => {
       toast({ title: "Toplu onay hatası", description: err.message, variant: "destructive" });
@@ -362,16 +507,42 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
 
   const bulkShopifySyncMutation = useMutation({
     mutationFn: (ids: number[]) => runBulkTrackingAction("shopify-sync", ids),
+    onMutate: () => {
+      toast({
+        title: "Shopify güncelleniyor…",
+        description: "Değişiklikler doğrudan mağazaya uygulanıyor",
+      });
+    },
     onSuccess: (data) => {
       const summary = data.summary;
+      const okMessages = (data.results ?? [])
+        .filter((r) => r.success && r.message && !(r as { skipped?: boolean }).skipped)
+        .map((r) => r.message!)
+        .slice(0, 2);
+      const failMessages = (data.results ?? [])
+        .filter((r) => !r.success && r.error)
+        .map((r) => r.error!)
+        .slice(0, 2);
+      const skippedCount = (data.results ?? []).filter(
+        (r) => r.success && /yok sayıldı|atlandı/i.test(r.message || ""),
+      ).length;
       toast({
-        title: "Shopify güncellemesi tamamlandı",
-        description: `${summary.succeeded}/${summary.total} değişiklik uygulandı`,
+        title:
+          summary.failed === 0
+            ? "Shopify güncellendi"
+            : `Shopify kısmen güncellendi (${summary.succeeded}/${summary.total})`,
+        description:
+          [
+            okMessages.join(" · ") || null,
+            failMessages.length ? `Hata: ${failMessages.join(" · ")}` : null,
+            skippedCount > 0 ? `${skippedCount} kayıt eşleşmediği için yok sayıldı` : null,
+          ]
+            .filter(Boolean)
+            .join(" — ") ||
+          `${summary.succeeded}/${summary.total} değişiklik uygulandı`,
         variant: summary.failed > 0 ? "destructive" : "default",
       });
-      queryClient.invalidateQueries({ queryKey: ["tracking-changes"] });
-      queryClient.invalidateQueries({ queryKey: ["tracking-products"] });
-      queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
+      refreshTrackingQueries();
     },
     onError: (err: Error) => {
       toast({ title: "Shopify güncelleme hatası", description: err.message, variant: "destructive" });
@@ -395,6 +566,33 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       return latestB - latestA;
     });
   }, [changesQuery.data]);
+
+  const kindFilterCounts = useMemo(() => {
+    const counts: Record<ChangeKindFilter, number> = {
+      price: 0,
+      color_oos: 0,
+      size_oos: 0,
+      product_oos: 0,
+    };
+    for (const group of groupedChanges) {
+      const kinds = getProductChangeKinds(group);
+      for (const kind of kinds) counts[kind] += 1;
+    }
+    return counts;
+  }, [groupedChanges]);
+
+  const filteredGroupedChanges = useMemo(() => {
+    if (!kindFilter) return groupedChanges;
+    return groupedChanges.filter((group) => getProductChangeKinds(group).has(kindFilter));
+  }, [groupedChanges, kindFilter]);
+
+  const bulkFixIds = useMemo(() => {
+    const ids: number[] = [];
+    for (const group of filteredGroupedChanges) {
+      ids.push(...selectInstantShopifySyncIds(group));
+    }
+    return [...new Set(ids)];
+  }, [filteredGroupedChanges]);
 
   const st = statusQuery.data;
   const settings = { ...settingsQuery.data, ...settingsForm } as TrackingSettings | undefined;
@@ -589,9 +787,33 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       <span className="text-muted-foreground">Stok: </span>
                       {p.currentSourceStock ?? "—"}
                     </span>
-                    <span className="text-muted-foreground text-xs">
-                      Son kontrol: {formatDate(p.lastCheckedAt)}
-                    </span>
+                  </div>
+
+                  <div className="rounded-xl border border-border/40 bg-background/25 px-3 py-2.5 space-y-1.5">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Zaman çizelgesi
+                    </p>
+                    <dl className="grid gap-1 sm:grid-cols-2">
+                      {buildProductTrackingTimeline({
+                        productCreatedAt: p.createdAt,
+                        shopifyTransferredAt: p.shopifyTransferredAt,
+                        productLastCheckedAt: p.lastCheckedAt,
+                        productLastSuccessAt: p.lastSuccessAt,
+                        productLastShopifySyncAt: p.lastShopifySyncAt,
+                      }).map((point) => (
+                        <div
+                          key={`${p.id}-${point.label}`}
+                          className="flex items-baseline gap-2 text-xs"
+                        >
+                          <dt className="text-muted-foreground shrink-0 min-w-[7.5rem]">
+                            {point.label}
+                          </dt>
+                          <dd className="font-medium tabular-nums text-foreground/90">
+                            {formatTrackingDateTime(point.at)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
                   </div>
 
                   {p.lastErrorMessage && (
@@ -645,34 +867,90 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         </TabsContent>
 
         <TabsContent value="changes" className="mt-4 space-y-4">
-          <div className="flex flex-wrap gap-2 items-center justify-between">
-            <div className="flex flex-wrap gap-1.5">
-              {CHANGE_FILTERS.map((f) => (
-                <Button
-                  key={f.value || "all"}
-                  size="sm"
-                  variant={statusFilter === f.value ? "default" : "outline"}
-                  className="h-8"
-                  onClick={() => setStatusFilter(f.value)}
-                >
-                  {f.label}
+          <p className="text-sm text-muted-foreground max-w-2xl">
+            Düzeltilecekler aktif tespitleri gösterir. Görüldü / Yok sayılan kayıtlar kendi
+            sekmelerine taşınır; Shopify&apos;da düzeltilenler listeden kalkar.
+          </p>
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2 items-center justify-between">
+              <div className="flex flex-wrap gap-1.5">
+                {CHANGE_FILTERS.map((f) => {
+                  const count = changeCountsQuery.data?.[f.countKey] ?? 0;
+                  return (
+                    <Button
+                      key={f.value}
+                      size="sm"
+                      variant={statusFilter === f.value ? "default" : "outline"}
+                      className="h-8"
+                      onClick={() => {
+                        setStatusFilter(f.value);
+                        setKindFilter(null);
+                      }}
+                    >
+                      {f.label}
+                      <span
+                        className={`ml-1.5 tabular-nums ${
+                          statusFilter === f.value ? "opacity-90" : "text-muted-foreground"
+                        }`}
+                      >
+                        ({count})
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2">
+                {statusFilter !== "ignored" && statusFilter !== "seen" && bulkFixIds.length > 0 && (
+                  <Button
+                    size="sm"
+                    disabled={bulkShopifySyncMutation.isPending}
+                    onClick={() => bulkShopifySyncMutation.mutate(bulkFixIds)}
+                  >
+                    {bulkShopifySyncMutation.isPending
+                      ? "Güncelleniyor…"
+                      : `Toplu düzelt (${bulkFixIds.length})`}
+                  </Button>
+                )}
+                {statusFilter !== "ignored" && statusFilter !== "seen" && approvableIds.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={bulkApproveMutation.isPending || bulkShopifySyncMutation.isPending}
+                    onClick={() => bulkApproveMutation.mutate(approvableIds)}
+                  >
+                    Toplu Onayla ({approvableIds.length})
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => changesQuery.refetch()}>
+                  <RefreshCw className={`w-4 h-4 mr-1 ${changesQuery.isFetching ? "animate-spin" : ""}`} />
+                  Yenile
                 </Button>
-              ))}
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => changesQuery.refetch()}>
-                <RefreshCw className={`w-4 h-4 mr-1 ${changesQuery.isFetching ? "animate-spin" : ""}`} />
-                Yenile
-              </Button>
-              {approvableIds.length > 0 && (
-                <Button
-                  size="sm"
-                  disabled={bulkApproveMutation.isPending}
-                  onClick={() => bulkApproveMutation.mutate(approvableIds)}
-                >
-                  Toplu Onayla ({approvableIds.length})
-                </Button>
-              )}
+
+            <div className="flex flex-wrap gap-1.5">
+              {CHANGE_KIND_FILTERS.map((f) => {
+                const count = kindFilterCounts[f.value];
+                const active = kindFilter === f.value;
+                return (
+                  <Button
+                    key={f.value}
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    className="h-8"
+                    onClick={() => setKindFilter((prev) => (prev === f.value ? null : f.value))}
+                  >
+                    {f.label}
+                    <span
+                      className={`ml-1.5 tabular-nums ${
+                        active ? "opacity-90" : "text-muted-foreground"
+                      }`}
+                    >
+                      ({count})
+                    </span>
+                  </Button>
+                );
+              })}
             </div>
           </div>
 
@@ -699,8 +977,20 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             </Card>
           )}
 
+          {!changesQuery.isLoading &&
+            !changesQuery.error &&
+            (changesQuery.data?.length ?? 0) > 0 &&
+            filteredGroupedChanges.length === 0 && (
+              <Card>
+                <CardContent className="py-10 text-center text-muted-foreground">
+                  <GitCompare className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                  Bu sınıfta listelenecek ürün yok
+                </CardContent>
+              </Card>
+            )}
+
           <div className="grid gap-3">
-            {groupedChanges.map((changes) => (
+            {filteredGroupedChanges.map((changes) => (
               <TrackingChangeGroupCard
                 key={getChangeProductKey(changes[0])}
                 changes={changes}
@@ -710,12 +1000,16 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                   bulkApproveMutation.isPending ||
                   bulkShopifySyncMutation.isPending
                 }
+                rechecking={
+                  checkMutation.isPending && checkMutation.variables === changes[0].trackedProductId
+                }
                 onMarkSeen={(id) => changeActionMutation.mutate({ id, action: "mark-seen" })}
                 onIgnore={(id) => changeActionMutation.mutate({ id, action: "ignore" })}
                 onApprove={(id) => changeActionMutation.mutate({ id, action: "approve" })}
                 onShopifySync={(id) => shopifySyncMutation.mutate(id)}
                 onApproveMany={(ids) => bulkApproveMutation.mutate(ids)}
                 onShopifySyncMany={(ids) => bulkShopifySyncMutation.mutate(ids)}
+                onRecheck={() => checkMutation.mutate(changes[0].trackedProductId)}
               />
             ))}
           </div>

@@ -5,10 +5,13 @@ import type { FetchedSourceSnapshot } from "./source-fetcher.service";
 import {
   assessPriceChange,
   isPlausibleProductPrice,
+  isPlaceholderVariantSize,
   resolveReliableBaselinePrice,
   stableVariantKey,
+  variantKeysLooselyEqual,
 } from "@shared/tracking-price-sanity";
 import { buildChangeDiagnosis } from "@shared/tracking-change-diagnosis";
+import { matchTrackedVariantByKey } from "@shared/tracking-variant-resolve";
 
 export type DiffResult = {
   changes: Array<{
@@ -146,7 +149,6 @@ async function loadTrackedVariantKeys(trackedProductId: number): Promise<Set<str
       stableVariantKey({
         color: r.option1 ?? undefined,
         size: r.option2 ?? undefined,
-        sku: r.sourceSku ?? undefined,
       }),
     ),
   );
@@ -154,7 +156,19 @@ async function loadTrackedVariantKeys(trackedProductId: number): Promise<Set<str
 
 function shouldTrackVariantChange(key: string, trackedKeys: Set<string>): boolean {
   if (trackedKeys.size === 0) return true;
-  return trackedKeys.has(key);
+  if (trackedKeys.has(key)) return true;
+  for (const tracked of trackedKeys) {
+    if (variantKeysLooselyEqual(key, tracked)) return true;
+  }
+  return false;
+}
+
+function mapHasLooseKey(map: Map<string, Record<string, unknown>>, key: string): boolean {
+  if (map.has(key)) return true;
+  for (const existing of map.keys()) {
+    if (variantKeysLooselyEqual(key, existing)) return true;
+  }
+  return false;
 }
 
 export async function compareSnapshots(
@@ -202,11 +216,15 @@ export async function compareSnapshots(
   const oldStock = previous.stock;
   const newStock = current.stock;
   if (
-    oldStock != null &&
     newStock != null &&
     oldStock !== newStock &&
+    // Önceki stok bilinmiyorken (null) → 0 da ürün tükenmesi sayılır
+    (oldStock != null || newStock === 0) &&
     !hasVariantStockData &&
-    !(looksLikeStockOnlyNoise(oldStock, newStock, oldPrice, newPrice))
+    !(
+      oldStock != null &&
+      looksLikeStockOnlyNoise(oldStock, newStock, oldPrice, newPrice)
+    )
   ) {
     const diagnosis = buildChangeDiagnosis({
       changeType: "stock_changed",
@@ -219,17 +237,24 @@ export async function compareSnapshots(
       fieldName: "stock",
       oldValue: oldStock,
       newValue: newStock,
-      confidence: 90,
+      confidence: oldStock == null ? 80 : 90,
       status: "pending",
       reason: diagnosis.diagnosis,
     });
   }
 
+  const currentAllOos =
+    current.available === false ||
+    (typeof current.stock === "number" && current.stock === 0) ||
+    (current.variants.length > 0 &&
+      current.variants.every((v) => v.inStock === false));
+
   if (
-    previous.available != null &&
-    current.available != null &&
-    previous.available !== current.available &&
-    !hasVariantStockData
+    current.available === false &&
+    previous.available !== false &&
+    // true→false veya bilinmeyen→false (güçlü OOS kanıtı)
+    (previous.available === true || currentAllOos) &&
+    (!hasVariantStockData || current.available === false)
   ) {
     const diagnosis = buildChangeDiagnosis({
       changeType: "stock_changed",
@@ -242,7 +267,7 @@ export async function compareSnapshots(
       fieldName: "available",
       oldValue: previous.available,
       newValue: current.available,
-      confidence: 85,
+      confidence: previous.available == null ? 85 : 90,
       status: "pending",
       reason: diagnosis.diagnosis,
     });
@@ -282,6 +307,29 @@ export async function compareSnapshots(
   const newMap = new Map(newVariants.map((v) => [variantKey(v), v]));
   const trackedKeys = await loadTrackedVariantKeys(trackedProductId);
 
+  const isColorOnlySkuSet = (map: Map<string, Record<string, unknown>>) =>
+    map.size > 0 &&
+    map.size <= 2 &&
+    [...map.values()].every((v) =>
+      isPlaceholderVariantSize(String(v.size ?? v.option2 ?? "")),
+    );
+
+  const productLooksBuyable =
+    current.available === true ||
+    (typeof current.stock === "number" && current.stock > 0) ||
+    [...newMap.values()].some((v) => v.inStock === true);
+
+  const allNewVariantsOos =
+    newMap.size > 0 && [...newMap.values()].every((v) => v.inStock === false);
+
+  // Tek renk / bedensiz ürün: ürün alınabiliyorken "renk tükendi" üretme
+  // Ama ürün tamamen tükendiyse (available=false / tüm varyantlar OOS) bastırma.
+  const suppressColorOnlyOos =
+    productLooksBuyable &&
+    !allNewVariantsOos &&
+    current.available !== false &&
+    (isColorOnlySkuSet(newMap) || isColorOnlySkuSet(oldMap));
+
   // Kaynak snapshot'ında geçici olarak görünmeyip sonraki kontrolde geri dönen
   // mevcut Shopify varyantları "yeni varyant" değildir. Gerçek varyant ekleme,
   // ayrı bir eşleme akışı olmadan güvenli biçimde ayırt edilemediği için bildirim üretme.
@@ -292,13 +340,27 @@ export async function compareSnapshots(
   // tam snapshot kanıtı kurulana kadar yanlış alarm üretmemek daha güvenlidir.
 
   for (const [key, nv] of newMap) {
-    const ov = oldMap.get(key);
+    const ov = oldMap.get(key) ?? [...oldMap.entries()].find(([k]) => variantKeysLooselyEqual(k, key))?.[1];
     if (!ov) continue;
     if (!shouldTrackVariantChange(key, trackedKeys)) continue;
 
     const oldInStock = ov.inStock !== false;
     const newInStock = (nv as { inStock?: boolean }).inStock !== false;
     if (oldInStock !== newInStock) {
+      if (newInStock === false && suppressColorOnlyOos) {
+        continue;
+      }
+      // Ürün hâlâ satın alınabilirken az varyantlı OOS sayma
+      // (ürün tamamen tükendiyse bildirim üret)
+      if (
+        newInStock === false &&
+        productLooksBuyable &&
+        !allNewVariantsOos &&
+        current.available !== false &&
+        newMap.size <= 2
+      ) {
+        continue;
+      }
       const diagnosis = buildChangeDiagnosis({
         changeType: "variant_stock_changed",
         fieldName: "inStock",
@@ -347,6 +409,73 @@ export async function compareSnapshots(
     }
   }
 
+  // Önceki snapshot'ta varyant yokken yeni ölçüm ürünü tükendi gösteriyorsa
+  // (kozmetik/tek SKU) stok dışı bildirimi üret.
+  if (oldMap.size === 0 && current.available === false && newMap.size > 0) {
+    for (const [key, nv] of newMap) {
+      if ((nv as { inStock?: boolean }).inStock !== false) continue;
+      if (!shouldTrackVariantChange(key, trackedKeys)) continue;
+      const diagnosis = buildChangeDiagnosis({
+        changeType: "variant_stock_changed",
+        fieldName: "inStock",
+        oldValue: true,
+        newValue: false,
+        variantLabel: key,
+      });
+      changes.push({
+        changeType: "variant_stock_changed",
+        fieldName: "inStock",
+        oldValue: true,
+        newValue: false,
+        confidence: 85,
+        status: "pending",
+        reason: diagnosis.diagnosis,
+        variantKey: key,
+      });
+    }
+  }
+
+  // Önceki snapshot'ta stoktayken yeni ölçümde hiç gelmeyen takip edilen varyantlar
+  // → stok dışı say. Anahtar rename (siyah::sku ↔ siyah::tek beden) ve satın
+  // alınabilir ürünlerde yanlış alarm üretme.
+  const coverageOk =
+    oldMap.size === 0 || newMap.size >= Math.max(1, Math.floor(oldMap.size * 0.5));
+  if (coverageOk && newMap.size > 0 && !suppressColorOnlyOos) {
+    for (const [key, ov] of oldMap) {
+      if (mapHasLooseKey(newMap, key)) continue;
+      if (!shouldTrackVariantChange(key, trackedKeys)) continue;
+      if (ov.inStock === false) continue; // zaten OOS biliniyordu
+      // Tek SKU / kozmetik: ürün hâlâ alınabiliyorsa kayıp anahtar ≠ OOS
+      if (
+        productLooksBuyable &&
+        !allNewVariantsOos &&
+        current.available !== false &&
+        (oldMap.size <= 2 || newMap.size <= 2)
+      ) {
+        continue;
+      }
+      const diagnosis = buildChangeDiagnosis({
+        changeType: "variant_stock_changed",
+        fieldName: "inStock",
+        oldValue: true,
+        newValue: false,
+        variantLabel: key,
+      });
+      changes.push({
+        changeType: "variant_stock_changed",
+        fieldName: "inStock",
+        oldValue: true,
+        newValue: false,
+        confidence: 70,
+        status: "pending",
+        reason:
+          diagnosis.diagnosis ||
+          `Varyant kaynakta artık listelenmiyor — stok dışı kabul edildi (${key})`,
+        variantKey: key,
+      });
+    }
+  }
+
   const deduped: DiffResult["changes"] = [];
   for (const c of changes) {
     const dup = await isDuplicateChange({
@@ -366,26 +495,39 @@ async function resolveTrackedVariantId(
   trackedProductId: number,
   change: DiffResult["changes"][number],
 ): Promise<number | null> {
-  const meta = change.newValue ?? change.oldValue;
-  if (!meta || typeof meta !== "object") return null;
-  const o = meta as Record<string, unknown>;
-  const color = o.color ? String(o.color) : o.option1 ? String(o.option1) : null;
-  const size = o.size ? String(o.size) : o.option2 ? String(o.option2) : null;
-  const sku = o.sku ? String(o.sku) : null;
-
-  const conditions = [eq(trackedVariants.trackedProductId, trackedProductId)];
-  if (color) conditions.push(eq(trackedVariants.option1, color));
-  if (size) conditions.push(eq(trackedVariants.option2, size));
-  if (sku) conditions.push(eq(trackedVariants.sourceSku, sku));
-
-  if (conditions.length <= 1) return null;
-
   const rows = await db
-    .select({ id: trackedVariants.id })
+    .select({
+      id: trackedVariants.id,
+      option1: trackedVariants.option1,
+      option2: trackedVariants.option2,
+      option3: trackedVariants.option3,
+      sourceSku: trackedVariants.sourceSku,
+      shopifyVariantId: trackedVariants.shopifyVariantId,
+      sourceVariantTitle: trackedVariants.sourceVariantTitle,
+    })
     .from(trackedVariants)
-    .where(and(...conditions))
-    .limit(1);
-  return rows[0]?.id ?? null;
+    .where(eq(trackedVariants.trackedProductId, trackedProductId));
+
+  if (change.variantKey) {
+    const matched = matchTrackedVariantByKey(rows, change.variantKey);
+    if (matched?.id) return matched.id;
+  }
+
+  const meta = change.newValue ?? change.oldValue;
+  if (meta && typeof meta === "object") {
+    const o = meta as Record<string, unknown>;
+    const key =
+      (o.key ? String(o.key) : null) ||
+      stableVariantKey({
+        color: o.color ? String(o.color) : o.option1 ? String(o.option1) : undefined,
+        size: o.size ? String(o.size) : o.option2 ? String(o.option2) : undefined,
+        sku: o.sku ? String(o.sku) : undefined,
+      });
+    const matched = matchTrackedVariantByKey(rows, key);
+    if (matched?.id) return matched.id;
+  }
+
+  return null;
 }
 
 export async function persistDetectedChanges(input: {
@@ -397,6 +539,16 @@ export async function persistDetectedChanges(input: {
   const rows = [];
   for (const c of input.diff.changes) {
     const trackedVariantId = await resolveTrackedVariantId(input.trackedProductId, c);
+    if (
+      (c.changeType === "variant_stock_changed" ||
+        c.changeType === "variant_price_changed") &&
+      trackedVariantId == null
+    ) {
+      console.warn(
+        `⚠️ Eşleşmeyen ${c.changeType} atlandı (ürün #${input.trackedProductId}, key=${c.variantKey ?? "?"})`,
+      );
+      continue;
+    }
     const sameTarget = [
       eq(detectedChanges.trackedProductId, input.trackedProductId),
       eq(detectedChanges.changeType, c.changeType),
@@ -434,4 +586,68 @@ export async function persistDetectedChanges(input: {
     rows.push(row);
   }
   return rows;
+}
+
+/**
+ * Kaynak ürün hâlâ stokta/satın alınabilir görünüyorsa, yanlış üretilmiş
+ * "varyant tükendi" pending kayıtlarını temizle (kozmetik tek-SKU yanlış alarmı).
+ */
+export async function clearFalsePendingVariantOos(input: {
+  trackedProductId: number;
+  available: boolean | null;
+  stock: number | null;
+  variants: Array<{ inStock?: boolean }>;
+}): Promise<number> {
+  const anyInStock = input.variants.some((v) => v.inStock === true);
+  const buyable =
+    input.available === true ||
+    (typeof input.stock === "number" && input.stock > 0) ||
+    anyInStock;
+  if (!buyable) return 0;
+
+  const candidates = await db
+    .select({
+      id: detectedChanges.id,
+      newValue: detectedChanges.newValue,
+    })
+    .from(detectedChanges)
+    .where(
+      and(
+        eq(detectedChanges.trackedProductId, input.trackedProductId),
+        eq(detectedChanges.changeType, "variant_stock_changed"),
+        inArray(detectedChanges.status, ["pending", "manual_review", "approved"]),
+      ),
+    );
+
+  const oosIds = candidates
+    .filter((row) => {
+      const v = row.newValue;
+      if (v === false || v === "false" || v === 0) return true;
+      if (v && typeof v === "object" && "inStock" in (v as object)) {
+        const stock = (v as { inStock: unknown }).inStock;
+        return stock === false || stock === "false" || stock === 0;
+      }
+      return false;
+    })
+    .map((row) => row.id);
+
+  if (oosIds.length === 0) return 0;
+
+  const cleared = await db
+    .update(detectedChanges)
+    .set({
+      status: "superseded",
+      reason: "Kaynak ürün stokta göründü — yanlış stok dışı alarmı iptal edildi",
+      updatedAt: new Date(),
+    })
+    .where(inArray(detectedChanges.id, oosIds))
+    .returning({ id: detectedChanges.id });
+
+  if (cleared.length > 0) {
+    console.info(
+      `[tracking] #${input.trackedProductId}: ${cleared.length} yanlış varyant-OOS alarmı iptal edildi`,
+    );
+  }
+
+  return cleared.length;
 }

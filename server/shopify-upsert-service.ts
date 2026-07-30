@@ -356,7 +356,11 @@ async function createNewProductViaGraphQL(
   const createMutation = `
     mutation productCreate($input: ProductInput!) {
       productCreate(input: $input) {
-        product { id handle }
+        product {
+          id
+          handle
+          options { id name }
+        }
         userErrors { field message }
       }
     }
@@ -374,7 +378,11 @@ async function createNewProductViaGraphQL(
 
   const createResult = await shopifyAdminGraphql<{
     productCreate?: {
-      product?: { id: string; handle: string };
+      product?: {
+        id: string;
+        handle: string;
+        options?: Array<{ id: string; name: string }>;
+      };
       userErrors?: Array<{ message: string }>;
     };
   }>(createMutation, { input: productInput }, false, "2024-10");
@@ -408,6 +416,11 @@ async function createNewProductViaGraphQL(
   const productId = productGid.split("/").pop()!;
   console.log(`[ShopifyUpsert] GraphQL ürün oluşturuldu ID=${productId} (${parsed.variants.length} varyant)`);
 
+  const optionIdsByName: Record<string, string> = {};
+  for (const opt of createdProduct.options ?? []) {
+    if (opt?.name && opt?.id) optionIdsByName[opt.name] = opt.id;
+  }
+
   if (parsed.images.length > 0) {
     const IMAGE_BATCH_SIZE = 5;
     for (let b = 0; b < parsed.images.length; b += IMAGE_BATCH_SIZE) {
@@ -429,38 +442,32 @@ async function createNewProductViaGraphQL(
     }
   }
 
-  const bulkVariantMutation = `
-    mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkCreate(productId: $productId, variants: $variants) {
-        productVariants { id }
-        userErrors { field message }
-      }
-    }
-  `;
+  const {
+    PRODUCT_VARIANTS_BULK_CREATE_MUTATION,
+    buildProductVariantsBulkInput,
+  } = await import("./shopify-bulk-variant-input");
 
   let createdVariantCount = 0;
   for (let i = 0; i < parsed.variants.length; i += GRAPHQL_VARIANT_BATCH_SIZE) {
     const batch = parsed.variants.slice(i, i + GRAPHQL_VARIANT_BATCH_SIZE);
-    const variantsInput = batch.map((v) => {
-      const vi: Record<string, unknown> = {
-        price: v.price,
-        sku: v.sku,
-        inventoryPolicy: v.inventoryQty > 0 ? "CONTINUE" : "DENY",
-        inventoryItem: { tracked: true },
-      };
-      if (v.compareAtPrice && parseFloat(v.compareAtPrice) > 0) {
-        vi.compareAtPrice = v.compareAtPrice;
-      }
-      const optionValues: { name: string; value: string }[] = [];
-      if (v.option1?.trim() && parsed.option1Name) {
-        optionValues.push({ name: parsed.option1Name, value: v.option1 });
-      }
-      if (v.option2?.trim() && parsed.option2Name) {
-        optionValues.push({ name: parsed.option2Name, value: v.option2 });
-      }
-      if (optionValues.length > 0) vi.optionValues = optionValues;
-      return vi;
-    });
+    const variantsInput = batch.map((v) =>
+      buildProductVariantsBulkInput(
+        {
+          price: v.price,
+          sku: v.sku,
+          compareAtPrice: v.compareAtPrice,
+          inventoryPolicy: v.inventoryQty > 0 ? "CONTINUE" : "DENY",
+          tracked: true,
+          option1: v.option1,
+          option2: v.option2,
+        },
+        {
+          option1Name: parsed.option1Name,
+          option2Name: parsed.option2Name,
+          optionIdsByName,
+        },
+      ),
+    );
 
     const varResult = await shopifyAdminGraphql<{
       productVariantsBulkCreate?: {
@@ -468,8 +475,12 @@ async function createNewProductViaGraphQL(
         userErrors?: Array<{ message: string }>;
       };
     }>(
-      bulkVariantMutation,
-      { productId: productGid, variants: variantsInput },
+      PRODUCT_VARIANTS_BULK_CREATE_MUTATION,
+      {
+        productId: productGid,
+        variants: variantsInput,
+        strategy: "REMOVE_STANDALONE_VARIANT",
+      },
       false,
       "2024-10",
     );

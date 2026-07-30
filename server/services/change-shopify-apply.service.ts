@@ -8,9 +8,19 @@ import {
   type TrackedProduct,
   type TrackedVariant,
 } from "@shared/schema";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { eq, and, isNotNull, inArray, ne } from "drizzle-orm";
 import { shopifyApiService } from "../shopify-api-service";
 import { generateVariantUid } from "./tracking-uid.service";
+import {
+  applyProfitMargin,
+  pickRepresentativeShopifyPrice,
+  resolveMarginPercentPreferringLive,
+} from "@shared/tracking-price-display";
+import {
+  extractSourceCostFromChangeValue,
+  matchTrackedVariantByKey,
+} from "@shared/tracking-variant-resolve";
+import { stableVariantKey } from "@shared/tracking-price-sanity";
 
 export type ShopifyApplyResult = {
   success: boolean;
@@ -21,6 +31,9 @@ export type ShopifyApplyResult = {
   shopifyVariantId?: string;
   action: string;
   message: string;
+  salePrice?: number;
+  sourceCost?: number;
+  marginPercent?: number;
 };
 
 function num(value: unknown): number | null {
@@ -33,6 +46,11 @@ function bool(value: unknown): boolean | null {
   if (typeof value === "boolean") return value;
   if (value === "true") return true;
   if (value === "false") return false;
+  if (value === 0) return false;
+  if (value === 1) return true;
+  if (value && typeof value === "object" && "inStock" in (value as object)) {
+    return bool((value as { inStock: unknown }).inStock);
+  }
   return null;
 }
 
@@ -56,6 +74,18 @@ function variantMetaFromValue(v: unknown): {
   };
 }
 
+function variantKeyFromReason(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  const keyMatch = reason.match(/([^\s“”"]+::[^\s“”"]+)/);
+  if (keyMatch?.[1]) return keyMatch[1];
+  const quoted = reason.match(/[“"]([^”"]+)[”"]/);
+  if (quoted?.[1]?.includes("/")) {
+    const [color, size] = quoted[1].split("/").map((s) => s.trim());
+    if (color || size) return stableVariantKey({ color, size });
+  }
+  return null;
+}
+
 async function resolveTrackedVariant(
   product: TrackedProduct,
   change: DetectedChange,
@@ -67,25 +97,41 @@ async function resolveTrackedVariant(
       .where(eq(trackedVariants.id, change.trackedVariantId))
       .limit(1);
     if (v?.trackedProductId === product.id && v.shopifyVariantId) return v;
-    return null;
   }
+
+  const rows = await db
+    .select()
+    .from(trackedVariants)
+    .where(eq(trackedVariants.trackedProductId, product.id));
 
   const meta = variantMetaFromValue(change.newValue ?? change.oldValue);
-  const conditions = [eq(trackedVariants.trackedProductId, product.id)];
+  const key =
+    meta.key ||
+    (meta.color || meta.size
+      ? stableVariantKey({ color: meta.color, size: meta.size, sku: meta.sku })
+      : null) ||
+    variantKeyFromReason(change.reason);
 
-  if (meta.color) conditions.push(eq(trackedVariants.option1, meta.color));
-  if (meta.size) conditions.push(eq(trackedVariants.option2, meta.size));
-  if (meta.sku) conditions.push(eq(trackedVariants.sourceSku, meta.sku));
-
-  if (conditions.length > 1) {
-    const rows = await db
-      .select()
-      .from(trackedVariants)
-      .where(and(...conditions))
-      .limit(5);
-    const matched = rows.filter((r) => r.shopifyVariantId);
-    if (matched.length === 1) return matched[0];
+  if (key) {
+    const matched = matchTrackedVariantByKey(rows, key);
+    if (matched?.shopifyVariantId) {
+      return rows.find((r) => r.id === matched.id) ?? null;
+    }
   }
+
+  if (meta.color || meta.size || meta.sku) {
+    const filtered = rows.filter((r) => {
+      if (meta.color && r.option1 !== meta.color) return false;
+      if (meta.size && r.option2 !== meta.size) return false;
+      if (meta.sku && r.sourceSku !== meta.sku) return false;
+      return Boolean(r.shopifyVariantId);
+    });
+    if (filtered.length === 1) return filtered[0];
+  }
+
+  // Tek Shopify-bağlı varyant varsa ürün seviyesi değişikliklerde onu kullan
+  const mapped = rows.filter((r) => Boolean(String(r.shopifyVariantId ?? "").trim()));
+  if (mapped.length === 1) return mapped[0];
 
   return null;
 }
@@ -102,9 +148,113 @@ async function getMappedShopifyVariants(productId: number): Promise<TrackedVaria
     );
 }
 
-async function calculateShopifySalePrice(
+function normalizeShopifyOptionLabel(value: string | undefined | null, fallback: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  const lower = raw.toLocaleLowerCase("tr-TR");
+  if (
+    lower === "default title" ||
+    lower === "default" ||
+    lower === "title" ||
+    lower === "varsayılan" ||
+    lower === "tek renk"
+  ) {
+    return fallback === "Tek Beden" ? "Tek Beden" : "Varsayılan";
+  }
+  return raw;
+}
+
+/**
+ * tracked_variants boşsa Shopify canlı varyantlarından bağlantı kurar.
+ * Restore / yeniden kayıt sonrası eksik eşlemeyi onarır.
+ */
+async function ensureMappedShopifyVariants(
   product: TrackedProduct,
-  sourcePrice: number,
+  liveVariants: Array<{ id: string; option1?: string; option2?: string; sku?: string }>,
+): Promise<TrackedVariant[]> {
+  const existing = await getMappedShopifyVariants(product.id);
+  if (existing.length > 0) return existing;
+  if (!product.trackingUid || liveVariants.length === 0) return [];
+
+  const allRows = await db
+    .select()
+    .from(trackedVariants)
+    .where(eq(trackedVariants.trackedProductId, product.id));
+
+  // Tek satır + tek canlı varyant → doğrudan bağla
+  if (allRows.length === 1 && liveVariants.length === 1 && !allRows[0].shopifyVariantId) {
+    await db
+      .update(trackedVariants)
+      .set({
+        shopifyVariantId: String(liveVariants[0].id),
+        matchConfidence: "95",
+        matchStatus: "matched",
+        updatedAt: new Date(),
+      })
+      .where(eq(trackedVariants.id, allRows[0].id));
+    return getMappedShopifyVariants(product.id);
+  }
+
+  for (const live of liveVariants) {
+    const shopifyVariantId = String(live.id ?? "").trim();
+    if (!shopifyVariantId) continue;
+
+    const colorLabel =
+      !live.option1 || String(live.option1).toLowerCase() === "default title"
+        ? "Varsayılan"
+        : normalizeShopifyOptionLabel(live.option1, "Varsayılan");
+    const sizeLabel =
+      !live.option2 || String(live.option2).toLowerCase() === "default title"
+        ? "Tek Beden"
+        : normalizeShopifyOptionLabel(live.option2, "Tek Beden");
+
+    const alreadyLinked = allRows.some((r) => r.shopifyVariantId === shopifyVariantId);
+    if (alreadyLinked) continue;
+
+    const byOptions = allRows.find(
+      (r) =>
+        !r.shopifyVariantId &&
+        String(r.option1 ?? "").toLocaleLowerCase("tr-TR") ===
+          colorLabel.toLocaleLowerCase("tr-TR") &&
+        String(r.option2 ?? "").toLocaleLowerCase("tr-TR") ===
+          sizeLabel.toLocaleLowerCase("tr-TR"),
+    );
+
+    if (byOptions) {
+      await db
+        .update(trackedVariants)
+        .set({
+          shopifyVariantId,
+          matchConfidence: "95",
+          matchStatus: "matched",
+          updatedAt: new Date(),
+        })
+        .where(eq(trackedVariants.id, byOptions.id));
+      byOptions.shopifyVariantId = shopifyVariantId;
+      continue;
+    }
+
+    await db.insert(trackedVariants).values({
+      trackedProductId: product.id,
+      variantUid: generateVariantUid(product.trackingUid, colorLabel, sizeLabel, live.sku),
+      sourceVariantTitle: [colorLabel, sizeLabel].filter(Boolean).join(" / "),
+      option1: colorLabel,
+      option2: sizeLabel,
+      sourceSku: live.sku ?? null,
+      shopifyVariantId,
+      currentSourcePrice: product.currentSourcePrice,
+      currentAvailable: true,
+      matchConfidence: "95",
+      matchStatus: "matched",
+    });
+  }
+
+  return getMappedShopifyVariants(product.id);
+}
+
+async function resolveMarginPercent(
+  product: TrackedProduct,
+  options?: { liveSalePrice?: number | null; baselineCost?: number | null },
 ): Promise<number> {
   const [transfer] = await db
     .select({
@@ -116,23 +266,55 @@ async function calculateShopifySalePrice(
     .where(eq(shopifyTransferredProducts.sourceUrl, product.sourceUrl))
     .limit(1);
 
-  let marginPercent = num(transfer?.profitMargin);
-  if (marginPercent == null) {
-    const original = num(transfer?.originalPrice);
-    const shopify = num(transfer?.shopifyPrice);
-    if (original && shopify && original > 0) {
-      marginPercent = ((shopify / original) - 1) * 100;
-    }
-  }
-  if (marginPercent == null || marginPercent < 0 || marginPercent > 200) {
+  const margin = resolveMarginPercentPreferringLive({
+    transferProfitMargin: transfer?.profitMargin,
+    transferOriginalPrice: transfer?.originalPrice,
+    transferShopifyPrice: transfer?.shopifyPrice,
+    baselineCost: options?.baselineCost ?? (Number(product.currentSourcePrice) || null),
+    liveSalePrice: options?.liveSalePrice ?? null,
+    fallbackPercent: 10,
+  });
+  if (margin == null) {
     throw new Error(
       "Shopify satış fiyatı güvenle hesaplanamadı — ürünün kâr marjı kaydı eksik",
     );
   }
-  return Math.round(sourcePrice * (1 + marginPercent / 100) * 100) / 100;
+  return margin;
 }
 
-async function verifyShopifyProduct(product: TrackedProduct): Promise<string> {
+async function calculateShopifySalePrice(
+  product: TrackedProduct,
+  sourcePrice: number,
+  options?: { liveSalePrice?: number | null; baselineCost?: number | null },
+): Promise<{ sale: number; marginPercent: number }> {
+  const marginPercent = await resolveMarginPercent(product, options);
+  const sale = applyProfitMargin(sourcePrice, marginPercent);
+  if (sale == null || sale <= 0) {
+    throw new Error("Shopify satış fiyatı hesaplanamadı");
+  }
+  return { sale, marginPercent };
+}
+
+async function updateTransferShopifyPrice(sourceUrl: string, salePrice: number) {
+  try {
+    await db
+      .update(shopifyTransferredProducts)
+      .set({
+        shopifyPrice: String(salePrice),
+        updatedAt: new Date(),
+      })
+      .where(eq(shopifyTransferredProducts.sourceUrl, sourceUrl));
+  } catch (err) {
+    console.warn(
+      `⚠️ shopify_transferred_products.shopifyPrice güncellenemedi: ${(err as Error).message}`,
+    );
+  }
+}
+
+async function verifyShopifyProduct(product: TrackedProduct): Promise<{
+  liveId: string;
+  liveVariants: Array<{ id: string; price: number; option1?: string; option2?: string; sku?: string }>;
+}> {
   if (!product.trackingUid) {
     throw new Error("Ürün benzersiz ID (trackingUid) eksik — lütfen takip kaydını yenileyin");
   }
@@ -154,7 +336,114 @@ async function verifyShopifyProduct(product: TrackedProduct): Promise<string> {
     );
   }
 
-  return liveId;
+  const liveVariants = (verify.product.variants ?? []).map((v: Record<string, unknown>) => ({
+    id: String(v.id),
+    price: Number(v.price) || 0,
+    option1: v.option1 ? String(v.option1) : undefined,
+    option2: v.option2 ? String(v.option2) : undefined,
+    sku: v.sku ? String(v.sku) : undefined,
+  }));
+
+  return { liveId, liveVariants };
+}
+
+/**
+ * Kaynak alış sabitken Shopify satış fiyatı sapmış mı?
+ */
+export async function detectShopifyPriceDriftChanges(
+  product: TrackedProduct,
+  sourceCost: number,
+): Promise<
+  Array<{
+    changeType: string;
+    fieldName: string;
+    oldValue: unknown;
+    newValue: unknown;
+    confidence: number;
+    status: "pending" | "manual_review";
+    reason?: string;
+    variantKey?: string;
+  }>
+> {
+  if (!product.shopifyProductId || !Number.isFinite(sourceCost) || sourceCost <= 0) {
+    return [];
+  }
+
+  let marginPercent: number;
+  let liveVariants: Array<{ id: string; price: number }> = [];
+  try {
+    const verified = await verifyShopifyProduct(product);
+    liveVariants = verified.liveVariants;
+  } catch {
+    return [];
+  }
+
+  const liveSale = pickRepresentativeShopifyPrice(liveVariants.map((v) => v.price));
+  try {
+    marginPercent = await resolveMarginPercent(product, {
+      liveSalePrice: liveSale,
+      baselineCost: sourceCost,
+    });
+  } catch {
+    return [];
+  }
+
+  const expectedSale = applyProfitMargin(sourceCost, marginPercent);
+  if (expectedSale == null) return [];
+
+  const mapped = await getMappedShopifyVariants(product.id);
+  if (mapped.length === 0) return [];
+
+  const drifted = mapped.filter((mv) => {
+    const live = liveVariants.find((lv) => lv.id === String(mv.shopifyVariantId));
+    if (!live || live.price <= 0) return false;
+    return Math.abs(live.price - expectedSale) > 0.5;
+  });
+
+  if (drifted.length === 0) return [];
+
+  const allSameTarget = drifted.length === mapped.length;
+  if (allSameTarget) {
+    const sampleLive = liveVariants.find((lv) => lv.id === String(drifted[0].shopifyVariantId));
+    const impliedOldCost =
+      sampleLive && marginPercent > -100
+        ? Math.round((sampleLive.price / (1 + marginPercent / 100)) * 100) / 100
+        : sourceCost;
+    return [
+      {
+        changeType: "price_changed",
+        fieldName: "shopify_sale_drift",
+        oldValue: impliedOldCost > 0 ? impliedOldCost : sourceCost,
+        newValue: sourceCost,
+        confidence: 88,
+        status: "pending",
+        reason: `Shopify satış fiyatı kaynak alış ile uyumsuz (beklenen ${expectedSale} ₺). Anlık düzeltme önerilir.`,
+      },
+    ];
+  }
+
+  return drifted.map((mv) => {
+    const live = liveVariants.find((lv) => lv.id === String(mv.shopifyVariantId));
+    const impliedOldCost =
+      live && marginPercent > -100
+        ? Math.round((live.price / (1 + marginPercent / 100)) * 100) / 100
+        : sourceCost;
+    const key = stableVariantKey({
+      color: mv.option1,
+      size: mv.option2,
+      sku: mv.sourceSku,
+    });
+    return {
+      changeType: "variant_price_changed",
+      fieldName: "shopify_sale_drift",
+      oldValue: impliedOldCost > 0 ? impliedOldCost : sourceCost,
+      newValue: sourceCost,
+      confidence: 85,
+      status: "pending" as const,
+      reason: `Shopify varyant satışı kaynak alış ile uyumsuz (beklenen ${expectedSale} ₺).`,
+      variantKey: key,
+    };
+  });
 }
 
 export async function applyDetectedChangeToShopify(changeId: number): Promise<ShopifyApplyResult> {
@@ -179,22 +468,98 @@ export async function applyDetectedChangeToShopify(changeId: number): Promise<Sh
     throw new Error("Takip ürünü aktif değil veya Shopify senkronunda arşivlenmiş");
   }
 
-  const shopifyProductId = await verifyShopifyProduct(product);
+  const { liveId: shopifyProductId, liveVariants } = await verifyShopifyProduct(product);
   const trackingUid = product.trackingUid!;
 
   switch (change.changeType) {
     case "price_changed": {
-      const sourcePrice = num(change.newValue);
+      const sourcePrice = extractSourceCostFromChangeValue(change.newValue);
       if (sourcePrice == null || sourcePrice <= 0) throw new Error("Geçersiz fiyat değeri");
-      const price = await calculateShopifySalePrice(product, sourcePrice);
+      const baselineCost =
+        extractSourceCostFromChangeValue(change.oldValue) ??
+        Number(product.currentSourcePrice) ??
+        null;
+      const liveSalePrice = pickRepresentativeShopifyPrice(liveVariants.map((v) => v.price));
+      const { sale: price, marginPercent } = await calculateShopifySalePrice(product, sourcePrice, {
+        liveSalePrice,
+        baselineCost,
+      });
 
-      const variants = await getMappedShopifyVariants(product.id);
+      let variants = await ensureMappedShopifyVariants(product, liveVariants);
+      if (variants.length === 0 && liveVariants.length > 0) {
+        // DB yazılamasa bile canlı Shopify varyantlarına uygula
+        variants = liveVariants.map((v) => ({
+          id: -1,
+          trackedProductId: product.id,
+          shopifyVariantId: v.id,
+        })) as TrackedVariant[];
+      }
       if (variants.length === 0) {
-        throw new Error(`Shopify varyant eşleşmesi yok — UID: ${trackingUid}`);
+        throw new Error(
+          `Shopify varyant eşleşmesi yok — UID: ${trackingUid}. Shopify'da ürün varyantı bulunamadı.`,
+        );
       }
-      for (const variant of variants) {
-        await shopifyApiService.updateVariantPrice(variant.shopifyVariantId!, price);
+
+      // Tek GraphQL çağrısı — paralel REST PUT 429 üretiyordu
+      try {
+        await shopifyApiService.updateProductVariantsPrices(
+          shopifyProductId,
+          variants.map((variant) => ({
+            variantId: variant.shopifyVariantId!,
+            price,
+          })),
+        );
+      } catch (bulkErr) {
+        console.warn(
+          `⚠️ Bulk fiyat güncellemesi başarısız, sırayla deneniyor: ${(bulkErr as Error).message}`,
+        );
+        for (const variant of variants) {
+          await shopifyApiService.updateVariantPrice(variant.shopifyVariantId!, price);
+          await new Promise((r) => setTimeout(r, 350));
+        }
       }
+
+      await Promise.all(
+        variants
+          .filter((variant) => variant.id > 0)
+          .map((variant) =>
+            db
+              .update(trackedVariants)
+              .set({
+                currentSourcePrice: String(sourcePrice),
+                updatedAt: new Date(),
+              })
+              .where(eq(trackedVariants.id, variant.id)),
+          ),
+      );
+      const updated = variants.length;
+
+      await db
+        .update(trackedProducts)
+        .set({
+          currentSourcePrice: String(sourcePrice),
+          updatedAt: new Date(),
+        })
+        .where(eq(trackedProducts.id, product.id));
+
+      await updateTransferShopifyPrice(product.sourceUrl, price);
+
+      // Aynı ürün için diğer bekleyen fiyat kayıtlarını geçersiz kıl
+      await db
+        .update(detectedChanges)
+        .set({
+          status: "superseded",
+          reason: `Daha yeni fiyat düzeltmesi (#${changeId}) Shopify'a uygulandı`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(detectedChanges.trackedProductId, product.id),
+            eq(detectedChanges.changeType, "price_changed"),
+            ne(detectedChanges.id, changeId),
+            inArray(detectedChanges.status, ["pending", "manual_review", "approved"]),
+          ),
+        );
 
       return {
         success: true,
@@ -202,23 +567,55 @@ export async function applyDetectedChangeToShopify(changeId: number): Promise<Sh
         trackingUid,
         shopifyProductId,
         action: change.changeType,
-        message: `${variants.length} Shopify varyantının fiyatı ${price} TRY olarak güncellendi`,
+        message: `${updated} Shopify varyantının satış fiyatı ${price} TRY olarak güncellendi (alış ${sourcePrice} + %${marginPercent}${
+          liveSalePrice != null ? `, önceki Shopify ${liveSalePrice}` : ""
+        })`,
+        salePrice: price,
+        sourceCost: sourcePrice,
+        marginPercent,
       };
     }
 
     case "variant_price_changed": {
-      const sourcePrice = num(change.newValue);
+      const sourcePrice = extractSourceCostFromChangeValue(change.newValue);
       if (sourcePrice == null || sourcePrice <= 0) throw new Error("Geçersiz fiyat değeri");
-      const price = await calculateShopifySalePrice(product, sourcePrice);
+      const baselineCost =
+        extractSourceCostFromChangeValue(change.oldValue) ??
+        Number(product.currentSourcePrice) ??
+        null;
+      const liveSalePrice = pickRepresentativeShopifyPrice(liveVariants.map((v) => v.price));
+      const { sale: price, marginPercent } = await calculateShopifySalePrice(product, sourcePrice, {
+        liveSalePrice,
+        baselineCost,
+      });
 
-      const variant = await resolveTrackedVariant(product, change);
+      await ensureMappedShopifyVariants(product, liveVariants);
+      let variant = await resolveTrackedVariant(product, change);
+      if (!variant?.shopifyVariantId && liveVariants.length === 1) {
+        variant = {
+          id: -1,
+          shopifyVariantId: liveVariants[0].id,
+          trackedProductId: product.id,
+        } as TrackedVariant;
+      }
       if (!variant?.shopifyVariantId) {
         throw new Error(
-          `Shopify varyant eşleşmesi yok — UID: ${trackingUid}, değişiklik #${changeId}`,
+          `Shopify varyant eşleşmesi yok — UID: ${trackingUid}, değişiklik #${changeId}. Varyant bağlantısını kontrol edin.`,
         );
       }
 
       await shopifyApiService.updateVariantPrice(variant.shopifyVariantId, price);
+      if (variant.id > 0) {
+        await db
+          .update(trackedVariants)
+          .set({
+            currentSourcePrice: String(sourcePrice),
+            updatedAt: new Date(),
+          })
+          .where(eq(trackedVariants.id, variant.id));
+      }
+
+      await updateTransferShopifyPrice(product.sourceUrl, price);
 
       return {
         success: true,
@@ -228,7 +625,10 @@ export async function applyDetectedChangeToShopify(changeId: number): Promise<Sh
         shopifyProductId,
         shopifyVariantId: variant.shopifyVariantId,
         action: change.changeType,
-        message: `Fiyat ${price} TRY olarak güncellendi (UID: ${trackingUid})`,
+        message: `Fiyat ${price} TRY olarak güncellendi (alış ${sourcePrice} + %${marginPercent}, UID: ${trackingUid})`,
+        salePrice: price,
+        sourceCost: sourcePrice,
+        marginPercent,
       };
     }
 
@@ -264,12 +664,26 @@ export async function applyDetectedChangeToShopify(changeId: number): Promise<Sh
         );
       }
 
-      const variant = await resolveTrackedVariant(product, change);
+      await ensureMappedShopifyVariants(product, liveVariants);
+      let variant = await resolveTrackedVariant(product, change);
+      if (!variant?.shopifyVariantId && liveVariants.length === 1) {
+        variant = {
+          id: -1,
+          shopifyVariantId: liveVariants[0].id,
+          trackedProductId: product.id,
+        } as TrackedVariant;
+      }
       if (!variant?.shopifyVariantId) {
         throw new Error(`Varyant stok eşleşmesi yok — UID: ${trackingUid}`);
       }
 
       await shopifyApiService.updateInventory(variant.shopifyVariantId, 0);
+      if (variant.id > 0) {
+        await db
+          .update(trackedVariants)
+          .set({ currentAvailable: false, updatedAt: new Date() })
+          .where(eq(trackedVariants.id, variant.id));
+      }
 
       return {
         success: true,
@@ -279,21 +693,21 @@ export async function applyDetectedChangeToShopify(changeId: number): Promise<Sh
         shopifyProductId,
         shopifyVariantId: variant.shopifyVariantId,
         action: change.changeType,
-        message: `Varyant stok ${inStock ? "açık" : "kapalı"} (UID: ${trackingUid})`,
+        message: `Varyant stok kapalı (UID: ${trackingUid})`,
       };
     }
 
     case "variant_added": {
       const meta = variantMetaFromValue(change.newValue);
-      const price =
-        meta.price ?? num(product.currentSourcePrice) ?? 0;
+      const price = meta.price ?? num(product.currentSourcePrice) ?? 0;
       if (price <= 0) throw new Error("Yeni varyant için geçerli fiyat gerekli");
+      const { sale } = await calculateShopifySalePrice(product, price);
 
       const created = await shopifyApiService.createVariant(shopifyProductId, {
         option1: meta.color,
         option2: meta.size,
         sku: meta.sku,
-        price,
+        price: sale,
         inventory_quantity: meta.inStock === false ? 0 : 1,
       });
 
@@ -353,8 +767,6 @@ export async function applyDetectedChangeToShopify(changeId: number): Promise<Sh
     }
 
     default:
-      throw new Error(
-        `Otomatik uygulanamaz: ${change.changeType} — UID: ${trackingUid}, manuel inceleme gerekli`,
-      );
+      throw new Error(`Desteklenmeyen değişiklik türü: ${change.changeType}`);
   }
 }

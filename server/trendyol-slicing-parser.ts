@@ -380,9 +380,44 @@ export function parseSizeVariantsFromProduct(product: unknown): SlicingOption[] 
   return sizes;
 }
 
+/** Trendyol OOS bedenler çoğu zaman disabled değil; kilit ikonu / lock class ile işaretlenir.
+ *  Yalnızca elementin kendi attr + alt düğümleri — parent.html() kardeş kilitleri sızdırır.
+ */
+function hasOwnLockIndicator($el: Cheerio<unknown>): boolean {
+  const attrs = [
+    $el.attr("class"),
+    $el.attr("aria-label"),
+    $el.attr("title"),
+    $el.attr("data-testid"),
+    $el.attr("data-icon"),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/\block(?:ed)?\b|\bkilit\b|has-lock|i-lock|icon-lock|size-lock/.test(attrs)) {
+    return true;
+  }
+
+  let lockChild = false;
+  $el.find("*").each((_, node) => {
+    if (lockChild) return;
+    const any = node as { attribs?: Record<string, string> };
+    const blob = Object.values(any.attribs || {}).join(" ").toLowerCase();
+    if (/\block(?:ed)?\b|\bkilit\b|i-lock|icon-lock|size-lock/.test(blob)) lockChild = true;
+  });
+  return lockChild;
+}
+
+function hasAttrLockHint(raw: string | undefined): boolean {
+  const s = (raw || "").toLowerCase();
+  return /\block(?:ed)?\b|\bkilit\b|has-lock|i-lock|icon-lock|size-lock/.test(s);
+}
+
 export function isDomElementOutOfStock($el: Cheerio<unknown>): boolean {
   if ($el.is("[disabled]") || $el.attr("aria-disabled") === "true") return true;
   if ($el.attr("data-disabled") === "true") return true;
+  if ($el.attr("data-available") === "false" || $el.attr("data-instock") === "false") return true;
+  if ($el.attr("data-stock") === "0") return true;
   const cls = ($el.attr("class") || "").toLowerCase();
   if (
     cls.includes("disabled") ||
@@ -398,18 +433,28 @@ export function isDomElementOutOfStock($el: Cheerio<unknown>): boolean {
     cls.includes("tükendi") ||
     cls.includes("strikethrough") ||
     cls.includes("line-through") ||
-    cls.includes("crossed")
+    cls.includes("crossed") ||
+    hasAttrLockHint(cls)
   ) {
     return true;
   }
+  if (hasOwnLockIndicator($el)) return true;
   const style = ($el.attr("style") || "").toLowerCase();
-  if (style.includes("line-through") || /opacity\s*:\s*0?\.[0-4]/.test(style)) return true;
+  if (
+    style.includes("line-through") ||
+    /opacity\s*:\s*0?\.[0-4]/.test(style) ||
+    style.includes("cursor: not-allowed") ||
+    style.includes("cursor:not-allowed")
+  ) {
+    return true;
+  }
   const text = ($el.text() || "").toLowerCase();
   if (/tükendi|tukendi|stokta yok|gelince haber ver/.test(text)) return true;
 
   const parent = $el.parent();
   if (parent.length) {
     const pCls = (parent.attr("class") || "").toLowerCase();
+    // Parent'ta yalnızca kendi class — children HTML'ine bakma (kardeş kilit false positive)
     if (
       pCls.includes("disabled") ||
       pCls.includes("passive") ||
@@ -417,7 +462,8 @@ export function isDomElementOutOfStock($el: Cheerio<unknown>): boolean {
       pCls.includes("soldout") ||
       pCls.includes("out-of-stock") ||
       pCls.includes("strikethrough") ||
-      pCls.includes("line-through")
+      pCls.includes("line-through") ||
+      hasAttrLockHint(pCls)
     ) {
       return true;
     }
@@ -1021,10 +1067,13 @@ export function buildVariantsFromSlicing(
 
 export function extractSizesWithStockFromDom($: CheerioAPI): SlicingOption[] {
   const sizes: SlicingOption[] = [];
-  const seen = new Set<string>();
+  const byKey = new Map<string, SlicingOption>();
 
   const sizeSelectors = [
+    '[data-testid="size-box"]',
+    '[data-testid*="size-box"]',
     '[data-testid*="size"] button',
+    '[data-testid*="size"] [role="button"]',
     '[data-testid*="size-variant"]',
     '[data-testid="size-variant-item"]',
     '.slicing-attribute-section-value button',
@@ -1033,16 +1082,18 @@ export function extractSizesWithStockFromDom($: CheerioAPI): SlicingOption[] {
     '[class*="slicing-attribute"] button',
     '[class*="slicing-attribute"] span',
     '.pr-in-sz button',
+    '.pr-in-sz .sp-itm',
+    '.sp-itm',
     '[class*="size-variant"] button',
   ];
 
   const isValidShoeOrSize = (text: string): boolean => {
     const t = text.trim();
     if (!t || t.length > 12) return false;
-    if (/^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i.test(t)) return true;
+    if (/^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i.test(t)) return true;
     // Combo beden: S/M, M/L, L/XL (üstü çizili OOS dahil)
     if (
-      /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i.test(
+      /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)\s*[\/\\-]\s*(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i.test(
         t,
       )
     ) {
@@ -1056,15 +1107,34 @@ export function extractSizesWithStockFromDom($: CheerioAPI): SlicingOption[] {
     return false;
   };
 
+  const resolveSizeLabel = (raw: string): string | null => {
+    const cleaned = raw.replace(/\s+/g, " ").trim();
+    if (isValidShoeOrSize(cleaned)) return cleaned;
+    const token = cleaned.match(
+      /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d{2})\b/i,
+    );
+    if (token && isValidShoeOrSize(token[1])) return token[1];
+    return null;
+  };
+
   for (const sel of sizeSelectors) {
     $(sel).each((_, el) => {
       const $el = $(el);
-      const text = ($el.text() || $el.attr("title") || $el.attr("aria-label") || "").trim();
-      if (!isValidShoeOrSize(text)) return;
+      const raw =
+        ($el.text() || $el.attr("title") || $el.attr("aria-label") || "").trim();
+      const text = resolveSizeLabel(raw);
+      if (!text) return;
       const key = text.toLowerCase();
-      if (seen.has(key)) return;
-      seen.add(key);
-      sizes.push({ name: text, inStock: !isDomElementOutOfStock($el) });
+      const inStock = !isDomElementOutOfStock($el);
+      const existing = byKey.get(key);
+      if (existing) {
+        // Aynı beden birden fazla yerde: OOS kazanır
+        if (existing.inStock && !inStock) existing.inStock = false;
+        return;
+      }
+      const opt: SlicingOption = { name: text, inStock };
+      byKey.set(key, opt);
+      sizes.push(opt);
     });
   }
 

@@ -248,10 +248,22 @@ export function buildColorFamilyStatus(input: {
   const variantsWithImage = variants.filter(
     (v) => typeof v.image === "string" && /^https?:\/\//i.test(v.image),
   ).length;
-  const galleriesWithImages = colors.filter(
-    (c) => Array.isArray(imagesByColor[c]) && imagesByColor[c]!.length > 0,
-  ).length;
-  const expectedGalleryCount = Math.max(colors.length, fetchedIds.length);
+
+  // Galeri beklentisi = benzersiz renk sayısı (üye sayısı değil).
+  // 14 kardeş / 1–2 gerçek renk iken expected=14 → sahte "kısmi" uyarısı üretiyordu.
+  const galleryColorKeys = uniqueNonEmpty(
+    colors.length
+      ? colors
+      : Object.keys(imagesByColor).filter((k) => (imagesByColor[k]?.length ?? 0) > 0),
+  );
+  const galleriesWithImages = galleryColorKeys.filter((c) => {
+    if (Array.isArray(imagesByColor[c]) && imagesByColor[c]!.length > 0) return true;
+    const key = Object.keys(imagesByColor).find(
+      (k) => k.toLocaleLowerCase("tr-TR") === c.toLocaleLowerCase("tr-TR"),
+    );
+    return Boolean(key && (imagesByColor[key]?.length ?? 0) > 0);
+  }).length;
+  const expectedGalleryCount = Math.max(galleryColorKeys.length, colors.length);
   const imageCount = [
     ...new Set(
       Object.values(imagesByColor)
@@ -265,9 +277,10 @@ export function buildColorFamilyStatus(input: {
   const failedMemberCount = failedMembers.length;
 
   const allGalleriesOk =
-    expectedGalleryCount >= 2 &&
-    galleriesWithImages >= expectedGalleryCount &&
-    membersMissingImages.length === 0;
+    membersMissingImages.length === 0 &&
+    (expectedGalleryCount <= 1
+      ? galleriesWithImages >= 1 || imageCount > 0
+      : galleriesWithImages >= expectedGalleryCount);
   const allSizesOk = membersMissingSizes.length === 0;
   const allVariantsOk = membersMissingVariants.length === 0;
   const variantsCoverColors =
@@ -434,6 +447,7 @@ function collectImageUrls(raw: unknown): string[] {
 function resolveMemberColor(
   member: {
     color?: string;
+    productId?: string;
     rawProductJson?: Record<string, unknown> | null;
     url: string;
     hydratedSnapshot?: TrendyolHydratedMemberSnapshot;
@@ -464,14 +478,32 @@ function resolveMemberColor(
   const normalized = normalizeTrendyolColorName(fromRaw || "");
   if (normalized && !isPlaceholderColor(normalized)) return normalized;
 
+  // URL slug'dan yalnızca bilinen renk adı çıkar (kalın/taban gibi ürün kelimelerini renk sanma)
   try {
     const path = new URL(member.url).pathname;
     const slug = path.split("/").filter(Boolean).pop() || "";
     const withoutId = slug.replace(/-p-\d+$/i, "").replace(/-/g, " ");
-    return withoutId || "Renk";
+    const knownFromParts: string[] = [];
+    for (const part of withoutId.split(/\s+/)) {
+      const fromPart = normalizeTrendyolColorName(part);
+      if (fromPart && !isPlaceholderColor(fromPart) && !knownFromParts.includes(fromPart)) {
+        knownFromParts.push(fromPart);
+      }
+    }
+    if (knownFromParts.length === 1) return knownFromParts[0]!;
+    if (knownFromParts.length > 1) {
+      // Slug sonunda geçen renk genelde doğru üye rengidir
+      return knownFromParts[knownFromParts.length - 1]!;
+    }
+    const fromSlug = normalizeTrendyolColorName(withoutId);
+    if (fromSlug && !isPlaceholderColor(fromSlug)) return fromSlug;
   } catch {
-    return "Renk";
+    /* ignore */
   }
+
+  // Adayda zayıf etiket varsa koru; yoksa nötr "Renk"
+  if (member.color?.trim()) return member.color.trim();
+  return "Renk";
 }
 
 function looksLikeApparel(title: unknown, members: TrendyolColorFamilyMember[]): boolean {
@@ -793,6 +825,7 @@ export function buildColorFamilyVariantMatrix(
   const allVariants: SanitizedVariant[] = [];
   const colors: string[] = [];
   const sizes: string[] = [];
+  const seenOptionKeys = new Set<string>();
 
   for (const member of members) {
     if (!member.ok) continue;
@@ -813,7 +846,13 @@ export function buildColorFamilyVariantMatrix(
 
     const firstImage = member.images[0];
     for (const v of memberVariants) {
-      const size = (v.size || "").trim();
+      const size = String(v.size || "").trim();
+      const optionKey = `${String(color).toLocaleLowerCase("tr-TR")}::${size.toLocaleLowerCase("tr-TR")}`;
+      if (seenOptionKeys.has(optionKey)) {
+        // Aynı Renk+Beden kombinasyonu Shopify'da reddedilir — tekrarları atla
+        continue;
+      }
+      seenOptionKeys.add(optionKey);
       const vColor = v.color && !isPlaceholderColor(v.color) ? v.color : color;
       if (vColor.toLocaleLowerCase("tr-TR") !== color.toLocaleLowerCase("tr-TR")) continue;
       if (size && !sizes.includes(size)) sizes.push(size);
@@ -1050,6 +1089,7 @@ export function mergeColorFamilyIntoScrapeResult(input: ColorFamilyMergeInput): 
     const color = resolveMemberColor(
       {
         color: snap?.color || member.color,
+        productId: member.productId,
         rawProductJson: product ?? member.rawProductJson,
         url: member.url,
         hydratedSnapshot: snap,

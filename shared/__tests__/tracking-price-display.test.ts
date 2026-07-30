@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   applyProfitMargin,
   buildPricePairDisplay,
+  resolveMarginPercentPreferringLive,
   resolveProfitMarginPercent,
 } from "../tracking-price-display.ts";
 
@@ -19,6 +20,25 @@ describe("tracking-price-display", () => {
     assert.equal(pair.saleOld, 550);
     assert.equal(pair.saleNew, 495);
     assert.equal(pair.marginPercent, 10);
+  });
+
+  it("uses live Shopify price as saleOld when provided", () => {
+    const pair = buildPricePairDisplay(743.75, 665.46, 10, { liveSalePrice: 822.05 });
+    assert.equal(pair.saleOld, 822.05);
+    assert.equal(pair.saleOldFromShopify, true);
+    assert.equal(pair.saleNew, 732.01);
+  });
+
+  it("prefers live-derived margin when transfer expectation drifts", () => {
+    const margin = resolveMarginPercentPreferringLive({
+      transferProfitMargin: 10,
+      baselineCost: 743.75,
+      liveSalePrice: 822.05,
+      fallbackPercent: 10,
+    });
+    assert.ok(margin != null && margin > 10);
+    const saleNew = applyProfitMargin(665.46, margin!);
+    assert.ok(saleNew != null && saleNew > 732);
   });
 
   it("resolves margin from transfer or fallback", () => {

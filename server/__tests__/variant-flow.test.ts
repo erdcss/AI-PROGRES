@@ -180,7 +180,36 @@ console.log("\n=== Variant Flow Tests ===\n");
   assert(isValidSizeLabel("S"), "S geçerli beden");
   assert(isValidSizeLabel("S/M"), "S/M combo geçerli beden");
   assert(isValidSizeLabel("L/XL"), "L/XL combo geçerli beden");
+  assert(isValidSizeLabel("37"), "tek ayakkabı numarası 37 geçerli");
+  assert(isValidSizeLabel("39"), "tek ayakkabı numarası 39 geçerli");
   assert(!isValidSizeLabel("Sepete Ekle"), "Sepete Ekle beden değil");
+}
+
+// Sneaker 36–40 — tek numaralar düşmemeli / Standart enjekte edilmemeli
+{
+  const canonical = buildCanonicalProductForShopify({
+    sourceUrl: "https://www.trendyol.com/pasyone/lacivert-kadin-sneaker-gunluk-ayakkabi-p-891728961",
+    scrapeResult: {
+      title: "Pasyone Lacivert Kadın Sneaker Günlük Ayakkabı",
+      brand: "Pasyone",
+      price: { original: 899 },
+      variants: {
+        colors: [],
+        sizes: ["36", "37", "38", "39", "40"],
+        allVariants: [
+          { color: "", size: "36", inStock: true },
+          { color: "", size: "37", inStock: true },
+          { color: "", size: "38", inStock: true },
+          { color: "", size: "39", inStock: true },
+          { color: "", size: "40", inStock: true },
+        ],
+      },
+    },
+  });
+  const sizes = [...new Set((canonical?.variants ?? []).map((v) => v.size))];
+  assert(sizes.length === 5, `sneaker 5 beden korunur (got ${sizes.join(",")})`);
+  assert(sizes.includes("37") && sizes.includes("39"), "37 ve 39 korunur");
+  assert(!sizes.includes("Standart"), "Standart enjekte edilmez");
 }
 
 // Test — apparel one-size after full scrape → upload allowed (genuine single size)

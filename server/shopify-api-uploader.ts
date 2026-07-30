@@ -490,7 +490,11 @@ async function uploadProductViaGraphQL(
 
   const createResult = await shopifyAdminGraphql<{
     productCreate?: {
-      product?: { id: string; handle: string };
+      product?: {
+        id: string;
+        handle: string;
+        options?: Array<{ id: string; name: string }>;
+      };
       userErrors?: Array<{ message: string }>;
     };
   }>(createMutation, { input: productInput }, false, '2024-10');
@@ -516,6 +520,11 @@ async function uploadProductViaGraphQL(
   const productId = productGid.split('/').pop()!;
   console.log(`✅ GraphQL: Ürün oluşturuldu ID=${productId}`);
 
+  const optionIdsByName: Record<string, string> = {};
+  for (const opt of createdProduct.options ?? []) {
+    if (opt?.name && opt?.id) optionIdsByName[opt.name] = opt.id;
+  }
+
   const validImages = productData.images.filter((img) => img.src && img.src.startsWith('http'));
   if (validImages.length > 0) {
     const IMAGE_BATCH_SIZE = 5;
@@ -538,57 +547,82 @@ async function uploadProductViaGraphQL(
     }
   }
 
-  const bulkVariantMutation = `
-    mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkCreate(productId: $productId, variants: $variants) {
-        productVariants { id selectedOptions { name value } }
-        userErrors { field message }
-      }
-    }
-  `;
+  const {
+    PRODUCT_VARIANTS_BULK_CREATE_MUTATION,
+    buildProductVariantsBulkInput,
+  } = await import('./shopify-bulk-variant-input');
 
   const VARIANT_BATCH_SIZE = 100;
   const allCreatedVariants: Array<{ id: string; selectedOptions?: Array<{ name: string; value: string }> }> = [];
+  const allBatchErrors: string[] = [];
 
   for (let i = 0; i < productData.variants.length; i += VARIANT_BATCH_SIZE) {
     const batch = productData.variants.slice(i, i + VARIANT_BATCH_SIZE);
-    const variantsInput = batch.map((v) => {
-      const vi: Record<string, unknown> = {
-        price: v.price,
-        sku: v.sku || '',
-        inventoryPolicy: 'CONTINUE',
-        inventoryItem: { tracked: false },
-      };
-      if (v.compareAtPrice) vi.compareAtPrice = v.compareAtPrice;
-      const selectedOptions: { name: string; value: string }[] = [];
-      if (v.option1?.trim() && productData.option1Name) {
-        selectedOptions.push({ name: productData.option1Name, value: v.option1 });
-      }
-      if (v.option2?.trim() && productData.option2Name) {
-        selectedOptions.push({ name: productData.option2Name, value: v.option2 });
-      }
-      if (selectedOptions.length > 0) vi.optionValues = selectedOptions;
-      return vi;
-    });
+    const variantsInput = batch.map((v) =>
+      buildProductVariantsBulkInput(
+        {
+          price: v.price,
+          sku: v.sku || '',
+          compareAtPrice: v.compareAtPrice,
+          inventoryPolicy: 'CONTINUE',
+          tracked: false,
+          option1: v.option1,
+          option2: v.option2,
+        },
+        {
+          option1Name: productData.option1Name,
+          option2Name: productData.option2Name,
+          optionIdsByName,
+        },
+      ),
+    );
 
     const varResult = await shopifyAdminGraphql<{
       productVariantsBulkCreate?: {
         productVariants?: Array<{ id: string; selectedOptions?: Array<{ name: string; value: string }> }>;
         userErrors?: Array<{ message: string }>;
       };
-    }>(bulkVariantMutation, { productId: productGid, variants: variantsInput }, false, '2024-10');
+    }>(
+      PRODUCT_VARIANTS_BULK_CREATE_MUTATION,
+      {
+        productId: productGid,
+        variants: variantsInput,
+        strategy: 'REMOVE_STANDALONE_VARIANT',
+      },
+      false,
+      '2024-10',
+    );
 
     if (!varResult.response.ok) {
-      console.error(`⚠️ GraphQL varyant batch ${i} HTTP hatası: ${varResult.response.status}`);
+      const msg = `GraphQL varyant batch ${i} HTTP hatası: ${varResult.response.status}`;
+      console.error(`⚠️ ${msg}`);
+      allBatchErrors.push(msg);
       continue;
+    }
+
+    if (varResult.errors?.length) {
+      const msg = JSON.stringify(varResult.errors);
+      console.error(`⚠️ GraphQL varyant batch ${i} errors:`, msg);
+      allBatchErrors.push(msg);
     }
 
     const created = varResult.data?.productVariantsBulkCreate?.productVariants || [];
     allCreatedVariants.push(...created);
     const vErrors = varResult.data?.productVariantsBulkCreate?.userErrors || [];
     if (vErrors.length > 0) {
-      console.error(`⚠️ GraphQL varyant hataları (batch ${i}):`, vErrors.map((e) => e.message).join(', '));
+      const msg = vErrors.map((e) => e.message).join(', ');
+      console.error(`⚠️ GraphQL varyant hataları (batch ${i}):`, msg);
+      allBatchErrors.push(msg);
     }
+  }
+
+  if (allCreatedVariants.length === 0 && productData.variants.length > 0) {
+    return {
+      success: false,
+      productId,
+      handle: createdProduct.handle,
+      message: `GraphQL varyant oluşturma hatası: ${allBatchErrors.join(' | ') || 'varyant oluşturulamadı'}`,
+    };
   }
 
   if (trackingId) {
@@ -620,7 +654,7 @@ async function uploadProductViaGraphQL(
     productId,
     handle: createdProduct.handle,
     variants: variantMappings,
-    message: `GraphQL ile yüklendi (${productData.variants.length} varyant). ID: ${productId}`,
+    message: `GraphQL ile yüklendi (${allCreatedVariants.length}/${productData.variants.length} varyant). ID: ${productId}`,
   };
 }
 

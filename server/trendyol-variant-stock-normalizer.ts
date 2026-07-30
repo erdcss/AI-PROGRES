@@ -110,6 +110,7 @@ export function isValidTrendyolSizeLabel(text: unknown): boolean {
 
 function isRecordOutOfStock(rec: Record<string, unknown>): boolean {
   if (rec.inStock === false || rec.isSellable === false || rec.sellable === false) return true;
+  if (rec.hasStock === false) return true;
   if (rec.available === false || rec.isAvailable === false || rec.selectable === false) return true;
   if (rec.disabled === true) return true;
 
@@ -126,6 +127,67 @@ function isRecordOutOfStock(rec: Record<string, unknown>): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Ürün seviyesi stok tükenmesi (beden OOS değil).
+ * Öneri/ilgili ürünlerdeki "Stoklar Tükendi" metnine bakılmaz —
+ * ana ürün Sepete Ekle / Şimdi Al açıksa asla OOS sayılmaz.
+ */
+export function detectProductLevelOutOfStock(input: {
+  html?: string;
+  product?: Record<string, unknown> | null;
+}): { outOfStock: boolean; reason?: string } {
+  const product = input.product;
+  if (product && typeof product === "object") {
+    if (product.hasStock === false || product.isSellable === false || product.sellable === false) {
+      return { outOfStock: true, reason: "product.hasStock/isSellable false" };
+    }
+    if (product.inStock === false || product.available === false) {
+      return { outOfStock: true, reason: "product.inStock/available false" };
+    }
+    const stock = product.stock ?? product.stockCount ?? product.quantity;
+    if (typeof stock === "number" && stock <= 0 && product.hasStock !== true) {
+      return { outOfStock: true, reason: "product.stock<=0" };
+    }
+    // Ürün state açıkça satılabilir ise HTML öneri kartlarına bakma
+    if (product.hasStock === true || product.isSellable === true || product.sellable === true) {
+      return { outOfStock: false };
+    }
+  }
+
+  const html = input.html || "";
+  if (!html) return { outOfStock: false };
+
+  // Ana satın alma CTA'sı varsa ürün stokta — öneri ürün OOS metinlerini yoksay
+  const hasAddToCart = /Sepete\s+Ekle/i.test(html);
+  const hasBuyNow = /Şimdi\s+Al/i.test(html);
+  if (hasAddToCart || hasBuyNow) {
+    return { outOfStock: false };
+  }
+
+  // Sepete Ekle yoksa ürün muhtemelen tükendi; tam sayfa sinyalleri güvenilir
+  if (/Stoklar\s+Tükendi/i.test(html)) {
+    return { outOfStock: true, reason: "Stoklar Tükendi overlay" };
+  }
+  if (/Ürün\s+tükenmiştir/i.test(html)) {
+    return { outOfStock: true, reason: "Ürün tükenmiştir" };
+  }
+
+  if (
+    /<(?:button|a|div|span)[^>]{0,240}(?:add-to-basket|add-to-cart|sepete|buy|basket|addtocart)[^>]{0,120}>\s*Tükendi!?\s*<\/(?:button|a|div|span)>/i.test(
+      html,
+    ) ||
+    /<(?:button|a)[^>]{0,200}>\s*Tükendi!?\s*<\/(?:button|a)>/i.test(html)
+  ) {
+    return { outOfStock: true, reason: "Tükendi CTA" };
+  }
+
+  if (/Gelince\s+Haber\s+Ver/i.test(html)) {
+    return { outOfStock: true, reason: "Gelince Haber Ver (Sepete Ekle yok)" };
+  }
+
+  return { outOfStock: false };
 }
 
 function uniqueNames(names: string[]): string[] {
@@ -377,35 +439,46 @@ function buildMatrix(
   sizes: string[],
   stockHints: Map<string, { inStock: boolean; reason?: string; source: TrendyolVariantStockItem["source"] }>,
   warnings: string[],
+  productLevelOos = false,
 ): TrendyolVariantStockItem[] {
   const finalColors = colors.length > 0 ? colors : [DEFAULT_COLOR];
   const finalSizes = sizes.length > 0 ? sizes : [""];
   const variants: TrendyolVariantStockItem[] = [];
   const hasStockHints = stockHints.size > 0;
+  const namedColors = finalColors.filter(
+    (c) => c && c !== DEFAULT_COLOR && c.toLocaleLowerCase("tr-TR") !== "tek renk",
+  );
+  // Çok renkte ::size ipucu bir renkten diğerine sızdırılmamalı
+  const allowSizeOnlyFallback = namedColors.length <= 1;
 
   for (const color of finalColors) {
     for (const size of finalSizes) {
       const key = buildVariantStockKey(color, size || "");
       const lookupKey = key.toLowerCase();
+      const colorSizeKey = size
+        ? `${color.toLowerCase()}::${size.toLowerCase()}`
+        : undefined;
       const hint =
         stockHints.get(lookupKey) ??
-        (size ? stockHints.get(`::${size.toLowerCase()}`) : undefined) ??
-        (size ? stockHints.get(`${color.toLowerCase()}::${size.toLowerCase()}`) : undefined);
+        (colorSizeKey ? stockHints.get(colorSizeKey) : undefined) ??
+        (allowSizeOnlyFallback && size
+          ? stockHints.get(`::${size.toLowerCase()}`)
+          : undefined);
       let inStock: boolean;
       let source: TrendyolVariantStockItem["source"] = "fallback";
       let disabledReason: string | undefined;
 
-      if (hint) {
+      if (productLevelOos) {
+        inStock = false;
+        disabledReason = "product-level out of stock";
+        source = hint?.source ?? "fallback";
+      } else if (hint) {
         inStock = hint.inStock;
         source = hint.source;
         disabledReason = hint.reason;
       } else if (size) {
-        const sizeOnly = stockHints.get(`::${size.toLowerCase()}`);
-        if (sizeOnly) {
-          inStock = sizeOnly.inStock;
-          source = sizeOnly.source;
-          disabledReason = sizeOnly.reason;
-        } else if (hasStockHints) {
+        if (hasStockHints) {
+          // Renk×beden için ipucu yoksa: çok renkte "bilinmiyor=stokta" varsayma
           inStock = false;
           disabledReason = "no stock hint for combination";
           warnings.push(`Stok bilgisi eksik: ${key} — stokta yok varsayıldı`);
@@ -448,13 +521,26 @@ function collectStockHints(
     inStock: boolean,
     source: TrendyolVariantStockItem["source"],
     reason?: string,
+    options?: { sizeOnly?: boolean },
   ) => {
     const colorName = color || DEFAULT_COLOR;
     const sizeKey = size.toLowerCase();
     const entry = { inStock, source, reason };
-    map.set(`${colorName.toLowerCase()}::${sizeKey}`, entry);
-    map.set(buildVariantStockKey(colorName, size).toLowerCase(), entry);
-    if (size) map.set(`::${sizeKey}`, entry);
+    const colorSize = `${colorName.toLowerCase()}::${sizeKey}`;
+    const existingColor = map.get(colorSize);
+    // Aynı renk×beden: OOS kazanır
+    if (!existingColor || (existingColor.inStock && !inStock)) {
+      map.set(colorSize, entry);
+      map.set(buildVariantStockKey(colorName, size).toLowerCase(), entry);
+    }
+
+    if (size && options?.sizeOnly !== false) {
+      const sizeOnlyKey = `::${sizeKey}`;
+      const existingSize = map.get(sizeOnlyKey);
+      // Boyut-only: yalnızca yoksa yaz veya OOS ile güçlendir — stokta olan son renk ezmesin
+      if (!existingSize) map.set(sizeOnlyKey, entry);
+      else if (existingSize.inStock && !inStock) map.set(sizeOnlyKey, entry);
+    }
   };
 
   for (const item of scriptItems) {
@@ -465,15 +551,17 @@ function collectStockHints(
     set(v.color, v.size, v.inStock, "script-json");
   }
 
+  // DOM bedenleri seçili renge aittir — size-only yaz (tek renk sayfası)
   for (const s of domSizes) {
-    set("", s.name, s.inStock, "dom", s.disabledReason);
+    set("", s.name, s.inStock, "dom", s.disabledReason, { sizeOnly: true });
   }
 
   if (puppeteer) {
     for (const c of puppeteer.colors) {
       const sizes = puppeteer.sizesByColor[c.name] || [];
       for (const s of sizes) {
-        set(c.name, s.name, s.inStock, "dom", s.disabledReason);
+        // Renk bilinen: size-only yazma (çok renk sızıntısı olmasın)
+        set(c.name, s.name, s.inStock, "dom", s.disabledReason, { sizeOnly: false });
       }
     }
   }
@@ -581,6 +669,33 @@ export function normalizeTrendyolVariantStock(input: NormalizeStockInput): Trend
     colors = colors.filter((c) => c !== DEFAULT_COLOR);
   }
 
+  // Çok renkte: yalnızca stok kanıtı olan renkleri matrise al
+  // (kardeş renkler color-family ile ayrı çekilir; uydurma çapraz OOS üretmez)
+  if (colors.length > 1) {
+    const evidenced = new Set<string>();
+    for (const v of slicingMatrix) {
+      if (v.color) evidenced.add(v.color.toLocaleLowerCase("tr-TR"));
+    }
+    for (const v of scriptItems) {
+      if (v.color) evidenced.add(v.color.toLocaleLowerCase("tr-TR"));
+    }
+    if (input.puppeteerSnapshot?.colors) {
+      for (const c of input.puppeteerSnapshot.colors) {
+        const sizes = input.puppeteerSnapshot.sizesByColor[c.name] || [];
+        if (sizes.length > 0) evidenced.add(c.name.toLocaleLowerCase("tr-TR"));
+      }
+    }
+    if (evidenced.size > 0) {
+      const filtered = colors.filter((c) => evidenced.has(c.toLocaleLowerCase("tr-TR")));
+      if (filtered.length > 0) colors = filtered;
+    }
+  }
+
+  const productLevel = detectProductLevelOutOfStock({ html, product: product as Record<string, unknown> | null });
+  if (productLevel.outOfStock) {
+    warnings.push(`Ürün seviyesi stok tükenmesi: ${productLevel.reason}`);
+  }
+
   const stockHints = collectStockHints(
     scriptItems,
     domSizes,
@@ -588,7 +703,7 @@ export function normalizeTrendyolVariantStock(input: NormalizeStockInput): Trend
     input.puppeteerSnapshot,
   );
 
-  let variants = buildMatrix(colors, sizes, stockHints, warnings);
+  let variants = buildMatrix(colors, sizes, stockHints, warnings, productLevel.outOfStock);
 
   if (variants.length === 0 && sizes.length > 0) {
     variants = sizes.map((size) => {
@@ -598,8 +713,10 @@ export function normalizeTrendyolVariantStock(input: NormalizeStockInput): Trend
         color,
         size,
         key: buildVariantStockKey(color, size),
-        inStock: hint?.inStock ?? true,
-        disabledReason: hint?.reason,
+        inStock: productLevel.outOfStock ? false : (hint?.inStock ?? true),
+        disabledReason: productLevel.outOfStock
+          ? productLevel.reason
+          : hint?.reason,
         source: hint?.source ?? "fallback",
       } as TrendyolVariantStockItem;
     });
@@ -617,11 +734,22 @@ export function normalizeTrendyolVariantStock(input: NormalizeStockInput): Trend
   const hasScript = scriptItems.length > 0 || slicingMatrix.length > 0;
   const hasDom = domSizes.length > 0 || Boolean(input.puppeteerSnapshot);
   const hasExplicitOos = outOfStockVariants.length > 0;
+  const sizeLessProduct = sizes.length === 0;
 
   if (hasScript && (hasDom || hasExplicitOos)) confidence = "high";
   else if (hasScript || hasDom) confidence = "medium";
 
-  if (confidence === "low" && variants.length > 0) {
+  // Düşük güven ≠ stok yok. Özellikle kozmetik/tek SKU ürünlerde (beden DOM'u yok)
+  // fallback satırları OOS'a çekmek "Siyah tükendi" yanlış alarmı üretir.
+  // Yalnızca gerçek beden kombinasyonlarında ve açık ürün-stok kanıtı yokken uygula.
+  const buyableHint = input.puppeteerSnapshot?.productInStock;
+  if (
+    !productLevel.outOfStock &&
+    confidence === "low" &&
+    variants.length > 0 &&
+    !sizeLessProduct &&
+    buyableHint !== true
+  ) {
     warnings.push("Stok güveni düşük — tüm varyantlar otomatik stokta sayılmadı");
     for (const v of variants) {
       if (v.source === "fallback" && v.inStock) {
@@ -630,11 +758,31 @@ export function normalizeTrendyolVariantStock(input: NormalizeStockInput): Trend
         stockMap[v.key] = false;
       }
     }
+  } else if (!productLevel.outOfStock && confidence === "low" && sizeLessProduct) {
+    warnings.push(
+      "Stok güveni düşük (bedensiz ürün) — bilinmeyen stok OOS sayılmadı; ürün satın alınabilir kabul",
+    );
   }
 
-  const productInStock =
-    input.puppeteerSnapshot?.productInStock ??
-    availableVariants.length > 0;
+  if (productLevel.outOfStock) {
+    for (const v of variants) {
+      v.inStock = false;
+      v.disabledReason = productLevel.reason ?? "product-level out of stock";
+      stockMap[v.key] = false;
+    }
+    confidence = confidence === "low" ? "medium" : confidence;
+    if (html && /Stoklar\s+Tükendi|Tükendi!?/i.test(html)) {
+      confidence = "high";
+    }
+  }
+
+  const productInStock = productLevel.outOfStock
+    ? false
+    : input.puppeteerSnapshot?.productInStock === false
+      ? false
+      : input.puppeteerSnapshot?.productInStock === true
+        ? true
+        : variants.some((v) => v.inStock);
 
   const stockResult = {
     colors,
@@ -738,17 +886,33 @@ export function applyStockNormalizationToScrapeResult(
 
   // Mevcut set daha zengin: yalnızca stok ipuçlarını birleştir, bedenleri silme
   if (!incomingRicher && existing.sizes.length > 0) {
-    const stockBySize = new Map<string, boolean>();
+    const stockByKey = new Map<string, boolean>();
     for (const it of legacy.items) {
-      if (it.size) stockBySize.set(it.size.toLowerCase(), it.inStock);
+      const ck = (it.color || DEFAULT_COLOR).toLowerCase();
+      const sk = (it.size || "").toLowerCase();
+      if (sk) {
+        stockByKey.set(`${ck}::${sk}`, it.inStock);
+        // Tek renk veya Tek Renk satırları için size-only yedek
+        if (!stockByKey.has(`::${sk}`)) stockByKey.set(`::${sk}`, it.inStock);
+        else if (stockByKey.get(`::${sk}`) === true && !it.inStock) {
+          stockByKey.set(`::${sk}`, false);
+        }
+      }
     }
+    const namedExisting = existing.allVariants.some(
+      (v) => v.color && v.color !== "Tek Renk" && v.color !== DEFAULT_COLOR,
+    );
     finalVariants = {
       ...existing,
       allVariants: existing.allVariants.map((v) => {
+        const ck = (v.color || DEFAULT_COLOR).toLowerCase();
         const sk = (v.size || "").toLowerCase();
+        const hit =
+          stockByKey.get(`${ck}::${sk}`) ??
+          (!namedExisting ? stockByKey.get(`::${sk}`) : undefined);
         return {
           ...v,
-          inStock: stockBySize.has(sk) ? stockBySize.get(sk)! : v.inStock !== false,
+          inStock: hit !== undefined ? hit : v.inStock !== false,
         };
       }),
       stockMap: {} as Record<string, boolean>,
@@ -763,8 +927,55 @@ export function applyStockNormalizationToScrapeResult(
 
   traceVariants("richer_variant_selection_after", finalVariants, { source: "stock-norm:final" });
 
+  // Ürün seviyesi OOS: zengin mevcut set bile stokta kalamaz
+  if (normalized.productInStock === false) {
+    finalVariants = {
+      ...finalVariants,
+      allVariants: finalVariants.allVariants.map((v) => ({
+        ...v,
+        inStock: false,
+      })),
+      stockMap: Object.fromEntries(
+        finalVariants.allVariants.map((v) => [
+          `${v.color || "Tek Renk"}-${v.size}`,
+          false,
+        ]),
+      ),
+    };
+  }
+
   scrapeResult.variants = finalVariants;
-  scrapeResult.stockSummary = buildStockSummary(normalized);
+  const summary = buildStockSummary({
+    ...normalized,
+    productInStock: normalized.productInStock,
+    variants: finalVariants.allVariants.map((v) => ({
+      color: v.color || DEFAULT_COLOR,
+      size: v.size || "",
+      key: `${v.color || DEFAULT_COLOR}-${v.size || ""}`,
+      inStock: Boolean(v.inStock) && normalized.productInStock !== false,
+      source: "fallback" as const,
+    })),
+    availableVariants: finalVariants.allVariants
+      .filter((v) => v.inStock && normalized.productInStock !== false)
+      .map((v) => ({
+        color: v.color || DEFAULT_COLOR,
+        size: v.size || "",
+        key: `${v.color || DEFAULT_COLOR}-${v.size || ""}`,
+        inStock: true,
+        source: "fallback" as const,
+      })),
+    outOfStockVariants: finalVariants.allVariants
+      .filter((v) => !v.inStock || normalized.productInStock === false)
+      .map((v) => ({
+        color: v.color || DEFAULT_COLOR,
+        size: v.size || "",
+        key: `${v.color || DEFAULT_COLOR}-${v.size || ""}`,
+        inStock: false,
+        source: "fallback" as const,
+      })),
+    stockMap: finalVariants.stockMap || {},
+  });
+  scrapeResult.stockSummary = summary;
   // Yalnızca sanitize edilmiş final bedenleri dışarı taşı. Ham HTML'deki
   // öneri/reklam ürünlerinin bedenleri (özellikle giyim dışı ürünlerde) tekrar
   // domSizeButtons üzerinden canonical ürüne sızmamalı.

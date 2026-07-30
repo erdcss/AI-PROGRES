@@ -10,6 +10,7 @@ import {
   normalizeTrendyolVariantStock,
   isValidTrendyolSizeLabel,
   buildVariantStockKey,
+  detectProductLevelOutOfStock,
 } from "../trendyol-variant-stock-normalizer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -107,6 +108,101 @@ console.log("\n=== Trendyol Variant Stock Normalizer Tests ===\n");
   assert(xl?.inStock === false, 'aria-disabled="true" stokta değil');
 }
 
+// 4b. Kilit ikonu (disabled yok) — Trendyol size-box OOS
+{
+  const html = htmlFixture(`
+    <div data-testid="size-variant-section">
+      <button data-testid="size-box">
+        XS
+        <svg class="i-lock" aria-label="kilit"><path d="M0 0"/></svg>
+      </button>
+      <button data-testid="size-box">S</button>
+      <button data-testid="size-box">M</button>
+      <button data-testid="size-box">L</button>
+      <button data-testid="size-box">XL</button>
+      <button data-testid="size-box">2XL</button>
+      <button data-testid="size-box">
+        3XL
+        <i class="icon-lock"></i>
+      </button>
+    </div>
+  `);
+  const $ = cheerio.load(html);
+  const result = normalizeTrendyolVariantStock({ html, $ });
+  assert(result.sizes.length === 7, "Kilit fixture: 7 beden (XS–3XL)");
+  const xs = result.variants.find((v) => v.size.toUpperCase() === "XS");
+  const s = result.variants.find((v) => v.size.toUpperCase() === "S");
+  const xxxl = result.variants.find((v) => v.size.toUpperCase() === "3XL");
+  assert(xs?.inStock === false, "Kilitli XS stokta değil");
+  assert(s?.inStock === true, "S stokta");
+  assert(xxxl?.inStock === false, "Kilitli 3XL stokta değil");
+  assert(
+    result.outOfStockVariants.some((v) => v.size.toUpperCase() === "XS"),
+    "XS outOfStockVariants içinde",
+  );
+  assert(
+    result.outOfStockVariants.some((v) => v.size.toUpperCase() === "3XL"),
+    "3XL outOfStockVariants içinde",
+  );
+}
+
+// 4c. size-box + locked class (SVG class yok)
+{
+  const html = htmlFixture(`
+    <button data-testid="size-box" class="size-box locked">XS</button>
+    <button data-testid="size-box">M</button>
+  `);
+  const $ = cheerio.load(html);
+  const result = normalizeTrendyolVariantStock({ html, $ });
+  assert(
+    result.variants.find((v) => v.size === "XS")?.inStock === false,
+    "locked class XS stokta değil",
+  );
+  assert(result.variants.find((v) => v.size === "M")?.inStock === true, "M stokta");
+}
+
+// 4d. Çok renkte bir rengin OOS bedeni diğer renge sızmamalı
+{
+  const html = htmlFixture("", {
+    product: {
+      color: "Siyah",
+      slicedAttributes: [
+        {
+          attributeName: "Renk",
+          attributes: [
+            { attributeValue: "Sarı", inStock: true },
+            { attributeValue: "Siyah", inStock: true },
+            { attributeValue: "Mavi", inStock: true },
+          ],
+        },
+        {
+          attributeName: "Beden",
+          attributes: [
+            { attributeValue: "S", stockState: "InStock", inStock: true },
+            { attributeValue: "M", stockState: "OutOfStock", inStock: false },
+            { attributeValue: "L", stockState: "InStock", inStock: true },
+          ],
+        },
+      ],
+      allVariants: [
+        { attributes: { RENK: "Siyah", BEDEN: "S" }, stock: 3, inStock: true },
+        { attributes: { RENK: "Siyah", BEDEN: "M" }, stock: 0, inStock: false },
+        { attributes: { RENK: "Siyah", BEDEN: "L" }, stock: 2, inStock: true },
+        { attributes: { RENK: "Sarı", BEDEN: "S" }, stock: 1, inStock: true },
+        { attributes: { RENK: "Sarı", BEDEN: "M" }, stock: 4, inStock: true },
+        { attributes: { RENK: "Sarı", BEDEN: "L" }, stock: 1, inStock: true },
+      ],
+    },
+  });
+  const result = normalizeTrendyolVariantStock({ html });
+  const siyahM = result.variants.find(
+    (v) => v.color === "Siyah" && v.size === "M",
+  );
+  const sariM = result.variants.find((v) => v.color === "Sarı" && v.size === "M");
+  assert(siyahM?.inStock === false, "Siyah-M stokta değil");
+  assert(sariM?.inStock === true, "Sarı-M stokta kalır (Siyah OOS sızmaz)");
+}
+
 // 5. Script JSON stock:0
 {
   const html = htmlFixture("", {
@@ -151,13 +247,21 @@ console.log("\n=== Trendyol Variant Stock Normalizer Tests ===\n");
   assert(result.outOfStockVariants.length === 1, "1 beden tükenmiş");
 }
 
-// 7. Düşük güven — otomatik stokta varsayımı yok
+// 7. Düşük güven — bedensiz üründe OOS zorlanmaz
 {
   const html = htmlFixture(`<p>Ürün açıklaması</p>`);
   const $ = cheerio.load(html);
-  const result = normalizeTrendyolVariantStock({ html, $ });
+  const result = normalizeTrendyolVariantStock({
+    html,
+    $,
+    title: "L'Oreal Paris Panorama Maskara Siyah",
+  });
   assert(result.confidence === "low", "Stok bilgisi yoksa confidence low");
   assert(result.warnings.length > 0, "Uyarı üretilir");
+  assert(
+    result.variants.every((v) => v.inStock !== false) || result.variants.length === 0,
+    "Bedensiz düşük güvende fallback OOS zorlanmaz",
+  );
 }
 
 // 8. Renk: metni
@@ -176,15 +280,59 @@ console.log("\n=== Trendyol Variant Stock Normalizer Tests ===\n");
   const fixturePath = path.join(__dirname, "../__fixtures__/valiberta-haki-shirt-api.json");
   const raw = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
   const result = normalizeTrendyolVariantStock({ product: raw.result });
-  assert(result.variants.length === 15, "Valiberta: 15 kombinasyon");
-  assert(result.outOfStockVariants.length === 6, "Valiberta: 6 tükenmiş");
+  assert(result.variants.length === 5, "Valiberta: mevcut renk × 5 beden (çapraz yok)");
+  assert(result.outOfStockVariants.length === 2, "Valiberta: M ve 2XL tükenmiş");
   assert(result.confidence !== "low", "Valiberta: confidence low değil");
+  assert(
+    result.variants.every((v) => v.color === "Açık Haki"),
+    "Valiberta: yalnızca mevcut renk (Açık Haki)",
+  );
 }
 
 // 10. isValidTrendyolSizeLabel rejects noise
 assert(!isValidTrendyolSizeLabel("Sepete Ekle"), "Sepete Ekle beden değil");
 assert(isValidTrendyolSizeLabel("XL"), "XL geçerli beden");
 assert(buildVariantStockKey("Kırmızı", "S") === "Kırmızı-S", "stock key formatı");
+
+// 11. Ürün seviyesi OOS — "Stoklar Tükendi" + Tükendi CTA (bedensiz ürün)
+{
+  const html = htmlFixture(`
+    <div class="product-overlay">Stoklar Tükendi</div>
+    <p>Renk: Kırmızı</p>
+    <button class="add-to-basket">Tükendi!</button>
+  `);
+  const $ = cheerio.load(html);
+  const detected = detectProductLevelOutOfStock({ html });
+  assert(detected.outOfStock === true, "Stoklar Tükendi algılanır");
+  const result = normalizeTrendyolVariantStock({ html, $ });
+  assert(result.productInStock === false, "Bedensiz ürün productInStock=false");
+  assert(result.variants.length >= 1, "En az 1 varyant üretilir");
+  assert(
+    result.variants.every((v) => v.inStock === false),
+    "Tüm varyantlar OOS",
+  );
+  assert(result.confidence !== "low", "Ürün OOS kanıtında confidence low değil");
+}
+
+// 11b. Sepete Ekle varken ilgili ürün "Stoklar Tükendi" → ürün OOS değil
+{
+  const html = htmlFixture(`
+    <div class="product-button-container"><button class="add-to-basket">Sepete Ekle</button></div>
+    <div class="recommendations"><div>Stoklar Tükendi</div><button>Tükendi!</button></div>
+  `);
+  const detected = detectProductLevelOutOfStock({ html });
+  assert(detected.outOfStock === false, "Sepete Ekle varken öneri OOS yok sayılır");
+  const result = normalizeTrendyolVariantStock({ html, $: cheerio.load(html) });
+  assert(result.productInStock === true, "Ana ürün stokta kalır");
+}
+
+// 12. Açıklama metninde yalnız "tükendi" geçmesi ürün OOS sayılmaz
+{
+  const html = htmlFixture(`<p>Bu ürün daha önce tükendiğinde çok satılmıştı.</p>
+    <button class="add-to-basket">Sepete Ekle</button>`);
+  const detected = detectProductLevelOutOfStock({ html });
+  assert(detected.outOfStock === false, "Yorum metnindeki tükendi ürün OOS değildir");
+}
 
 console.log(`\n=== Sonuç: ${passed} geçti, ${failed} başarısız ===\n`);
 process.exit(failed > 0 ? 1 : 0);

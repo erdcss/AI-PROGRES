@@ -1,5 +1,9 @@
 import { runTrendyolScrapePipeline } from "../trendyol-scrape-pipeline";
-import { validateTrackingSourceData, parseSourcePrice } from "@shared/scrape-validity";
+import {
+  validateTrackingSourceData,
+  parseSourcePrice,
+  isInvalidTrackingTitle,
+} from "@shared/scrape-validity";
 import { validateFetchedPrice } from "@shared/tracking-price-sanity";
 import { filterValidProductImages } from "../trendyol-image-utils";
 
@@ -96,42 +100,117 @@ export async function fetchSourceForTracking(
       validationReason: validation.reason,
     };
 
-    if (!validation.valid) {
-      const messages: Record<string, string> = {
-        invalid_title: "Geçersiz ürün başlığı — bot veya hata sayfası",
-        bot_or_blocked_page: "Kaynak erişim engellendi (bot/403/captcha)",
-        price_extraction_failed: "Fiyat doğrulanamadı",
-        fallback_fake_price: "Sahte fallback fiyat tespit edildi",
-        slug_only_no_data: "Yalnızca URL slug verisi — geçersiz",
-        no_valid_price: "Fiyat alınamadı",
-        suspicious_default_price: "Şüpheli varsayılan fiyat (100 TL)",
-      };
-      return {
-        valid: false,
-        reason: validation.reason ?? "invalid_source",
-        message: messages[validation.reason ?? ""] ?? "Kaynak veri alınamadı, değişiklik oluşturulmadı",
-        quality,
-      };
-    }
-
-    const price = parseSourcePrice(result.price);
-    const priceSanity = validateFetchedPrice(price, options?.baselinePrice ?? null);
-    if (!priceSanity.ok) {
-      return {
-        valid: false,
-        reason: "unreliable_price",
-        message: priceSanity.reason ?? "Fiyat doğrulanamadı",
-        quality: { ...quality, priceSanityReason: priceSanity.reason },
-      };
-    }
-
     const images = filterValidProductImages(result.images);
-    const variants = normalizeVariants(result.variants);
-    const stock = totalStock(variants);
-    const hasKnownStock = variants.some((variant) => typeof variant.inStock === "boolean");
-    const available = hasKnownStock
-      ? variants.some((variant) => variant.inStock === true)
-      : null;
+    let variants = normalizeVariants(result.variants);
+    const stockSummary = result.stockSummary as
+      | { productInStock?: boolean; inStockVariants?: number }
+      | undefined;
+    const stockAnalysis = result.stockAnalysis as { productInStock?: boolean } | undefined;
+    let productInStock =
+      typeof stockSummary?.productInStock === "boolean"
+        ? stockSummary.productInStock
+        : typeof stockAnalysis?.productInStock === "boolean"
+          ? stockAnalysis.productInStock
+          : undefined;
+
+    const htmlForOos =
+      (typeof result.htmlContent === "string" && result.htmlContent) ||
+      (typeof (result as { html?: string }).html === "string" &&
+        (result as { html?: string }).html) ||
+      "";
+    if (productInStock === undefined && htmlForOos) {
+      const { detectProductLevelOutOfStock } = await import(
+        "../trendyol-variant-stock-normalizer"
+      );
+      const detected = detectProductLevelOutOfStock({ html: htmlForOos });
+      if (detected.outOfStock) {
+        productInStock = false;
+      }
+    }
+
+    // Tükenen ürünlerde fiyat bazen gelmez — baseline ile OOS kaydı üretmeye izin ver
+    const priceMissingReasons = new Set([
+      "no_valid_price",
+      "price_extraction_failed",
+      "fallback_fake_price",
+      "suspicious_default_price",
+    ]);
+    const canRecordOosWithoutPrice =
+      productInStock === false &&
+      !isInvalidTrackingTitle(result.title) &&
+      Boolean(options?.baselinePrice && options.baselinePrice > 0);
+
+    if (!validation.valid) {
+      if (!(canRecordOosWithoutPrice && priceMissingReasons.has(String(validation.reason)))) {
+        const messages: Record<string, string> = {
+          invalid_title: "Geçersiz ürün başlığı — bot veya hata sayfası",
+          bot_or_blocked_page: "Kaynak erişim engellendi (bot/403/captcha)",
+          price_extraction_failed: "Fiyat doğrulanamadı",
+          fallback_fake_price: "Sahte fallback fiyat tespit edildi",
+          slug_only_no_data: "Yalnızca URL slug verisi — geçersiz",
+          no_valid_price: "Fiyat alınamadı",
+          suspicious_default_price: "Şüpheli varsayılan fiyat (100 TL)",
+        };
+        return {
+          valid: false,
+          reason: validation.reason ?? "invalid_source",
+          message: messages[validation.reason ?? ""] ?? "Kaynak veri alınamadı, değişiklik oluşturulmadı",
+          quality,
+        };
+      }
+    }
+
+    let price = parseSourcePrice(result.price);
+    let priceFromBaseline = false;
+    if (!(price > 0) && canRecordOosWithoutPrice) {
+      price = Number(options!.baselinePrice);
+      priceFromBaseline = true;
+    } else {
+      const priceSanity = validateFetchedPrice(price, options?.baselinePrice ?? null);
+      if (!priceSanity.ok) {
+        if (canRecordOosWithoutPrice) {
+          price = Number(options!.baselinePrice);
+          priceFromBaseline = true;
+        } else {
+          return {
+            valid: false,
+            reason: "unreliable_price",
+            message: priceSanity.reason ?? "Fiyat doğrulanamadı",
+            quality: { ...quality, priceSanityReason: priceSanity.reason },
+          };
+        }
+      }
+    }
+
+    if (productInStock === false) {
+      variants = variants.map((v) => ({ ...v, inStock: false }));
+      if (variants.length === 0) {
+        variants = [
+          {
+            key: "varsayılan::tek beden",
+            color: "Varsayılan",
+            size: "Tek Beden",
+            inStock: false,
+          },
+        ];
+      }
+    }
+
+    const stock =
+      productInStock === false
+        ? 0
+        : totalStock(variants);
+    const hasKnownStock =
+      productInStock !== undefined ||
+      variants.some((variant) => typeof variant.inStock === "boolean");
+    const available =
+      productInStock === false
+        ? false
+        : productInStock === true
+          ? true
+          : hasKnownStock
+            ? variants.some((variant) => variant.inStock === true)
+            : null;
 
     return {
       valid: true,
@@ -145,7 +224,11 @@ export async function fetchSourceForTracking(
         variants,
         stock,
         available,
-        quality,
+        quality: {
+          ...quality,
+          productInStock: productInStock ?? null,
+          priceFromBaseline,
+        },
         rawData: result as Record<string, unknown>,
       },
     };

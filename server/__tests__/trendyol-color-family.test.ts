@@ -5,6 +5,7 @@
 import {
   buildColorFamilyVariantMatrix,
   buildColorFamilyIdentity,
+  buildColorFamilyStatus,
   buildSoftColorFamilyMembersFromCandidates,
   extractColorSiblingCandidatesFromHtml,
   extractColorSiblingCandidatesFromProduct,
@@ -555,6 +556,50 @@ console.log("\n=== Trendyol Color Family ===\n");
   const status = result.colorFamilyStatus as { state: string; aliasesCount: number };
   assert(status?.state === "success", `status success (got ${status?.state})`);
   assert(status.aliasesCount >= 2, "aliasesCount >= 2");
+}
+
+{
+  console.log("11b) many members / few colors → expectedGallery != memberCount (no false partial)");
+  const manyMembers: TrendyolColorFamilyMember[] = Array.from({ length: 14 }, (_, i) => ({
+    productId: String(1000 + i),
+    url: `https://www.trendyol.com/x-p-${1000 + i}`,
+    color: i < 2 ? (i === 0 ? "Siyah" : "Beyaz") : "Siyah",
+    images: [`https://cdn.dsmcdn.com/img${i}.jpg`],
+    ok: true,
+    variants: {
+      colors: [i < 2 ? (i === 0 ? "Siyah" : "Beyaz") : "Siyah"],
+      sizes: ["M"],
+      allVariants: [
+        {
+          color: i < 2 ? (i === 0 ? "Siyah" : "Beyaz") : "Siyah",
+          size: "M",
+          inStock: true,
+          image: `https://cdn.dsmcdn.com/img${i}.jpg`,
+        },
+      ],
+    },
+  }));
+  const status = buildColorFamilyStatus({
+    attempted: true,
+    rootProductId: "1000",
+    members: manyMembers,
+    colors: ["Siyah", "Beyaz"],
+    imagesByColor: {
+      Siyah: ["https://cdn.dsmcdn.com/img0.jpg"],
+      Beyaz: ["https://cdn.dsmcdn.com/img1.jpg"],
+    },
+    sourceAliases: manyMembers.map((m) => `trendyol:${m.productId}`),
+    familySourceKey: "trendyol-group:1000",
+    variants: manyMembers.flatMap((m) => m.variants?.allVariants || []),
+  });
+  assert(
+    (status.expectedGalleryCount ?? 0) <= 3,
+    `expectedGalleryCount should be ~2 colors not 14 (got ${status.expectedGalleryCount})`,
+  );
+  assert(
+    status.state === "success",
+    `should be success when both color galleries exist (got ${status.state}: ${status.message})`,
+  );
 }
 
 {

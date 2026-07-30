@@ -11,7 +11,6 @@ import {
   startTrackingScheduler,
   releaseStaleCheckLocks,
   triggerImmediateSchedulerCycle,
-  triggerShopifyTrackingReconcile,
   isTrackingSchedulerRunning,
 } from "./tracking.scheduler";
 import {
@@ -23,6 +22,7 @@ import {
   reconcileUnreliablePriceChanges,
   supersedeStaleTrackingChanges,
 } from "./tracking-reconcile.service";
+import { runStartupTrackingAndShopifyAudit } from "./tracking-startup-audit.service";
 import { isCloudRuntime } from "@shared/deploy-runtime";
 import { trackingService } from "./tracking.service";
 import { runControlCenterMigration } from "../migrations/run-control-center-migration";
@@ -82,9 +82,10 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
     }
 
     await startTrackingScheduler();
+    // Açılış: takip + Shopify hard-delete + silme doğrulaması + uygulama içi bildirimler
     setTimeout(() => {
-      void triggerShopifyTrackingReconcile(true).catch((err) =>
-        console.warn("⚠️ Açılış Shopify takip senkronu atlandı:", err),
+      void runStartupTrackingAndShopifyAudit().catch((err) =>
+        console.warn("⚠️ Açılış Shopify/takip denetimi atlandı:", err),
       );
     }, isCloudRuntime() ? 10_000 : 3_000);
     triggerImmediateSchedulerCycle(isCloudRuntime() ? 15_000 : 5_000);

@@ -722,6 +722,39 @@ function ScraperPage() {
     },
   });
 
+  const DEFAULT_DOCUMENT_TITLE = "Turmarkt - Ürün Çekme Uygulaması";
+
+  // Sekme başlığında ürün çekme / yükleme sayacı
+  useEffect(() => {
+    if (isBulkProcessing && bulkProgress && bulkProgress.total > 0) {
+      const active =
+        bulkProgress.current < bulkProgress.total
+          ? Math.min(bulkProgress.current + 1, bulkProgress.total)
+          : bulkProgress.total;
+      document.title = `(${active}/${bulkProgress.total}) Ürün çekiliyor · Turmarkt`;
+      return () => {
+        document.title = DEFAULT_DOCUMENT_TITLE;
+      };
+    }
+
+    if (singleScrapeMutation.isPending) {
+      document.title = "Ürün çekiliyor… · Turmarkt";
+      return () => {
+        document.title = DEFAULT_DOCUMENT_TITLE;
+      };
+    }
+
+    if (uploadProgress && uploadProgress.total > 0) {
+      const idx = Math.max(uploadProgress.index, 0);
+      document.title = `(${idx}/${uploadProgress.total}) Shopify yükleme · Turmarkt`;
+      return () => {
+        document.title = DEFAULT_DOCUMENT_TITLE;
+      };
+    }
+
+    document.title = DEFAULT_DOCUMENT_TITLE;
+  }, [isBulkProcessing, bulkProgress, singleScrapeMutation.isPending, uploadProgress]);
+
   // Toplu Shopify yükleme mutation'ı
   const bulkUploadMutation = useMutation({
     mutationFn: async () => {
@@ -1173,7 +1206,7 @@ function ScraperPage() {
     );
     setScrapeError(null);
     setScrapeErrorMeta(null);
-    setWorkflowStep(`${queue.length} ürün toplu çekiliyor...`);
+    setWorkflowStep(`0/${queue.length} ürün çekiliyor...`);
 
     toast({
       title: "🚀 Toplu Çekim Başladı",
@@ -1256,6 +1289,7 @@ function ScraperPage() {
       }
         completedScrapes++;
         setBulkProgress({ current: completedScrapes, total: queue.length });
+        setWorkflowStep(`${completedScrapes}/${queue.length} ürün çekiliyor...`);
       }
     };
 
