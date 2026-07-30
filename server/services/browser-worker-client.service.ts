@@ -366,7 +366,7 @@ export async function fetchHtmlWithBrowserWorker(url: string): Promise<BrowserWo
     const durationMs = Date.now() - start;
     const data = response.data as BrowserWorkerTrendyolResponse;
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401 || (response.status === 403 && (data as any)?.errorCategory === "auth")) {
       logBrowserWorker("request failed category: auth");
       return {
         success: false,
@@ -502,7 +502,28 @@ export async function scrapeTrendyolWithBrowserWorker(
       typeof data.rawProductJson === "object" &&
       Object.keys(data.rawProductJson as object).length > 0;
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
+      logBrowserWorker("request failed category: auth", {
+        correlationId,
+        httpStatus: response.status,
+        durationMs,
+      });
+      return {
+        success: false,
+        html: null,
+        rawProductJson: null,
+        jsonLd: [],
+        finalUrl: null,
+        status: response.status,
+        durationMs,
+        error: "browser-worker-unauthorized",
+        errorCategory: "auth",
+        stageError: "browser-worker-unauthorized",
+      };
+    }
+
+    // 403 may be auth OR challenge/blocked — body errorCategory wins
+    if (response.status === 403 && data?.errorCategory === "auth") {
       logBrowserWorker("request failed category: auth", {
         correlationId,
         httpStatus: response.status,

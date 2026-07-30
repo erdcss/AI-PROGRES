@@ -4554,6 +4554,7 @@ setTimeout(check, 1000);
 
   // Shopify bağlantısını test eder
   app.get('/api/shopify/status', async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     try {
       const result = await runShopifyConnectionTest('status');
       return res.json({
@@ -4584,62 +4585,64 @@ setTimeout(check, 1000);
 
   // Shopify token otomatik yenileme — manuel tetikleme
   app.post('/api/shopify/rotate-token', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     try {
       const {
         proactiveRefreshShopifyToken,
         buildShopifyTokenStatusPayload,
+        secretLooksLikeSharedSecretOnly,
+        hasEnvAccessToken,
       } = await import('./shopify-token-manager');
       const result = await proactiveRefreshShopifyToken(true);
       const statusPayload = await buildShopifyTokenStatusPayload();
 
       if (!result.success) {
-        const { getValidShopifyAccessToken } = await import('./shopify-token-manager');
-        try {
-          const token = await getValidShopifyAccessToken();
-          invalidateShopifyCredentialCache();
-          return res.json({
-            success: true,
-            method: token.source,
-            message: `Mevcut token doğrulandı (${token.source})`,
-            status: statusPayload.status,
-            ...statusPayload,
-          });
-        } catch {
-          const hint =
-            result.error ||
-            'Token yenileme başarısız. Admin Token sekmesinden shpat_... kaydedin veya SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard → Settings) tanımlayın.';
-          return res.status(500).json({
-            success: false,
-            error: result.error,
-            message: hint,
-            status: statusPayload.status,
-            ...statusPayload,
-          });
+        let hint =
+          result.error ||
+          'Token yenileme başarısız. Admin Token (shpat_...) kaydedin veya Dev Dashboard Client Secret (shpsec_...) tanımlayın.';
+        if (secretLooksLikeSharedSecretOnly() && !hasEnvAccessToken()) {
+          hint =
+            'SHOPIFY_CLIENT_SECRET / secret_key shpss_ (App Shared Secret). Otomatik yenileme için Admin Token veya shpsec_ Client Secret gerekli.';
         }
+        return res.status(500).json({
+          success: false,
+          refreshed: false,
+          error: result.error,
+          message: hint,
+          status: statusPayload.status,
+          ...statusPayload,
+        });
       }
       invalidateShopifyCredentialCache();
       return res.json({
         success: true,
+        refreshed: true,
         method: result.source,
         message: `Token başarıyla yenilendi (${result.source})`,
         status: statusPayload.status,
         ...statusPayload,
       });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
+      res.status(500).json({ success: false, refreshed: false, error: err.message });
     }
   });
 
   // Shopify token durumu
   app.get('/api/shopify/token-status', async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     try {
       const { buildShopifyTokenStatusPayload } = await import('./shopify-token-manager');
       const {
         resolveClientIdSource,
         resolveClientSecretSource,
         hasUsableClientSecretForRefresh,
+        isShopifyAppSharedSecret,
       } = await import('./shopify-credentials');
       const payload = await buildShopifyTokenStatusPayload();
+      const rawClientSecret =
+        process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
+        process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim() ||
+        '';
       res.json({
         ...payload,
         connected: payload.liveConnected,
@@ -4648,6 +4651,7 @@ setTimeout(check, 1000);
           SHOPIFY_CLIENT_ID: resolveClientIdSource() !== 'missing',
           SHOPIFY_CLIENT_SECRET: resolveClientSecretSource() !== 'missing',
           SHOPIFY_CLIENT_SECRET_USABLE: hasUsableClientSecretForRefresh(),
+          SHOPIFY_CLIENT_SECRET_IS_SHARED_SECRET: isShopifyAppSharedSecret(rawClientSecret),
           SHOPIFY_API_KEY: !!process.env.SHOPIFY_API_KEY,
           SHOPIFY_APP_SHARED_SECRET: !!process.env.SHOPIFY_APP_SHARED_SECRET,
           SHOPIFY_ACCESS_TOKEN: !!process.env.SHOPIFY_ACCESS_TOKEN,
@@ -4659,16 +4663,18 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify health â€” token deÄŸeri asla dÃ¶nmez
+  // Shopify health — token değeri asla dönmez
   app.get('/api/shopify/health', async (_req, res) => {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
     try {
       const snapshot = await getShopifyHealthSnapshot();
       return res.json(snapshot);
     } catch (err: unknown) {
-      const { resolveClientIdSource, resolveClientSecretSource, envShopDomain } = await import('./shopify-credentials');
+      const { resolveClientIdSource, resolveClientSecretSource, envShopDomain, isShopifyAppSharedSecret } = await import('./shopify-credentials');
       const { hasEnvAccessToken, hasClientCredentialsConfigured } = await import('./shopify-token-manager');
       const message = err instanceof Error ? err.message : 'Shopify health check failed';
+      const rawSecret = process.env.SHOPIFY_CLIENT_SECRET?.trim() || process.env.secret_key?.trim() || '';
       return res.status(500).json({
         ok: false,
         shopDomain: envShopDomain(),
@@ -4676,7 +4682,7 @@ setTimeout(check, 1000);
         hasClientCredentials: hasClientCredentialsConfigured(),
         clientIdSource: resolveClientIdSource(),
         clientSecretSource: resolveClientSecretSource(),
-        secretLooksLikeSharedSecret: false,
+        secretLooksLikeSharedSecret: isShopifyAppSharedSecret(rawSecret),
         tokenSource: 'missing',
         expiresAt: null,
         expiresInSeconds: null,
@@ -4691,8 +4697,9 @@ setTimeout(check, 1000);
     }
   });
 
-  // Shopify baÄŸlantÄ± testi â€” shop bilgisi, domain, token source (token loglanmaz)
+  // Shopify bağlantı testi
   app.post('/api/shopify/connection-test', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     const requestId = getRequestId(req);
     const result = await runShopifyConnectionTest(requestId);
     return res.status(result.connected ? 200 : 400).json(result);

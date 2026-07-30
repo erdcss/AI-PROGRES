@@ -216,19 +216,32 @@ export function resolveClientSecretSource():
 /**
  * client_credentials ve OAuth token exchange için Client Secret.
  *
- * Resmi Shopify Dev Dashboard akışında Client Secret'ın belirli bir prefix'i
- * (shpsec_ vb.) olması ŞART DEĞİLDİR — shpss_ ile başlayan gerçek secret'lar da
- * geçerlidir. Bu nedenle prefix'e göre eleme yapılmaz; değer mevcut ve boş
- * olmadığı sürece kullanılır.
+ * Dev Dashboard Client Secret (genelde shpsec_...) kullanılır.
+ * App Shared Secret / API secret (shpss_...) HMAC imzası içindir — token grant için
+ * Shopify HTTP 400 döner. Bu yüzden shpss_ burada reddedilir.
  */
+export function isShopifyAppSharedSecret(value: string | null | undefined): boolean {
+  return Boolean(value?.trim().startsWith("shpss_"));
+}
+
 export function resolveTokenGrantClientSecret(): string {
-  const candidates = [
+  const explicit = [
     process.env.SHOPIFY_CLIENT_SECRET?.trim(),
     process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim(),
-    process.env.secret_key?.trim(),
-    process.env.SHOPIFY_APP_SHARED_SECRET?.trim(),
   ].filter(Boolean) as string[];
-  return candidates[0] || '';
+
+  for (const candidate of explicit) {
+    if (isShopifyAppSharedSecret(candidate)) {
+      console.warn(
+        "[SHOPIFY] SHOPIFY_CLIENT_SECRET shpss_ (App Shared Secret) — client_credentials için kullanılamaz. Dev Dashboard Client Secret (shpsec_...) veya Admin Token (shpat_...) kullanın.",
+      );
+      continue;
+    }
+    return candidate;
+  }
+
+  // secret_key / SHOPIFY_APP_SHARED_SECRET yalnızca HMAC içindir — token grant'a düşmez.
+  return "";
 }
 
 export function hasUsableClientSecretForRefresh(): boolean {
@@ -245,7 +258,7 @@ export function getShopifyClientCredentials(): {
     process.env.SHOPIFY_CLIENT_ID ||
     process.env.SHOPIFY_client_id ||
     process.env.SHOPIFY_API_KEY ||
-    '';
+    "";
   const clientSecret = resolveTokenGrantClientSecret();
   const shopDomain = envShopDomain();
 

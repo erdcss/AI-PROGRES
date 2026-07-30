@@ -27,6 +27,7 @@ import {
   resolveTokenGrantClientSecret,
   getShopifyClientCredentials,
   hasUsableClientSecretForRefresh,
+  isShopifyAppSharedSecret,
 } from '../shopify-credentials';
 
 let passed = 0;
@@ -293,8 +294,8 @@ async function run() {
 
   __resetShopifyTokenManagerTestDeps();
 
-  // J. Client Secret prefix kabul testleri — gerçek env okuyan fonksiyonlar.
-  //    Prefix (shpss_/shpsec_/prefixsiz) fark etmez; yalnızca boş secret reddedilir.
+  // J. Client Secret: shpss_ (App Shared Secret) token grant için reddedilir;
+  //    shpsec_ / prefixsiz Dev Dashboard secret kabul edilir.
   {
     const backup = {
       SHOPIFY_SHOP_DOMAIN: process.env.SHOPIFY_SHOP_DOMAIN,
@@ -314,23 +315,24 @@ async function run() {
       else process.env.SHOPIFY_CLIENT_SECRET = secret;
     };
 
-    const shpssSecret = 'shpss_real_dev_dashboard_secret_value';
+    const shpssSecret = 'shpss_real_app_shared_secret_value';
     setSecretEnv(shpssSecret);
-    assert(resolveTokenGrantClientSecret() === shpssSecret, 'J: shpss_ ile başlayan gerçek secret kabul edilir');
-    assert(getShopifyClientCredentials() !== null, 'J: shpss_ secret ile credentials null dönmez');
-    assert(hasUsableClientSecretForRefresh(), 'J: shpss_ secret yenileme için kullanılabilir');
+    assert(isShopifyAppSharedSecret(shpssSecret), 'J: shpss_ shared secret olarak tanınır');
+    assert(resolveTokenGrantClientSecret() === '', 'J: shpss_ token grant için reddedilir');
+    assert(getShopifyClientCredentials() === null, 'J: shpss_ ile credentials null döner');
+    assert(!hasUsableClientSecretForRefresh(), 'J: shpss_ yenileme için kullanılamaz');
 
     setSecretEnv('shpsec_dashboard_client_secret_value');
     assert(getShopifyClientCredentials() !== null, 'J: shpsec_ secret kabul edilir');
+    assert(hasUsableClientSecretForRefresh(), 'J: shpsec_ yenileme için kullanılabilir');
 
     setSecretEnv('plain_secret_without_prefix_1234567890');
-    assert(getShopifyClientCredentials() !== null, 'J: prefixsiz secret token endpoint için kabul edilir');
+    assert(getShopifyClientCredentials() !== null, 'J: prefixsiz Dev Dashboard secret kabul edilir');
 
     setSecretEnv(undefined);
     assert(getShopifyClientCredentials() === null, 'J: boş secret reddedilir');
     assert(!hasUsableClientSecretForRefresh(), 'J: boş secret yenileme için kullanılamaz');
 
-    // Env'i geri yükle
     for (const [key, value] of Object.entries(backup)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;

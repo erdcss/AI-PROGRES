@@ -261,11 +261,27 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
     const result = results[i];
     const endpoint = endpoints[i];
     if (result.status !== 'fulfilled') {
+      const reason = result.reason as {
+        message?: string;
+        response?: { status?: number; headers?: Record<string, unknown>; data?: unknown };
+        code?: string;
+      };
+      const httpStatus = Number(reason?.response?.status) || 0;
+      const contentType = String(
+        reason?.response?.headers?.['content-type'] ??
+          (httpStatus === 556 ? 'upstream-556' : 'network-error'),
+      );
+      const bodyPreview = String(
+        reason?.message ??
+          (typeof reason?.response?.data === 'string'
+            ? reason.response.data
+            : JSON.stringify(reason?.response?.data ?? reason ?? '')),
+      ).slice(0, 500);
       debugSamples.push({
         endpoint,
-        status: 0,
-        contentType: 'network-error',
-        bodyPreview: String((result.reason as Error)?.message ?? result.reason).slice(0, 500),
+        status: httpStatus,
+        contentType,
+        bodyPreview,
       });
       continue;
     }
@@ -307,10 +323,14 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
       return bestPartial;
     }
     if (debugSamples.length > 0) {
+      const blocked556 = debugSamples.some(
+        (s) => s.status === 556 || /status code 556/i.test(s.bodyPreview),
+      );
       console.warn('[Trendyol API] api-null-response debug:', {
         productId,
         boutiqueId: new URL(url).searchParams.get('boutiqueId'),
         merchantId: new URL(url).searchParams.get('merchantId'),
+        upstreamBlocked: blocked556 ? 'upstream-556' : undefined,
         samples: debugSamples.slice(0, 4),
       });
     }

@@ -5,6 +5,7 @@ import {
   envShopDomain,
   getShopifyClientCredentials,
   hasUsableClientSecretForRefresh,
+  isShopifyAppSharedSecret,
   normalizeShopDomain,
   resolveClientIdSource,
   resolveClientSecretSource,
@@ -488,29 +489,61 @@ async function acquireFreshToken(intent: TokenAcquireIntent): Promise<TokenCache
 
   const clientCreds = deps.getClientCredentials();
 
-  // (1) Kullanılabilir client credentials → HER ZAMAN taze exchange (yalnızca memory).
-  //     proactiveRefresh / forceRefresh: ENV & DB access token adayları KULLANILMAZ,
-  //     böylece Shopify tarafında hâlâ geçerli olan bayat token yeniden seçilmez.
+  // Kalıcı Admin Token: normalResolve'ta client_credentials'tan önce dene.
+  // forceRefresh/proactiveRefresh'te önce client_credentials exchange denenir.
+  if (intent === "normalResolve") {
+    for (const candidate of deps.getEnvAdminTokens()) {
+      const token = candidate.token?.trim();
+      if (!token || isDeprecatedToken(token)) continue;
+      const probe = await probeShopToken(normalizedDomain, token);
+      if (probe.ok) {
+        await persistTokenToRuntime(normalizedDomain, token, candidate.source);
+        return tokenCache!;
+      }
+      deps.clearEnvAdminTokens();
+      console.warn("[SHOPIFY_TOKEN] ENV token geçersiz, sonraki kaynak deneniyor", {
+        source: candidate.source,
+        status: probe.status,
+        hint: probe.hint,
+      });
+    }
+  }
+
+  // (1) Kullanılabilir client credentials → taze exchange (yalnızca memory).
   if (clientCreds) {
     const exchanged = await exchangeClientCredentialsToken(normalizedDomain);
     if (exchanged) {
       await persistTokenToRuntime(
         normalizedDomain,
         exchanged.accessToken,
-        'client_credentials',
+        "client_credentials",
         exchanged.expiresInSeconds,
       );
       return tokenCache!;
     }
     if (isRefresh) {
+      // Refresh başarısız olsa bile kalıcı admin token varsa onu kullan.
+      for (const candidate of deps.getEnvAdminTokens()) {
+        const token = candidate.token?.trim();
+        if (!token || isDeprecatedToken(token)) continue;
+        const probe = await probeShopToken(normalizedDomain, token);
+        if (probe.ok) {
+          await persistTokenToRuntime(normalizedDomain, token, candidate.source);
+          return tokenCache!;
+        }
+      }
+      const dbFallback = await resolveDbAdminToken(normalizedDomain);
+      if (dbFallback) {
+        await persistTokenToRuntime(normalizedDomain, dbFallback, "db");
+        return tokenCache!;
+      }
       throw new Error(
-        `Shopify access token yenilenemedi — ${lastRefreshError || 'client_credentials exchange başarısız'}`,
+        `Shopify access token yenilenemedi — ${lastRefreshError || "client_credentials exchange başarısız"}`,
       );
     }
-    // normalResolve + exchange başarısız: aşağıda kalıcı admin/OAuth fallback denenir.
   }
 
-  // (2) Kalıcı ENV admin token (client credentials yoksa veya normalResolve fallback).
+  // (2) Kalıcı ENV admin token (forceRefresh sonrası veya client creds yok).
   for (const candidate of deps.getEnvAdminTokens()) {
     const token = candidate.token?.trim();
     if (!token || isDeprecatedToken(token)) continue;
@@ -520,31 +553,24 @@ async function acquireFreshToken(intent: TokenAcquireIntent): Promise<TokenCache
       return tokenCache!;
     }
     deps.clearEnvAdminTokens();
-    if (!isRefresh) {
-      console.warn('[SHOPIFY_TOKEN] ENV token geçersiz, sonraki kaynak deneniyor', {
-        source: candidate.source,
-        status: probe.status,
-        hint: probe.hint,
-      });
-    }
   }
 
   // (3) Kalıcı DB admin/OAuth token.
   const dbToken = await resolveDbAdminToken(normalizedDomain);
   if (dbToken) {
-    await persistTokenToRuntime(normalizedDomain, dbToken, 'db');
+    await persistTokenToRuntime(normalizedDomain, dbToken, "db");
     return tokenCache!;
   }
 
-  // (4) Hiç kalıcı token yok — client credentials da yoksa son bir kez exchange denenir
-  //     (bu durumda creds null olduğu için no-op'tur; sadece netlik için).
-  const { resolveOAuthShopifyCredentials } = await import('./shopify-credentials');
+  const { resolveOAuthShopifyCredentials } = await import("./shopify-credentials");
   const oauth = await resolveOAuthShopifyCredentials().catch(() => null);
   const hint =
     lastRefreshError ||
-    (oauth
-      ? 'OAuth ile yetkilendirin (Ayarlar → Shopify → OAuth) veya Admin Token (shpat_...) kaydedin'
-      : 'SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard → Settings) veya Admin Token tanımlayın');
+    (secretLooksLikeSharedSecretOnly()
+      ? "secret_key/SHOPIFY_CLIENT_SECRET shpss_ (App Shared Secret). Admin Token (shpat_...) kaydedin veya Dev Dashboard Client Secret (shpsec_...) kullanın."
+      : oauth
+        ? "OAuth ile yetkilendirin (Ayarlar → Shopify → OAuth) veya Admin Token (shpat_...) kaydedin"
+        : "SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard shpsec_...) veya Admin Token tanımlayın");
   throw new Error(`Shopify access token alınamadı veya doğrulanamadı — ${hint}`);
 }
 
@@ -692,13 +718,18 @@ export function hasClientCredentialsConfigured(): boolean {
   return Boolean(deps.getClientCredentials());
 }
 
-/**
- * @deprecated Prefix tabanlı (shpss_) reddetme kaldırıldı — Client Secret'ın
- * belirli bir prefix'i olması gerekmez. Geriye dönük uyumluluk için korunur,
- * her zaman false döner.
- */
+/** secret_key / SHOPIFY_APP_SHARED_SECRET (shpss_) — client_credentials için yeterli değil */
 export function secretLooksLikeSharedSecretOnly(): boolean {
-  return false;
+  const shared =
+    process.env.secret_key?.trim() ||
+    process.env.SHOPIFY_APP_SHARED_SECRET?.trim() ||
+    "";
+  const explicit =
+    process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
+    process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim() ||
+    "";
+  if (explicit && !isShopifyAppSharedSecret(explicit)) return false;
+  return isShopifyAppSharedSecret(shared) || isShopifyAppSharedSecret(explicit);
 }
 
 /** ENV, önbellek veya DB'de geçerli token var mı */
@@ -745,9 +776,7 @@ export async function getShopifyHealthResponse(): Promise<{
   const hasClientCredentials = hasClientCredentialsConfigured();
   const clientIdSource = resolveClientIdSource();
   const clientSecretSource = resolveClientSecretSource();
-  // Prefix tabanlı reddetme kaldırıldı — Client Secret geçerliliği yalnızca
-  // gerçek token exchange sonucuyla belirlenir.
-  const secretLooksLikeSharedSecret = false;
+  const secretLooksLikeSharedSecret = secretLooksLikeSharedSecretOnly();
 
   const baseFailure = {
     shopDomain: shopDomain ? normalizeShopDomain(shopDomain) : '',
@@ -914,7 +943,10 @@ export function getShopifyTokenLifecycleStatus(overrides?: {
 
   return {
     autoRefreshEnabled:
-      clientCredentialsReady || hasEnvAccessToken() || hasStoredToken || cache.cached,
+      (clientCredentialsReady && !secretLooksLikeSharedSecretOnly()) ||
+      hasEnvAccessToken() ||
+      hasStoredToken ||
+      cache.cached,
     tokenSource: cache.source,
     issuedAt: cache.issuedAt,
     expiresAt: cache.expiresAt,

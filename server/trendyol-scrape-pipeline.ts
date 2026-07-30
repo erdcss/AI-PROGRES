@@ -1187,10 +1187,18 @@ export async function runTrendyolScrapePipeline(
 
   // ── 5) Alternatif görsel fallback ──
   const stillNoImages = filterValidProductImages(result?.images || []).length === 0;
+  const fieldsBeforeImageFallback = evaluateFields(result, url);
+  const skipImageFallbackNoCore =
+    !fieldsBeforeImageFallback.hasTitle &&
+    !fieldsBeforeImageFallback.hasPrice &&
+    !diagnostics.htmlParseSuccess &&
+    !diagnostics.directHtmlSuccess &&
+    !diagnostics.browserWorkerSucceeded;
 
   if (
     !skipHeavyStages &&
     stillNoImages &&
+    !skipImageFallbackNoCore &&
     !isPastDeadline() &&
     !forcedGlobalTimeout
   ) {
@@ -1241,6 +1249,9 @@ export async function runTrendyolScrapePipeline(
       diagnostics.imageFallbackError = code;
       console.warn(`⚠️ [5/6] Image fallback soft-fail (${code})`);
     }
+  } else if (skipImageFallbackNoCore && stillNoImages) {
+    diagnostics.imageFallbackStarted = false;
+    console.log("⚡ [5/6] Görsel fallback atlandı (çekirdek ürün verisi yok — süre tasarrufu)");
   } else if (!stillNoImages) {
     console.log("⚡ [5/6] Görsel fallback atlandı");
   }

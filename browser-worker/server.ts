@@ -24,6 +24,20 @@ import {
   type TrendyolHydratedMemberSnapshot,
 } from "../server/trendyol-hydrated-member";
 import { filterValidProductImages, normalizeTrendyolImages } from "../shared/trendyol-product-images";
+import {
+  classifyPageContent,
+  shouldRetryNavigation,
+  workerErrorCategoryFromDiagnostics,
+  type SafePageDiagnostics,
+} from "./page-diagnostics";
+
+export type BrowserWorkerErrorCategory =
+  | "timeout"
+  | "blocked"
+  | "navigation"
+  | "auth"
+  | "invalid-url"
+  | "unknown";
 
 type TrendyolColorFamilyMember = {
   productId: string;
@@ -35,14 +49,19 @@ type TrendyolColorFamilyMember = {
   html?: string;
   ok: boolean;
   error?: string;
+  errorCategory?: BrowserWorkerErrorCategory;
   hydratedSnapshot?: TrendyolHydratedMemberSnapshot;
+  pageDiagnostics?: SafePageDiagnostics;
 };
 
 const PORT = Number(process.env.PORT ?? 8080);
 const STARTED_AT = Date.now();
 const NAV_TIMEOUT_MS = Number(process.env.BROWSER_NAV_TIMEOUT_MS ?? 40_000);
 const SCRAPE_DEADLINE_MS = Number(process.env.BROWSER_SCRAPE_DEADLINE_MS ?? 95_000);
-const WORKER_VERSION = "1.2.0";
+const WORKER_VERSION = "1.2.2";
+const CHROME_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const BLOCK_HEAVY_RESOURCES = process.env.BROWSER_BLOCK_HEAVY_RESOURCES !== "false";
 
 function normalizeWorkerSecret(value: string | null | undefined): string | null {
   if (value == null) return null;
@@ -66,14 +85,6 @@ if (!TOKEN) {
 
 let browser: Browser | null = null;
 let browserReady = false;
-
-export type BrowserWorkerErrorCategory =
-  | "timeout"
-  | "blocked"
-  | "navigation"
-  | "auth"
-  | "invalid-url"
-  | "unknown";
 
 function extractToken(req: express.Request): string | null {
   const auth = req.headers.authorization;
@@ -264,8 +275,8 @@ async function waitForMemberHydration(
   try {
     await page.waitForFunction(
       (expectedId: string) => {
-        const state = (window as unknown as Record<string, unknown>)
-          .__PRODUCT_DETAIL_APP_INITIAL_STATE__ as
+        const w = window as unknown as Record<string, unknown>;
+        const state = w.__PRODUCT_DETAIL_APP_INITIAL_STATE__ as
           | { product?: { id?: unknown; productId?: unknown; contentId?: unknown } }
           | undefined;
         const product = state?.product;
@@ -274,6 +285,16 @@ async function waitForMemberHydration(
           "",
         );
         const stateOk = Boolean(product) && (!expectedId || !stateId || stateId === expectedId);
+
+        const scriptOk = Array.from(document.scripts || []).some((s) =>
+          (s.textContent || "").includes("__PRODUCT_DETAIL_APP_INITIAL_STATE__"),
+        );
+
+        const titleOk = Boolean(
+          document.querySelector(
+            'h1[data-testid*="product"], h1.pr-new-br, h1[class*="product-title"], [data-testid="product-name"], h1',
+          )?.textContent?.trim(),
+        );
 
         const galleryOk = Boolean(
           document.querySelector(
@@ -287,7 +308,7 @@ async function waitForMemberHydration(
           ),
         );
 
-        return stateOk || (Boolean(product) && (galleryOk || sizeOk));
+        return stateOk || scriptOk || (titleOk && (galleryOk || sizeOk));
       },
       requestedProductId,
       { timeout: hydrationTimeoutMs },
@@ -570,19 +591,68 @@ async function buildHydratedMemberSnapshot(input: {
 
   page.on("response", onResponse);
   try {
-    await page.goto(requestedUrl, { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+    const response = await page.goto(requestedUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: navTimeoutMs,
+    });
+    const navStatus = response?.status() ?? 0;
+    let htmlEarly = await page.content();
+    let pageDiagnostics = await collectSafePageSignals(page, response, htmlEarly);
+
+    // Boş/challenge/HTTP hata sayfada uzun hydration beklemeyi kes.
+    const earlyFail =
+      pageDiagnostics.contentClass === "empty-body" ||
+      pageDiagnostics.contentClass === "about-blank" ||
+      pageDiagnostics.challengeBlocked ||
+      pageDiagnostics.htmlBytes < 80 ||
+      (navStatus >= 400 && !pageDiagnostics.hasProductStateJson);
+
+    if (earlyFail) {
+      console.warn("[scrape] early-nav-thin", {
+        navigationStatus: pageDiagnostics.navigationStatus,
+        finalUrlHost: pageDiagnostics.finalUrlHost,
+        finalUrlPathname: pageDiagnostics.finalUrlPathname,
+        htmlBytes: pageDiagnostics.htmlBytes,
+        contentClass: pageDiagnostics.contentClass,
+        blockReason: pageDiagnostics.blockReason,
+        contentType: pageDiagnostics.contentType,
+        serverHeader: pageDiagnostics.serverHeader,
+      });
+      return {
+        productId: requestedProductId,
+        url: requestedUrl,
+        finalUrl: page.url(),
+        color: candidateColor || "",
+        images: [],
+        rawProductJson: null,
+        html: includeHtml ? htmlEarly : undefined,
+        ok: false,
+        error: pageDiagnostics.blockReason || (navStatus >= 400 ? "http-error" : "empty-body"),
+        errorCategory: workerErrorCategoryFromDiagnostics(pageDiagnostics),
+        pageDiagnostics,
+      };
+    }
+
+    const hydrationBudget =
+      pageDiagnostics.htmlBytes < 1500
+        ? Math.min(hydrationTimeoutMs, 4_000)
+        : hydrationTimeoutMs;
     const hydrationCompleted = await waitForMemberHydration(
       page,
       requestedProductId,
-      hydrationTimeoutMs,
+      hydrationBudget,
     );
     await scrollMemberSectionsIntoView(page);
 
     const html = await page.content();
+    pageDiagnostics = await collectSafePageSignals(page, response, html);
     const state = parseTrendyolProductDetailState(html);
     const rawProductJson = buildRawProductJson(state);
     const dom = await extractDomHydration(page);
     const finalUrl = page.url();
+
+    // unused navStatus kept for diagnostics already in pageDiagnostics
+    void navStatus;
 
     const resolvedFromState = extractProductIdFromUnknown(rawProductJson) || dom.stateProductId;
     const resolvedProductId = resolvedFromState || requestedProductId;
@@ -749,6 +819,11 @@ async function buildHydratedMemberSnapshot(input: {
       console.log(`[ColorFamilyDebug] member.warnings ${warnings.join(",")}`);
     }
 
+    const hasProductData =
+      Boolean(rawProductJson) || images.length > 0 || sizes.length > 0;
+    const okFinal =
+      productIdMatched && hasProductData && pageDiagnostics.htmlBytes >= 500;
+
     return {
       productId: productIdMatched ? resolvedProductId : requestedProductId,
       url: requestedUrl,
@@ -757,9 +832,19 @@ async function buildHydratedMemberSnapshot(input: {
       images,
       rawProductJson: rawProductJson ?? {},
       html: includeHtml ? html : undefined,
-      ok: ok && productIdMatched,
-      error: productIdMatched ? undefined : "productId-mismatch",
+      ok: okFinal,
+      error: productIdMatched
+        ? okFinal
+          ? undefined
+          : pageDiagnostics.blockReason || "extraction-empty"
+        : "productId-mismatch",
+      errorCategory: productIdMatched
+        ? okFinal
+          ? undefined
+          : workerErrorCategoryFromDiagnostics(pageDiagnostics)
+        : "navigation",
       hydratedSnapshot: snapshot,
+      pageDiagnostics,
     };
   } finally {
     page.off("response", onResponse);
@@ -976,20 +1061,55 @@ async function ensureBrowser(): Promise<Browser> {
   if (browser && browserReady) return browser;
   browser = await chromium.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-blink-features=AutomationControlled",
+    ],
   });
   browserReady = true;
   return browser;
 }
 
+async function attachLightResourceBlocking(context: BrowserContext): Promise<void> {
+  if (!BLOCK_HEAVY_RESOURCES) return;
+  // document/script/xhr/fetch ASLA engellenmez — yalnızca ağır medya/font.
+  await context.route("**/*", async (route) => {
+    const type = route.request().resourceType();
+    if (type === "font" || type === "media") {
+      await route.abort().catch(() => undefined);
+      return;
+    }
+    await route.continue().catch(() => undefined);
+  });
+}
+
 async function withPage<T>(fn: (ctx: BrowserContext) => Promise<T>): Promise<T> {
   const b = await ensureBrowser();
   const context = await b.newContext({
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    userAgent: CHROME_UA,
     locale: "tr-TR",
+    timezoneId: "Europe/Istanbul",
     viewport: { width: 1366, height: 900 },
+    extraHTTPHeaders: {
+      "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "Upgrade-Insecure-Requests": "1",
+    },
   });
+  await context.addInitScript(() => {
+    try {
+      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    } catch {
+      /* ignore */
+    }
+  });
+  await attachLightResourceBlocking(context);
   try {
     return await fn(context);
   } finally {
@@ -997,21 +1117,49 @@ async function withPage<T>(fn: (ctx: BrowserContext) => Promise<T>): Promise<T> 
   }
 }
 
+async function collectSafePageSignals(
+  page: Page,
+  response: import("playwright").Response | null,
+  html: string,
+  extras?: { hasRawProductJson?: boolean; retryAttempt?: number; elapsedMs?: number },
+): Promise<SafePageDiagnostics> {
+  const headers = response?.headers() ?? {};
+  const title = await page.title().catch(() => "");
+  const bodyText = await page
+    .evaluate(() => (document.body?.innerText || "").slice(0, 2000))
+    .catch(() => "");
+  return classifyPageContent({
+    html,
+    finalUrl: page.url(),
+    navigationStatus: response?.status() ?? null,
+    navigationStatusText: response?.statusText?.() ?? null,
+    title,
+    bodyText,
+    contentType: headers["content-type"] || null,
+    serverHeader: headers.server || null,
+    hasRawProductJson: extras?.hasRawProductJson,
+    retryAttempt: extras?.retryAttempt,
+    elapsedMs: extras?.elapsedMs,
+  });
+}
+
 async function gotoAndRead(
   page: Page,
   url: string,
   timeoutMs: number,
-): Promise<{ html: string; finalUrl: string; status: number }> {
+): Promise<{ html: string; finalUrl: string; status: number; diagnostics: SafePageDiagnostics }> {
   const response = await page.goto(url, {
     waitUntil: "domcontentloaded",
     timeout: timeoutMs,
   });
   await page.waitForTimeout(1200);
   const html = await page.content();
+  const diagnostics = await collectSafePageSignals(page, response, html);
   return {
     html,
     finalUrl: page.url(),
     status: response?.status() ?? 0,
+    diagnostics,
   };
 }
 
@@ -1158,151 +1306,219 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
     let statusCode = 0;
     let rawProductJson: Record<string, unknown> | null = null;
     let colorFamilySkippedReason: string | null = null;
+    let rootDiagnostics: SafePageDiagnostics | null = null;
+    let rootOk = false;
+    let rootError: string | undefined;
+    let rootErrorCategory: BrowserWorkerErrorCategory | undefined;
+    let retried = false;
 
-    await withPage(async (context) => {
-      const page = await context.newPage();
-      let rootMember: TrendyolColorFamilyMember | null = null;
-      try {
-        console.log(`[ColorFamilyDebug] root ${url}`, { correlationId });
-        rootMember = await buildHydratedMemberSnapshot({
-          page,
-          requestedUrl: url,
-          requestedProductId: rootProductId,
-          candidateColor: undefined,
-          capturedApiPayloads: [],
-          includeHtml: true,
-          navTimeoutMs: NAV_TIMEOUT_MS,
-          hydrationTimeoutMs: COLOR_FAMILY_MEMBER_HYDRATION_TIMEOUT_MS,
-        });
-        pageHtml = rootMember.html || (await page.content());
-        finalUrl = rootMember.finalUrl || page.url();
-        statusCode = 200;
-        rawProductJson =
-          (rootMember.rawProductJson as Record<string, unknown> | null) ??
-          buildRawProductJson(parseTrendyolProductDetailState(pageHtml));
-
-        colorSiblingCandidates = extractSiblingCandidates(pageHtml, rawProductJson, url);
-
-        const elapsedAfterRoot = Date.now() - start;
-        const remainingAfterRoot = requestDeadlineMs - elapsedAfterRoot;
-        if (includeColorFamily && remainingAfterRoot < 15_000) {
-          colorFamilySkippedReason = `deadline-budget-low:${remainingAfterRoot}`;
-          includeColorFamily = false;
-          console.log("[scrape/trendyol] color family skipped", {
-            correlationId,
-            reason: colorFamilySkippedReason,
-            elapsedAfterRoot,
+    async function scrapeRootOnce(label: string): Promise<TrendyolColorFamilyMember> {
+      return withPage(async (context) => {
+        const page = await context.newPage();
+        try {
+          console.log(`[ColorFamilyDebug] root ${url}`, { correlationId, attempt: label });
+          return await buildHydratedMemberSnapshot({
+            page,
+            requestedUrl: url,
+            requestedProductId: rootProductId,
+            candidateColor: undefined,
+            capturedApiPayloads: [],
+            includeHtml: true,
+            navTimeoutMs: NAV_TIMEOUT_MS,
+            hydrationTimeoutMs: COLOR_FAMILY_MEMBER_HYDRATION_TIMEOUT_MS,
           });
+        } finally {
+          await page.close().catch(() => undefined);
         }
+      });
+    }
 
-        // Href'siz swatch keşfi — aday sayısı düşükse click fallback
-        if (includeColorFamily && colorSiblingCandidates.length < 2) {
-          const clicked = await discoverColorCandidatesViaClick(
-            page,
-            rootProductId,
-            colorSiblingCandidates,
-          );
-          if (clicked.length) {
-            colorSiblingCandidates = finalizeColorSiblingCandidateList(
-              mergeColorSiblingCandidates(colorSiblingCandidates, clicked),
-              url,
-              COLOR_FAMILY_MAX_MEMBERS,
-            );
-            // Click sonrası root sayfayı tekrar hydrate et
-            rootMember = await buildHydratedMemberSnapshot({
-              page,
-              requestedUrl: url,
-              requestedProductId: rootProductId,
-              candidateColor: colorSiblingCandidates.find((c) => c.productId === rootProductId)
-                ?.color,
-              capturedApiPayloads: [],
-              includeHtml: true,
-              navTimeoutMs: Math.min(NAV_TIMEOUT_MS, 15_000),
-              hydrationTimeoutMs: COLOR_FAMILY_MEMBER_HYDRATION_TIMEOUT_MS,
-            });
-            pageHtml = rootMember.html || pageHtml;
-            finalUrl = rootMember.finalUrl || finalUrl;
-            rawProductJson =
-              (rootMember.rawProductJson as Record<string, unknown> | null) ?? rawProductJson;
-          }
-        } else if (includeColorFamily) {
-          // Ek click adayları (href'siz) — mevcut listeye ekle
-          const clicked = await discoverColorCandidatesViaClick(
-            page,
-            rootProductId,
-            colorSiblingCandidates,
-          );
-          if (clicked.length) {
-            colorSiblingCandidates = finalizeColorSiblingCandidateList(
-              mergeColorSiblingCandidates(colorSiblingCandidates, clicked),
-              url,
-              COLOR_FAMILY_MAX_MEMBERS,
-            );
-          }
-        }
-      } finally {
-        await page.close().catch(() => undefined);
-      }
+    let rootMember = await scrapeRootOnce("primary");
+    rootDiagnostics = rootMember.pageDiagnostics ?? null;
+    rootOk = rootMember.ok === true;
+    pageHtml = rootMember.html || "";
+    finalUrl = rootMember.finalUrl || finalUrl;
+    statusCode = rootDiagnostics?.navigationStatus || (rootOk ? 200 : 0);
+    rawProductJson =
+      (rootMember.rawProductJson as Record<string, unknown> | null) ??
+      buildRawProductJson(parseTrendyolProductDetailState(pageHtml));
+    rootError = rootMember.error;
+    rootErrorCategory = rootMember.errorCategory;
 
-      if (!rawProductJson) {
-        const state = parseTrendyolProductDetailState(pageHtml);
-        rawProductJson = buildRawProductJson(state);
-      }
-      if (!colorSiblingCandidates.length) {
-        colorSiblingCandidates = extractSiblingCandidates(pageHtml, rawProductJson, url);
-      }
+    const shouldRetry =
+      !rootOk &&
+      rootDiagnostics &&
+      shouldRetryNavigation(rootDiagnostics) &&
+      Date.now() - start < requestDeadlineMs - 20_000;
 
-      const remainingBeforeFamily = requestDeadlineMs - (Date.now() - start);
-      if (includeColorFamily && remainingBeforeFamily < 12_000) {
-        colorFamilySkippedReason = `pre-family-budget-low:${remainingBeforeFamily}`;
-        includeColorFamily = false;
-        console.log("[scrape/trendyol] color family skipped", {
-          correlationId,
-          reason: colorFamilySkippedReason,
-        });
-      }
+    if (shouldRetry) {
+      retried = true;
+      console.warn("[scrape/trendyol] retrying with fresh context", {
+        correlationId,
+        contentClass: rootDiagnostics?.contentClass,
+        blockReason: rootDiagnostics?.blockReason,
+        htmlBytes: rootDiagnostics?.htmlBytes,
+      });
+      rootMember = await scrapeRootOnce("retry");
+      rootDiagnostics = rootMember.pageDiagnostics ?? rootDiagnostics;
+      rootOk = rootMember.ok === true;
+      pageHtml = rootMember.html || pageHtml;
+      finalUrl = rootMember.finalUrl || finalUrl;
+      statusCode = rootDiagnostics?.navigationStatus || (rootOk ? 200 : statusCode);
+      rawProductJson =
+        (rootMember.rawProductJson as Record<string, unknown> | null) ??
+        buildRawProductJson(parseTrendyolProductDetailState(pageHtml)) ??
+        rawProductJson;
+      rootError = rootMember.error;
+      rootErrorCategory = rootMember.errorCategory;
+    }
 
-      if (includeColorFamily && colorSiblingCandidates.length > 1 && rootProductId) {
-        const siblings = await fetchColorFamilyMembers(
-          context,
-          rootProductId,
-          colorSiblingCandidates,
-          includeSiblingHtml,
-        );
-        const rootFallbackColor = pickColorName(
-          rawProductJson,
-          colorSiblingCandidates.find((c) => c.productId === rootProductId)?.color,
-        );
-        const rootEntry: TrendyolColorFamilyMember = rootMember?.ok
+    if (!rootOk) {
+      colorFamilySkippedReason = `root-failed:${rootDiagnostics?.blockReason || rootError || "unknown"}`;
+      const category =
+        rootErrorCategory ||
+        (rootDiagnostics ? workerErrorCategoryFromDiagnostics(rootDiagnostics) : "unknown");
+      console.warn("[scrape/trendyol] root failed — skipping color family", {
+        correlationId,
+        retried,
+        durationMs: Date.now() - start,
+        htmlBytes: rootDiagnostics?.htmlBytes ?? pageHtml.length,
+        contentClass: rootDiagnostics?.contentClass,
+        blockReason: rootDiagnostics?.blockReason,
+        challengeBlocked: rootDiagnostics?.challengeBlocked ?? false,
+        navigationStatus: rootDiagnostics?.navigationStatus,
+        finalUrlHost: rootDiagnostics?.finalUrlHost,
+        finalUrlPathname: rootDiagnostics?.finalUrlPathname,
+        titleLength: rootDiagnostics?.titleLength,
+        bodyTextLength: rootDiagnostics?.bodyTextLength,
+        hasProductStateJson: rootDiagnostics?.hasProductStateJson,
+        errorCategory: category,
+      });
+      return res.status(category === "blocked" ? 403 : 422).json({
+        ok: false,
+        url,
+        finalUrl,
+        status: statusCode,
+        html: pageHtml,
+        jsonLd: [],
+        rawProductJson: null,
+        colorSiblingCandidates: [],
+        colorFamilyMembers: undefined,
+        durationMs: Date.now() - start,
+        correlationId,
+        retried,
+        colorFamilySkippedReason,
+        error: rootError || "extraction-empty",
+        errorCategory: category,
+        diagnostics: rootDiagnostics
           ? {
-              ...rootMember,
-              productId: rootProductId,
-              url,
-              finalUrl: rootMember.finalUrl || finalUrl,
-              color: rootMember.color || rootFallbackColor,
-              images:
-                rootMember.images.length > 0
-                  ? rootMember.images
-                  : collectImagesFromProduct(rawProductJson),
-              rawProductJson: rootMember.rawProductJson ?? rawProductJson ?? {},
-              html: undefined,
-              ok: true,
+              navigationStatus: rootDiagnostics.navigationStatus,
+              finalUrlHost: rootDiagnostics.finalUrlHost,
+              finalUrlPathname: rootDiagnostics.finalUrlPathname,
+              contentType: rootDiagnostics.contentType,
+              serverHeader: rootDiagnostics.serverHeader,
+              titleLength: rootDiagnostics.titleLength,
+              htmlBytes: rootDiagnostics.htmlBytes,
+              bodyTextLength: rootDiagnostics.bodyTextLength,
+              challengeBlocked: rootDiagnostics.challengeBlocked,
+              blockReason: rootDiagnostics.blockReason,
+              contentClass: rootDiagnostics.contentClass,
+              hasProductStateJson: rootDiagnostics.hasProductStateJson,
+              hasJsonLdProduct: rootDiagnostics.hasJsonLdProduct,
+              hasGallerySelectorHint: rootDiagnostics.hasGallerySelectorHint,
+              isProductPath: rootDiagnostics.isProductPath,
             }
-          : {
-              productId: rootProductId,
+          : null,
+      });
+    }
+
+    colorSiblingCandidates = extractSiblingCandidates(pageHtml, rawProductJson, url);
+
+    const elapsedAfterRoot = Date.now() - start;
+    const remainingAfterRoot = requestDeadlineMs - elapsedAfterRoot;
+    if (includeColorFamily && remainingAfterRoot < 15_000) {
+      colorFamilySkippedReason = `deadline-budget-low:${remainingAfterRoot}`;
+      includeColorFamily = false;
+      console.log("[scrape/trendyol] color family skipped", {
+        correlationId,
+        reason: colorFamilySkippedReason,
+        elapsedAfterRoot,
+      });
+    }
+
+    if (includeColorFamily && colorSiblingCandidates.length > 1 && rootProductId) {
+      await withPage(async (context) => {
+        const page = await context.newPage();
+        const hydratedRoot = rootMember;
+        try {
+          await page.goto(url, {
+            waitUntil: "domcontentloaded",
+            timeout: Math.min(NAV_TIMEOUT_MS, 20_000),
+          });
+          await waitForMemberHydration(
+            page,
+            rootProductId,
+            Math.min(COLOR_FAMILY_MEMBER_HYDRATION_TIMEOUT_MS, 8_000),
+          ).catch(() => false);
+
+          const clicked = await discoverColorCandidatesViaClick(
+            page,
+            rootProductId,
+            colorSiblingCandidates,
+          ).catch(() => [] as TrendyolColorSiblingCandidate[]);
+          if (clicked.length) {
+            colorSiblingCandidates = finalizeColorSiblingCandidateList(
+              mergeColorSiblingCandidates(colorSiblingCandidates, clicked),
               url,
-              finalUrl,
-              color: rootFallbackColor,
-              images: collectImagesFromProduct(rawProductJson),
-              rawProductJson: rawProductJson ?? {},
-              ok: true,
-            };
-        colorFamilyMembers = [rootEntry, ...siblings];
-        console.log(`[ColorFamilyDebug] final members=${colorFamilyMembers.length}`, {
-          correlationId,
-        });
-      }
-    });
+              COLOR_FAMILY_MAX_MEMBERS,
+            );
+          }
+
+          const siblings = await fetchColorFamilyMembers(
+            context,
+            rootProductId,
+            colorSiblingCandidates,
+            includeSiblingHtml,
+          );
+          const rootFallbackColor = pickColorName(
+            rawProductJson,
+            colorSiblingCandidates.find((c) => c.productId === rootProductId)?.color,
+          );
+          const rootEntry: TrendyolColorFamilyMember = hydratedRoot?.ok
+            ? {
+                ...hydratedRoot,
+                productId: rootProductId,
+                url,
+                finalUrl: hydratedRoot.finalUrl || finalUrl,
+                color: hydratedRoot.color || rootFallbackColor,
+                images:
+                  hydratedRoot.images.length > 0
+                    ? hydratedRoot.images
+                    : collectImagesFromProduct(rawProductJson),
+                rawProductJson: hydratedRoot.rawProductJson ?? rawProductJson ?? {},
+                html: undefined,
+                ok: true,
+              }
+            : {
+                productId: rootProductId,
+                url,
+                finalUrl,
+                color: rootFallbackColor,
+                images: collectImagesFromProduct(rawProductJson),
+                rawProductJson: rawProductJson ?? {},
+                ok: true,
+              };
+          colorFamilyMembers = [rootEntry, ...siblings];
+          console.log(`[ColorFamilyDebug] final members=${colorFamilyMembers.length}`, {
+            correlationId,
+          });
+        } finally {
+          await page.close().catch(() => undefined);
+        }
+      });
+    } else if (includeColorFamily && colorSiblingCandidates.length <= 1) {
+      colorFamilySkippedReason = colorFamilySkippedReason || "insufficient-siblings";
+    }
 
     const jsonLd = extractJsonLdFromHtml(pageHtml);
     const hasUsablePayload =
@@ -1317,6 +1533,9 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
       colorSiblingCandidates: colorSiblingCandidates.length,
       colorFamilyMembers: colorFamilyMembers?.length ?? 0,
       colorFamilySkippedReason,
+      retried,
+      navigationStatus: rootDiagnostics?.navigationStatus ?? statusCode,
+      contentClass: rootDiagnostics?.contentClass,
       ok: hasUsablePayload,
     });
 
@@ -1330,7 +1549,9 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
         errorCategory: "unknown" satisfies BrowserWorkerErrorCategory,
         durationMs: Date.now() - start,
         correlationId,
+        retried,
         colorFamilySkippedReason,
+        diagnostics: rootDiagnostics,
       });
     }
 
@@ -1346,7 +1567,26 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
       colorFamilyMembers,
       durationMs: Date.now() - start,
       correlationId,
+      retried,
       colorFamilySkippedReason,
+      diagnostics: rootDiagnostics
+        ? {
+            navigationStatus: rootDiagnostics.navigationStatus,
+            finalUrlHost: rootDiagnostics.finalUrlHost,
+            finalUrlPathname: rootDiagnostics.finalUrlPathname,
+            contentType: rootDiagnostics.contentType,
+            serverHeader: rootDiagnostics.serverHeader,
+            titleLength: rootDiagnostics.titleLength,
+            htmlBytes: rootDiagnostics.htmlBytes,
+            bodyTextLength: rootDiagnostics.bodyTextLength,
+            challengeBlocked: rootDiagnostics.challengeBlocked,
+            blockReason: rootDiagnostics.blockReason,
+            contentClass: rootDiagnostics.contentClass,
+            hasProductStateJson: rootDiagnostics.hasProductStateJson,
+            hasJsonLdProduct: rootDiagnostics.hasJsonLdProduct,
+            isProductPath: rootDiagnostics.isProductPath,
+          }
+        : null,
     });
   } catch (err) {
     const category = categorizePlaywrightError(err);
