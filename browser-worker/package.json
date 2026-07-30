@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "tsx watch server.ts",
-    "build": "esbuild server.ts --platform=node --packages=external --bundle --format=esm --outdir=dist"
+    "build": "esbuild server.ts --platform=node --packages=external --bundle --format=esm --alias:@shared=../shared --outdir=dist"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
