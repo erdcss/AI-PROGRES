@@ -58,7 +58,7 @@ const PORT = Number(process.env.PORT ?? 8080);
 const STARTED_AT = Date.now();
 const NAV_TIMEOUT_MS = Number(process.env.BROWSER_NAV_TIMEOUT_MS ?? 40_000);
 const SCRAPE_DEADLINE_MS = Number(process.env.BROWSER_SCRAPE_DEADLINE_MS ?? 95_000);
-const WORKER_VERSION = "1.2.2";
+const WORKER_VERSION = "1.2.3";
 const CHROME_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const BLOCK_HEAVY_RESOURCES = process.env.BROWSER_BLOCK_HEAVY_RESOURCES !== "false";

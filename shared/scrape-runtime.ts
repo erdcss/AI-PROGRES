@@ -271,7 +271,11 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
   }
 
   if (errors.includes("browser-worker-blocked")) {
-    return "Kaynak site tarayıcı erişimini engelledi. Lütfen daha sonra tekrar deneyin.";
+    return "Kaynak site tarayıcı erişimini engelledi (sunucu çıkış IP / bot koruması). Tarayıcı Worker ürün sayfasını açamadı.";
+  }
+
+  if (errors.includes("browser-worker-invalid-response")) {
+    return "Tarayıcı Worker geçerli ürün HTML'i döndürmedi. Kaynak site erişimi engellenmiş veya sayfa boş gelmiş olabilir.";
   }
 
   const sourceAccessFailed =
@@ -302,7 +306,11 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
       "browser-worker-timeout",
     ].includes(e),
   );
-  const puppeteerOff = errors.includes("puppeteer-disabled-in-cloud") || diagnostics.scenarioSkippedReason?.includes("puppeteer");
+  const browserWorkerTried = errors.some((e) => e.startsWith("browser-worker-"));
+  const puppeteerOff =
+    (errors.includes("puppeteer-disabled-in-cloud") ||
+      diagnostics.scenarioSkippedReason?.includes("puppeteer")) &&
+    !browserWorkerTried;
 
   const parts: string[] = [];
 
@@ -313,7 +321,7 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
   }
 
   if (puppeteerOff) {
-    parts.push("Cloud ortamında tarayıcı tabanlı çekim kapalı.");
+    parts.push("Cloud ortamında yerel tarayıcı tabanlı çekim kapalı.");
   }
 
   if (errors.includes("api-timeout") || errors.includes("api-error")) {
@@ -324,9 +332,6 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
   }
   if (errors.includes("browser-worker-timeout") || errors.includes("browser-worker-failed")) {
     parts.push("Tarayıcı Worker ürün verisini zamanında tamamlayamadı.");
-  }
-  if (errors.includes("browser-worker-invalid-response")) {
-    parts.push("Tarayıcı Worker geçersiz yanıt döndü.");
   }
   if (errors.includes("image-proxy-timeout") || errors.includes("image-fallback-timeout")) {
     parts.push("Görseller alınamadı.");

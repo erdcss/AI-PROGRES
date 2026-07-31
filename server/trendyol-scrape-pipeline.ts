@@ -1052,7 +1052,12 @@ export async function runTrendyolScrapePipeline(
     }
     if (!puppeteerAllowed()) {
       diagnostics.scenarioSkippedReason = "puppeteer-disabled-in-cloud";
-      if (!hasMinimumScrapeData(fieldsBeforeScenario)) {
+      // Browser Worker zaten denendiyse yerel Puppeteer kapalı mesajı kullanıcıya yanıltıcı olur.
+      const browserWorkerAlreadyTried =
+        diagnostics.browserWorkerSucceeded === true ||
+        diagnostics.browserWorkerSucceeded === false ||
+        (diagnostics.stageErrors || []).some((e) => String(e).startsWith("browser-worker-"));
+      if (!hasMinimumScrapeData(fieldsBeforeScenario) && !browserWorkerAlreadyTried) {
         pushStageError(diagnostics, "puppeteer-disabled-in-cloud");
       }
       console.info(`ℹ️ [${stageLabel}] Scenario atlandı (cloud): puppeteer-disabled-in-cloud`);
@@ -1136,13 +1141,23 @@ export async function runTrendyolScrapePipeline(
   // ── 4) fetchTrendyolProductImages ──
   const hasImagesBeforeFetch = filterValidProductImages(result?.images || []).length > 0;
   const fieldSnapshot = evaluateFields(result, url);
+  const skipImageDownloadNoCore =
+    !fieldSnapshot.hasTitle &&
+    !fieldSnapshot.hasPrice &&
+    !diagnostics.htmlParseSuccess &&
+    !diagnostics.directHtmlSuccess &&
+    !diagnostics.browserWorkerSucceeded &&
+    !diagnostics.apiSuccess;
   const skipImageDownloadStages =
+    skipImageDownloadNoCore ||
     (policy.isCloud &&
       (hasImagesBeforeFetch || (fieldSnapshot.hasTitle && fieldSnapshot.hasPrice))) ||
     (localPreferPuppeteerFirst && !hasImagesBeforeFetch);
 
   if (localPreferPuppeteerFirst && !hasImagesBeforeFetch) {
     diagnostics.imageFetcherSkippedReason = "local-puppeteer-preferred";
+  } else if (skipImageDownloadNoCore) {
+    diagnostics.imageFetcherSkippedReason = "no-core-product-data";
   }
 
   if (
@@ -1179,6 +1194,8 @@ export async function runTrendyolScrapePipeline(
     }
   } else if (hasImagesBeforeFetch) {
     console.log("⚡ [4/6] Görseller mevcut — indirme atlandı");
+  } else if (skipImageDownloadNoCore) {
+    console.log("⚡ [4/6] Görsel indirme atlandı (çekirdek ürün verisi yok — süre tasarrufu)");
   } else if (skipImageDownloadStages) {
     console.log("⚡ [4/6] Görsel indirme atlandı (local Puppeteer öncelikli veya yeterli veri)");
   }

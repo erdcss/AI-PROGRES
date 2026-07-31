@@ -25,6 +25,8 @@ describe("page-diagnostics — empty / 39-byte shell", () => {
     assert.equal(diag.contentClass, "empty-document");
     assert.equal(diag.blockReason, "empty-document");
     assert.equal(diag.isUsableProductHtml, false);
+    assert.equal(diag.challengeBlocked, true);
+    assert.equal(workerErrorCategoryFromDiagnostics(diag), "blocked");
     assert.equal(shouldRetryNavigation(diag), true);
   });
 

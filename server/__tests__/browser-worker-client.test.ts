@@ -6,6 +6,7 @@ import {
   normalizeBrowserWorkerSecret,
   resolveBrowserWorkerEndpoint,
   createScrapeCorrelationId,
+  inferBrowserWorkerBlocked,
 } from "../services/browser-worker-client.service.ts";
 import { formatScrapeDeployUserMessage } from "../../shared/scrape-runtime.ts";
 
@@ -56,6 +57,32 @@ describe("browser-worker-client — error categories", () => {
     assert.equal(mapBrowserWorkerStageError("blocked"), "browser-worker-blocked");
     assert.equal(mapBrowserWorkerStageError("unknown"), "browser-worker-failed");
   });
+
+  it("infers blocked from 39-byte empty HTML shell", () => {
+    const empty = "<html><head></head><body></body></html>";
+    assert.equal(empty.length, 39);
+    assert.equal(
+      inferBrowserWorkerBlocked({
+        html: empty,
+        rawProductJson: null,
+        errorCategory: "unknown",
+        diagnostics: { contentClass: "empty-document", htmlBytes: 39 },
+      }),
+      true,
+    );
+  });
+
+  it("does not treat real HTML as blocked", () => {
+    assert.equal(
+      inferBrowserWorkerBlocked({
+        html: "<html>" + "x".repeat(5000) + "</html>",
+        rawProductJson: { product: { id: 1 } },
+        errorCategory: undefined,
+        diagnostics: { contentClass: "product-html", htmlBytes: 5012 },
+      }),
+      false,
+    );
+  });
 });
 
 describe("formatScrapeDeployUserMessage — auth vs quality", () => {
@@ -80,6 +107,30 @@ describe("formatScrapeDeployUserMessage — auth vs quality", () => {
     });
     assert.match(msg, /token|yetkilendirme|Worker/i);
     assert.doesNotMatch(msg, /Kaynak veri doğrulanamadı/);
+  });
+
+  it("surfaces blocked without misleading local-puppeteer-off text", () => {
+    const msg = formatScrapeDeployUserMessage({
+      selectedScrapeMode: "auto-fast",
+      effectiveScrapeMode: "auto-fast",
+      isCloudRuntime: true,
+      puppeteerAllowed: false,
+      apiStarted: true,
+      apiSuccess: false,
+      directHtmlStarted: true,
+      directHtmlSuccess: false,
+      htmlParseStarted: false,
+      htmlParseSuccess: false,
+      imageFetcherStarted: false,
+      imageFetcherSuccess: false,
+      imageFallbackStarted: false,
+      imageFallbackSuccess: false,
+      stageErrors: ["browser-worker-blocked", "direct-html-error", "puppeteer-disabled-in-cloud"],
+      scenarioSkippedReason: "puppeteer-disabled-in-cloud",
+      finalSuccessReason: "no-usable-data",
+    });
+    assert.match(msg, /engelledi|çıkış IP|bot/i);
+    assert.doesNotMatch(msg, /Cloud ortamında tarayıcı tabanlı çekim kapalı/);
   });
 
   it("keeps quality rejection message for missing core fields", () => {

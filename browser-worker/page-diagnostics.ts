@@ -195,7 +195,11 @@ export function classifyPageContent(input: {
     blockReason === "captcha" ||
     blockReason === "access-denied" ||
     blockReason === "http-forbidden" ||
-    blockReason === "upstream-556";
+    blockReason === "upstream-556" ||
+    blockReason === "empty-document" ||
+    blockReason === "empty-body" ||
+    blockReason === "about-blank" ||
+    blockReason === "unknown-blocked-response";
 
   const isUsableProductHtml =
     contentClass === "product-html" &&
@@ -244,14 +248,37 @@ export function shouldRetryNavigation(diag: SafePageDiagnostics): boolean {
 export function workerErrorCategoryFromDiagnostics(
   diag: SafePageDiagnostics,
 ): "blocked" | "navigation" | "timeout" | "unknown" {
-  if (diag.challengeBlocked || diag.blockReason === "upstream-556") return "blocked";
+  if (
+    diag.challengeBlocked ||
+    diag.blockReason === "upstream-556" ||
+    diag.blockReason === "empty-document" ||
+    diag.blockReason === "empty-body" ||
+    diag.blockReason === "about-blank" ||
+    diag.blockReason === "unknown-blocked-response" ||
+    diag.contentClass === "empty-document" ||
+    diag.contentClass === "empty-body" ||
+    diag.contentClass === "about-blank" ||
+    diag.contentClass === "unknown-thin" ||
+    diag.contentClass === "unknown-blocked-response" ||
+    diag.contentClass === "access-denied" ||
+    diag.contentClass === "cloudflare-challenge" ||
+    diag.contentClass === "bot-challenge" ||
+    diag.contentClass === "captcha" ||
+    diag.contentClass === "upstream-556" ||
+    (diag.htmlBytes > 0 && diag.htmlBytes <= 45 && !diag.isUsableProductHtml)
+  ) {
+    return "blocked";
+  }
   if (
     diag.blockReason === "redirect-off-product" ||
     diag.blockReason === "product-redirect" ||
-    diag.blockReason === "navigation-error"
+    diag.blockReason === "navigation-error" ||
+    diag.blockReason === "http-error"
   ) {
     return "navigation";
   }
-  if (diag.blockReason === "javascript-shell") return "timeout";
+  if (diag.blockReason === "javascript-shell" || diag.contentClass === "javascript-shell") {
+    return "timeout";
+  }
   return "unknown";
 }

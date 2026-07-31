@@ -59,7 +59,51 @@ export type BrowserWorkerTrendyolResponse = {
   durationMs?: number;
   error?: string;
   errorCategory?: string;
+  diagnostics?: {
+    contentClass?: string;
+    blockReason?: string | null;
+    htmlBytes?: number;
+    challengeBlocked?: boolean;
+    navigationStatus?: number | null;
+  };
 };
+
+/** Thin/empty HTML without product payload = upstream block (Railway egress / challenge). */
+export function inferBrowserWorkerBlocked(
+  data: Pick<BrowserWorkerTrendyolResponse, "html" | "rawProductJson" | "errorCategory" | "diagnostics">,
+): boolean {
+  if (data.errorCategory === "blocked") return true;
+  if (data.diagnostics?.challengeBlocked === true) return true;
+  const cls = data.diagnostics?.contentClass || "";
+  if (
+    [
+      "empty-document",
+      "empty-body",
+      "about-blank",
+      "unknown-thin",
+      "unknown-blocked-response",
+      "upstream-556",
+      "access-denied",
+      "cloudflare-challenge",
+      "bot-challenge",
+      "captcha",
+    ].includes(cls)
+  ) {
+    return true;
+  }
+  const html = typeof data.html === "string" ? data.html : "";
+  const htmlBytes = data.diagnostics?.htmlBytes ?? html.length;
+  const hasRaw =
+    Boolean(data.rawProductJson) &&
+    typeof data.rawProductJson === "object" &&
+    Object.keys(data.rawProductJson as object).length > 0;
+  if (!hasRaw && htmlBytes > 0 && htmlBytes < 500) return true;
+  if (!hasRaw && html.length === 0 && data.errorCategory !== "auth") {
+    // Worker returned failure with no usable payload after navigation attempt
+    return data.errorCategory === "unknown" || data.errorCategory === "navigation";
+  }
+  return false;
+}
 
 export type BrowserWorkerScrapeResult = {
   success: boolean;
@@ -566,9 +610,17 @@ export async function scrapeTrendyolWithBrowserWorker(
     }
 
     if (!data?.ok || (!hasHtml && !hasRaw)) {
-      const category =
-        (data.errorCategory as BrowserWorkerErrorCategory) ||
-        (response.status === 429 ? "timeout" : "unknown");
+      const inferredBlocked = inferBrowserWorkerBlocked(data);
+      const category: BrowserWorkerErrorCategory = inferredBlocked
+        ? "blocked"
+        : ((data.errorCategory as BrowserWorkerErrorCategory) ||
+          (response.status === 429 ? "timeout" : "unknown"));
+      const stageError =
+        category === "blocked"
+          ? "browser-worker-blocked"
+          : mapBrowserWorkerStageError(category) === "browser-worker-failed" && !hasHtml && !hasRaw
+            ? "browser-worker-invalid-response"
+            : mapBrowserWorkerStageError(category);
       logBrowserWorker("request failed category: invalid-response", {
         correlationId,
         httpStatus: response.status,
@@ -576,6 +628,8 @@ export async function scrapeTrendyolWithBrowserWorker(
         hasHtml,
         hasRaw,
         errorCategory: category,
+        contentClass: data.diagnostics?.contentClass ?? null,
+        htmlBytes: data.diagnostics?.htmlBytes ?? (typeof data.html === "string" ? data.html.length : 0),
       });
       return {
         success: false,
@@ -587,12 +641,9 @@ export async function scrapeTrendyolWithBrowserWorker(
         durationMs,
         colorSiblingCandidates: data.colorSiblingCandidates,
         colorFamilyMembers: data.colorFamilyMembers,
-        error: data.error ?? "browser-worker-invalid-response",
+        error: data.error ?? (category === "blocked" ? "browser-worker-blocked" : "browser-worker-invalid-response"),
         errorCategory: category,
-        stageError:
-          category === "blocked"
-            ? "browser-worker-blocked"
-            : "browser-worker-invalid-response",
+        stageError,
       };
     }
 
