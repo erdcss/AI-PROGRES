@@ -313,6 +313,11 @@ export function hasUsableClientSecretForRefresh(): boolean {
   return resolveTokenGrantClientSecret().length > 0;
 }
 
+function isUsableTokenGrantSecret(value: string | null | undefined): boolean {
+  const v = value?.trim() || "";
+  return v.length > 0 && !isShopifyAppSharedSecret(v);
+}
+
 /** ENV'den Shopify Client Credentials (Postman: client_id + client_secret + grant_type) */
 export function getShopifyClientCredentials(): {
   clientId: string;
@@ -330,6 +335,55 @@ export function getShopifyClientCredentials(): {
   if (!clientId || !clientSecret || !shopDomain) return null;
 
   return { clientId, clientSecret, shopDomain };
+}
+
+/**
+ * 24 saatlik client_credentials token için Client ID + Secret.
+ * Önce ENV, yoksa DB (UI'dan kaydedilen, shpss_ olmayan secret).
+ */
+export async function resolveShopifyClientCredentials(): Promise<{
+  clientId: string;
+  clientSecret: string;
+  shopDomain: string;
+  source: "env" | "db";
+} | null> {
+  await hydrateShopDomainFromDatabase();
+  const fromEnv = getShopifyClientCredentials();
+  if (fromEnv) {
+    return { ...fromEnv, source: "env" };
+  }
+
+  const shopDomain = envShopDomain();
+  try {
+    const rows = shopDomain
+      ? await db
+          .select()
+          .from(shopifyCredentials)
+          .where(eq(shopifyCredentials.shopDomain, normalizeShopDomain(shopDomain)))
+          .limit(1)
+      : await db
+          .select()
+          .from(shopifyCredentials)
+          .where(eq(shopifyCredentials.isActive, true))
+          .orderBy(desc(shopifyCredentials.updatedAt))
+          .limit(1);
+
+    const row = rows[0];
+    if (!row?.apiKey?.trim() || !isUsableTokenGrantSecret(row.apiSecret)) {
+      return null;
+    }
+    const domain = normalizeShopDomain(row.shopDomain || shopDomain);
+    if (!domain) return null;
+    if (!envShopDomain()) process.env.SHOPIFY_SHOP_DOMAIN = domain;
+    return {
+      clientId: row.apiKey.trim(),
+      clientSecret: row.apiSecret!.trim(),
+      shopDomain: domain,
+      source: "db",
+    };
+  } catch {
+    return null;
+  }
 }
 
 function isDeprecatedToken(token: string): boolean {

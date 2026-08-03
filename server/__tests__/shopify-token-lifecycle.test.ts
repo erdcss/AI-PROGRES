@@ -91,9 +91,11 @@ function makeFetch(cfg: FetchConfig = {}) {
 }
 
 function baseDeps(over: Partial<Parameters<typeof __setShopifyTokenManagerTestDeps>[0]> = {}) {
+  const creds = () => ({ ...CREDS });
   return {
     getShopDomain: () => DOMAIN,
-    getClientCredentials: () => ({ ...CREDS }),
+    getClientCredentials: creds,
+    resolveClientCredentials: async () => creds(),
     getEnvAdminTokens: () => [],
     clearEnvAdminTokens: () => undefined,
     readDbToken: async () => null,
@@ -249,8 +251,8 @@ async function run() {
       'H: fallback ömür 1 saat buffer’ından uzun (cache geçerli sayılır)',
     );
     assert(
-      status.expiresInMs !== null && status.expiresInMs <= 2 * 60 * 60 * 1000 + 1000,
-      'H: fallback ömür güvenli biçimde 2 saati aşmaz',
+      status.expiresInMs !== null && status.expiresInMs <= 23 * 60 * 60 * 1000 + 1000,
+      'H: fallback ömür ~23 saat (24s Shopify modeline yakın)',
     );
   }
 

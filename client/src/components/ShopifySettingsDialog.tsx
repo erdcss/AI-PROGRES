@@ -605,16 +605,17 @@ export default function ShopifySettingsDialog() {
 
             {(isActuallyFailed || !status?.hasToken || status?.needsAdminToken) && (
               <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-100">
-                <p className="font-semibold mb-1">🔑 Admin Token gerekli</p>
+                <p className="font-semibold mb-1">🔑 24 saatlik token için Client Secret gerekli</p>
                 <p className="mb-2 text-amber-800 dark:text-amber-200">
                   {status?.bootstrapMessage ||
-                    "Mevcut secret App Shared Secret (shpss_). Bağlantı için Shopify Admin API Access Token gerekir."}
+                    "Uygulama Client ID + Client Secret ile otomatik shpat_ üretir (~24 saat). App Shared Secret (shpss_) bu işe yaramaz."}
                 </p>
                 <ol className="list-decimal list-inside space-y-0.5 text-amber-800 dark:text-amber-200">
-                  <li>Shopify Admin → Ayarlar → Uygulamalar → Uygulama geliştir</li>
-                  <li>Özel uygulama oluştur → Admin API erişim izinlerini aç (ürünler okuma/yazma)</li>
-                  <li>API kimlik bilgileri → Admin API access token (<code className="bg-muted px-1 rounded">shpat_...</code>) kopyala</li>
-                  <li>Aşağıdaki <strong>Admin Token</strong> sekmesine yapıştır → Doğrula ve Kaydet</li>
+                  <li>Shopify Dev Dashboard → uygulamanız → Settings</li>
+                  <li><strong>Client ID</strong> ve <strong>Client Secret</strong> (<code className="bg-muted px-1 rounded">shpsec_...</code>) kopyalayın</li>
+                  <li>Railway / .env: <code className="bg-muted px-1 rounded">SHOPIFY_CLIENT_ID</code> + <code className="bg-muted px-1 rounded">SHOPIFY_CLIENT_SECRET</code></li>
+                  <li>veya OAuth sekmesinden kaydedip <strong>Token’ı Şimdi Yenile</strong></li>
+                  <li>Yedek: Admin Token sekmesine kalıcı <code className="bg-muted px-1 rounded">shpat_...</code></li>
                 </ol>
               </div>
             )}
