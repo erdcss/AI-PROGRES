@@ -1002,12 +1002,14 @@ export async function runTrendyolScrapePipeline(
 
   const chromiumReady = resolveChromiumPath().exists;
   const fieldsAfterHtmlParse = evaluateFields(result, url);
+  // Local: API/HTML henüz yoksa senaryo (Puppeteer) önce gelsin — görsel timeout bütçeyi yemesin
   const localPreferPuppeteerFirst =
     !policy.isCloud &&
     policy.puppeteerAllowed &&
     chromiumReady &&
     !diagnostics.apiSuccess &&
-    !hasMinimumScrapeData(fieldsAfterHtmlParse);
+    (!hasMinimumScrapeData(fieldsAfterHtmlParse) ||
+      (!diagnostics.htmlParseSuccess && !diagnostics.directHtmlSuccess));
 
   let scenarioStageCompleted = false;
 
@@ -1087,7 +1089,20 @@ export async function runTrendyolScrapePipeline(
         scrapeResult?.title &&
         isValidTrendyolProductTitle(scrapeResult.title) &&
         scrapeResult.title.length > 5;
+      const htmlForIdCheck =
+        typeof scrapeResult?.htmlContent === "string" ? scrapeResult.htmlContent : "";
+      let productIdMatches = true;
+      if (htmlForIdCheck.length >= 500) {
+        const { htmlProductIdMatchesUrl } = await import("./trendyol-puppeteer-html-merge");
+        productIdMatches = htmlProductIdMatchesUrl(htmlForIdCheck, url);
+        if (!productIdMatches) {
+          console.warn(
+            `⚠️ [${stageLabel}] Scenario HTML productId URL ile eşleşmiyor — merge reddedildi`,
+          );
+        }
+      }
       const scrapeHasValidData =
+        productIdMatches &&
         scrapeHasValidTitle &&
         (scrapeResult?.price?.original > 0 || (scrapeResult?.images?.length ?? 0) > 0);
 
@@ -1099,6 +1114,7 @@ export async function runTrendyolScrapePipeline(
         console.log(`✅ [${stageLabel}] Scenario scrape merged`);
       } else if (
         scrapeResult &&
+        productIdMatches &&
         scrapeHasValidTitle &&
         (scrapeResult?.price?.original > 0 || (scrapeResult?.images?.length ?? 0) > 0)
       ) {
@@ -1106,10 +1122,14 @@ export async function runTrendyolScrapePipeline(
         console.log(`✅ [${stageLabel}] Scenario scrape merged (partial core data)`);
       } else {
         const { classifyScenarioFailure } = await import("./scenario-error-utils");
-        const failure = classifyScenarioFailure(new Error("scenario-insufficient-data"));
+        const failure = classifyScenarioFailure(
+          new Error(productIdMatches ? "scenario-insufficient-data" : "scenario-product-id-mismatch"),
+        );
         diagnostics.scenarioErrorDetail = failure;
         pushStageError(diagnostics, failure.code === "unknown-scenario-error" ? "scenario-error" : failure.code);
-        diagnostics.scenarioSkippedReason = "scenario-insufficient-data";
+        diagnostics.scenarioSkippedReason = productIdMatches
+          ? "scenario-insufficient-data"
+          : "scenario-product-id-mismatch";
         console.warn(`⚠️ [${stageLabel}] Scenario returned insufficient data`, failure);
       }
     } catch (err) {

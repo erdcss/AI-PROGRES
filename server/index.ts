@@ -601,12 +601,20 @@ app.use(pendingChangesRoutes);
   
   const server = await registerRoutes(app);
 
-  // SHOPIFY_APP_SECRET_NEW varsa DB'ye otomatik senkronize et
+  // SHOPIFY_APP_SECRET_NEW / DB domain hydrate
   try {
-    const { syncNewTokenToDB } = await import('./shopify-credentials');
+    const { syncNewTokenToDB, hydrateShopDomainFromDatabase, bootstrapShopifyConnectionFromEnv } =
+      await import('./shopify-credentials');
+    await hydrateShopDomainFromDatabase();
     await syncNewTokenToDB();
+    const boot = await bootstrapShopifyConnectionFromEnv();
+    if (!boot.hasAccessToken) {
+      console.warn(`⚠️ SHOPIFY: ${boot.message}`);
+    } else {
+      console.log(`✅ SHOPIFY: ${boot.message} (${boot.shopDomain})`);
+    }
   } catch (e) {
-    console.error('syncNewTokenToDB startup error:', e);
+    console.error('Shopify startup bootstrap error:', e);
   }
 
   // Serve static CSV files from temp and exports directories

@@ -8,6 +8,7 @@
  * zincirindeki saf fonksiyonlara imza değişikliği yapmadan trace eklenebilir.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
+import { extractTrendyolProductId } from "./trendyol-title-utils";
 
 export interface VariantTraceItem {
   size: string;
@@ -99,8 +100,7 @@ function sanitizeUrl(url?: string): string | undefined {
 
 function extractProductId(url?: string): string | null {
   if (!url) return null;
-  const m = url.match(/p-(\d+)/);
-  return m ? m[1] : null;
+  return extractTrendyolProductId(url);
 }
 
 function asBool(v: unknown): boolean | null {

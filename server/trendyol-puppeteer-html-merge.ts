@@ -6,7 +6,6 @@ import {
   isValidTrendyolProductTitle,
   cleanTrendyolDisplayTitle,
 } from "./trendyol-title-utils";
-import { resolveTrendyolSourceIds } from "./shopify-source-key";
 
 export type ParsedHtmlCore = NonNullable<ReturnType<typeof parseTrendyolProductFromHtmlContent>>;
 
@@ -28,7 +27,8 @@ export function isPlaceholderTrendyolTitle(title: string | undefined | null): bo
 export function htmlProductIdMatchesUrl(html: string, url: string): boolean {
   const expected = extractTrendyolProductId(url);
   if (!expected) return true;
-  const ids = resolveTrendyolSourceIds(url);
+  // Çok kısa id (ml/ölçü) eşleşmesi güvenilmez — reddet
+  if (expected.length < 5) return false;
   const patterns = [
     new RegExp(`"id"\\s*:\\s*${expected}\\b`),
     new RegExp(`p-${expected}\\b`),

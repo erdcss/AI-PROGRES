@@ -90,25 +90,56 @@ export async function resolveOAuthShopifyCredentials(): Promise<{
   apiSecret: string;
   source: 'db' | 'env';
 } | null> {
-  const shopDomain = envShopDomain();
-  if (!shopDomain) return null;
+  const shopDomain = (await hydrateShopDomainFromDatabase()) || envShopDomain();
 
-  const normalized = normalizeShopDomain(shopDomain);
   try {
-    const rows = await db
-      .select()
-      .from(shopifyCredentials)
-      .where(eq(shopifyCredentials.shopDomain, normalized))
-      .limit(1);
+    if (shopDomain) {
+      const normalized = normalizeShopDomain(shopDomain);
+      const rows = await db
+        .select()
+        .from(shopifyCredentials)
+        .where(eq(shopifyCredentials.shopDomain, normalized))
+        .limit(1);
 
-    const row = rows[0];
-    if (row?.apiKey?.trim() && row?.apiSecret?.trim()) {
-      return {
-        shopDomain: normalized,
-        apiKey: row.apiKey.trim(),
-        apiSecret: row.apiSecret.trim(),
-        source: 'db',
-      };
+      const row = rows[0];
+      if (row?.apiKey?.trim() && row?.apiSecret?.trim()) {
+        if (isShopifyAppSharedSecret(row.apiSecret)) {
+          console.warn(
+            "[SHOPIFY] DB api_secret shpss_ — OAuth/token grant için kullanılamaz; Admin Token gerekli.",
+          );
+        } else {
+          return {
+            shopDomain: normalized,
+            apiKey: row.apiKey.trim(),
+            apiSecret: row.apiSecret.trim(),
+            source: 'db',
+          };
+        }
+      }
+    } else {
+      const rows = await db
+        .select()
+        .from(shopifyCredentials)
+        .where(eq(shopifyCredentials.isActive, true))
+        .orderBy(desc(shopifyCredentials.updatedAt))
+        .limit(1);
+      const row = rows[0];
+      if (row?.shopDomain && row?.apiKey?.trim() && row?.apiSecret?.trim()) {
+        if (isShopifyAppSharedSecret(row.apiSecret)) {
+          console.warn(
+            "[SHOPIFY] DB api_secret shpss_ — OAuth/token grant için kullanılamaz; Admin Token gerekli.",
+          );
+        } else {
+          const normalized = normalizeShopDomain(row.shopDomain);
+          process.env.SHOPIFY_SHOP_DOMAIN = normalized;
+          return {
+            shopDomain: normalized,
+            apiKey: row.apiKey.trim(),
+            apiSecret: row.apiSecret.trim(),
+            source: 'db',
+          };
+        }
+      }
     }
   } catch {
     /* fall through to env */
@@ -191,6 +222,40 @@ function envShopDomain(): string {
 }
 
 export { envShopDomain };
+
+/**
+ * ENV'de domain yoksa aktif DB kaydından doldurur (local UI ile kaydedilen mağazalar).
+ * Token/secret yazılmaz — yalnızca domain.
+ */
+export async function hydrateShopDomainFromDatabase(): Promise<string> {
+  const fromEnv = envShopDomain();
+  if (fromEnv) return fromEnv;
+
+  try {
+    const rows = await db
+      .select({ shopDomain: shopifyCredentials.shopDomain })
+      .from(shopifyCredentials)
+      .where(eq(shopifyCredentials.isActive, true))
+      .orderBy(desc(shopifyCredentials.updatedAt))
+      .limit(5);
+
+    for (const row of rows) {
+      const normalized = normalizeShopDomain(row.shopDomain || "");
+      if (!normalized) continue;
+      process.env.SHOPIFY_SHOP_DOMAIN = normalized;
+      console.info(`[SHOPIFY] Domain DB'den yüklendi: ${normalized}`);
+      return normalized;
+    }
+  } catch (err) {
+    if ((err as { code?: string })?.code !== "42P01") {
+      console.warn(
+        "[SHOPIFY] Domain DB hydrate başarısız:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  return "";
+}
 
 export function resolveClientIdSource():
   | 'SHOPIFY_CLIENT_ID'
@@ -504,11 +569,13 @@ export async function bootstrapShopifyConnectionFromEnv(): Promise<{
   tokenSource: ShopifyHealthTokenSource;
   message: string;
 }> {
+  await hydrateShopDomainFromDatabase();
   await syncEnvApiKeyToDB();
   await syncNewTokenToDB();
 
   const shopDomain = envShopDomain();
   const oauth = await resolveOAuthShopifyCredentials();
+  const oauthSecretUsable = Boolean(oauth?.apiSecret && !isShopifyAppSharedSecret(oauth.apiSecret));
   let hasAccessToken = false;
   let tokenSource: ShopifyHealthTokenSource = 'missing';
   let message = 'Shopify bağlantısı hazır değil';
@@ -528,7 +595,10 @@ export async function bootstrapShopifyConnectionFromEnv(): Promise<{
     message = `Token aktif (${tokenSource})`;
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    if (oauth) {
+    if (oauth && !oauthSecretUsable) {
+      message =
+        'DB/ENV içinde App Shared Secret (shpss_) var — token alınamaz. Admin Token (shpat_...) kaydedin veya Dev Dashboard Client Secret (shpsec_...) kullanın.';
+    } else if (oauth) {
       message =
         'OAuth kimlik bilgileri hazır. Admin Token kaydedin veya Shopify OAuth ile yetkilendirin.';
     } else {
@@ -538,7 +608,7 @@ export async function bootstrapShopifyConnectionFromEnv(): Promise<{
 
   return {
     shopDomain: shopDomain ? normalizeShopDomain(shopDomain) : '',
-    oauthReady: Boolean(oauth),
+    oauthReady: Boolean(oauth) && oauthSecretUsable,
     hasAccessToken,
     tokenSource,
     message,

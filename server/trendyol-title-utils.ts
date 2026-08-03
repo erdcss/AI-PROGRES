@@ -31,9 +31,24 @@ const INVALID_TITLE_PATTERNS = [
   /^marka$/i,
 ];
 
+/**
+ * Trendyol ürün ID'si URL path sonundaki `-p-{id}` kalıbından alınır.
+ * `edp-50-ml-p-971347342` gibi slug'larda `/p-(\d+)/` yanlışlıkla `50` yakalar.
+ */
 export function extractTrendyolProductId(url: string): string | null {
-  const match = url.match(/p-(\d+)/i);
-  return match ? match[1] : null;
+  if (!url) return null;
+  const canonical =
+    url.match(/-p-(\d{5,})(?:[/?#]|$)/i) ||
+    url.match(/\/p-(\d{5,})(?:[/?#]|$)/i);
+  if (canonical?.[1]) return canonical[1];
+
+  // Son çare: path içindeki son -p-{digits} (kısa ml/ölçü sayıları elenir)
+  const all = Array.from(url.matchAll(/-p-(\d+)/gi));
+  for (let i = all.length - 1; i >= 0; i--) {
+    const id = all[i]?.[1];
+    if (id && id.length >= 5) return id;
+  }
+  return null;
 }
 
 export function isInvalidTrendyolTitle(title: string | undefined | null): boolean {

@@ -4424,22 +4424,35 @@ setTimeout(check, 1000);
         resolveShopifyConfig,
         resolveOAuthShopifyCredentials,
         envShopDomain,
+        isShopifyAppSharedSecret,
+        hasUsableClientSecretForRefresh,
       } = await import('./shopify-credentials');
+      await (await import('./shopify-credentials')).hydrateShopDomainFromDatabase();
       const config = await resolveShopifyConfig();
       const oauth = await resolveOAuthShopifyCredentials();
       const shopDomain = config.shopDomain || envShopDomain();
+      const oauthSecretUsable = Boolean(oauth?.apiSecret && !isShopifyAppSharedSecret(oauth.apiSecret));
+      const sharedSecretOnly =
+        isShopifyAppSharedSecret(process.env.SHOPIFY_CLIENT_SECRET) ||
+        isShopifyAppSharedSecret(process.env.secret_key) ||
+        isShopifyAppSharedSecret(process.env.SHOPIFY_APP_SHARED_SECRET) ||
+        (oauth?.apiSecret ? isShopifyAppSharedSecret(oauth.apiSecret) : false);
       const bootstrapMessage = config.ok
         ? `Token aktif (${config.tokenSource})`
-        : oauth
-          ? 'OAuth hazır — "Shopify\'da Yetkilendir" ile bağlanın veya Admin Token kaydedin'
-          : config.error;
+        : sharedSecretOnly && !hasUsableClientSecretForRefresh()
+          ? 'App Shared Secret (shpss_) token için kullanılamaz. Admin Token (shpat_...) kaydedin.'
+          : oauth && oauthSecretUsable
+            ? 'OAuth hazır — "Shopify\'da Yetkilendir" ile bağlanın veya Admin Token kaydedin'
+            : config.error;
       return res.json({
         connected: config.ok,
         shopDomain: shopDomain ? shopDomain : '',
         apiKey: config.apiKey,
         hasToken: config.hasAccessToken,
         tokenInvalid: !config.ok && config.hasAccessToken,
-        oauthReady: Boolean(oauth),
+        oauthReady: Boolean(oauth) && oauthSecretUsable,
+        needsAdminToken: !config.ok && (!oauthSecretUsable || sharedSecretOnly),
+        secretLooksLikeSharedSecret: sharedSecretOnly,
         source: config.tokenSource,
         bootstrapMessage,
         error: config.error,
@@ -4468,7 +4481,15 @@ setTimeout(check, 1000);
       if (!shopDomain || !apiKey || !apiSecret) {
         return res.status(400).json({ error: 'shopDomain, apiKey ve apiSecret zorunludur.' });
       }
-      const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      const { isShopifyAppSharedSecret, normalizeShopDomain: normDomain } = await import('./shopify-credentials');
+      if (isShopifyAppSharedSecret(apiSecret)) {
+        return res.status(400).json({
+          error:
+            'Bu değer App Shared Secret (shpss_...). Token için kullanılamaz. Dev Dashboard Client Secret (shpsec_...) girin veya Admin Token sekmesini kullanın.',
+        });
+      }
+      const cleanDomain = normDomain(shopDomain) || shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      process.env.SHOPIFY_SHOP_DOMAIN = cleanDomain;
       await saveShopifyCredentials({ shopDomain: cleanDomain, apiKey, apiSecret });
       res.json({ success: true, shopDomain: cleanDomain });
     } catch (err) {
@@ -4529,6 +4550,15 @@ setTimeout(check, 1000);
           apiKey: oauth.apiKey,
           apiSecret: oauth.apiSecret,
         } as typeof cred;
+      }
+
+      const { isShopifyAppSharedSecret } = await import('./shopify-credentials');
+      if (isShopifyAppSharedSecret(cred.apiSecret)) {
+        return res
+          .status(400)
+          .send(
+            'Kayıtlı secret App Shared Secret (shpss_). OAuth token exchange yapılamaz. Admin Token (shpat_...) kaydedin veya Dev Dashboard Client Secret (shpsec_...) kullanın.',
+          );
       }
 
       const tokenRes = await fetch(`https://${normalizedShop}/admin/oauth/access_token`, {
@@ -4733,13 +4763,16 @@ setTimeout(check, 1000);
       }
 
       const shopData = (await testRes.json()) as { shop?: { name?: string } };
-      await saveDirectAccessToken(cleanDomain, accessToken);
+      const { normalizeShopDomain: normDomain } = await import('./shopify-credentials');
+      const normalizedDomain = normDomain(cleanDomain) || cleanDomain;
+      process.env.SHOPIFY_SHOP_DOMAIN = normalizedDomain;
+      await saveDirectAccessToken(normalizedDomain, accessToken);
 
       const { activateShopifyAccessToken } = await import('./shopify-token-manager');
-      await activateShopifyAccessToken(cleanDomain, accessToken, 'db', 23 * 3600);
+      await activateShopifyAccessToken(normalizedDomain, accessToken, 'db', 23 * 3600);
 
       invalidateShopifyCredentialCache();
-      res.json({ success: true, shopDomain: cleanDomain, storeName: shopData?.shop?.name || cleanDomain });
+      res.json({ success: true, shopDomain: normalizedDomain, storeName: shopData?.shop?.name || normalizedDomain });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -8778,17 +8811,26 @@ setTimeout(check, 1000);
       return;
     }
 
-    console.log('ğŸ”„ Starting initial Shopify products sync...');
+    console.log('🔄 Starting initial Shopify products sync...');
+    try {
+      const { getValidShopifyAccessToken } = await import('./shopify-token-manager');
+      await getValidShopifyAccessToken();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`⚠️ Initial Shopify sync atlandı — token yok: ${msg}`);
+      return;
+    }
+
     shopifyProductsSync.syncAllShopifyProducts()
       .then(result => {
         if (result.success) {
-          console.log(`âœ… Initial Shopify sync completed: ${result.totalProducts} products, ${result.categories.length} categories`);
+          console.log(`✅ Initial Shopify sync completed: ${result.totalProducts} products, ${result.categories.length} categories`);
         } else {
-          console.error('âŒ Initial Shopify sync failed:', result.error);
+          console.error('❌ Initial Shopify sync failed:', result.error);
         }
       })
       .catch(err => {
-        console.error('âŒ Initial Shopify sync error:', err);
+        console.error('❌ Initial Shopify sync error:', err);
       });
   };
 

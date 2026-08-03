@@ -23,9 +23,12 @@ interface CredentialsStatus {
   hasToken?: boolean;
   tokenInvalid?: boolean;
   oauthReady?: boolean;
+  needsAdminToken?: boolean;
+  secretLooksLikeSharedSecret?: boolean;
   bootstrapMessage?: string;
   updatedAt?: string;
   source?: string;
+  error?: string;
 }
 
 interface LiveTestResult {
@@ -69,8 +72,11 @@ interface TokenRefreshStatus {
     SHOPIFY_CLIENT_ID?: boolean;
     SHOPIFY_CLIENT_SECRET?: boolean;
     SHOPIFY_CLIENT_SECRET_USABLE?: boolean;
+    SHOPIFY_CLIENT_SECRET_IS_SHARED_SECRET?: boolean;
     SHOPIFY_API_KEY: boolean;
     SHOPIFY_APP_SHARED_SECRET: boolean;
+    SHOPIFY_ACCESS_TOKEN?: boolean;
+    SHOPIFY_ADMIN_ACCESS_TOKEN?: boolean;
   };
 }
 
@@ -487,11 +493,22 @@ export default function ShopifySettingsDialog() {
                 trs?.envVarsConfigured?.SHOPIFY_CLIENT_ID ?? trs?.envVarsConfigured?.SHOPIFY_API_KEY;
               const clientCredentialsReady =
                 trs?.clientCredentialsReady ?? trs?.status?.clientCredentialsReady ?? false;
-              // Client Secret tanımlı mı — prefix'e (shpss_/shpsec_) bakılmaz.
-              const clientSecretConfigured =
-                trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET === true || clientCredentialsReady;
+              const secretIsShared =
+                trs?.secretLooksLikeSharedSecret === true ||
+                trs?.status?.secretLooksLikeSharedSecret === true ||
+                trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET_IS_SHARED_SECRET === true ||
+                status?.secretLooksLikeSharedSecret === true;
+              const clientSecretUsable =
+                trs?.clientSecretUsableForRefresh === true ||
+                trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET_USABLE === true ||
+                clientCredentialsReady;
+              const clientSecretConfigured = clientSecretUsable;
+              const hasAdminTokenEnv =
+                trs?.envVarsConfigured?.SHOPIFY_ADMIN_ACCESS_TOKEN === true ||
+                trs?.envVarsConfigured?.SHOPIFY_ACCESS_TOKEN === true;
               const refreshActive =
-                trs?.status?.autoRefreshEnabled || trs?.hasActiveToken || trs?.hasDbToken;
+                (trs?.status?.autoRefreshEnabled || trs?.hasActiveToken || trs?.hasDbToken) &&
+                (clientSecretUsable || hasAdminTokenEnv || trs?.hasActiveToken || trs?.hasDbToken);
               const lastMs = trs?.status?.lastSuccessfulRefreshAt || trs?.status?.lastRefreshTime || 0;
               const msLeft = trs?.status?.msUntilRefresh || 0;
               const hLeft = Math.floor(msLeft / 3600000);
@@ -518,6 +535,11 @@ export default function ShopifySettingsDialog() {
                       <Badge variant="destructive" className="text-xs px-1 py-0">Pasif</Badge>
                     )}
                   </div>
+                  {secretIsShared && !clientSecretUsable && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      App Shared Secret (shpss_) otomatik yenileme için kullanılamaz. Admin Token (shpat_...) kaydedin.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                     <div>
                       <span className="block text-foreground/70">Son yenileme</span>
@@ -545,8 +567,12 @@ export default function ShopifySettingsDialog() {
                     </div>
                     <div>
                       <span className="block text-foreground/70">Client Secret</span>
-                      <span className={clientSecretConfigured ? 'text-green-600' : 'text-red-500'}>
-                        {clientSecretConfigured ? '✅ Tanımlı' : '❌ Eksik'}
+                      <span className={clientSecretUsable ? 'text-green-600' : 'text-red-500'}>
+                        {clientSecretUsable
+                          ? '✅ Kullanılabilir'
+                          : secretIsShared
+                            ? '❌ shpss_ (uygunsuz)'
+                            : '❌ Eksik'}
                       </span>
                     </div>
                   </div>
@@ -560,7 +586,7 @@ export default function ShopifySettingsDialog() {
                     variant="default"
                     className="w-full gap-2 h-8 text-xs"
                     onClick={() => rotateNowMutation.mutate()}
-                    disabled={rotateNowMutation.isPending}
+                    disabled={rotateNowMutation.isPending || (!clientSecretUsable && !trs?.hasActiveToken && !hasAdminTokenEnv)}
                   >
                     {rotateNowMutation.isPending
                       ? <Loader2 className="h-3 w-3 animate-spin" />
@@ -577,31 +603,19 @@ export default function ShopifySettingsDialog() {
               );
             })()}
 
-            {(isActuallyFailed || !status?.hasToken) && (
-              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-800 dark:text-blue-200">
-                <p className="font-semibold mb-1">🔑 Bağlantıyı tamamlayın</p>
-                {status?.oauthReady ? (
-                  <>
-                    <p className="text-blue-700 dark:text-blue-300 mb-1">
-                      Kimlik bilgileri hazır. Bağlantı doğrulanamadıysa Client ID/Secret değerlerini kontrol edin veya alternatif olarak:
-                    </p>
-                    <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-300">
-                      <li>"OAuth" sekmesinden <strong>Shopify'da Yetkilendir</strong>'e tıklayın</li>
-                      <li>Veya "Admin Token" sekmesine <code className="bg-muted px-1 rounded">shpat_...</code> yapıştırın</li>
-                      <li>Token DB'ye kaydedilir ve sunucu yeniden başlasa da kalır</li>
-                    </ol>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-blue-700 dark:text-blue-300 mb-1">
-                      Shopify Client ID ve Client Secret (Dev Dashboard → Settings) tanımlayın veya Admin Token girin:
-                    </p>
-                    <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-300">
-                      <li>Dev Dashboard → Settings → Client ID ve Client Secret'ı alın</li>
-                      <li>OAuth sekmesinden yetkilendirin veya Admin Token kaydedin</li>
-                    </ol>
-                  </>
-                )}
+            {(isActuallyFailed || !status?.hasToken || status?.needsAdminToken) && (
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-100">
+                <p className="font-semibold mb-1">🔑 Admin Token gerekli</p>
+                <p className="mb-2 text-amber-800 dark:text-amber-200">
+                  {status?.bootstrapMessage ||
+                    "Mevcut secret App Shared Secret (shpss_). Bağlantı için Shopify Admin API Access Token gerekir."}
+                </p>
+                <ol className="list-decimal list-inside space-y-0.5 text-amber-800 dark:text-amber-200">
+                  <li>Shopify Admin → Ayarlar → Uygulamalar → Uygulama geliştir</li>
+                  <li>Özel uygulama oluştur → Admin API erişim izinlerini aç (ürünler okuma/yazma)</li>
+                  <li>API kimlik bilgileri → Admin API access token (<code className="bg-muted px-1 rounded">shpat_...</code>) kopyala</li>
+                  <li>Aşağıdaki <strong>Admin Token</strong> sekmesine yapıştır → Doğrula ve Kaydet</li>
+                </ol>
               </div>
             )}
 

@@ -38,6 +38,7 @@ import { ultraStealthSystem } from './ultra-stealth-system';
 import { intelligentRateLimiter } from './intelligent-rate-limiter';
 import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 import { detectRealStockStatus } from './real-stock-detector';
+import { extractTrendyolProductId } from './trendyol-title-utils';
 import { extractColorFromUrl, cleanColorName, normalizeSize, parseVariantString, getColorCode } from './color-recognition';
 import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './performance-config';
 import { buildLaunchOptions } from './puppeteer-config';
@@ -2874,10 +2875,10 @@ export async function scenarioBasedScrape(
             if ((hybridResult as any).colorVariantUrls && (hybridResult as any).colorVariantUrls.length > 0) {
               const rawUrls = (hybridResult as any).colorVariantUrls as string[];
               // Filter out the current URL (this product itself)
-              const currentId = url.match(/p-(\d+)/)?.[1];
-              const otherUrls = rawUrls.filter(u => {
-                const m = u.match(/p-(\d+)/);
-                return m && m[1] !== currentId;
+              const currentId = extractTrendyolProductId(url);
+              const otherUrls = rawUrls.filter((u) => {
+                const m = extractTrendyolProductId(u);
+                return Boolean(m && m !== currentId);
               });
               if (otherUrls.length > 0) {
                 detectedColorVariantUrls = otherUrls;
@@ -3590,11 +3591,9 @@ export async function scenarioBasedScrape(
     }
 
     // Filter other color URLs: remove current URL and deduplicate
-    const currentItemMatch = url.match(/p-(\d+)/);
-    const currentItemNumber = currentItemMatch ? currentItemMatch[1] : '';
-    const otherColorUrls = detectedColorVariantUrls.filter(u => {
-      const itemMatch = u.match(/p-(\d+)/);
-      const itemNum = itemMatch ? itemMatch[1] : '';
+    const currentItemNumber = extractTrendyolProductId(url) || "";
+    const otherColorUrls = detectedColorVariantUrls.filter((u) => {
+      const itemNum = extractTrendyolProductId(u) || "";
       return itemNum && itemNum !== currentItemNumber;
     });
     if (otherColorUrls.length > 0) {
@@ -3632,7 +3631,31 @@ export async function scenarioBasedScrape(
     };
 
     if (puppeteerHtmlCore) {
-      const { mergeTrendyolHtmlCoreIntoResult } = await import('./trendyol-puppeteer-html-merge');
+      const { mergeTrendyolHtmlCoreIntoResult, htmlProductIdMatchesUrl } = await import('./trendyol-puppeteer-html-merge');
+      if (htmlContent && htmlContent.length > 500 && !htmlProductIdMatchesUrl(htmlContent, url)) {
+        console.warn('🚫 Scenario result rejected: HTML productId does not match request URL');
+        return {
+          success: false,
+          blocked: false,
+          scenario: detection.scenario,
+          confidence: 0,
+          title: 'Product',
+          brand: 'Brand',
+          category: '',
+          description: '',
+          price: {
+            original: 0,
+            currency: 'TL',
+            formatted: '0 TL',
+            withProfit: 0,
+            profitFormatted: '0 TL',
+          },
+          images: [],
+          features: [],
+          variants: { colors: [], sizes: [], stockMap: {}, allVariants: [] },
+          error: 'scenario-product-id-mismatch',
+        } as any;
+      }
       mergeTrendyolHtmlCoreIntoResult(result, puppeteerHtmlCore, url);
     }
     if (htmlContent && htmlContent.length > 5000) {

@@ -75,8 +75,10 @@ const realDeps: ShopifyTokenManagerDeps = {
     { token: process.env.SHOPIFY_ACCESS_TOKEN, source: 'env' },
   ],
   clearEnvAdminTokens: () => {
-    delete process.env.SHOPIFY_ACCESS_TOKEN;
-    delete process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+    // Geçici probe hatasında process.env silinmez — aksi halde restart'a kadar token kaybolur.
+    console.warn(
+      "[SHOPIFY_TOKEN] ENV admin token geçersiz sayıldı; process.env silinmedi (cache invalidate yeterli)",
+    );
   },
   readDbToken: (shopDomain) => readDbRawTokenFromDatabase(shopDomain),
   saveDbToken: async (shopDomain, accessToken) => {
@@ -458,6 +460,10 @@ async function persistTokenToRuntime(
   // Kalıcı admin/OAuth token — ENV + DB'ye yaz.
   process.env.SHOPIFY_ACCESS_TOKEN = accessToken;
   process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = accessToken;
+  const normalizedPersistDomain = normalizeShopDomain(shopDomain);
+  if (normalizedPersistDomain && !envShopDomain()) {
+    process.env.SHOPIFY_SHOP_DOMAIN = normalizedPersistDomain;
+  }
 
   try {
     await deps.saveDbToken(shopDomain, accessToken);
@@ -474,10 +480,19 @@ async function persistTokenToRuntime(
 async function acquireFreshToken(intent: TokenAcquireIntent): Promise<TokenCacheEntry> {
   lastRefreshAttemptAt = Date.now();
 
+  if (!deps.getShopDomain()) {
+    try {
+      const { hydrateShopDomainFromDatabase } = await import('./shopify-credentials');
+      await hydrateShopDomainFromDatabase();
+    } catch {
+      /* optional */
+    }
+  }
+
   const shopDomain = deps.getShopDomain();
   if (!shopDomain) {
     throw new Error(
-      'Shopify mağaza domain bulunamadı — SHOPIFY_SHOP_DOMAIN / SHOPIFY_STORE_DOMAIN / SHOPIFY_STORE_URL tanımlayın',
+      'Shopify mağaza domain bulunamadı — SHOPIFY_SHOP_DOMAIN / SHOPIFY_STORE_DOMAIN / SHOPIFY_STORE_URL tanımlayın veya Ayarlar → Shopify üzerinden Admin Token kaydedin',
     );
   }
 
@@ -772,6 +787,7 @@ export async function getShopifyHealthResponse(): Promise<{
   productCountCheck: { ok: boolean; count: number | null; error?: string };
   error?: string;
 }> {
+  await (await import('./shopify-credentials')).hydrateShopDomainFromDatabase().catch(() => '');
   const shopDomain = envShopDomain();
   const hasClientCredentials = hasClientCredentialsConfigured();
   const clientIdSource = resolveClientIdSource();

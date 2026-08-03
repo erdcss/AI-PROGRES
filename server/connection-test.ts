@@ -167,18 +167,29 @@ export async function runShopifyConnectionTest(
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Shopify bağlantı testi başarısız';
     const hasClientCreds = Boolean(getShopifyClientCredentials());
+    const { envShopDomain, isShopifyAppSharedSecret } = await import('./shopify-credentials');
+    const domain = envShopDomain();
+    const sharedOnly =
+      msg.includes('shpss_') ||
+      isShopifyAppSharedSecret(process.env.SHOPIFY_CLIENT_SECRET) ||
+      isShopifyAppSharedSecret(process.env.secret_key);
     return {
       success: false,
       connected: false,
-      message: hasClientCreds
-        ? `${msg} — SHOPIFY_SHOP_DOMAIN (*.myshopify.com) ve client secret doğruluğunu kontrol edin`
-        : msg,
+      message: sharedOnly
+        ? 'App Shared Secret (shpss_) ile token alınamaz. Ayarlar → Shopify → Admin Token (shpat_...) kaydedin veya Dev Dashboard Client Secret (shpsec_...) kullanın.'
+        : hasClientCreds
+          ? `${msg} — SHOPIFY_SHOP_DOMAIN (*.myshopify.com) ve client secret doğruluğunu kontrol edin`
+          : msg,
+      shopDomain: domain || undefined,
       tokenSource: 'none',
       requestId: rid,
       error: {
-        hint: hasClientCreds
-          ? 'Dev Dashboard Client Secret (shpsec_...) kullanın; shpss_ API secret değildir'
-          : 'OAuth, Admin Token veya client credentials tanımlayın',
+        hint: sharedOnly
+          ? 'shpss_ HMAC içindir; Admin Token veya shpsec_ Client Secret gerekir'
+          : hasClientCreds
+            ? 'Dev Dashboard Client Secret (shpsec_...) kullanın; shpss_ API secret değildir'
+            : 'OAuth, Admin Token veya client credentials tanımlayın',
       },
     };
   }
