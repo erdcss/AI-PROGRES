@@ -925,6 +925,21 @@ export function applyStockNormalizationToScrapeResult(
     );
   }
 
+  // Adlı renk + boş renk klonlarını düşür (StockNorm mevcut seti olduğu gibi tutunca sızabilir)
+  finalVariants = sanitizeTrendyolVariants(finalVariants, {
+    productTitle,
+    sourceUrl: input.url,
+  });
+  finalVariants = {
+    ...finalVariants,
+    stockMap: Object.fromEntries(
+      finalVariants.allVariants.map((v) => [
+        `${v.color || "Tek Renk"}-${v.size}`,
+        v.inStock !== false,
+      ]),
+    ),
+  };
+
   traceVariants("richer_variant_selection_after", finalVariants, { source: "stock-norm:final" });
 
   // Ürün seviyesi OOS: zengin mevcut set bile stokta kalamaz

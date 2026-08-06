@@ -610,10 +610,10 @@ async function acquireFreshToken(intent: TokenAcquireIntent): Promise<TokenCache
   const hint =
     lastRefreshError ||
     (secretLooksLikeSharedSecretOnly()
-      ? "secret_key/SHOPIFY_CLIENT_SECRET shpss_ (App Shared Secret). Admin Token (shpat_...) kaydedin veya Dev Dashboard Client Secret (shpsec_...) kullanın."
+      ? "Yalnızca secret_key (HMAC) var — SHOPIFY_CLIENT_SECRET veya Admin Token (shpat_...) tanımlayın"
       : oauth
         ? "OAuth ile yetkilendirin (Ayarlar → Shopify → OAuth) veya Admin Token (shpat_...) kaydedin"
-        : "SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET (Dev Dashboard shpsec_...) veya Admin Token tanımlayın");
+        : "SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET veya Admin Token tanımlayın");
   throw new Error(`Shopify access token alınamadı veya doğrulanamadı — ${hint}`);
 }
 
@@ -767,7 +767,7 @@ export async function hasResolvableClientCredentials(): Promise<boolean> {
   return Boolean(resolved);
 }
 
-/** secret_key / SHOPIFY_APP_SHARED_SECRET (shpss_) — client_credentials için yeterli değil */
+/** secret_key / SHOPIFY_APP_SHARED_SECRET (HMAC) varken explicit Client Secret yok */
 export function secretLooksLikeSharedSecretOnly(): boolean {
   const shared =
     process.env.secret_key?.trim() ||
@@ -777,8 +777,9 @@ export function secretLooksLikeSharedSecretOnly(): boolean {
     process.env.SHOPIFY_CLIENT_SECRET?.trim() ||
     process.env.SHOPIFY_CLIENT_SECRET_KEY?.trim() ||
     "";
-  if (explicit && !isShopifyAppSharedSecret(explicit)) return false;
-  return isShopifyAppSharedSecret(shared) || isShopifyAppSharedSecret(explicit);
+  // Explicit Client Secret (shpss_ veya shpsec_) token grant için kullanılabilir
+  if (explicit) return false;
+  return isShopifyAppSharedSecret(shared);
 }
 
 /** ENV, önbellek veya DB'de geçerli token var mı */

@@ -5,6 +5,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import ScraperPage from "@/pages/scraper";
 import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
+import UrunHavuzuPage from "@/pages/urun-havuzu";
 import MainDashboard from "@/pages/main-dashboard";
 import ComingSoon from "@/pages/coming-soon";
 import { TelegramPage } from "@/pages/telegram";
@@ -275,6 +276,11 @@ function Router() {
           <div className={`mx-auto ${isMobile ? "px-4 py-4 max-w-full" : "container px-4 py-4"}`}>
             <ScraperPage />
           </div>
+        </PageTransition>
+      </Route>
+      <Route path="/urun-havuzu">
+        <PageTransition>
+          <UrunHavuzuPage />
         </PageTransition>
       </Route>
       <Route path="/trendyol">

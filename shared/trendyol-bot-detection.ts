@@ -1,5 +1,7 @@
 /** Trendyol bot / WAF sayfalarını tespit eder (deploy IP engeli) */
 
+import { isTrendyolRateLimitHtml } from "./trendyol-rate-limit";
+
 const BLOCKED_TITLE_EXACT = new Set([
   'welcome to trendyol',
   'access denied',
@@ -24,6 +26,8 @@ const BLOCKED_TITLE_PATTERNS = [
   /bot detection/i,
   /online alışveriş sitesi/i,
   /türkiye'?nin trend yolu/i,
+  /^429\b/,
+  /ulaşılamıyor/i,
 ];
 
 export function isBlockedTrendyolTitle(title: string | undefined | null): boolean {
@@ -35,6 +39,8 @@ export function isBlockedTrendyolTitle(title: string | undefined | null): boolea
 
 export function isBlockedTrendyolHtml(html: string): boolean {
   if (!html || html.length < 200) return true;
+
+  if (isTrendyolRateLimitHtml(html)) return true;
 
   const hasProductMarkers =
     html.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__') ||
@@ -51,6 +57,7 @@ export function isBlockedTrendyolHtml(html: string): boolean {
     /challenge-platform/i,
     /captcha/i,
     /"statusCode"\s*:\s*403/,
+    /"statusCode"\s*:\s*429/,
   ];
 
   if (blockedSignals.some((p) => p.test(html)) && html.length < 50000) {
@@ -59,6 +66,8 @@ export function isBlockedTrendyolHtml(html: string): boolean {
 
   return html.length < 3000 && !html.includes('cdn.dsmcdn.com');
 }
+
+export { isTrendyolRateLimitHtml } from "./trendyol-rate-limit";
 
 /** HTML içinden CDN ürün görsellerini regex ile çıkarır (cache/bot sayfası parçaları) */
 export function extractProductImagesFromHtmlRegex(html: string): string[] {

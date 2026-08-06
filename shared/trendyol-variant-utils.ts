@@ -95,6 +95,23 @@ function dedupeVariantList(list: SanitizedVariant[]): SanitizedVariant[] {
   return [...map.values()];
 }
 
+/**
+ * Adlı renk varken boş/"Tek Renk" size-only klonları düşür.
+ * Aksi halde Shopify option1 tutarsız kalır (Siyah+36 ile option1'siz 36).
+ * Gerçek size-only ürünlerde (adlı renk yok) boş renk satırları korunur.
+ */
+export function dropOrphanEmptyColorVariants(
+  list: SanitizedVariant[],
+): SanitizedVariant[] {
+  const hasNamedColor = list.some(
+    (v) => Boolean((v.color || "").trim()) && !isPlaceholderColor(v.color),
+  );
+  if (!hasNamedColor) return list;
+  return list.filter(
+    (v) => Boolean((v.color || "").trim()) && !isPlaceholderColor(v.color),
+  );
+}
+
 export function isPlaceholderSize(size: unknown): boolean {
   if (size == null) return true;
   const normalized = String(size).trim().toLowerCase();
@@ -357,7 +374,9 @@ function finalizeVariants(
     (v) => v.size && !isFakeSizeForProduct(v.size, productTitle, sourceUrl),
   );
 
-  let list = dedupeVariantList(expandComboVariants(rawList));
+  let list = dropOrphanEmptyColorVariants(
+    dedupeVariantList(expandComboVariants(rawList)),
+  );
   if (!hasRealSizes) {
     list = list.map((v) => ({ ...v, size: "" }));
   }

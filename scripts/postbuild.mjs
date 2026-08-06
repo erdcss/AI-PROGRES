@@ -61,4 +61,16 @@ for (const migrationFile of [
   }
 }
 
+// client/public statik dosyalar (ör. product-pool-shark-3d.png)
+const clientPublic = path.resolve("client", "public");
+if (fs.existsSync(clientPublic)) {
+  for (const entry of fs.readdirSync(clientPublic, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const src = path.join(clientPublic, entry.name);
+    const dst = path.join(publicDir, entry.name);
+    fs.copyFileSync(src, dst);
+  }
+  console.log("✅ client/public → dist/public kopyalandı");
+}
+
 console.log("✅ Post-build tamamlandı");

@@ -205,9 +205,9 @@ export class IntelligentRateLimiter {
 }
 
 export const intelligentRateLimiter = new IntelligentRateLimiter({
-  minDelay: 200,         // ⚡ ULTRA-FAST: 200ms minimum
-  maxDelay: 500,         // ⚡ ULTRA-FAST: 500ms maximum
-  burstLimit: 15,        // Higher burst for parallel requests
-  cooldownPeriod: 5000,  // 5 seconds cooldown
-  adaptiveMode: false    // Fixed delays for consistency
+  minDelay: 700,         // 429'a karşı daha güvenli taban
+  maxDelay: 3500,        // Üst sınır
+  burstLimit: 8,         // Kısa sürede daha az burst
+  cooldownPeriod: 15000, // Burst sonrası 15s
+  adaptiveMode: true     // Başarısızlıkta yavaşla
 });

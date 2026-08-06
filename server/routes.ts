@@ -4424,24 +4424,19 @@ setTimeout(check, 1000);
         resolveShopifyConfig,
         resolveOAuthShopifyCredentials,
         envShopDomain,
-        isShopifyAppSharedSecret,
         hasUsableClientSecretForRefresh,
       } = await import('./shopify-credentials');
       await (await import('./shopify-credentials')).hydrateShopDomainFromDatabase();
       const config = await resolveShopifyConfig();
       const oauth = await resolveOAuthShopifyCredentials();
       const shopDomain = config.shopDomain || envShopDomain();
-      const oauthSecretUsable = Boolean(oauth?.apiSecret && !isShopifyAppSharedSecret(oauth.apiSecret));
-      const sharedSecretOnly =
-        isShopifyAppSharedSecret(process.env.SHOPIFY_CLIENT_SECRET) ||
-        isShopifyAppSharedSecret(process.env.secret_key) ||
-        isShopifyAppSharedSecret(process.env.SHOPIFY_APP_SHARED_SECRET) ||
-        (oauth?.apiSecret ? isShopifyAppSharedSecret(oauth.apiSecret) : false);
+      const oauthSecretUsable = Boolean(oauth?.apiSecret?.trim());
+      const canRefresh = hasUsableClientSecretForRefresh() || oauthSecretUsable;
       const bootstrapMessage = config.ok
         ? `Token aktif (${config.tokenSource})`
-        : sharedSecretOnly && !hasUsableClientSecretForRefresh()
-          ? 'App Shared Secret (shpss_) token için kullanılamaz. Admin Token (shpat_...) kaydedin.'
-          : oauth && oauthSecretUsable
+        : canRefresh
+          ? 'Client Secret hazır — token otomatik alınacak veya OAuth ile bağlanın'
+          : oauth
             ? 'OAuth hazır — "Shopify\'da Yetkilendir" ile bağlanın veya Admin Token kaydedin'
             : config.error;
       return res.json({
@@ -4451,8 +4446,8 @@ setTimeout(check, 1000);
         hasToken: config.hasAccessToken,
         tokenInvalid: !config.ok && config.hasAccessToken,
         oauthReady: Boolean(oauth) && oauthSecretUsable,
-        needsAdminToken: !config.ok && (!oauthSecretUsable || sharedSecretOnly),
-        secretLooksLikeSharedSecret: sharedSecretOnly,
+        needsAdminToken: !config.ok && !canRefresh,
+        secretLooksLikeSharedSecret: false,
         source: config.tokenSource,
         bootstrapMessage,
         error: config.error,
@@ -4481,13 +4476,13 @@ setTimeout(check, 1000);
       if (!shopDomain || !apiKey || !apiSecret) {
         return res.status(400).json({ error: 'shopDomain, apiKey ve apiSecret zorunludur.' });
       }
-      const { isShopifyAppSharedSecret, normalizeShopDomain: normDomain } = await import('./shopify-credentials');
-      if (isShopifyAppSharedSecret(apiSecret)) {
+      if (String(apiSecret).trim().startsWith('shpat_') || String(apiSecret).trim().startsWith('shpua_')) {
         return res.status(400).json({
           error:
-            'Bu değer App Shared Secret (shpss_...). Token için kullanılamaz. Dev Dashboard Client Secret (shpsec_...) girin veya Admin Token sekmesini kullanın.',
+            'Bu alan Client Secret içindir (shpsec_/shpss_...). Access Token (shpat_...) için Admin Token sekmesini kullanın.',
         });
       }
+      const { normalizeShopDomain: normDomain } = await import('./shopify-credentials');
       const cleanDomain = normDomain(shopDomain) || shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
       process.env.SHOPIFY_SHOP_DOMAIN = cleanDomain;
       await saveShopifyCredentials({ shopDomain: cleanDomain, apiKey, apiSecret });
@@ -4550,15 +4545,6 @@ setTimeout(check, 1000);
           apiKey: oauth.apiKey,
           apiSecret: oauth.apiSecret,
         } as typeof cred;
-      }
-
-      const { isShopifyAppSharedSecret } = await import('./shopify-credentials');
-      if (isShopifyAppSharedSecret(cred.apiSecret)) {
-        return res
-          .status(400)
-          .send(
-            'Kayıtlı secret App Shared Secret (shpss_). OAuth token exchange yapılamaz. Admin Token (shpat_...) kaydedin veya Dev Dashboard Client Secret (shpsec_...) kullanın.',
-          );
       }
 
       const tokenRes = await fetch(`https://${normalizedShop}/admin/oauth/access_token`, {

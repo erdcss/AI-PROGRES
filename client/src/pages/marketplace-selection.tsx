@@ -1,9 +1,8 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { 
-  Store, ShoppingCart, Package, Truck, ArrowLeft, ArrowRight,
-  BarChart3, MessageSquare, Database, Shield, Bot, 
-  ExternalLink, TrendingUp, Activity, Zap, Settings, Bell, Star, FolderTree
+  ArrowRight, Database, Shield, Bot, 
+  Activity, Settings, Bell, Star, FolderTree
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -22,33 +21,19 @@ const MarketplaceSelection = () => {
       path: "/scraper/trendyol"
     },
     {
-      name: "Arçelik",
-      description: "Ürün çıkarma ve Shopify aktarım",
-      icon: <Package className="w-8 h-8 text-white" />,
+      name: "Ürün Havuzu",
+      description: "Bağımsız ürün çekme · ara sıra siteler",
+      icon: (
+        <img
+          src="/product-pool-shark-3d.png"
+          alt="Ürün Havuzu"
+          className="w-10 h-10 object-contain drop-shadow-lg"
+          style={{ transform: "perspective(400px) rotateY(-18deg)" }}
+        />
+      ),
       available: true,
-      path: "/arcelik"
+      path: "/urun-havuzu"
     },
-    {
-      name: "Hepsiburada", 
-      description: "Ürün çıkarma sistemi",
-      icon: <ShoppingCart className="w-8 h-8 text-white" />,
-      available: false,
-      path: "/coming-soon/hepsiburada"
-    },
-    {
-      name: "Amazon",
-      icon: <Package className="w-8 h-8 text-white" />,
-      description: "Ürün çıkarma sistemi",
-      available: false,
-      path: "/coming-soon/amazon"
-    },
-    {
-      name: "PttAvm",
-      icon: <span className="text-2xl font-black text-white">PT</span>,
-      description: "Ürün çıkarma ve Shopify aktarım",
-      available: true,
-      path: "/pttavm"
-    }
   ];
 
   // Yorum Çıkarma Araçları

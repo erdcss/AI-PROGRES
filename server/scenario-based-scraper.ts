@@ -36,6 +36,8 @@ import { enhancedAntiBlocking } from './enhanced-anti-blocking';
 import { advancedBypassStrategies } from './advanced-bypass-strategies';
 import { ultraStealthSystem } from './ultra-stealth-system';
 import { intelligentRateLimiter } from './intelligent-rate-limiter';
+import { trendyolAnti429Gate } from './trendyol-anti-429';
+import { isTrendyolRateLimitHtml } from '@shared/trendyol-rate-limit';
 import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 import { detectRealStockStatus } from './real-stock-detector';
 import { extractTrendyolProductId } from './trendyol-title-utils';
@@ -707,7 +709,18 @@ function detectBlockingResponse(htmlContent: string, $?: cheerio.CheerioAPI): Bl
     };
   }
   
-  // Check 2: Direct blocking messages (case-insensitive)
+  // Check 2: Trendyol soft-429 sayfası (büyük "429" + ulaşılamıyor)
+  if (isTrendyolRateLimitHtml(htmlContent)) {
+    console.log('🚫 BLOCKING DETECTED: Trendyol 429 / rate-limit page');
+    trendyolAnti429Gate.reportRateLimit('detectBlockingResponse');
+    return {
+      isBlocked: true,
+      reason: 'Trendyol 429 — çok fazla istek (rate limit sayfası)',
+      blockingType: 'rate_limit'
+    };
+  }
+
+  // Check 3: Direct blocking messages (case-insensitive)
   const blockingKeywords = [
     'sorry, you have been blocked',
     'access denied',
@@ -716,6 +729,8 @@ function detectBlockingResponse(htmlContent: string, $?: cheerio.CheerioAPI): Bl
     'rate limited',
     'too many requests',
     'çok fazla istek',
+    'aradığın içeriğe şu an ulaşılamıyor',
+    'aradigin icerige su an ulasilamiyor',
     'captcha required',
     'please complete the captcha',
     'verification required',
@@ -739,11 +754,21 @@ function detectBlockingResponse(htmlContent: string, $?: cheerio.CheerioAPI): Bl
   
   for (const keyword of blockingKeywords) {
     if (contentLower.includes(keyword)) {
+      const isRate =
+        keyword.includes('429') ||
+        keyword.includes('rate') ||
+        keyword.includes('çok fazla') ||
+        keyword.includes('too many') ||
+        keyword.includes('ulaşılamıyor') ||
+        keyword.includes('ulasilamiyor');
       console.log(`🚫 BLOCKING DETECTED: Found keyword "${keyword}"`);
+      if (isRate) {
+        trendyolAnti429Gate.reportRateLimit(`keyword:${keyword}`);
+      }
       return {
         isBlocked: true,
         reason: `Blocking keyword detected: ${keyword}`,
-        blockingType: 'trendyol_block'
+        blockingType: isRate ? 'rate_limit' : 'trendyol_block'
       };
     }
   }
@@ -1390,6 +1415,7 @@ export async function scenarioBasedScrape(
     // INTELLIGENT RATE LIMITING - Human-like delays
     console.log('🧠 Applying intelligent rate limiting...');
     await intelligentRateLimiter.executeSmartDelay(url);
+
     
     // CACHE COMPLETELY DISABLED for fresh price extraction
     console.log('🔄 Cache disabled, extracting fresh data for correct prices');

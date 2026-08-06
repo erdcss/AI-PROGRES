@@ -205,9 +205,21 @@ export function buildShopifyProductApiPayload(
   const compareAt =
     input.price.original > 0 ? toDecimalString(input.price.original) : priceStr;
 
-  const allVariants = input.variants.allVariants.length
+  const rawVariants = input.variants.allVariants.length
     ? input.variants.allVariants
     : [{ color: 'Default', size: 'Tek Beden', inStock: true }];
+
+  // Adlı renk varken option1'siz (boş renk) satırlar Shopify 422 üretir
+  const namedColors = rawVariants
+    .map((v) => String(v.color || '').trim())
+    .filter((c) => c && c.toLowerCase() !== 'tek renk' && c.toLowerCase() !== 'default');
+  const allVariants =
+    namedColors.length > 0
+      ? rawVariants.filter((v) => {
+          const c = String(v.color || '').trim();
+          return Boolean(c) && c.toLowerCase() !== 'tek renk';
+        })
+      : rawVariants;
 
   const variants = allVariants.map((variant) => {
     const row: Record<string, unknown> = {

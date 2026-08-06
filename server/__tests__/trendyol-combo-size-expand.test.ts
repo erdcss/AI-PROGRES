@@ -96,5 +96,40 @@ const scoreSingle = variantRichnessScore(
 );
 assert(scoreCombo > scoreSingle, "4 atomik beden skoru > tek combo");
 
+// Adlı renk varken boş renk size-klonları düşmeli (Shopify gönderim)
+const shoeDupes = sanitizeTrendyolVariants(
+  {
+    colors: ["Siyah"],
+    sizes: ["36", "37", "38"],
+    allVariants: [
+      { color: "Siyah", size: "36", inStock: true },
+      { color: "Siyah", size: "37", inStock: true },
+      { color: "Siyah", size: "38", inStock: true },
+      { color: "", size: "36", inStock: true },
+      { color: "", size: "37", inStock: true },
+      { color: "", size: "38", inStock: true },
+    ],
+  },
+  { productTitle: "Puma Anzarun Lite Unisex Günlük Ayakkabı" },
+);
+assert(shoeDupes.allVariants.length === 3, "boş renk klonları düştü (3 kaldı)");
+assert(
+  shoeDupes.allVariants.every((v) => v.color === "Siyah"),
+  "yalnızca Siyah kaldı",
+);
+
+const sizeOnly = sanitizeTrendyolVariants(
+  {
+    colors: [],
+    sizes: ["36", "37"],
+    allVariants: [
+      { color: "", size: "36", inStock: true },
+      { color: "", size: "37", inStock: true },
+    ],
+  },
+  { productTitle: "Bedenli ürün" },
+);
+assert(sizeOnly.allVariants.length === 2, "size-only boş renk korundu");
+
 console.log(`\nCombo expand: ${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

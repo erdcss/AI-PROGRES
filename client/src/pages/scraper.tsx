@@ -1225,22 +1225,78 @@ function ScraperPage() {
     let unknownStockVariants = 0;
 
     const BULK_SCRAPE_RETRY_DELAY_MS = 2500;
-    const BULK_SCRAPE_CONCURRENCY = 2;
+    const BULK_SCRAPE_CONCURRENCY_START = 2;
+    let activeConcurrency = BULK_SCRAPE_CONCURRENCY_START;
     let scrapeCursor = 0;
     let completedScrapes = 0;
+    let rateLimitHits = 0;
+    let globalCooldownUntil = 0;
+    let serialChain: Promise<void> = Promise.resolve();
+
+    const looksLikeRateLimit = (err: unknown) => {
+      const msg = (err instanceof Error ? err.message : String(err || "")).toLocaleLowerCase("tr-TR");
+      return (
+        msg.includes("429") ||
+        msg.includes("rate limit") ||
+        msg.includes("çok fazla") ||
+        msg.includes("ulaşılamıyor") ||
+        msg.includes("too many")
+      );
+    };
+
+    const waitIfCooling = async () => {
+      const left = globalCooldownUntil - Date.now();
+      if (left > 0) {
+        setWorkflowStep(`Trendyol 429 — ${Math.ceil(left / 1000)}s bekleniyor...`);
+        document.title = `(429) ${Math.ceil(left / 1000)}s bekle · Turmarkt`;
+        await new Promise((r) => setTimeout(r, left));
+      }
+    };
+
+    /** 429 sonrası işlemleri tek sıraya al */
+    const runMaybeSerial = async <T,>(fn: () => Promise<T>): Promise<T> => {
+      if (rateLimitHits === 0 && activeConcurrency > 1) return fn();
+      let release!: () => void;
+      const prev = serialChain;
+      serialChain = new Promise<void>((r) => {
+        release = r;
+      });
+      await prev;
+      try {
+        return await fn();
+      } finally {
+        release();
+      }
+    };
 
     const scrapeWorker = async () => {
       while (scrapeCursor < queue.length) {
+        await waitIfCooling();
+        if (rateLimitHits > 0 && activeConcurrency > 1) {
+          activeConcurrency = 1;
+        }
         const i = scrapeCursor++;
+        if (i >= queue.length) break;
         const { url } = queue[i];
       updateUrlQueueItem(url, { status: "processing", error: undefined });
 
       try {
+        await runMaybeSerial(async () => {
         let scraped: Awaited<ReturnType<typeof fetchScenarioScrapeResult>>;
         try {
           scraped = await fetchScenarioScrapeResult(url, true);
         } catch (firstError) {
-          await new Promise((resolve) => setTimeout(resolve, BULK_SCRAPE_RETRY_DELAY_MS));
+          const rateLimited = looksLikeRateLimit(firstError);
+          if (rateLimited) {
+            rateLimitHits++;
+            activeConcurrency = 1;
+            const backoff = Math.min(90_000, 4000 * Math.pow(2, Math.min(rateLimitHits, 4)));
+            const jitter = Math.floor(Math.random() * 1500);
+            globalCooldownUntil = Date.now() + backoff + jitter;
+            await waitIfCooling();
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, BULK_SCRAPE_RETRY_DELAY_MS));
+          }
           scraped = await fetchScenarioScrapeResult(url, true);
         }
         const newPreview = buildCsvPreviewEntry(scraped, url, "bulk");
@@ -1253,6 +1309,7 @@ function ScraperPage() {
         ]);
         updateUrlQueueItem(url, { status: "success", error: undefined });
         successCount++;
+        if (rateLimitHits > 0) rateLimitHits = Math.max(0, rateLimitHits - 1);
 
         const summary = newPreview.stockSummary as
           | { totalVariants?: number; inStockVariants?: number; outOfStockVariants?: number; unknownStockVariants?: number }
@@ -1274,7 +1331,20 @@ function ScraperPage() {
           description: scraped.title || url,
           duration: 3000,
         });
+        });
       } catch (error) {
+        if (looksLikeRateLimit(error)) {
+          rateLimitHits++;
+          activeConcurrency = 1;
+          const backoff = Math.min(90_000, 5000 * Math.pow(2, Math.min(rateLimitHits, 4)));
+          globalCooldownUntil = Date.now() + backoff + Math.floor(Math.random() * 1500);
+          toast({
+            title: "Trendyol 429 engeli",
+            description: `${Math.ceil(backoff / 1000)}s beklenip daha yavaş devam edilecek`,
+            variant: "destructive",
+            duration: 6000,
+          });
+        }
         failCount++;
         updateUrlQueueItem(url, {
           status: "error",
@@ -1289,13 +1359,17 @@ function ScraperPage() {
       }
         completedScrapes++;
         setBulkProgress({ current: completedScrapes, total: queue.length });
-        setWorkflowStep(`${completedScrapes}/${queue.length} ürün çekiliyor...`);
+        setWorkflowStep(
+          rateLimitHits > 0
+            ? `${completedScrapes}/${queue.length} çekiliyor (429 koruması aktif)`
+            : `${completedScrapes}/${queue.length} ürün çekiliyor...`,
+        );
       }
     };
 
     await Promise.all(
       Array.from(
-        { length: Math.min(BULK_SCRAPE_CONCURRENCY, queue.length) },
+        { length: Math.min(activeConcurrency, queue.length) },
         () => scrapeWorker(),
       ),
     );

@@ -296,8 +296,8 @@ async function run() {
 
   __resetShopifyTokenManagerTestDeps();
 
-  // J. Client Secret: shpss_ (App Shared Secret) token grant için reddedilir;
-  //    shpsec_ / prefixsiz Dev Dashboard secret kabul edilir.
+  // J. Client Secret: SHOPIFY_CLIENT_SECRET içindeki shpss_/shpsec_ kabul edilir;
+  //    yalnız secret_key (HMAC) token grant için kullanılmaz.
   {
     const backup = {
       SHOPIFY_SHOP_DOMAIN: process.env.SHOPIFY_SHOP_DOMAIN,
@@ -319,10 +319,10 @@ async function run() {
 
     const shpssSecret = 'shpss_real_app_shared_secret_value';
     setSecretEnv(shpssSecret);
-    assert(isShopifyAppSharedSecret(shpssSecret), 'J: shpss_ shared secret olarak tanınır');
-    assert(resolveTokenGrantClientSecret() === '', 'J: shpss_ token grant için reddedilir');
-    assert(getShopifyClientCredentials() === null, 'J: shpss_ ile credentials null döner');
-    assert(!hasUsableClientSecretForRefresh(), 'J: shpss_ yenileme için kullanılamaz');
+    assert(isShopifyAppSharedSecret(shpssSecret), 'J: shpss_ prefix tanınır');
+    assert(resolveTokenGrantClientSecret() === shpssSecret, 'J: shpss_ explicit Client Secret kabul');
+    assert(getShopifyClientCredentials() !== null, 'J: shpss_ ile credentials döner');
+    assert(hasUsableClientSecretForRefresh(), 'J: shpss_ yenileme için kullanılabilir');
 
     setSecretEnv('shpsec_dashboard_client_secret_value');
     assert(getShopifyClientCredentials() !== null, 'J: shpsec_ secret kabul edilir');

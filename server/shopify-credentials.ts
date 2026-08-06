@@ -103,18 +103,12 @@ export async function resolveOAuthShopifyCredentials(): Promise<{
 
       const row = rows[0];
       if (row?.apiKey?.trim() && row?.apiSecret?.trim()) {
-        if (isShopifyAppSharedSecret(row.apiSecret)) {
-          console.warn(
-            "[SHOPIFY] DB api_secret shpss_ — OAuth/token grant için kullanılamaz; Admin Token gerekli.",
-          );
-        } else {
-          return {
-            shopDomain: normalized,
-            apiKey: row.apiKey.trim(),
-            apiSecret: row.apiSecret.trim(),
-            source: 'db',
-          };
-        }
+        return {
+          shopDomain: normalized,
+          apiKey: row.apiKey.trim(),
+          apiSecret: row.apiSecret.trim(),
+          source: 'db',
+        };
       }
     } else {
       const rows = await db
@@ -125,20 +119,14 @@ export async function resolveOAuthShopifyCredentials(): Promise<{
         .limit(1);
       const row = rows[0];
       if (row?.shopDomain && row?.apiKey?.trim() && row?.apiSecret?.trim()) {
-        if (isShopifyAppSharedSecret(row.apiSecret)) {
-          console.warn(
-            "[SHOPIFY] DB api_secret shpss_ — OAuth/token grant için kullanılamaz; Admin Token gerekli.",
-          );
-        } else {
-          const normalized = normalizeShopDomain(row.shopDomain);
-          process.env.SHOPIFY_SHOP_DOMAIN = normalized;
-          return {
-            shopDomain: normalized,
-            apiKey: row.apiKey.trim(),
-            apiSecret: row.apiSecret.trim(),
-            source: 'db',
-          };
-        }
+        const normalized = normalizeShopDomain(row.shopDomain);
+        process.env.SHOPIFY_SHOP_DOMAIN = normalized;
+        return {
+          shopDomain: normalized,
+          apiKey: row.apiKey.trim(),
+          apiSecret: row.apiSecret.trim(),
+          source: 'db',
+        };
       }
     }
   } catch {
@@ -279,11 +267,11 @@ export function resolveClientSecretSource():
 }
 
 /**
- * client_credentials ve OAuth token exchange için Client Secret.
+ * Prefix ipucu: eski webhook "shared secret" ile Dev Dashboard Client Secret
+ * ikisi de `shpss_` ile başlayabilir. Ayırt etmek için ENV adına bakılır.
  *
- * Dev Dashboard Client Secret (genelde shpsec_...) kullanılır.
- * App Shared Secret / API secret (shpss_...) HMAC imzası içindir — token grant için
- * Shopify HTTP 400 döner. Bu yüzden shpss_ burada reddedilir.
+ * - SHOPIFY_CLIENT_SECRET / SHOPIFY_CLIENT_SECRET_KEY → token grant için kullanılır
+ * - secret_key / SHOPIFY_APP_SHARED_SECRET → yalnızca HMAC (token grant'a düşmez)
  */
 export function isShopifyAppSharedSecret(value: string | null | undefined): boolean {
   return Boolean(value?.trim().startsWith("shpss_"));
@@ -296,11 +284,12 @@ export function resolveTokenGrantClientSecret(): string {
   ].filter(Boolean) as string[];
 
   for (const candidate of explicit) {
+    // Dev Dashboard Client Secret çoğu zaman shpsec_; bazı uygulamalarda shpss_ gelir.
+    // Explicit SHOPIFY_CLIENT_SECRET her iki prefix ile client_credentials için geçerlidir.
     if (isShopifyAppSharedSecret(candidate)) {
-      console.warn(
-        "[SHOPIFY] SHOPIFY_CLIENT_SECRET shpss_ (App Shared Secret) — client_credentials için kullanılamaz. Dev Dashboard Client Secret (shpsec_...) veya Admin Token (shpat_...) kullanın.",
+      console.log(
+        "[SHOPIFY] SHOPIFY_CLIENT_SECRET shpss_ — Dev Dashboard Client Secret olarak client_credentials için kullanılacak",
       );
-      continue;
     }
     return candidate;
   }
@@ -314,8 +303,12 @@ export function hasUsableClientSecretForRefresh(): boolean {
 }
 
 function isUsableTokenGrantSecret(value: string | null | undefined): boolean {
+  // shpss_ / shpsec_ / ham secret — hepsi client_credentials için denenebilir.
+  // Access token (shpat_) buraya yazılmaz; boş değer reddedilir.
   const v = value?.trim() || "";
-  return v.length > 0 && !isShopifyAppSharedSecret(v);
+  if (!v) return false;
+  if (v.startsWith("shpat_") || v.startsWith("shpua_")) return false;
+  return true;
 }
 
 /** ENV'den Shopify Client Credentials (Postman: client_id + client_secret + grant_type) */
@@ -629,7 +622,7 @@ export async function bootstrapShopifyConnectionFromEnv(): Promise<{
 
   const shopDomain = envShopDomain();
   const oauth = await resolveOAuthShopifyCredentials();
-  const oauthSecretUsable = Boolean(oauth?.apiSecret && !isShopifyAppSharedSecret(oauth.apiSecret));
+  const oauthSecretUsable = Boolean(oauth?.apiSecret?.trim());
   let hasAccessToken = false;
   let tokenSource: ShopifyHealthTokenSource = 'missing';
   let message = 'Shopify bağlantısı hazır değil';
@@ -649,12 +642,9 @@ export async function bootstrapShopifyConnectionFromEnv(): Promise<{
     message = `Token aktif (${tokenSource})`;
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    if (oauth && !oauthSecretUsable) {
+    if (oauth) {
       message =
-        'DB/ENV içinde App Shared Secret (shpss_) var — token alınamaz. Admin Token (shpat_...) kaydedin veya Dev Dashboard Client Secret (shpsec_...) kullanın.';
-    } else if (oauth) {
-      message =
-        'OAuth kimlik bilgileri hazır. Admin Token kaydedin veya Shopify OAuth ile yetkilendirin.';
+        'OAuth/Client Secret hazır. Token alınamadı — uygulamayı mağazaya yükleyin veya Dev Dashboard Client Secret’ı doğrulayın.';
     } else {
       message = errMsg;
     }

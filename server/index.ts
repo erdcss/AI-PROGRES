@@ -321,6 +321,10 @@ app.use(pendingChangesRoutes);
   import('./shopify-token-manager')
     .then(({ warmUpShopifyToken }) => warmUpShopifyToken())
     .catch((err) => console.error('Shopify token lifecycle error:', err));
+
+  // Ürün Havuzu — tamamen bağımsız scrape / Shopify taslak yükleme
+  const { default: productPoolRouter } = await import('./product-pool/router');
+  app.use('/api/product-pool', productPoolRouter);
   
   // Test enhanced extraction endpoint - Direct registration
   app.post('/api/test-enhanced', async (req, res) => {
