@@ -217,6 +217,24 @@ export function buildLaunchOptions(overrides: Partial<PuppeteerLaunchOptions> = 
     ],
   };
 
+  // Opsiyonel residential/HTTP proxy (IP ban aşımı için; yoksa Chromium doğrudan çıkar)
+  const proxyUrl =
+    process.env.TRENDYOL_HTTP_PROXY?.trim() ||
+    process.env.INTERNAL_PROXY_URL?.trim() ||
+    "";
+  if (proxyUrl) {
+    try {
+      const u = new URL(proxyUrl);
+      const server =
+        u.port && u.port !== "80" && u.port !== "443"
+          ? `${u.hostname}:${u.port}`
+          : u.host;
+      defaults.args!.push(`--proxy-server=${server}`);
+    } catch {
+      defaults.args!.push(`--proxy-server=${proxyUrl}`);
+    }
+  }
+
   const extraArgs = (overrides.args || []).filter((a) => a !== "--single-process");
   defaults.args = [...(defaults.args || []), ...extraArgs];
 

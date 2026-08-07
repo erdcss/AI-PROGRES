@@ -2076,6 +2076,19 @@ setTimeout(check, 1000);
     }
   }, 5 * 60 * 1000);
 
+  app.get('/api/trendyol/block-status', async (_req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const {
+      getTrendyolBlockStatus,
+      formatCircuitOpenUserMessage,
+    } = await import('./trendyol-block-guard');
+    const status = getTrendyolBlockStatus();
+    res.json({
+      ...status,
+      message: status.open ? formatCircuitOpenUserMessage(status) : null,
+    });
+  });
+
   app.get('/api/runtime/scrape-capabilities', async (_req, res) => {
     const { buildScrapeCapabilitiesPayload } = await import('./services/scrape-provider.service');
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');

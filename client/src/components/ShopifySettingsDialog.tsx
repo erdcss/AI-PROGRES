@@ -13,21 +13,17 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, CheckCircle, XCircle, ExternalLink, Loader2, Key, AlertTriangle, Image, RefreshCw, Clock } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { Settings, CheckCircle, XCircle, Loader2, Key, Image, RefreshCw } from "lucide-react";
 
 interface CredentialsStatus {
   connected: boolean;
   shopDomain?: string;
   apiKey?: string;
   hasToken?: boolean;
-  tokenInvalid?: boolean;
   oauthReady?: boolean;
   needsAdminToken?: boolean;
   secretLooksLikeSharedSecret?: boolean;
   bootstrapMessage?: string;
-  updatedAt?: string;
-  source?: string;
   error?: string;
 }
 
@@ -42,41 +38,17 @@ interface CanvaStatus {
 }
 
 interface TokenRefreshStatus {
-  status: {
-    autoRefreshEnabled: boolean;
-    lastRefreshTime: number;
-    lastSuccessfulRefreshAt: number;
-    isRefreshing: boolean;
-    msUntilRefresh: number;
-    lastError: string | null;
-    clientCredentialsReady?: boolean;
-    secretLooksLikeSharedSecret?: boolean;
-    hasStoredToken?: boolean;
-    cache?: {
-      expiresAt: number | null;
-      expiresInMs: number | null;
-      source: string | null;
-    };
-  };
-  hasActiveToken: boolean;
-  hasDbToken?: boolean;
-  clientCredentialsReady?: boolean;
-  secretLooksLikeSharedSecret?: boolean;
-  clientSecretUsableForRefresh?: boolean;
   connected?: boolean;
   liveConnected?: boolean;
-  shopDomain: string | null;
-  tokenExpiresAt?: string | null;
+  hasActiveToken?: boolean;
+  clientSecretUsableForRefresh?: boolean;
+  secretLooksLikeSharedSecret?: boolean;
+  shopDomain?: string | null;
   lastError?: string | null;
-  envVarsConfigured: {
+  envVarsConfigured?: {
     SHOPIFY_CLIENT_ID?: boolean;
-    SHOPIFY_CLIENT_SECRET?: boolean;
     SHOPIFY_CLIENT_SECRET_USABLE?: boolean;
     SHOPIFY_CLIENT_SECRET_IS_SHARED_SECRET?: boolean;
-    SHOPIFY_API_KEY: boolean;
-    SHOPIFY_APP_SHARED_SECRET: boolean;
-    SHOPIFY_ACCESS_TOKEN?: boolean;
-    SHOPIFY_ADMIN_ACCESS_TOKEN?: boolean;
   };
 }
 
@@ -87,22 +59,19 @@ export default function ShopifySettingsDialog() {
   const [liveTest, setLiveTest] = useState<LiveTestResult | null>(null);
   const [liveTestLoading, setLiveTestLoading] = useState(false);
 
-  // OAuth tab
   const [shopDomain, setShopDomain] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [apiSecret, setApiSecret] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [adminToken, setAdminToken] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Direct token tab
-  const [directDomain, setDirectDomain] = useState("");
-  const [directToken, setDirectToken] = useState("");
-
-  // Canva connect loading
   const [canvaConnecting, setCanvaConnecting] = useState(false);
   const [canvaDisconnecting, setCanvaDisconnecting] = useState(false);
+  const bootstrapRan = useRef(false);
 
   const { data: status, isLoading } = useQuery<CredentialsStatus>({
     queryKey: ["/api/shopify/credentials"],
-    refetchInterval: open ? 8000 : 60_000,
+    refetchInterval: open ? 10_000 : 60_000,
     staleTime: 30_000,
   });
 
@@ -112,106 +81,11 @@ export default function ShopifySettingsDialog() {
     refetchInterval: open ? 5000 : false,
   });
 
-  const { data: tokenRefreshStatus, refetch: refetchTokenStatus } = useQuery<TokenRefreshStatus>({
+  const { data: tokenStatus, refetch: refetchTokenStatus } = useQuery<TokenRefreshStatus>({
     queryKey: ["/api/shopify/token-status"],
     refetchInterval: 45_000,
     staleTime: 20_000,
   });
-
-  const bootstrapRan = useRef(false);
-
-  const rotateNowMutation = useMutation({
-    mutationFn: async () => {
-      // Zaman aşımı: istek askıda kalırsa buton tekrar etkinleşsin.
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 30_000);
-      try {
-        const res = await fetch("/api/shopify/rotate-token", {
-          method: "POST",
-          signal: controller.signal,
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || data.message || "Yenileme başarısız");
-        return data;
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          throw new Error("Yenileme zaman aşımına uğradı (30sn). Tekrar deneyin.");
-        }
-        throw err;
-      } finally {
-        window.clearTimeout(timeout);
-      }
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
-      toast({ title: "Token Yenilendi ✅", description: data.message || "Token önbelleği yenilendi." });
-      refetchTokenStatus();
-      runLiveTest();
-    },
-    onError: (err: Error) => {
-      toast({ title: "Yenileme Başarısız ❌", description: err.message, variant: "destructive" });
-    },
-  });
-
-  // Check for canva_success or canva_error in URL on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("canva_success")) {
-      toast({ title: "Canva Bağlandı ✅", description: "Ürün görselleri artık Canva'ya otomatik yüklenecek." });
-      refetchCanva();
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    if (params.get("canva_error")) {
-      toast({ title: "Canva Hatası ❌", description: params.get("canva_error") || "Bağlantı başarısız", variant: "destructive" });
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    if (params.get("shopify") === "connected") {
-      toast({ title: "Shopify Bağlandı ✅", description: "Token kaydedildi. Bağlantı test ediliyor..." });
-      fetch("/api/shopify/bootstrap", { method: "POST" })
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
-        })
-        .catch(() => undefined);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
-
-  // Sayfa açılışında bir kez bootstrap + bağlantı testi
-  useEffect(() => {
-    if (bootstrapRan.current) return;
-    bootstrapRan.current = true;
-    fetch("/api/shopify/bootstrap", { method: "POST" })
-      .then(() => {
-        queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
-      })
-      .catch(() => undefined)
-      .finally(() => runLiveTest());
-  }, []);
-
-  // Arka planda periyodik canlı test
-  useEffect(() => {
-    const id = window.setInterval(() => runLiveTest(), 60_000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  // Diyalog açıldığında durumu yenile
-  useEffect(() => {
-    if (!open) return;
-    queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
-    runLiveTest();
-  }, [open]);
-
-  useEffect(() => {
-    if (status?.shopDomain) {
-      setShopDomain(status.shopDomain);
-      setDirectDomain(status.shopDomain);
-    }
-    if (status?.apiKey) setApiKey(status.apiKey);
-  }, [status]);
 
   async function runLiveTest() {
     setLiveTestLoading(true);
@@ -226,43 +100,182 @@ export default function ShopifySettingsDialog() {
     }
   }
 
+  async function refreshToken(): Promise<void> {
+    const res = await fetch("/api/shopify/rotate-token", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || "Token alınamadı");
+    }
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("canva_success")) {
+      toast({ title: "Canva Bağlandı", description: "Görseller Canva'ya yüklenebilir." });
+      refetchCanva();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (params.get("canva_error")) {
+      toast({
+        title: "Canva Hatası",
+        description: params.get("canva_error") || "Bağlantı başarısız",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (params.get("shopify") === "connected") {
+      toast({ title: "Shopify Bağlandı", description: "Token kaydedildi." });
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (bootstrapRan.current) return;
+    bootstrapRan.current = true;
+    fetch("/api/shopify/bootstrap", { method: "POST" })
+      .catch(() => undefined)
+      .finally(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
+        runLiveTest();
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    runLiveTest();
+  }, [open]);
+
+  useEffect(() => {
+    if (status?.shopDomain) setShopDomain(status.shopDomain);
+    if (status?.apiKey) setClientId(status.apiKey);
+  }, [status]);
+
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      const saveRes = await fetch("/api/shopify/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopDomain,
+          apiKey: clientId,
+          apiSecret: clientSecret,
+        }),
+      });
+      const saveData = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saveData.error || "Kimlik bilgileri kaydedilemedi");
+
+      await refreshToken();
+      return saveData;
+    },
+    onSuccess: async () => {
+      setClientSecret("");
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
+      await runLiveTest();
+      toast({
+        title: "Shopify bağlandı",
+        description: "24 saatlik access token alındı. Süre dolunca otomatik yenilenir.",
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Bağlantı başarısız", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const adminTokenMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/shopify/direct-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopDomain, accessToken: adminToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Token kaydedilemedi");
+      return data;
+    },
+    onSuccess: async (data) => {
+      setAdminToken("");
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
+      setLiveTest({
+        success: true,
+        message: `${data.storeName || data.shopDomain} bağlandı`,
+        store: data.storeName,
+      });
+      toast({ title: "Shopify bağlandı", description: "Admin token kaydedildi." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Token hatası", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const rotateMutation = useMutation({
+    mutationFn: refreshToken,
+    onSuccess: async () => {
+      refetchTokenStatus();
+      await runLiveTest();
+      toast({ title: "Token yenilendi", description: "Yeni 24 saatlik token alındı." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Yenileme başarısız", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/shopify/credentials", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopDomain: status?.shopDomain || shopDomain }),
+      });
+      if (!res.ok) throw new Error("Silme başarısız");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+      setClientSecret("");
+      setAdminToken("");
+      setLiveTest(null);
+      toast({ title: "Bağlantı kesildi" });
+    },
+  });
+
   async function connectCanva() {
     setCanvaConnecting(true);
     try {
       const res = await fetch("/api/canva/auth");
       const data = await res.json();
-      if (data.url) {
-        // Open in a popup window — Canva refuses to load inside iframes
-        window.open(data.url, "canva-auth", "width=620,height=700,left=200,top=100");
-        toast({
-          title: "Canva yetkilendirme açıldı",
-          description: "Açılan pencerede Canva'ya giriş yapıp izin verin.",
-        });
-        // Poll every 2s for up to 3 minutes until connected
-        let attempts = 0;
-        const poll = setInterval(async () => {
-          attempts++;
-          try {
-            const r = await fetch("/api/canva/status");
-            const d = await r.json();
-            if (d.connected) {
-              clearInterval(poll);
-              setCanvaConnecting(false);
-              refetchCanva();
-              toast({ title: "Canva Bağlandı ✅", description: "Ürün görselleri artık Canva'ya otomatik yüklenecek." });
-            } else if (attempts >= 90) {
-              clearInterval(poll);
-              setCanvaConnecting(false);
-            }
-          } catch {
-            if (attempts >= 90) { clearInterval(poll); setCanvaConnecting(false); }
-          }
-        }, 2000);
-      } else {
-        toast({ title: "Hata", description: data.error || "Yetkilendirme URL'si alınamadı", variant: "destructive" });
+      if (!data.url) {
+        toast({ title: "Hata", description: data.error || "URL alınamadı", variant: "destructive" });
         setCanvaConnecting(false);
+        return;
       }
-    } catch (e) {
+      window.open(data.url, "canva-auth", "width=620,height=700,left=200,top=100");
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts += 1;
+        try {
+          const r = await fetch("/api/canva/status");
+          const d = await r.json();
+          if (d.connected) {
+            clearInterval(poll);
+            setCanvaConnecting(false);
+            refetchCanva();
+            toast({ title: "Canva bağlandı" });
+          } else if (attempts >= 90) {
+            clearInterval(poll);
+            setCanvaConnecting(false);
+          }
+        } catch {
+          if (attempts >= 90) {
+            clearInterval(poll);
+            setCanvaConnecting(false);
+          }
+        }
+      }, 2000);
+    } catch {
       toast({ title: "Hata", description: "Canva bağlantısı başlatılamadı", variant: "destructive" });
       setCanvaConnecting(false);
     }
@@ -273,7 +286,7 @@ export default function ShopifySettingsDialog() {
     try {
       await fetch("/api/canva/disconnect", { method: "POST" });
       refetchCanva();
-      toast({ title: "Canva bağlantısı kesildi", description: "Artık görseller Canva'ya yüklenmeyecek." });
+      toast({ title: "Canva bağlantısı kesildi" });
     } catch {
       toast({ title: "Hata", description: "Bağlantı kesilemedi", variant: "destructive" });
     } finally {
@@ -281,110 +294,10 @@ export default function ShopifySettingsDialog() {
     }
   }
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/shopify/credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shopDomain, apiKey, apiSecret }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Kayıt başarısız");
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
-      toast({ title: "Kaydedildi", description: "Kimlik bilgileri kaydedildi. Şimdi Shopify'a bağlanın." });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Hata", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const directTokenMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/shopify/direct-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shopDomain: directDomain, accessToken: directToken }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Token kaydedilemedi");
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
-      setDirectToken("");
-      setLiveTest({ success: true, message: `${data.storeName || data.shopDomain} mağazasına bağlanıldı.`, store: data.storeName });
-      toast({
-        title: "Bağlantı Başarılı ✅",
-        description: `${data.storeName || data.shopDomain} mağazasına bağlanıldı. Token kalıcı olarak kaydedildi.`,
-      });
-    },
-    onError: (err: Error) => {
-      setLiveTest({ success: false, message: err.message });
-      toast({ title: "Token Hatası ❌", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const connectMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/shopify/auth-url");
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "URL alınamadı");
-      }
-      return res.json() as Promise<{ authUrl: string }>;
-    },
-    onSuccess: (data) => {
-      window.open(data.authUrl, "_blank");
-      toast({
-        title: "Shopify Yetkilendirme",
-        description: "Açılan pencerede Shopify'a giriş yaparak uygulamayı onaylayın.",
-      });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Hata", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/shopify/credentials", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shopDomain: status?.shopDomain }),
-      });
-      if (!res.ok) throw new Error("Silme başarısız");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
-      setShopDomain(""); setApiKey(""); setApiSecret(""); setDirectToken("");
-      setLiveTest(null);
-      toast({ title: "Bağlantı kesildi", description: "Shopify kimlik bilgileri silindi." });
-    },
-  });
-
-  const isActuallyConnected =
-    liveTest?.success === true || tokenRefreshStatus?.connected === true || tokenRefreshStatus?.liveConnected === true;
-  const isActuallyFailed =
-    liveTest?.success === false &&
-    tokenRefreshStatus?.connected !== true &&
-    tokenRefreshStatus?.liveConnected !== true;
-  const hasCredentials = status?.hasToken || tokenRefreshStatus?.hasActiveToken;
-
-  const badgeStatus = isActuallyConnected
-    ? "connected"
-    : isActuallyFailed
-      ? "failed"
-      : hasCredentials
-        ? "unknown"
-        : "none";
-
+  const connected =
+    liveTest?.success === true ||
+    tokenStatus?.connected === true ||
+    tokenStatus?.liveConnected === true;
   const canvaConnected = canvaStatus?.connected === true;
 
   return (
@@ -392,23 +305,15 @@ export default function ShopifySettingsDialog() {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Settings className="h-4 w-4" />
-          Shopify Bağlantısı
+          Shopify
           {isLoading ? (
             <Loader2 className="h-3 w-3 animate-spin" />
-          ) : badgeStatus === "connected" ? (
-            <Badge className="!bg-emerald-600 !text-white border-transparent text-[10px] font-semibold px-1.5 py-0 leading-4">
+          ) : connected ? (
+            <Badge className="!bg-emerald-600 !text-white border-transparent text-[10px] px-1.5 py-0">
               Bağlı
             </Badge>
-          ) : badgeStatus === "failed" ? (
-            <Badge className="!bg-red-600 !text-white border-transparent text-[10px] font-semibold px-1.5 py-0 leading-4">
-              Hata
-            </Badge>
-          ) : badgeStatus === "unknown" ? (
-            <Badge className="!bg-amber-600 !text-white border-transparent text-[10px] font-semibold px-1.5 py-0 leading-4">
-              Kontrol Et
-            </Badge>
           ) : (
-            <Badge className="!bg-red-700 !text-white border-transparent text-[10px] font-semibold px-1.5 py-0 leading-4">
+            <Badge className="!bg-red-700 !text-white border-transparent text-[10px] px-1.5 py-0">
               Bağlı Değil
             </Badge>
           )}
@@ -417,312 +322,120 @@ export default function ShopifySettingsDialog() {
 
       <DialogContent className="sm:max-w-md" aria-describedby="shopify-dialog-desc">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Bağlantı Ayarları
-          </DialogTitle>
+          <DialogTitle>Bağlantı Ayarları</DialogTitle>
         </DialogHeader>
-        <p id="shopify-dialog-desc" className="sr-only">Shopify ve Canva bağlantı ayarları</p>
+        <p id="shopify-dialog-desc" className="sr-only">
+          Shopify ve Canva bağlantı ayarları
+        </p>
 
         <Tabs defaultValue="shopify">
           <TabsList className="w-full">
             <TabsTrigger value="shopify" className="flex-1">
               Shopify
-              {badgeStatus === "connected" && <span className="ml-1 w-2 h-2 rounded-full bg-green-500 inline-block" />}
-              {badgeStatus === "failed" && <span className="ml-1 w-2 h-2 rounded-full bg-red-500 inline-block" />}
             </TabsTrigger>
             <TabsTrigger value="canva" className="flex-1">
-              <Image className="h-3 w-3 mr-1" />
               Canva
-              {canvaConnected && <span className="ml-1 w-2 h-2 rounded-full bg-green-500 inline-block" />}
             </TabsTrigger>
           </TabsList>
 
-          {/* ── Shopify Tab ── */}
-          <TabsContent value="shopify" className="space-y-4 mt-3">
-            {/* Canlı Bağlantı Durumu */}
-            <div className={`flex items-center gap-2 p-3 rounded-lg border ${
-              liveTestLoading ? 'bg-muted border-muted-foreground/20' :
-              isActuallyConnected ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' :
-              isActuallyFailed ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800' :
-              'bg-muted border-muted-foreground/20'
-            }`}>
+          <TabsContent value="shopify" className="mt-3 space-y-4">
+            <div
+              className={`flex items-start gap-2 rounded-lg border p-3 ${
+                connected
+                  ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
+                  : "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
+              }`}
+            >
               {liveTestLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Bağlantı test ediliyor...</p>
-                    <p className="text-xs text-muted-foreground">{status?.shopDomain}</p>
-                  </div>
-                </>
-              ) : isActuallyConnected ? (
-                <>
-                  <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-green-700 dark:text-green-400">Shopify'a Bağlı ✅</p>
-                    <p className="text-xs text-muted-foreground">{liveTest?.store || status?.shopDomain}</p>
-                  </div>
-                </>
-              ) : isActuallyFailed ? (
-                <>
-                  <XCircle className="h-5 w-5 text-red-500 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-red-700 dark:text-red-400">Bağlantı Başarısız ❌</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{liveTest?.message}</p>
-                  </div>
-                </>
+                <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-muted-foreground" />
+              ) : connected ? (
+                <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
               ) : (
-                <>
-                  <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-orange-700 dark:text-orange-400">
-                      {hasCredentials ? "Token mevcut — bağlantı henüz test edilmedi" : "Token yok"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {hasCredentials ? status?.shopDomain : "Admin Token sekmesinden token girin"}
-                    </p>
-                  </div>
-                </>
+                <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
               )}
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {liveTestLoading
+                    ? "Kontrol ediliyor..."
+                    : connected
+                      ? "Shopify bağlı"
+                      : "Shopify bağlı değil"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {connected
+                    ? liveTest?.store || status?.shopDomain || shopDomain
+                    : liveTest?.message ||
+                      "Mağaza + Client ID + Client Secret ile 24 saatlik token alınır."}
+                </p>
+              </div>
             </div>
 
-            {/* Token Otomatik Yenileme Durumu */}
-            {(() => {
-              const trs = tokenRefreshStatus;
-              const clientIdOk =
-                trs?.envVarsConfigured?.SHOPIFY_CLIENT_ID ?? trs?.envVarsConfigured?.SHOPIFY_API_KEY;
-              const clientCredentialsReady =
-                trs?.clientCredentialsReady ?? trs?.status?.clientCredentialsReady ?? false;
-              const secretIsShared =
-                trs?.secretLooksLikeSharedSecret === true ||
-                trs?.status?.secretLooksLikeSharedSecret === true ||
-                trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET_IS_SHARED_SECRET === true ||
-                status?.secretLooksLikeSharedSecret === true;
-              const clientSecretUsable =
-                trs?.clientSecretUsableForRefresh === true ||
-                trs?.envVarsConfigured?.SHOPIFY_CLIENT_SECRET_USABLE === true ||
-                clientCredentialsReady;
-              const clientSecretConfigured = clientSecretUsable;
-              const hasAdminTokenEnv =
-                trs?.envVarsConfigured?.SHOPIFY_ADMIN_ACCESS_TOKEN === true ||
-                trs?.envVarsConfigured?.SHOPIFY_ACCESS_TOKEN === true;
-              const refreshActive =
-                (trs?.status?.autoRefreshEnabled || trs?.hasActiveToken || trs?.hasDbToken) &&
-                (clientSecretUsable || hasAdminTokenEnv || trs?.hasActiveToken || trs?.hasDbToken);
-              const lastMs = trs?.status?.lastSuccessfulRefreshAt || trs?.status?.lastRefreshTime || 0;
-              const msLeft = trs?.status?.msUntilRefresh || 0;
-              const hLeft = Math.floor(msLeft / 3600000);
-              const mLeft = Math.floor((msLeft % 3600000) / 60000);
-              const lastStr =
-                lastMs > 0 ? new Date(lastMs).toLocaleString('tr-TR') : 'Henüz yenilenmedi';
-              const expiresStr = trs?.tokenExpiresAt
-                ? new Date(trs.tokenExpiresAt).toLocaleString('tr-TR')
-                : trs?.status?.cache?.expiresAt
-                  ? new Date(trs.status.cache.expiresAt).toLocaleString('tr-TR')
-                  : '—';
-              const isRefreshing = trs?.status?.isRefreshing;
-              const lastErr = trs?.lastError || trs?.status?.lastError;
-              return (
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Otomatik Token Yenileme
-                    </p>
-                    {refreshActive ? (
-                      <Badge className="bg-green-500 text-white text-xs px-1 py-0">Aktif</Badge>
-                    ) : (
-                      <Badge variant="destructive" className="text-xs px-1 py-0">Pasif</Badge>
-                    )}
-                  </div>
-                  {secretIsShared && !clientSecretUsable && (
-                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                      App Shared Secret (shpss_) otomatik yenileme için kullanılamaz. Admin Token (shpat_...) kaydedin.
-                    </p>
-                  )}
-                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                    <div>
-                      <span className="block text-foreground/70">Son yenileme</span>
-                      <span className="font-mono">{lastStr}</span>
-                    </div>
-                    <div>
-                      <span className="block text-foreground/70">Token bitiş</span>
-                      <span className="font-mono">{expiresStr}</span>
-                    </div>
-                    <div>
-                      <span className="block text-foreground/70">Sonraki kontrol</span>
-                      <span className="font-mono">
-                        {lastMs > 0 ? `${hLeft}s ${mLeft}dk` : '—'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-foreground/70">Kaynak</span>
-                      <span className="font-mono">{trs?.status?.cache?.source || '—'}</span>
-                    </div>
-                    <div>
-                      <span className="block text-foreground/70">Client ID</span>
-                      <span className={clientIdOk ? 'text-green-600' : 'text-red-500'}>
-                        {clientIdOk ? '✅ Tanımlı' : '❌ Eksik'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-foreground/70">Client Secret</span>
-                      <span className={clientSecretUsable ? 'text-green-600' : 'text-red-500'}>
-                        {clientSecretUsable
-                          ? '✅ Kullanılabilir'
-                          : secretIsShared
-                            ? '❌ shpss_ (uygunsuz)'
-                            : '❌ Eksik'}
-                      </span>
-                    </div>
-                  </div>
-                  {lastErr && (
-                    <p className="text-xs text-red-600 dark:text-red-400 line-clamp-3">{lastErr}</p>
-                  )}
-                  {/* Manuel token yenileme — sunucudaki isRefreshing bayrağı takılsa bile
-                      buton daima tıklanabilir kalır; yalnızca yerel istek sürerken kilitlenir. */}
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="w-full gap-2 h-8 text-xs"
-                    onClick={() => rotateNowMutation.mutate()}
-                    disabled={rotateNowMutation.isPending || (!clientSecretUsable && !trs?.hasActiveToken && !hasAdminTokenEnv)}
-                  >
-                    {rotateNowMutation.isPending
-                      ? <Loader2 className="h-3 w-3 animate-spin" />
-                      : <RefreshCw className="h-3 w-3" />}
-                    {rotateNowMutation.isPending ? 'Yenileniyor...' : 'Token’ı Şimdi Yenile'}
-                  </Button>
-                  {isRefreshing && !rotateNowMutation.isPending && (
-                    <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Arka planda otomatik yenileme sürüyor…
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
-
-            {(isActuallyFailed || !status?.hasToken || status?.needsAdminToken) && (
-              <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-100">
-                <p className="font-semibold mb-1">🔑 24 saatlik token için Client Secret gerekli</p>
-                <p className="mb-2 text-amber-800 dark:text-amber-200">
-                  {status?.bootstrapMessage ||
-                    "Uygulama Client ID + Client Secret ile otomatik shpat_ üretir (~24 saat). App Shared Secret (shpss_) bu işe yaramaz."}
-                </p>
-                <ol className="list-decimal list-inside space-y-0.5 text-amber-800 dark:text-amber-200">
-                  <li>Shopify Dev Dashboard → uygulamanız → Settings</li>
-                  <li><strong>Client ID</strong> ve <strong>Client Secret</strong> (<code className="bg-muted px-1 rounded">shpsec_...</code>) kopyalayın</li>
-                  <li>Railway / .env: <code className="bg-muted px-1 rounded">SHOPIFY_CLIENT_ID</code> + <code className="bg-muted px-1 rounded">SHOPIFY_CLIENT_SECRET</code></li>
-                  <li>veya OAuth sekmesinden kaydedip <strong>Token’ı Şimdi Yenile</strong></li>
-                  <li>Yedek: Admin Token sekmesine kalıcı <code className="bg-muted px-1 rounded">shpat_...</code></li>
-                </ol>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="shop-domain">Mağaza</Label>
+                <Input
+                  id="shop-domain"
+                  placeholder="magaza.myshopify.com"
+                  value={shopDomain}
+                  onChange={(e) => setShopDomain(e.target.value)}
+                />
               </div>
-            )}
-
-            <Tabs defaultValue="direct">
-              <TabsList className="w-full">
-                <TabsTrigger value="direct" className="flex-1">
-                  <Key className="h-3 w-3 mr-1" />
-                  Admin Token
-                </TabsTrigger>
-                <TabsTrigger value="oauth" className="flex-1">
-                  <ExternalLink className="h-3 w-3 mr-1" />
-                  OAuth
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="direct" className="space-y-3 mt-3">
-                <p className="text-xs text-muted-foreground">
-                  Shopify Admin'de özel uygulama oluşturup aldığınız <code className="bg-muted px-1 rounded">shpat_...</code> token'ı buraya yapıştırın.
+              <div className="space-y-1">
+                <Label htmlFor="client-id">Client ID</Label>
+                <Input
+                  id="client-id"
+                  placeholder="Dev Dashboard Client ID"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="client-secret">Client Secret</Label>
+                <Input
+                  id="client-secret"
+                  type="password"
+                  placeholder="shpss_... veya shpsec_..."
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Postman ile aynı: client_id + client_secret + grant_type=client_credentials → ~24s token.
                 </p>
-                <div className="space-y-1">
-                  <Label htmlFor="directDomain">Mağaza Adresi</Label>
-                  <Input
-                    id="directDomain"
-                    placeholder="mağazanız.myshopify.com"
-                    value={directDomain}
-                    onChange={(e) => setDirectDomain(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="directToken">Admin API Access Token</Label>
-                  <Input
-                    id="directToken"
-                    type="password"
-                    placeholder="shpat_xxxxxxxxxxxxxxxxxxxx"
-                    value={directToken}
-                    onChange={(e) => setDirectToken(e.target.value)}
-                  />
-                </div>
-                <Button
-                  className="w-full"
-                  onClick={() => directTokenMutation.mutate()}
-                  disabled={!directDomain || !directToken || directTokenMutation.isPending}
-                >
-                  {directTokenMutation.isPending
-                    ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    : <Key className="h-4 w-4 mr-2" />}
-                  Token'ı Doğrula ve Kaydet
-                </Button>
-              </TabsContent>
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => connectMutation.mutate()}
+                disabled={
+                  !shopDomain ||
+                  !clientId ||
+                  !clientSecret ||
+                  connectMutation.isPending
+                }
+              >
+                {connectMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Key className="mr-2 h-4 w-4" />
+                )}
+                Kaydet ve Bağlan
+              </Button>
+            </div>
 
-              <TabsContent value="oauth" className="space-y-3 mt-3">
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold">Adım 1 — Kimlik bilgilerini girin</p>
-                  <div className="space-y-1">
-                    <Label htmlFor="shopDomain">Mağaza Adresi</Label>
-                    <Input
-                      id="shopDomain"
-                      placeholder="mağazanız.myshopify.com"
-                      value={shopDomain}
-                      onChange={(e) => setShopDomain(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="apiKey">İstemci Kimliği (Client ID)</Label>
-                    <Input
-                      id="apiKey"
-                      placeholder="API Key..."
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="apiSecret">Gizli Anahtar (Client Secret)</Label>
-                    <Input
-                      id="apiSecret"
-                      type="password"
-                      placeholder="API Secret..."
-                      value={apiSecret}
-                      onChange={(e) => setApiSecret(e.target.value)}
-                    />
-                  </div>
-                  <Button
-                    className="w-full"
-                    onClick={() => saveMutation.mutate()}
-                    disabled={!shopDomain || !apiKey || !apiSecret || saveMutation.isPending}
-                  >
-                    {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Kaydet
-                  </Button>
-                </div>
-                <div className="space-y-2 pt-2 border-t">
-                  <p className="text-sm font-semibold">Adım 2 — Shopify'da yetkilendir</p>
-                  <Button
-                    variant="secondary"
-                    className="w-full gap-2"
-                    onClick={() => connectMutation.mutate()}
-                    disabled={!(status?.oauthReady || status?.shopDomain) || connectMutation.isPending}
-                  >
-                    {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                    Shopify'da Yetkilendir
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
-
-            <div className="flex gap-2 pt-1 border-t">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => rotateMutation.mutate()}
+                disabled={rotateMutation.isPending}
+              >
+                {rotateMutation.isPending ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1 h-3 w-3" />
+                )}
+                Token Yenile
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -730,87 +443,104 @@ export default function ShopifySettingsDialog() {
                 onClick={runLiveTest}
                 disabled={liveTestLoading}
               >
-                {liveTestLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                Bağlantıyı Test Et
+                {liveTestLoading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                Test Et
               </Button>
-              {status?.shopDomain && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-600 hover:text-red-700"
-                  onClick={() => deleteMutation.mutate()}
-                  disabled={deleteMutation.isPending}
-                >
-                  Bağlantıyı Kes
-                </Button>
+            </div>
+
+            <div className="border-t pt-2">
+              <button
+                type="button"
+                className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                onClick={() => setShowAdvanced((v) => !v)}
+              >
+                {showAdvanced ? "Gelişmiş seçenekleri gizle" : "Gelişmiş: kalıcı Admin Token"}
+              </button>
+              {showAdvanced && (
+                <div className="mt-3 space-y-2">
+                  <Input
+                    type="password"
+                    placeholder="shpat_..."
+                    value={adminToken}
+                    onChange={(e) => setAdminToken(e.target.value)}
+                  />
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    size="sm"
+                    onClick={() => adminTokenMutation.mutate()}
+                    disabled={!shopDomain || !adminToken || adminTokenMutation.isPending}
+                  >
+                    {adminTokenMutation.isPending ? (
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    ) : null}
+                    Admin Token Kaydet
+                  </Button>
+                  {(status?.shopDomain || shopDomain) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-red-600"
+                      onClick={() => deleteMutation.mutate()}
+                      disabled={deleteMutation.isPending}
+                    >
+                      Bağlantıyı Kes
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </TabsContent>
 
-          {/* ── Canva Tab ── */}
-          <TabsContent value="canva" className="space-y-4 mt-3">
-            {/* Canva bağlantı durumu */}
-            <div className={`flex items-center gap-3 p-3 rounded-lg border ${
-              canvaConnected
-                ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800'
-                : 'bg-muted border-muted-foreground/20'
-            }`}>
+          <TabsContent value="canva" className="mt-3 space-y-4">
+            <div
+              className={`flex items-center gap-2 rounded-lg border p-3 ${
+                canvaConnected
+                  ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
+                  : "bg-muted"
+              }`}
+            >
               {canvaConnected ? (
-                <>
-                  <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-green-700 dark:text-green-400">Canva'ya Bağlı ✅</p>
-                    <p className="text-xs text-muted-foreground">Ürün görselleri otomatik yükleniyor</p>
-                  </div>
-                </>
+                <CheckCircle className="h-5 w-5 text-emerald-600" />
               ) : (
-                <>
-                  <XCircle className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Canva Bağlı Değil</p>
-                    <p className="text-xs text-muted-foreground">Bağlandıktan sonra aktarılan ürün görselleri Canva'ya yüklenecek</p>
-                  </div>
-                </>
+                <XCircle className="h-5 w-5 text-muted-foreground" />
               )}
-            </div>
-
-            {!canvaConnected ? (
-              <div className="space-y-3">
-                <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
-                  <p className="font-semibold">Canva nasıl bağlanır?</p>
-                  <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-300">
-                    <li>"Canva ile Bağlan" butonuna tıklayın</li>
-                    <li>Canva hesabınıza giriş yapın</li>
-                    <li>İzin isteğini onaylayın</li>
-                    <li>Otomatik olarak geri döneceksiniz</li>
-                  </ol>
-                </div>
-                <Button
-                  className="w-full gap-2 bg-[#7D2AE8] hover:bg-[#6a1fd4] text-white"
-                  onClick={connectCanva}
-                  disabled={canvaConnecting}
-                >
-                  {canvaConnecting
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <Image className="h-4 w-4" />}
-                  Canva ile Bağlan
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  Bundan sonra Shopify'a aktardığınız her ürünün görselleri otomatik olarak Canva'daki <strong>Yüklemeler</strong> bölümünüze eklenecek.
+              <div>
+                <p className="text-sm font-medium">
+                  {canvaConnected ? "Canva bağlı" : "Canva bağlı değil"}
                 </p>
-                <Button
-                  variant="outline"
-                  className="w-full text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-                  onClick={disconnectCanva}
-                  disabled={canvaDisconnecting}
-                >
-                  {canvaDisconnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Canva Bağlantısını Kes
-                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {canvaConnected
+                    ? "Ürün görselleri Canva’ya yüklenebilir"
+                    : "Bağlandıktan sonra görseller otomatik gider"}
+                </p>
               </div>
+            </div>
+            {!canvaConnected ? (
+              <Button
+                className="w-full gap-2 bg-[#7D2AE8] text-white hover:bg-[#6a1fd4]"
+                onClick={connectCanva}
+                disabled={canvaConnecting}
+              >
+                {canvaConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Image className="h-4 w-4" />
+                )}
+                Canva ile Bağlan
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                className="w-full text-red-600"
+                onClick={disconnectCanva}
+                disabled={canvaDisconnecting}
+              >
+                {canvaDisconnecting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Canva Bağlantısını Kes
+              </Button>
             )}
           </TabsContent>
         </Tabs>

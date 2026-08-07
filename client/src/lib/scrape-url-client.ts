@@ -383,21 +383,25 @@ export async function fetchScenarioScrapeResult(
     const { jobId } = startData;
     let globalTimeoutMs = 180_000;
     try {
-      const capResp = await fetch("/api/runtime/scrape-capabilities", { cache: "no-store" });
-      if (capResp.ok) {
-        const caps = await capResp.json();
-        if (typeof caps.globalTimeoutMs === "number") globalTimeoutMs = caps.globalTimeoutMs;
-      }
+      const { fetchScrapeCapabilities } = await import("./scrape-capabilities");
+      const caps = await fetchScrapeCapabilities();
+      if (typeof caps.globalTimeoutMs === "number") globalTimeoutMs = caps.globalTimeoutMs;
     } catch {
       /* use default */
     }
     const maxWait = Math.max(globalTimeoutMs + 45_000, 240_000);
-    const pollInterval = 2500;
+    // İlk poll hemen; sonra kısa aralık — 2.5s bekleme toplam süreyi şişiriyordu
+    const pollIntervalsMs = [0, 400, 700, 1000];
+    let pollAttempt = 0;
     const deadline = Date.now() + maxWait;
     let polled: Record<string, unknown> | null = null;
 
     while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, pollInterval));
+      const waitMs = pollIntervalsMs[Math.min(pollAttempt, pollIntervalsMs.length - 1)]!;
+      pollAttempt += 1;
+      if (waitMs > 0) {
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
       const pollResp = await fetch(`/api/scrape-job/${jobId}`, { cache: "no-store" });
       if (pollResp.status === 404) {
         throw new Error("job not found; server may have restarted");

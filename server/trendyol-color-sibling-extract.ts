@@ -5,11 +5,13 @@
 import { extractTrendyolProductId } from "./trendyol-title-utils";
 
 // Canlı Trendyol ürünlerinde 12'den fazla (örn. ORZUQLIFE: 14) renk bulunabiliyor.
-export const COLOR_FAMILY_MAX_MEMBERS = 20;
+export const COLOR_FAMILY_MAX_MEMBERS = Number(process.env.COLOR_FAMILY_MAX_MEMBERS) || 8;
 export const COLOR_FAMILY_MEMBER_TIMEOUT_MS = 20_000;
 export const COLOR_FAMILY_MEMBER_HYDRATION_TIMEOUT_MS = 12_000;
 export const COLOR_FAMILY_TOTAL_DEADLINE_MS = 45_000;
-export const COLOR_FAMILY_CONCURRENCY = 2;
+/** Yerelde 4, cloud'da 2 — renk kardeşlerini paralel çek */
+export const COLOR_FAMILY_CONCURRENCY = Number(process.env.COLOR_FAMILY_CONCURRENCY) ||
+  (process.env.RAILWAY_ENVIRONMENT || process.env.RENDER || process.env.FLY_APP_NAME ? 2 : 4);
 
 export type TrendyolColorSiblingCandidate = {
   productId: string;

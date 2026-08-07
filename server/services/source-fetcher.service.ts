@@ -73,6 +73,17 @@ export async function fetchSourceForTracking(
   options?: { baselinePrice?: number | null },
 ): Promise<SourceFetchResult> {
   try {
+    const { isTrendyolCircuitOpen, formatCircuitOpenUserMessage, getTrendyolBlockStatus } =
+      await import("../trendyol-block-guard");
+    if (sourceUrl.includes("trendyol") && isTrendyolCircuitOpen()) {
+      const status = getTrendyolBlockStatus();
+      return {
+        valid: false,
+        reason: "trendyol-circuit-open",
+        message: formatCircuitOpenUserMessage(status),
+      };
+    }
+
     const outcome = await runTrendyolScrapePipeline(sourceUrl, "auto-fast");
     const result = outcome.result ?? {};
 

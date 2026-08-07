@@ -40,7 +40,9 @@ export type ScrapeStageErrorCode =
   | "browser-worker-timeout"
   | "browser-worker-unauthorized"
   | "browser-worker-invalid-response"
-  | "browser-worker-blocked";
+  | "browser-worker-blocked"
+  | "trendyol-circuit-open"
+  | "upstream-556";
 
 export type FinalSuccessReason =
   | "api-only"
@@ -260,6 +262,14 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
   const cloud = diagnostics.isCloudRuntime;
   const reason = diagnostics.finalSuccessReason ?? "no-usable-data";
 
+  if (errors.includes("trendyol-circuit-open")) {
+    return "Trendyol erişimi geçici olarak durduruldu (ban koruması). Birkaç dakika bekleyip tekrar deneyin; hemen denemek engeli uzatabilir.";
+  }
+
+  if (errors.includes("upstream-556") || errors.includes("trendyol-blocked")) {
+    return "Trendyol erişimi engelledi (Cloudflare/556/bot koruması). Kısa süre bekleyin; tekrar denemek engeli uzatabilir.";
+  }
+
   if (errors.includes("browser-worker-unauthorized")) {
     return cloud
       ? "Tarayıcı Worker yetkilendirmesi başarısız. Ana servis ve Browser Worker token değerlerini kontrol edin."
@@ -386,12 +396,14 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "browser-worker-unauthorized": "Tarayıcı Worker yetkisiz (token uyuşmazlığı)",
     "browser-worker-invalid-response": "Tarayıcı Worker geçersiz yanıt",
     "browser-worker-blocked": "Tarayıcı Worker engellendi",
+    "trendyol-blocked": "Trendyol erişimi engellendi",
+    "trendyol-circuit-open": "Trendyol ban koruması aktif (beklemede)",
+    "upstream-556": "Trendyol upstream 556 engeli",
     "scenario-timeout": "Senaryo zaman aşımı",
     "scenario-error": "Senaryo hatası",
     "chromium-not-found": "Chromium bulunamadı — PUPPETEER_EXECUTABLE_PATH veya puppeteer browsers install chrome",
     "chromium-launch-failed": "Chromium başlatılamadı",
     "navigation-timeout": "Sayfa yükleme zaman aşımı",
-    "trendyol-blocked": "Trendyol erişimi engellendi",
     "page-empty": "Sayfa boş veya ürün verisi yok",
     "unknown-scenario-error": "Bilinmeyen senaryo hatası",
     "scraping-provider-error": "Harici sağlayıcı hatası",

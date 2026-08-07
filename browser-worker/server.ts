@@ -1059,14 +1059,32 @@ async function fetchColorFamilyMembers(
 
 async function ensureBrowser(): Promise<Browser> {
   if (browser && browserReady) return browser;
+  const args = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-blink-features=AutomationControlled",
+  ];
+  const proxyUrl =
+    process.env.TRENDYOL_HTTP_PROXY?.trim() ||
+    process.env.INTERNAL_PROXY_URL?.trim() ||
+    "";
+  if (proxyUrl) {
+    try {
+      const u = new URL(proxyUrl);
+      const server =
+        u.port && u.port !== "80" && u.port !== "443"
+          ? `${u.hostname}:${u.port}`
+          : u.host;
+      args.push(`--proxy-server=${server}`);
+      console.log(`[browser-worker] using proxy host=${u.hostname}`);
+    } catch {
+      args.push(`--proxy-server=${proxyUrl}`);
+    }
+  }
   browser = await chromium.launch({
     headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-blink-features=AutomationControlled",
-    ],
+    args,
   });
   browserReady = true;
   return browser;

@@ -925,28 +925,7 @@ export async function fetchColorFamilyMembersViaApi(
         price = api.price?.original;
       }
 
-      // API boşsa kardeş HTML state’ten dene (local scrape yolu)
-      if (!product) {
-        try {
-          const { fetchTrendyolDirectHtmlRaw } = await import("./trendyol-direct-html");
-          const { getTrendyolProductFromHtml } = await import("./trendyol-product-state");
-          const htmlResult = await fetchTrendyolDirectHtmlRaw(candidate.url, 1);
-          const html = htmlResult?.html;
-          if (html && html.length >= 500) {
-            product = getTrendyolProductFromHtml(html);
-            if (product && images.length === 0) {
-              images = filterValidProductImages(
-                normalizeTrendyolImages(
-                  (product as { images?: unknown }).images ??
-                    (product as { imageUrls?: unknown }).imageUrls,
-                ),
-              );
-            }
-          }
-        } catch {
-          // soft-fail HTML
-        }
-      }
+      // HTML fallback kaldırıldı — kardeş başına ekstra 10-25s; soft-first yolu kullanılıyor.
 
       if (!product) {
         return {

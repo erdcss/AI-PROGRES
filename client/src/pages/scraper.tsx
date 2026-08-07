@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt, Bell, ChevronDown, ChevronUp, ArrowLeft, Download } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt, Bell, ChevronDown, ChevronUp, ArrowLeft, Download, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -290,6 +290,9 @@ function ScraperPage() {
   const [isVariantsOpen, setIsVariantsOpen] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{current: number; total: number} | null>(null);
+  const [bulkCurrentTitle, setBulkCurrentTitle] = useState<string | null>(null);
+  const bulkStopRequestedRef = useRef(false);
+  const bulkActiveUrlsRef = useRef<Set<string>>(new Set());
   const [uploadProgress, setUploadProgress] = useState<ShopifyUploadProgressState | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [failedUploads, setFailedUploads] = useState<{title: string; error: string}[]>([]);
@@ -1183,6 +1186,73 @@ function ScraperPage() {
     [appendPendingUrls],
   );
 
+  const labelFromProductUrl = useCallback((url: string): string => {
+    try {
+      const slug = new URL(url).pathname.split("/").filter(Boolean).pop() || url;
+      return decodeURIComponent(slug)
+        .replace(/-p-\d+$/i, "")
+        .replace(/-/g, " ")
+        .trim()
+        .slice(0, 100) || url;
+    } catch {
+      return url;
+    }
+  }, []);
+
+  const stopBulkScrape = useCallback(() => {
+    if (!isBulkProcessing || bulkStopRequestedRef.current) return;
+    bulkStopRequestedRef.current = true;
+    setWorkflowStep((prev) =>
+      prev ? `${prev.replace(" ürün çekiliyor...", "")} — durduruluyor...` : "Çekim durduruluyor...",
+    );
+    toast({
+      title: "Çekim durduruluyor",
+      description: "Tamamlanan ürünler korunur; kalanlar iptal edilir.",
+      duration: 4000,
+    });
+  }, [isBulkProcessing]);
+
+  const checkTrendyolBlockAndMaybeStopBulk = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/trendyol/block-status", { cache: "no-store" });
+      if (!res.ok) return false;
+      const data = (await res.json()) as {
+        open?: boolean;
+        remainingMs?: number;
+        lastKind?: string | null;
+        message?: string | null;
+      };
+      if (!data.open) return false;
+      setScrapeError(data.message || "Trendyol erişimi engellendi — ban koruması aktif.");
+      setScrapeErrorMeta({
+        reason: "trendyol-circuit-open",
+        userMessage: data.message || undefined,
+        stageErrors: ["trendyol-circuit-open"],
+        blockCooldownMs: data.remainingMs,
+        blockKind: data.lastKind || undefined,
+      });
+      if (isBulkProcessing) stopBulkScrape();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [isBulkProcessing, stopBulkScrape]);
+
+  useEffect(() => {
+    if (!isBulkProcessing) return;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      await checkTrendyolBlockAndMaybeStopBulk();
+    };
+    void tick();
+    const id = window.setInterval(tick, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [isBulkProcessing, checkTrendyolBlockAndMaybeStopBulk]);
+
   const processAllUrls = async (items: UrlQueueItem[]) => {
     const queue = items
       .map((item) => ({ ...item, url: normalizeProductUrl(item.url) }))
@@ -1197,8 +1267,11 @@ function ScraperPage() {
       return;
     }
 
+    bulkStopRequestedRef.current = false;
+    bulkActiveUrlsRef.current = new Set();
     setIsBulkProcessing(true);
     setBulkProgress({ current: 0, total: queue.length });
+    setBulkCurrentTitle(null);
     // Önceki oturumdan yalnızca görüntüleme amacıyla geri yüklenen CSV'ler,
     // yeni toplu işlemin ürün sayısına ve Shopify yükleme özetine karışmamalı.
     setCsvPreviews((previous) =>
@@ -1206,6 +1279,17 @@ function ScraperPage() {
     );
     setScrapeError(null);
     setScrapeErrorMeta(null);
+    if (await checkTrendyolBlockAndMaybeStopBulk()) {
+      setIsBulkProcessing(false);
+      setBulkProgress(null);
+      setBulkCurrentTitle(null);
+      toast({
+        title: "Trendyol ban koruması",
+        description: "Çekim başlatılmadı — cooldown bitene kadar bekleyin.",
+        variant: "destructive",
+      });
+      return;
+    }
     setWorkflowStep(`0/${queue.length} ürün çekiliyor...`);
 
     toast({
@@ -1216,6 +1300,7 @@ function ScraperPage() {
 
     let successCount = 0;
     let failCount = 0;
+    let cancelledCount = 0;
     let inStockProducts = 0;
     let outOfStockProducts = 0;
     let unknownStockProducts = 0;
@@ -1271,99 +1356,148 @@ function ScraperPage() {
 
     const scrapeWorker = async () => {
       while (scrapeCursor < queue.length) {
+        if (bulkStopRequestedRef.current) break;
         await waitIfCooling();
+        if (bulkStopRequestedRef.current) break;
         if (rateLimitHits > 0 && activeConcurrency > 1) {
           activeConcurrency = 1;
         }
         const i = scrapeCursor++;
         if (i >= queue.length) break;
         const { url } = queue[i];
-      updateUrlQueueItem(url, { status: "processing", error: undefined });
+        bulkActiveUrlsRef.current.add(url);
+        setBulkCurrentTitle(labelFromProductUrl(url));
+        updateUrlQueueItem(url, { status: "processing", error: undefined });
 
-      try {
-        await runMaybeSerial(async () => {
-        let scraped: Awaited<ReturnType<typeof fetchScenarioScrapeResult>>;
         try {
-          scraped = await fetchScenarioScrapeResult(url, true);
-        } catch (firstError) {
-          const rateLimited = looksLikeRateLimit(firstError);
-          if (rateLimited) {
-            rateLimitHits++;
-            activeConcurrency = 1;
-            const backoff = Math.min(90_000, 4000 * Math.pow(2, Math.min(rateLimitHits, 4)));
-            const jitter = Math.floor(Math.random() * 1500);
-            globalCooldownUntil = Date.now() + backoff + jitter;
-            await waitIfCooling();
-          } else {
-            await new Promise((resolve) => setTimeout(resolve, BULK_SCRAPE_RETRY_DELAY_MS));
-          }
-          scraped = await fetchScenarioScrapeResult(url, true);
-        }
-        const newPreview = buildCsvPreviewEntry(scraped, url, "bulk");
-        setCsvPreviews((prev) => [
-          newPreview as unknown as CSVPreviewData,
-          ...prev.filter(
-            (preview) =>
-              normalizeProductUrl(preview.sourceUrl ?? "") !== normalizeProductUrl(url),
-          ),
-        ]);
-        updateUrlQueueItem(url, { status: "success", error: undefined });
-        successCount++;
-        if (rateLimitHits > 0) rateLimitHits = Math.max(0, rateLimitHits - 1);
+          await runMaybeSerial(async () => {
+            let scraped: Awaited<ReturnType<typeof fetchScenarioScrapeResult>>;
+            try {
+              scraped = await fetchScenarioScrapeResult(url, true);
+            } catch (firstError) {
+              if (bulkStopRequestedRef.current) throw firstError;
+              const rateLimited = looksLikeRateLimit(firstError);
+              if (rateLimited) {
+                rateLimitHits++;
+                activeConcurrency = 1;
+                const backoff = Math.min(90_000, 4000 * Math.pow(2, Math.min(rateLimitHits, 4)));
+                const jitter = Math.floor(Math.random() * 1500);
+                globalCooldownUntil = Date.now() + backoff + jitter;
+                await waitIfCooling();
+              } else {
+                await new Promise((resolve) => setTimeout(resolve, BULK_SCRAPE_RETRY_DELAY_MS));
+              }
+              if (bulkStopRequestedRef.current) throw firstError;
+              scraped = await fetchScenarioScrapeResult(url, true);
+            }
 
-        const summary = newPreview.stockSummary as
-          | { totalVariants?: number; inStockVariants?: number; outOfStockVariants?: number; unknownStockVariants?: number }
-          | undefined;
-        if (summary) {
-          totalVariants += summary.totalVariants ?? 0;
-          inStockVariants += summary.inStockVariants ?? 0;
-          outOfStockVariants += summary.outOfStockVariants ?? 0;
-          unknownStockVariants += summary.unknownStockVariants ?? 0;
-        }
-        const label = newPreview.stockLabel as string | undefined;
-        if (label === "in_stock") inStockProducts++;
-        else if (label === "out_of_stock") outOfStockProducts++;
-        else if (label === "partial_stock") inStockProducts++;
-        else unknownStockProducts++;
+            if (bulkStopRequestedRef.current) {
+              cancelledCount++;
+              updateUrlQueueItem(url, {
+                status: "pending",
+                error: "Durduruldu — tamamlanmadan iptal",
+              });
+              return;
+            }
 
-        toast({
-          title: `✅ ${i + 1}/${queue.length} tamamlandı`,
-          description: scraped.title || url,
-          duration: 3000,
-        });
-        });
-      } catch (error) {
-        if (looksLikeRateLimit(error)) {
-          rateLimitHits++;
-          activeConcurrency = 1;
-          const backoff = Math.min(90_000, 5000 * Math.pow(2, Math.min(rateLimitHits, 4)));
-          globalCooldownUntil = Date.now() + backoff + Math.floor(Math.random() * 1500);
-          toast({
-            title: "Trendyol 429 engeli",
-            description: `${Math.ceil(backoff / 1000)}s beklenip daha yavaş devam edilecek`,
-            variant: "destructive",
-            duration: 6000,
+            const newPreview = buildCsvPreviewEntry(scraped, url, "bulk");
+            setBulkCurrentTitle(
+              (typeof scraped.title === "string" && scraped.title.trim()) ||
+                labelFromProductUrl(url),
+            );
+            setCsvPreviews((prev) => [
+              newPreview as unknown as CSVPreviewData,
+              ...prev.filter(
+                (preview) =>
+                  normalizeProductUrl(preview.sourceUrl ?? "") !== normalizeProductUrl(url),
+              ),
+            ]);
+            updateUrlQueueItem(url, { status: "success", error: undefined });
+            successCount++;
+            if (rateLimitHits > 0) rateLimitHits = Math.max(0, rateLimitHits - 1);
+
+            const summary = newPreview.stockSummary as
+              | { totalVariants?: number; inStockVariants?: number; outOfStockVariants?: number; unknownStockVariants?: number }
+              | undefined;
+            if (summary) {
+              totalVariants += summary.totalVariants ?? 0;
+              inStockVariants += summary.inStockVariants ?? 0;
+              outOfStockVariants += summary.outOfStockVariants ?? 0;
+              unknownStockVariants += summary.unknownStockVariants ?? 0;
+            }
+            const label = newPreview.stockLabel as string | undefined;
+            if (label === "in_stock") inStockProducts++;
+            else if (label === "out_of_stock") outOfStockProducts++;
+            else if (label === "partial_stock") inStockProducts++;
+            else unknownStockProducts++;
+
+            toast({
+              title: `✅ ${i + 1}/${queue.length} tamamlandı`,
+              description: scraped.title || url,
+              duration: 3000,
+            });
           });
+        } catch (error) {
+          if (bulkStopRequestedRef.current) {
+            cancelledCount++;
+            updateUrlQueueItem(url, {
+              status: "pending",
+              error: "Durduruldu — tamamlanmadan iptal",
+            });
+          } else {
+            if (looksLikeRateLimit(error)) {
+              rateLimitHits++;
+              activeConcurrency = 1;
+              const backoff = Math.min(90_000, 5000 * Math.pow(2, Math.min(rateLimitHits, 4)));
+              globalCooldownUntil = Date.now() + backoff + Math.floor(Math.random() * 1500);
+              toast({
+                title: "Trendyol 429 engeli",
+                description: `${Math.ceil(backoff / 1000)}s beklenip daha yavaş devam edilecek`,
+                variant: "destructive",
+                duration: 6000,
+              });
+            }
+            const errMsg = error instanceof Error ? error.message : "Bilinmeyen hata";
+            const looksLikeBan =
+              /trendyol-circuit-open|erişimi engelledi|upstream 556|Cloudflare|ban koruması/i.test(
+                errMsg,
+              );
+            if (looksLikeBan) {
+              bulkStopRequestedRef.current = true;
+              setScrapeError(errMsg);
+              setScrapeErrorMeta({
+                reason: "trendyol-blocked",
+                userMessage: errMsg,
+                stageErrors: ["trendyol-blocked"],
+              });
+              await checkTrendyolBlockAndMaybeStopBulk();
+            }
+            failCount++;
+            updateUrlQueueItem(url, {
+              status: "error",
+              error: errMsg,
+            });
+            toast({
+              title: looksLikeBan
+                ? "⛔ Ban koruması — çekim durduruluyor"
+                : `❌ ${i + 1}/${queue.length} başarısız`,
+              description: errMsg,
+              variant: "destructive",
+              duration: 4000,
+            });
+          }
+        } finally {
+          bulkActiveUrlsRef.current.delete(url);
+          completedScrapes++;
+          setBulkProgress({ current: completedScrapes, total: queue.length });
+          setWorkflowStep(
+            bulkStopRequestedRef.current
+              ? `${successCount}/${queue.length} ürün alındı — durduruluyor...`
+              : rateLimitHits > 0
+                ? `${completedScrapes}/${queue.length} çekiliyor (429 koruması aktif)`
+                : `${completedScrapes}/${queue.length} ürün çekiliyor...`,
+          );
         }
-        failCount++;
-        updateUrlQueueItem(url, {
-          status: "error",
-          error: error instanceof Error ? error.message : "Bilinmeyen hata",
-        });
-        toast({
-          title: `❌ ${i + 1}/${queue.length} başarısız`,
-          description: error instanceof Error ? error.message : "Bilinmeyen hata",
-          variant: "destructive",
-          duration: 4000,
-        });
-      }
-        completedScrapes++;
-        setBulkProgress({ current: completedScrapes, total: queue.length });
-        setWorkflowStep(
-          rateLimitHits > 0
-            ? `${completedScrapes}/${queue.length} çekiliyor (429 koruması aktif)`
-            : `${completedScrapes}/${queue.length} ürün çekiliyor...`,
-        );
       }
     };
 
@@ -1374,14 +1508,36 @@ function ScraperPage() {
       ),
     );
 
+    // Durdurulduysa henüz başlamayan URL'leri pending bırak
+    if (bulkStopRequestedRef.current) {
+      for (let i = scrapeCursor; i < queue.length; i++) {
+        cancelledCount++;
+        updateUrlQueueItem(queue[i].url, {
+          status: "pending",
+          error: "Durduruldu — sırada beklerken iptal",
+        });
+      }
+    }
+
+    const wasStopped = bulkStopRequestedRef.current;
+    bulkStopRequestedRef.current = false;
+    bulkActiveUrlsRef.current.clear();
     setIsBulkProcessing(false);
     setBulkProgress(null);
-    if (successCount > 0 && failCount === 0) {
+    setBulkCurrentTitle(null);
+
+    if (successCount > 0 && failCount === 0 && !wasStopped) {
       setScrapeError(null);
       setScrapeErrorMeta(null);
       setWorkflowStep(`${successCount} ürün hazır — Shopify'a gönderebilirsiniz`);
+    } else if (successCount > 0 && wasStopped) {
+      setWorkflowStep(
+        `${successCount} ürün hazır (durduruldu${cancelledCount > 0 ? `, ${cancelledCount} iptal` : ""})`,
+      );
     } else if (successCount > 0) {
       setWorkflowStep(`${successCount} ürün hazır, ${failCount} hata`);
+    } else if (wasStopped) {
+      setWorkflowStep(cancelledCount > 0 ? `Çekim durduruldu (${cancelledCount} iptal)` : "Çekim durduruldu");
     } else if (failCount > 0) {
       setWorkflowStep(null);
     }
@@ -1398,8 +1554,10 @@ function ScraperPage() {
     });
 
     toast({
-      title: "Toplu İşlem Tamamlandı",
-      description: `✅ ${successCount} ürün | Stokta: ${inStockProducts} | Stok yok: ${outOfStockProducts} | Bilinmiyor: ${unknownStockProducts} | ❌ Hata: ${failCount}`,
+      title: wasStopped ? "Çekim Durduruldu" : "Toplu İşlem Tamamlandı",
+      description: wasStopped
+        ? `✅ ${successCount} ürün korundu | ⛔ ${cancelledCount} iptal | ❌ Hata: ${failCount}`
+        : `✅ ${successCount} ürün | Stokta: ${inStockProducts} | Stok yok: ${outOfStockProducts} | Bilinmiyor: ${unknownStockProducts} | ❌ Hata: ${failCount}`,
       duration: 10000,
     });
   };
@@ -1774,6 +1932,9 @@ function ScraperPage() {
     setScrapeErrorMeta(null);
     setIsBulkProcessing(false);
     setBulkProgress(null);
+    setBulkCurrentTitle(null);
+    bulkStopRequestedRef.current = false;
+    bulkActiveUrlsRef.current.clear();
     setUploadProgress(null);
     setFailedUploads([]);
     setUploadingId(null);
@@ -2627,23 +2788,43 @@ function ScraperPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-zinc-300 font-medium text-sm">
-                                {bulkProgress ? `${bulkProgress.current}. ürün işleniyor...` : 'Başlatılıyor...'}
+                                {bulkProgress
+                                  ? `${bulkProgress.current}/${bulkProgress.total} ürün çekiliyor...`
+                                  : "Başlatılıyor..."}
                               </p>
-                              <p className="text-zinc-500 text-xs mt-0.5">
-                                Lütfen sayfayı kapatmayın
+                              <p className="text-zinc-400 text-xs mt-0.5 truncate">
+                                {bulkCurrentTitle
+                                  ? `Şu an bu ürün çekiliyor: ${bulkCurrentTitle}`
+                                  : "Lütfen sayfayı kapatmayın"}
                               </p>
                             </div>
                             <div className="shrink-0 text-right">
                               <span className="text-2xl font-bold text-zinc-300">
                                 {bulkProgress ? bulkProgress.current : 0}
                               </span>
-                              <span className="text-xs text-zinc-500 block">/ {urlQueue.length}</span>
+                              <span className="text-xs text-zinc-500 block">
+                                / {bulkProgress?.total ?? urlQueue.length}
+                              </span>
                             </div>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="shrink-0 gap-1.5"
+                              onClick={stopBulkScrape}
+                            >
+                              <Square className="h-3.5 w-3.5 fill-current" />
+                              Durdur
+                            </Button>
                           </div>
                           <div className="mt-3 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                             <div
                               className="h-full bg-zinc-500 transition-all duration-700"
-                              style={{width: bulkProgress ? `${(bulkProgress.current / bulkProgress.total) * 100}%` : '5%'}}
+                              style={{
+                                width: bulkProgress
+                                  ? `${(bulkProgress.current / Math.max(bulkProgress.total, 1)) * 100}%`
+                                  : "5%",
+                              }}
                             />
                           </div>
                         </div>

@@ -18,6 +18,18 @@ import {
 } from './trendyol-variant-resolver';
 import type { SanitizedVariants } from '@shared/trendyol-variant-utils';
 import { pickRicherTrendyolVariants, variantRichnessScore } from '@shared/trendyol-variant-utils';
+import {
+  classifyTrendyolBlock,
+  type BlockSignal,
+} from './trendyol-block-guard';
+
+let lastApiBlockSignal: BlockSignal | null = null;
+
+export function consumeLastTrendyolApiBlockSignal(): BlockSignal | null {
+  const s = lastApiBlockSignal;
+  lastApiBlockSignal = null;
+  return s;
+}
 
 export interface TrendyolApiProduct {
   title: string;
@@ -243,7 +255,7 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
   const results = await Promise.allSettled(
     endpoints.map((endpoint) =>
       axios.get(endpoint, {
-        timeout: 8_000,
+        timeout: Number(process.env.TRENDYOL_API_TIMEOUT_MS) || 4_000,
         headers,
         validateStatus: (s) => s < 500,
       })
@@ -326,6 +338,13 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
       const blocked556 = debugSamples.some(
         (s) => s.status === 556 || /status code 556/i.test(s.bodyPreview),
       );
+      const sample = debugSamples[0];
+      lastApiBlockSignal = classifyTrendyolBlock({
+        source: 'api',
+        httpStatus: sample?.status,
+        bodyPreview: debugSamples.map((s) => s.bodyPreview).join(' | ').slice(0, 800),
+        contentClass: blocked556 ? 'upstream-556' : undefined,
+      });
       console.warn('[Trendyol API] api-null-response debug:', {
         productId,
         boutiqueId: new URL(url).searchParams.get('boutiqueId'),

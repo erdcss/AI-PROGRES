@@ -107,6 +107,14 @@ export class IntelligentRateLimiter {
     await new Promise(resolve => setTimeout(resolve, delay));
   }
 
+  /** Ban koruması sonrası daha temkinli gecikme */
+  enableBlockAwareAdaptive(): void {
+    this.config.adaptiveMode = true;
+    this.config.minDelay = Math.max(this.config.minDelay, 800);
+    this.config.maxDelay = Math.max(this.config.maxDelay, 5_000);
+    this.config.cooldownPeriod = Math.max(this.config.cooldownPeriod, 15_000);
+  }
+
   // Record request outcome
   recordRequest(url: string, success: boolean, responseTime: number): void {
     const pattern: RequestPattern = {

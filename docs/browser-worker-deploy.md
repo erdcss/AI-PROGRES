@@ -27,7 +27,12 @@ Railway'de yeni servis → repo kökünden `browser-worker/` klasörünü root d
 BROWSER_WORKER_TOKEN=güçlü-gizli-token
 PORT=8080
 NODE_ENV=production
+# Opsiyonel: residential HTTP proxy (IP ban / Cloudflare için)
+# TRENDYOL_HTTP_PROXY=http://user:pass@proxy-host:port
+# INTERNAL_PROXY_URL=http://user:pass@proxy-host:port
 ```
+
+Residential proxy olmadan IP banı aşılamaz; proxy yalnızca worker Chromium / outbound fetch’e bağlanırsa fayda sağlar.
 
 ### 3. Ana uygulama env değişkenleri
 
@@ -36,6 +41,12 @@ Ana Railway servisinde:
 ```env
 BROWSER_WORKER_ENDPOINT=https://browser-worker-production.up.railway.app
 BROWSER_WORKER_TOKEN=worker-ile-aynı-token
+# Opsiyonel: Direct HTML + local Puppeteer için aynı proxy
+# TRENDYOL_HTTP_PROXY=http://user:pass@proxy-host:port
+# Ban koruması (circuit breaker) — varsayılanlar yeterli
+# TRENDYOL_BLOCK_THRESHOLD=3
+# TRENDYOL_BLOCK_COOLDOWN_MS=600000
+# TRENDYOL_BLOCK_BACKOFF_MS=2000
 ```
 
 Deploy sonrası logda:

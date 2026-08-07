@@ -142,6 +142,29 @@ function buildShopifyCSV(product: Omit<PttAvmProduct, 'csvContent'>): string {
 
 // ── HTML Parser (shared between strategies) ───────────────────────────────────
 
+/** TR fiyat: 20.936,50 → 20936.50 ; 20936.50 (US) → 20936.50 */
+function parseTrMoney(raw: string): number {
+  const cleaned = String(raw || "")
+    .replace(/[^\d.,]/g, "")
+    .trim();
+  if (!cleaned) return 0;
+  if (cleaned.includes(",") && cleaned.includes(".")) {
+    const n = Number.parseFloat(cleaned.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (cleaned.includes(",")) {
+    const n = Number.parseFloat(cleaned.replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  }
+  // "20.936" (binlik nokta, kuruş yok) — son 3 hane binlik olabilir
+  if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
+    const n = Number.parseFloat(cleaned.replace(/\./g, ""));
+    return Number.isFinite(n) ? n : 0;
+  }
+  const n = Number.parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
   const $ = cheerio.load(html);
 
@@ -185,8 +208,8 @@ function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
   for (const sel of priceSelectors) {
     const el = $(sel).first();
     const text = el.attr('content') || el.text().trim();
-    const val = parseFloat(text.replace(/[^\d,\.]/g, '').replace(',', '.'));
-    if (val > 0 && val < 999999) { priceRaw = val; break; }
+    const val = parseTrMoney(text);
+    if (val > 0 && val < 9999999) { priceRaw = val; break; }
   }
   if (!priceRaw) {
     $('script[type="application/ld+json"]').each((_, el) => {
@@ -194,15 +217,18 @@ function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
       try {
         const d = JSON.parse($(el).html() || '');
         const p = d?.offers?.price || d?.price;
-        if (p && !isNaN(parseFloat(String(p)))) priceRaw = parseFloat(String(p));
+        if (p != null) {
+          const val = parseTrMoney(String(p));
+          if (val > 0) priceRaw = val;
+        }
       } catch {}
     });
   }
   if (!priceRaw) {
-    const matches = html.match(/[\d]{1,4}[.,]\d{2}\s*TL/g) || [];
+    const matches = html.match(/[\d]{1,3}(?:[.,]\d{3})*[.,]\d{2}\s*TL/g) || [];
     const vals = matches
-      .map(m => parseFloat(m.replace(/[^\d,\.]/g, '').replace(',', '.')))
-      .filter(v => v > 0 && v < 99999);
+      .map(m => parseTrMoney(m))
+      .filter(v => v > 0 && v < 9999999);
     if (vals.length) priceRaw = Math.min(...vals);
   }
 

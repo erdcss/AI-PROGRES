@@ -29,10 +29,12 @@ export interface ProductPoolTrackItem {
   siteLogoUrl: string;
   price: number;
   salePrice: number;
+  inStock?: boolean;
   shopifyPrice?: number;
   shopifyProductId?: string;
   image?: string;
-  notes?: string;
+  tags?: string[];
   addedAt: string;
   lastCheckedAt?: string;
+  removed?: boolean;
 }

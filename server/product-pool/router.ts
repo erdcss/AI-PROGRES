@@ -1,5 +1,10 @@
 import { Router } from "express";
-import { buildProductPoolDescriptionHtml, scrapeProductPoolUrl } from "./scrape";
+import {
+  buildProductPoolDescriptionHtml,
+  filterProductImagesForShopify,
+  rejectNonJpegProductPlaceholders,
+  scrapeProductPoolUrl,
+} from "./scrape";
 
 const router = Router();
 const PROFIT_MARGIN = 0.1;
@@ -45,12 +50,12 @@ async function uploadOneProduct(product: Record<string, unknown>) {
     product.features as Array<{ name?: string; value?: string }> | undefined,
   );
 
-  const images = Array.isArray(product.images)
-    ? product.images
-        .filter((src: unknown) => typeof src === "string" && src.startsWith("http"))
-        .slice(0, 8)
-        .map((src: string, i: number) => ({ src, position: i + 1 }))
-    : [];
+  const filtered = filterProductImagesForShopify(
+    product.images,
+    typeof product.siteLogoUrl === "string" ? product.siteLogoUrl : undefined,
+  );
+  const safeImages = await rejectNonJpegProductPlaceholders(filtered);
+  const images = safeImages.map((src, i) => ({ src, position: i + 1 }));
 
   const userTags = normalizeTags(product.tags);
   const tags = normalizeTags([

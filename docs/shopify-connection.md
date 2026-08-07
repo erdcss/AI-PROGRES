@@ -8,6 +8,7 @@ Tüm Shopify Admin API istekleri `server/shopify-token-manager.ts` üzerinden gi
 SHOPIFY_SHOP_DOMAIN=magaza.myshopify.com
 SHOPIFY_CLIENT_ID=...
 SHOPIFY_CLIENT_SECRET=shpsec_...
+# veya mağaza uygulaması gizli anahtarı: shpss_... (Postman client_credentials ile doğrulandı)
 ```
 
 Opsiyonel manuel token:
@@ -67,5 +68,5 @@ npm run shopify:connection-test
 | Belirti | Çözüm |
 |--------|--------|
 | HTTP 402 / Unavailable Shop | Uygulamayı mağazaya yükleyin, planı kontrol edin |
-| `shpss_` secret | `SHOPIFY_CLIENT_SECRET` (shpsec_) kullanın |
+| HTTP 400 client_credentials | Client ID / Secret / shop domain (Postman ile aynı body) |
 | `write_products eksik` | Dev Dashboard → API scopes |

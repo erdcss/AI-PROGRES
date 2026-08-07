@@ -333,6 +333,19 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
   schedulerState.lastRunId = runId;
 
   try {
+    const { isTrendyolCircuitOpen, getTrendyolBlockStatus, formatCircuitOpenUserMessage } =
+      await import("../trendyol-block-guard");
+    if (isTrendyolCircuitOpen()) {
+      const status = getTrendyolBlockStatus();
+      schedulerState.lastRunStatus = "skipped";
+      schedulerState.lastRunAt = new Date();
+      console.warn(
+        "[TRENDYOL_BLOCK] tracking scheduler skipped:",
+        formatCircuitOpenUserMessage(status),
+      );
+      return;
+    }
+
     const settings = await getTrackingSettings();
     if (!settings.trackingEnabled || !settings.schedulerEnabled) {
       schedulerState.lastRunStatus = "skipped";

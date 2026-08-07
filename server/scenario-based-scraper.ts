@@ -1008,13 +1008,21 @@ export interface ScenarioBasedResult {
   };
 }
 
-// Global Puppeteer concurrency limiter — max 1 Chromium instance at a time to prevent OOM
-let puppeteerSlotAvailable = true;
+// Global Puppeteer concurrency limiter — local'de 2, cloud'da 1 (OOM koruması)
+const PUPPETEER_MAX_SLOTS = Math.max(
+  1,
+  Math.min(
+    3,
+    Number(process.env.PUPPETEER_MAX_CONCURRENT) ||
+      (process.env.RAILWAY_ENVIRONMENT || process.env.RENDER || process.env.FLY_APP_NAME ? 1 : 2),
+  ),
+);
+let puppeteerSlotsInUse = 0;
 const puppeteerQueue: Array<() => void> = [];
 function acquirePuppeteerSlot(): Promise<void> {
-  return new Promise(resolve => {
-    if (puppeteerSlotAvailable) {
-      puppeteerSlotAvailable = false;
+  return new Promise((resolve) => {
+    if (puppeteerSlotsInUse < PUPPETEER_MAX_SLOTS) {
+      puppeteerSlotsInUse += 1;
       resolve();
     } else {
       puppeteerQueue.push(resolve);
@@ -1026,7 +1034,114 @@ function releasePuppeteerSlot(): void {
   if (next) {
     next();
   } else {
-    puppeteerSlotAvailable = true;
+    puppeteerSlotsInUse = Math.max(0, puppeteerSlotsInUse - 1);
+  }
+}
+
+/** Toplu çekimde her ürün için Chromium launch (~5-15s) maliyetini önler */
+let sharedPuppeteerBrowser: Awaited<ReturnType<typeof puppeteerExtra.launch>> | null = null;
+let sharedBrowserLaunchPromise: Promise<
+  Awaited<ReturnType<typeof puppeteerExtra.launch>>
+> | null = null;
+
+function isSharedBrowserAlive(
+  browser: Awaited<ReturnType<typeof puppeteerExtra.launch>> | null,
+): boolean {
+  if (!browser) return false;
+  try {
+    const anyBrowser = browser as {
+      isConnected?: () => boolean;
+      connected?: boolean;
+    };
+    if (typeof anyBrowser.isConnected === "function") return anyBrowser.isConnected();
+    if (typeof anyBrowser.connected === "boolean") return anyBrowser.connected;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getSharedPuppeteerBrowser() {
+  if (isSharedBrowserAlive(sharedPuppeteerBrowser)) {
+    return sharedPuppeteerBrowser!;
+  }
+  sharedPuppeteerBrowser = null;
+  if (!sharedBrowserLaunchPromise) {
+    sharedBrowserLaunchPromise = puppeteerExtra
+      .launch(buildLaunchOptions({}))
+      .then((browser) => {
+        sharedPuppeteerBrowser = browser;
+        browser.on("disconnected", () => {
+          sharedPuppeteerBrowser = null;
+          sharedBrowserLaunchPromise = null;
+        });
+        return browser;
+      })
+      .catch((err) => {
+        sharedBrowserLaunchPromise = null;
+        throw err;
+      });
+  }
+  return sharedBrowserLaunchPromise;
+}
+
+async function closePuppeteerPage(
+  page: { close: () => Promise<void> } | null | undefined,
+): Promise<void> {
+  if (!page) return;
+  try {
+    await page.close();
+  } catch {
+    /* ignore */
+  }
+}
+
+async function openIsolatedPuppeteerPage() {
+  const browser = await getSharedPuppeteerBrowser();
+  const anyBrowser = browser as {
+    createBrowserContext?: () => Promise<{ newPage: () => Promise<unknown>; close?: () => Promise<void> }>;
+    createIncognitoBrowserContext?: () => Promise<{ newPage: () => Promise<unknown>; close?: () => Promise<void> }>;
+    newPage: () => Promise<unknown>;
+  };
+  let context: { newPage: () => Promise<unknown>; close?: () => Promise<void> } | null = null;
+  try {
+    if (typeof anyBrowser.createBrowserContext === "function") {
+      context = await anyBrowser.createBrowserContext();
+    } else if (typeof anyBrowser.createIncognitoBrowserContext === "function") {
+      context = await anyBrowser.createIncognitoBrowserContext();
+    }
+  } catch {
+    context = null;
+  }
+  const page = context
+    ? await context.newPage()
+    : await anyBrowser.newPage();
+  return {
+    browser,
+    page: page as Awaited<ReturnType<typeof browser.newPage>>,
+    context,
+    async dispose() {
+      await closePuppeteerPage(page as { close: () => Promise<void> });
+      if (context && typeof context.close === "function") {
+        try {
+          await context.close();
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+  };
+}
+
+async function resetSharedPuppeteerBrowser(): Promise<void> {
+  const browser = sharedPuppeteerBrowser;
+  sharedPuppeteerBrowser = null;
+  sharedBrowserLaunchPromise = null;
+  if (!browser) return;
+  try {
+    await browser.close();
+  } catch {
+    /* ignore */
   }
 }
 
@@ -1037,13 +1152,16 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
     return { success: false };
   }
   let browser;
+  let page: Awaited<ReturnType<Awaited<ReturnType<typeof getSharedPuppeteerBrowser>>["newPage"]>> | null =
+    null;
+  let isolated: Awaited<ReturnType<typeof openIsolatedPuppeteerPage>> | null = null;
   await acquirePuppeteerSlot();
   try {
     console.log('🎨 Starting Puppeteer color extraction...');
     
-    browser = await puppeteerExtra.launch(buildLaunchOptions({}));
-    
-    const page = await browser.newPage();
+    isolated = await openIsolatedPuppeteerPage();
+    browser = isolated.browser;
+    page = isolated.page;
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -1090,7 +1208,22 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
                         !pageContent.includes('trendyol');
       if (isBlocked) {
         console.log('🚫 Puppeteer: Trendyol is serving a bot-challenge page, returning failure');
-        await browser.close();
+        try {
+          const { classifyTrendyolBlock, recordTrendyolBlock } = await import('./trendyol-block-guard');
+          const signal = classifyTrendyolBlock({
+            source: 'puppeteer',
+            title: pageTitle,
+            html: pageContent.slice(0, 12_000),
+            errorMessage: 'Bot challenge page detected',
+          });
+          if (signal) recordTrendyolBlock(signal);
+        } catch {
+          /* ignore */
+        }
+        await isolated?.dispose();
+        isolated = null;
+        page = null;
+        await resetSharedPuppeteerBrowser();
         releasePuppeteerSlot();
         return { success: false };
       }
@@ -1298,7 +1431,9 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
       finalHtml = htmlContent.replace('</head>', `${metaTags.join('')}</head>`);
     }
     
-    await browser.close();
+    await isolated?.dispose();
+    isolated = null;
+    page = null;
     releasePuppeteerSlot();
     console.log('✅ Puppeteer extraction successful');
     if (colorVariantUrlsFromPuppeteer.length > 0) {
@@ -1315,7 +1450,7 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
   } catch (error) {
     console.log('❌ Puppeteer extraction failed:', (error as any).message);
     console.log('❌ Stack:', (error as any).stack?.split('\n').slice(0,3).join(' | '));
-    if (browser) await browser.close();
+    await isolated?.dispose();
     releasePuppeteerSlot();
     return { success: false };
   }
@@ -1414,6 +1549,15 @@ export async function scenarioBasedScrape(
     
     // INTELLIGENT RATE LIMITING - Human-like delays
     console.log('🧠 Applying intelligent rate limiting...');
+    try {
+      const { getTrendyolBlockStatus } = await import('./trendyol-block-guard');
+      const blockStatus = getTrendyolBlockStatus();
+      if (blockStatus.consecutiveFails > 0 || blockStatus.open) {
+        intelligentRateLimiter.enableBlockAwareAdaptive();
+      }
+    } catch {
+      /* ignore */
+    }
     await intelligentRateLimiter.executeSmartDelay(url);
 
     
@@ -2238,11 +2382,13 @@ export async function scenarioBasedScrape(
       // Axios başarısız — Puppeteer fallback (HTTP 403 olsa bile Chromium çoğu zaman geçer)
       console.log(`⚠️ Axios failed (${axiosError.message}), trying Puppeteer as fallback...`);
       
+      let isolated2: Awaited<ReturnType<typeof openIsolatedPuppeteerPage>> | null = null;
       try {
         await acquirePuppeteerSlot();
-        browser = await puppeteerExtra.launch(buildLaunchOptions({}));
+        isolated2 = await openIsolatedPuppeteerPage();
+        browser = isolated2.browser;
       
-      const page = await browser.newPage();
+      const page = isolated2.page;
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -2281,7 +2427,21 @@ export async function scenarioBasedScrape(
                           !pageContent.includes('trendyol');
         if (isBlocked) {
           console.log('🚫 Puppeteer block2: bot-challenge page detected, using axios fallback');
-          await browser.close();
+          try {
+            const { classifyTrendyolBlock, recordTrendyolBlock } = await import('./trendyol-block-guard');
+            const signal = classifyTrendyolBlock({
+              source: 'puppeteer',
+              title: pageTitle,
+              html: pageContent.slice(0, 12_000),
+              errorMessage: 'Bot challenge page detected',
+            });
+            if (signal) recordTrendyolBlock(signal);
+          } catch {
+            /* ignore */
+          }
+          await isolated2?.dispose();
+          isolated2 = null;
+          await resetSharedPuppeteerBrowser();
           throw new Error('Bot challenge page detected');
         }
         console.log('⚠️ JS state not found (block2), proceeding with available content');
@@ -2429,12 +2589,18 @@ export async function scenarioBasedScrape(
         throw parseError;
       }
       
-      await browser.close();
+      await isolated2?.dispose();
+      isolated2 = null;
       releasePuppeteerSlot();
       console.log('✅ Puppeteer extraction successful');
-    } catch (puppeteerError) {
-      console.log('⚠️ Puppeteer failed, trying axios fallback...', puppeteerError.message);
-      if (browser) await browser.close();
+    } catch (puppeteerError: any) {
+      console.log('⚠️ Puppeteer failed, trying axios fallback...', puppeteerError?.message);
+      try {
+        await isolated2?.dispose();
+      } catch {
+        /* ignore */
+      }
+      isolated2 = null;
       releasePuppeteerSlot();
       
       // Fallback to axios if Puppeteer fails

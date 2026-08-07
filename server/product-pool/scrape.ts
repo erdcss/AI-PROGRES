@@ -49,6 +49,99 @@ function faviconFor(url: string): string {
   }
 }
 
+/** Site logosu / favicon / ikon — ürün galerisine ve Shopify'a girmemeli */
+export function isLikelySiteBrandingImage(url: string): boolean {
+  const u = String(url || "").toLowerCase().split("?")[0];
+  if (!u.startsWith("http")) return true;
+  if (/\.svg$/i.test(u) || /\.ico$/i.test(u)) return true;
+  if (/favicon|ladybug|sprite|watermark|placeholder|no[-_]?image/i.test(u)) return true;
+  if (/\/(?:logo|logos|brand|brands)(?:\/|-|_|\.)/i.test(u)) return true;
+  if (/logo[-_]?(?:dark|light|white|black|header|footer)?\.(?:png|jpe?g|webp|gif)$/i.test(u)) {
+    return true;
+  }
+  if (/\/(?:icons?|app-icons|static\/favicon)\//i.test(u)) return true;
+  if (/\/custom\/upload\//i.test(u)) return true;
+  if (/\/skins\/shared\/images\/logo/i.test(u)) return true;
+  if (/badge|banner|\/emblem/i.test(u) && !/\/a1\/org\//i.test(u)) return true;
+  // n11: .jpg uzantılı logo placeholder (ürün değil)
+  if (/n11scdn\d*-im\.akamaized\.net\/a1\/640\//i.test(u) && !/\/img-\d+/i.test(u)) {
+    return true;
+  }
+  return false;
+}
+
+/** Shopify / UI galeri: site logosu hariç yalnızca ürün görselleri */
+export function filterProductImagesForShopify(
+  images: unknown,
+  siteLogoUrl?: string,
+): string[] {
+  const logoKey = String(siteLogoUrl || "")
+    .split("?")[0]
+    .toLowerCase();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const list = Array.isArray(images) ? images : [];
+  for (const raw of list) {
+    if (typeof raw !== "string" || !raw.startsWith("http")) continue;
+    const key = raw.split("?")[0].toLowerCase();
+    if (seen.has(key)) continue;
+    if (logoKey && key === logoKey) continue;
+    if (isLikelySiteBrandingImage(raw)) continue;
+    seen.add(key);
+    out.push(raw);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+export async function rejectNonJpegProductPlaceholders(urls: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const url of urls) {
+    if (out.length >= 8) break;
+    // Sadece şüpheli CDN yollarını byte ile doğrula (hız için)
+    const needsProbe =
+      /n11scdn/i.test(url) ||
+      /\.(png)(\?|$)/i.test(url) ||
+      /logo|icon|favicon/i.test(url);
+    if (!needsProbe) {
+      out.push(url);
+      continue;
+    }
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "User-Agent": UA,
+          Referer: "https://www.n11.com/",
+          Accept: "image/*,*/*;q=0.8",
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length < 2000) continue;
+      const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+      const isWebp =
+        buf.length >= 12 &&
+        buf.toString("ascii", 0, 4) === "RIFF" &&
+        buf.toString("ascii", 8, 12) === "WEBP";
+      const isPng =
+        buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+      // n11 / küçük PNG: logo placeholder; büyük PNG ürün olabilir
+      if (isPng) {
+        if (/n11scdn|logo|icon|favicon/i.test(url) || buf.length < 40_000) continue;
+        out.push(url);
+        continue;
+      }
+      if (isJpeg || isWebp) out.push(url);
+    } catch {
+      /* skip */
+    }
+  }
+  return out;
+}
+
 function cleanText(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
@@ -106,19 +199,299 @@ function extractFeatures($: CheerioAPI): ProductPoolFeature[] {
   return features.slice(0, 24);
 }
 
-async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": UA,
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
-    },
-    redirect: "follow",
-  });
-  if (!res.ok) {
-    throw new Error(`Sayfa alınamadı (HTTP ${res.status})`);
+async function fetchHtml(
+  url: string,
+  options?: { crawlerFallback?: boolean },
+): Promise<string> {
+  const cleanUrl = url.split("#")[0];
+  const userAgents = options?.crawlerFallback
+    ? [
+        "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        UA,
+      ]
+    : [UA];
+
+  let lastErr: Error | null = null;
+  for (const userAgent of userAgents) {
+    try {
+      const res = await fetch(cleanUrl, {
+        headers: {
+          "User-Agent": userAgent,
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
+          "Cache-Control": "no-cache",
+        },
+        redirect: "follow",
+      });
+      const html = await res.text();
+      const blocked =
+        !res.ok ||
+        /Attention Required!|Just a moment|cf-browser-verification|Sorry, you have been blocked/i.test(
+          html,
+        ) ||
+        html.length < 4000;
+      if (blocked) {
+        lastErr = new Error(`Sayfa alınamadı (HTTP ${res.status})`);
+        continue;
+      }
+      return html;
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+    }
   }
-  return await res.text();
+  throw lastErr || new Error("Sayfa alınamadı");
+}
+
+function isLikelyN11ProductImage(url: string, productId = ""): boolean {
+  const u = url.toLowerCase();
+  if (!u.startsWith("http")) return false;
+  if (/\.svg(\?|$)/i.test(u)) return false;
+  if (/noimage|favicon|logo|icon|ladybug|sprite|badge|banner/i.test(u)) return false;
+  if (/\/custom\/upload\//i.test(u)) return false;
+  if (/\/public\/images\//i.test(u)) return false;
+  if (!/n11scdn\d*(?:-im)?\.akamaized\.net\/a1\//i.test(u)) return false;
+  // Asıl ürün fotoğrafları genelde jpg/webp; png çoğu branding
+  if (/\.(jpe?g|webp)(\?|$)/i.test(u)) return true;
+  if (productId && u.includes(productId.toLowerCase()) && /\.png(\?|$)/i.test(u)) return true;
+  return false;
+}
+
+/** LD/640 yolları bazen .jpg uzantılı n11 logosunu (küçük PNG) döndürür; org+IMG güvenilir. */
+function n11ImageScore(url: string, productId = ""): number {
+  if (!isLikelyN11ProductImage(url, productId)) return -1;
+  const u = url.toLowerCase();
+  let score = 0;
+  if (/\/a1\/org\//i.test(u)) score += 50;
+  if (/\/img-\d+/i.test(u)) score += 40;
+  if (productId && u.includes(productId.toLowerCase())) score += 15;
+  if (/\.jpe?g(\?|$)/i.test(u)) score += 10;
+  if (/n11scdn\d+-im\./i.test(u)) score -= 35;
+  if (/\/a1\/640\//i.test(u) && !/\/img-/i.test(u)) score -= 25;
+  return score;
+}
+
+async function filterRealN11Images(urls: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const url of urls) {
+    if (out.length >= 12) break;
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "User-Agent": UA,
+          Referer: "https://www.n11.com/",
+          Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length < 1000) continue;
+      const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+      const isWebp =
+        buf.length >= 12 &&
+        buf.toString("ascii", 0, 4) === "RIFF" &&
+        buf.toString("ascii", 8, 12) === "WEBP";
+      const isPng =
+        buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+      // .jpg diye sunulan küçük/orta PNG = n11 logo placeholder
+      if (isPng) continue;
+      if (isJpeg || isWebp) out.push(url);
+    } catch {
+      /* skip broken */
+    }
+  }
+  return out;
+}
+
+async function scrapeN11(html: string, sourceUrl: string): Promise<ProductPoolProduct> {
+  const $ = cheerio.load(html);
+  const cleanUrl = sourceUrl.split("?")[0];
+  const productIdMatch = cleanUrl.match(/-(\d{6,})(?:\?|$)/);
+  const productId = productIdMatch?.[1] || "";
+
+  let title = "";
+  let brand = "";
+  let sku = "";
+  let salePrice = 0;
+  let listPrice = 0;
+  let inStock = true;
+  let ldProductImage = "";
+  let siteLogoFromLd = "";
+  const features: ProductPoolFeature[] = [];
+
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const raw = JSON.parse($(el).html() || "");
+      const nodes = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw["@graph"])
+          ? raw["@graph"]
+          : [raw];
+      for (const node of nodes) {
+        const type = String(node?.["@type"] || "");
+        if (type === "Organization" && typeof node.logo === "string" && node.logo.startsWith("http")) {
+          siteLogoFromLd = node.logo;
+        }
+        if (type !== "Product") continue;
+        title = cleanText(String(node.name || ""));
+        sku = String(node.sku || sku || "");
+        const brandVal = node.brand;
+        if (typeof brandVal === "string") brand = brandVal;
+        else if (brandVal && typeof brandVal === "object") {
+          brand = String((brandVal as { name?: string }).name || "");
+        }
+        const img = node.image;
+        if (typeof img === "string" && n11ImageScore(img, productId) >= 40) {
+          ldProductImage = img.split("?")[0];
+        } else if (Array.isArray(img)) {
+          for (const i of img) {
+            if (typeof i === "string" && n11ImageScore(i, productId) >= 40) {
+              ldProductImage = i.split("?")[0];
+              break;
+            }
+          }
+        }
+        const color = cleanText(String(node.color || ""));
+        if (color) features.push({ name: "Renk", value: color });
+        const props = Array.isArray(node.additionalProperty) ? node.additionalProperty : [];
+        for (const p of props) {
+          const n = cleanText(String(p?.name || ""));
+          const v = cleanText(String(p?.value || ""));
+          if (n && v) features.push({ name: n, value: v });
+        }
+        const offer = node.offers as Record<string, unknown> | undefined;
+        if (offer) {
+          const p = parseTrPrice(String(offer.price ?? ""));
+          if (p && p > 0) salePrice = p;
+          const avail = String(offer.availability || "");
+          if (/OutOfStock|SoldOut/i.test(avail)) inStock = false;
+        }
+      }
+    } catch {
+      /* next */
+    }
+  });
+
+  // Embedded JSON prices: sale often "769,70 TL", list "895 TL" / "895.00"
+  const priceCandidates: number[] = [];
+  const listCandidates: number[] = [];
+  for (const m of html.matchAll(/"price"\s*:\s*"([^"]+)"/gi)) {
+    const p = parseTrPrice(m[1]);
+    if (p && p > 0 && p < 1_000_000) priceCandidates.push(p);
+  }
+  for (const m of html.matchAll(/"displayPrice"\s*:\s*"([^"]+)"/gi)) {
+    const p = parseTrPrice(m[1]);
+    if (p && p > 0 && p < 1_000_000) listCandidates.push(p);
+  }
+  if (!salePrice && priceCandidates.length) {
+    salePrice = Math.min(...priceCandidates);
+  }
+  if (listCandidates.length) {
+    listPrice = Math.max(...listCandidates);
+  }
+  if (!listPrice && priceCandidates.length > 1) {
+    listPrice = Math.max(...priceCandidates);
+  }
+  if (listPrice > 0 && salePrice > 0 && listPrice < salePrice) {
+    const tmp = listPrice;
+    listPrice = salePrice;
+    salePrice = tmp;
+  }
+
+  const galleryRaw = [
+    ...html.matchAll(
+      /https:\/\/n11scdn\d*(?:-im)?\.akamaized\.net\/a1\/(?:org|640|500_750|400_600)[^"'\\\s]+\.(?:jpg|jpeg|png|webp)/gi,
+    ),
+  ].map((m) => m[0].split("?")[0]);
+
+  const gallery = galleryRaw
+    .filter((u) => n11ImageScore(u, productId) >= 40)
+    .sort((a, b) => n11ImageScore(b, productId) - n11ImageScore(a, productId));
+
+  const candidates: string[] = [];
+  if (ldProductImage) candidates.push(ldProductImage);
+  for (const u of gallery) {
+    if (!candidates.includes(u)) candidates.push(u);
+  }
+  // Skor yetmezse yine de adayları doğrulamaya gönder
+  if (!candidates.length) {
+    for (const u of galleryRaw) {
+      if (isLikelyN11ProductImage(u, productId) && !candidates.includes(u)) candidates.push(u);
+    }
+  }
+
+  const uniqueImages = await filterRealN11Images(
+    [...new Set(candidates)].sort(
+      (a, b) => n11ImageScore(b, productId) - n11ImageScore(a, productId),
+    ),
+  );
+
+  if (!title) {
+    title =
+      cleanText($("h1").first().text()) ||
+      cleanText($('meta[property="og:title"]').attr("content") || "") ||
+      cleanText($("title").text()) ||
+      "Ürün";
+  }
+  title = title
+    .replace(/\s*Fiyatları ve Özellikleri\s*$/i, "")
+    .replace(/\s*[|-]\s*n11.*$/i, "")
+    .trim();
+
+  if (!brand) {
+    brand =
+      html.match(/"brandName"\s*:\s*"([^"]+)"/)?.[1] ||
+      html.match(/"brand"\s*:\s*"([^"]{2,40})"/)?.[1] ||
+      "";
+  }
+  if (!sku) {
+    sku = html.match(/"sku"\s*:\s*"([^"]+)"/)?.[1] || "";
+  }
+
+  if (!salePrice) {
+    salePrice =
+      parseTrPrice($('meta[property="product:price:amount"]').attr("content") || "") ||
+      parseTrPrice($("[itemprop='price']").attr("content") || "") ||
+      0;
+  }
+
+  if (brand && !features.some((f) => /marka/i.test(f.name))) {
+    features.unshift({ name: "Marka", value: cleanText(brand) });
+  }
+  if (sku && !features.some((f) => /sku|barkod/i.test(f.name))) {
+    features.push({ name: "SKU", value: sku });
+  }
+
+  const magaza = new URL(sourceUrl).searchParams.get("magaza");
+  if (magaza) features.push({ name: "Mağaza", value: magaza });
+
+  const compareAt = listPrice > salePrice ? listPrice : null;
+
+  // Site rozeti: SVG custom/upload tarayıcıda kırılabiliyor — sabit favicon
+  const siteLogoUrl =
+    (siteLogoFromLd && !/\/custom\/upload\//i.test(siteLogoFromLd) ? siteLogoFromLd : "") ||
+    "https://www.n11.com/favicon.ico";
+
+  return {
+    title,
+    sourceUrl: cleanUrl + (magaza ? `?magaza=${encodeURIComponent(magaza)}` : ""),
+    siteName: "n11",
+    siteLogoUrl,
+    brand: brand ? cleanText(brand) : undefined,
+    sku: sku || undefined,
+    currency: "TRY",
+    price: compareAt || salePrice,
+    compareAtPrice: compareAt,
+    discountPercent: discountPercent(salePrice, compareAt),
+    salePrice,
+    images: uniqueImages,
+    features: features.slice(0, 24),
+    inStock,
+    scrapedAt: new Date().toISOString(),
+  };
 }
 
 function scrapeHepegitim(html: string, sourceUrl: string): ProductPoolProduct {
@@ -541,20 +914,107 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
     throw new Error("Geçerli bir http(s) URL girin");
   }
 
-  const html = await fetchHtml(trimmed);
   const host = hostnameOf(trimmed).toLowerCase();
 
-  if (host.includes("hepegitim.com")) {
-    return scrapeHepegitim(html, trimmed);
-  }
-  if (host.includes("idefix.com")) {
-    return scrapeIdefix(html, trimmed);
-  }
-  if (host.includes("pazarama.com")) {
-    return scrapePazarama(html, trimmed);
+  let product: ProductPoolProduct;
+
+  // PTT AVM Cloudflare korumalı — mevcut stealth scraper (axios UA + Puppeteer)
+  if (host.includes("pttavm.com")) {
+    product = await scrapePttavmPool(trimmed);
+  } else if (host.includes("n11.com")) {
+    // n11 Cloudflare — crawler UA ile HTML
+    const html = await fetchHtml(trimmed, { crawlerFallback: true });
+    product = await scrapeN11(html, trimmed);
+  } else {
+    const html = await fetchHtml(trimmed);
+
+    if (host.includes("hepegitim.com")) {
+      product = scrapeHepegitim(html, trimmed);
+    } else if (host.includes("idefix.com")) {
+      product = scrapeIdefix(html, trimmed);
+    } else if (host.includes("pazarama.com")) {
+      product = scrapePazarama(html, trimmed);
+    } else {
+      product = scrapeGeneric(html, trimmed);
+    }
   }
 
-  return scrapeGeneric(html, trimmed);
+  return {
+    ...product,
+    images: filterProductImagesForShopify(product.images, product.siteLogoUrl),
+  };
+}
+
+/** PTT AVM → ürün havuzu (Cloudflare bypass için pttavm-scraper) */
+async function scrapePttavmPool(sourceUrl: string): Promise<ProductPoolProduct> {
+  const cleanUrl = sourceUrl.split("?")[0];
+  const { scrapePttAvm } = await import("../pttavm-scraper");
+  const result = await scrapePttAvm(cleanUrl);
+
+  if (!result.success || !result.title?.trim()) {
+    throw new Error(
+      result.message ||
+        "PTT AVM ürünü çekilemedi (Cloudflare engeli). Daha sonra tekrar deneyin.",
+    );
+  }
+
+  let salePrice = Number(result.price?.original) || 0;
+  const formatted = String(result.price?.formatted || "");
+  const fromFormatted = parseTrPrice(formatted);
+  if (fromFormatted && fromFormatted > salePrice * 10) {
+    salePrice = fromFormatted;
+  }
+  // TR binlik nokta yanlış parse: 20.936 → 20936
+  if (salePrice > 0 && salePrice < 500 && Number.isFinite(salePrice)) {
+    const scaled = Math.round(salePrice * 1000);
+    if (scaled >= 1000 && scaled < 10_000_000) salePrice = scaled;
+  }
+  if (!(salePrice > 0)) {
+    throw new Error("PTT AVM fiyatı alınamadı");
+  }
+  salePrice = Math.round(salePrice * 100) / 100;
+
+  const images = (result.images || [])
+    .map((img) => (typeof img === "string" ? img : img?.url || ""))
+    .filter((u) => typeof u === "string" && u.startsWith("http") && !u.endsWith(".svg"))
+    .map((u) => u.split("?")[0]);
+
+  const features: ProductPoolFeature[] = (result.features || [])
+    .map((f) => ({
+      name: cleanText(String(f.key || "")),
+      value: cleanText(String(f.value || "")),
+    }))
+    .filter((f) => f.name && f.value)
+    .slice(0, 24);
+
+  if (result.brand && !features.some((f) => /marka/i.test(f.name))) {
+    features.unshift({ name: "Marka", value: cleanText(result.brand) });
+  }
+  if (result.category && !features.some((f) => /kategori/i.test(f.name))) {
+    features.push({ name: "Kategori", value: cleanText(result.category) });
+  }
+
+  const inStock =
+    Array.isArray(result.variants?.allVariants) && result.variants.allVariants.length > 0
+      ? result.variants.allVariants.some((v) => v.inStock)
+      : true;
+
+  return {
+    title: cleanText(result.title),
+    sourceUrl: cleanUrl,
+    siteName: "PTT AVM",
+    siteLogoUrl: "https://www.pttavm.com/favicon.ico",
+    brand: result.brand ? cleanText(result.brand) : undefined,
+    currency: "TRY",
+    price: salePrice,
+    compareAtPrice: null,
+    discountPercent: 0,
+    salePrice,
+    images: [...new Set(images)].slice(0, 12),
+    features,
+    inStock,
+    scrapedAt: new Date().toISOString(),
+  };
 }
 
 /** Shopify açıklaması — yalnızca özellikler; yoksa boş */

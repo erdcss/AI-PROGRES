@@ -2,6 +2,7 @@
  * Trendyol doğrudan HTML — Puppeteer/cache gerektirmez.
  * Scenario scraper'ın çalışan axios fallback'i ile aynı strateji.
  * 429 / rate-limit: tespit + backoff + global throttle.
+ * Ban/WAF: BlockSignal + opsiyonel HTTP proxy.
  */
 import axios from "axios";
 import { extractProductImagesFromHtmlRegex } from "@shared/trendyol-bot-detection";
@@ -10,6 +11,53 @@ import {
   trendyolBackoffMs,
 } from "@shared/trendyol-rate-limit";
 import { trendyolAnti429Gate, withTrendyolRateLimit } from "./trendyol-anti-429";
+import {
+  classifyTrendyolBlock,
+  resolveTrendyolHttpProxy,
+  type BlockSignal,
+} from "./trendyol-block-guard";
+
+let lastDirectHtmlBlock: BlockSignal | null = null;
+
+export function consumeLastDirectHtmlBlockSignal(): BlockSignal | null {
+  const s = lastDirectHtmlBlock;
+  lastDirectHtmlBlock = null;
+  return s;
+}
+
+function axiosProxyConfig() {
+  const proxyUrl = resolveTrendyolHttpProxy();
+  if (!proxyUrl) return {};
+  try {
+    const u = new URL(proxyUrl);
+    return {
+      proxy: {
+        protocol: u.protocol.replace(":", ""),
+        host: u.hostname,
+        port: Number(u.port) || (u.protocol === "https:" ? 443 : 80),
+        auth:
+          u.username || u.password
+            ? {
+                username: decodeURIComponent(u.username),
+                password: decodeURIComponent(u.password),
+              }
+            : undefined,
+      },
+    };
+  } catch {
+    return {};
+  }
+}
+
+function noteBlockFromResponse(status: number, htmlOrBody: string) {
+  const signal = classifyTrendyolBlock({
+    source: "html",
+    httpStatus: status,
+    html: htmlOrBody.slice(0, 12_000),
+    bodyPreview: htmlOrBody.slice(0, 500),
+  });
+  if (signal) lastDirectHtmlBlock = signal;
+}
 
 const DIRECT_HEADERS: Record<string, string>[] = [
   {
@@ -68,25 +116,47 @@ async function tryOneFetch(
   try {
     const response = await withTrendyolRateLimit("direct-html", () =>
       axios.get(targetUrl, {
-        timeout: 20000,
+        timeout: Number(process.env.TRENDYOL_DIRECT_HTML_TIMEOUT_MS) || 20_000,
         maxRedirects: 5,
         headers: { ...headers, "Cache-Control": "no-cache" },
         validateStatus: (s) => s < 500,
+        ...axiosProxyConfig(),
       }),
     );
     const html = String(response.data || "");
     if (response.status === 429 || isTrendyolRateLimitHtml(html)) {
       trendyolAnti429Gate.reportRateLimit(`direct-html-status-${response.status}`);
+      noteBlockFromResponse(response.status === 429 ? 429 : 403, html);
       return { ok: false, rateLimited: true };
     }
-    if (response.status === 403) return { ok: false, rateLimited: false };
+    if (response.status === 403 || response.status === 556) {
+      noteBlockFromResponse(response.status, html);
+      return { ok: false, rateLimited: false };
+    }
+    const block = classifyTrendyolBlock({
+      source: "html",
+      httpStatus: response.status,
+      html,
+    });
+    if (block) {
+      lastDirectHtmlBlock = block;
+      return { ok: false, rateLimited: block.kind === "rate-limit" };
+    }
     if (htmlHasProductData(html)) {
       trendyolAnti429Gate.reportSuccess();
       return { ok: true, html };
     }
     return { ok: false, rateLimited: false };
-  } catch {
-    return { ok: false, rateLimited: false };
+  } catch (err: unknown) {
+    const ax = err as { response?: { status?: number; data?: unknown }; message?: string };
+    const status = Number(ax.response?.status) || 0;
+    if (status === 556 || status === 403 || status === 429) {
+      noteBlockFromResponse(
+        status,
+        String(ax.message || ax.response?.data || "").slice(0, 500),
+      );
+    }
+    return { ok: false, rateLimited: status === 429 };
   }
 }
 
@@ -99,17 +169,31 @@ async function tryScenarioExactFetch(url: string): Promise<FetchOutcome> {
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36",
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
-        timeout: 25000,
+        timeout: Number(process.env.TRENDYOL_DIRECT_HTML_TIMEOUT_MS) || 25_000,
         maxRedirects: 5,
         validateStatus: (s) => s < 500,
+        ...axiosProxyConfig(),
       }),
     );
     const html = String(response.data || "");
     if (response.status === 429 || isTrendyolRateLimitHtml(html)) {
       trendyolAnti429Gate.reportRateLimit(`direct-html-exact-${response.status}`);
+      noteBlockFromResponse(response.status === 429 ? 429 : 403, html);
       return { ok: false, rateLimited: true };
     }
-    if (response.status === 403) return { ok: false, rateLimited: false };
+    if (response.status === 403 || response.status === 556) {
+      noteBlockFromResponse(response.status, html);
+      return { ok: false, rateLimited: false };
+    }
+    const block = classifyTrendyolBlock({
+      source: "html",
+      httpStatus: response.status,
+      html,
+    });
+    if (block) {
+      lastDirectHtmlBlock = block;
+      return { ok: false, rateLimited: block.kind === "rate-limit" };
+    }
     if (htmlHasProductData(html)) {
       trendyolAnti429Gate.reportSuccess();
       return { ok: true, html };
@@ -126,6 +210,7 @@ export async function fetchTrendyolDirectHtmlRaw(
   retries = 8,
 ): Promise<{ html: string; source: string } | null> {
   let rateLimitedHits = 0;
+  lastDirectHtmlBlock = null;
 
   for (let attempt = 0; attempt < retries; attempt++) {
     if (attempt > 0) {
@@ -177,7 +262,7 @@ export async function fetchTrendyolDirectHtmlRaw(
   }
 
   if (rateLimitedHits > 0) {
-    console.warn(`🚫 [direct-html] ${rateLimitedHits} kez 429 — HTML alınamadı: ${url}`);
+    console.warn(`⚠️ [direct-html] ${rateLimitedHits} kez 429 — HTML alınamadı: ${url}`);
   }
   return null;
 }

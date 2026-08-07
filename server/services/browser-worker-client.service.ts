@@ -621,6 +621,24 @@ export async function scrapeTrendyolWithBrowserWorker(
           : mapBrowserWorkerStageError(category) === "browser-worker-failed" && !hasHtml && !hasRaw
             ? "browser-worker-invalid-response"
             : mapBrowserWorkerStageError(category);
+      if (category === "blocked" || inferredBlocked) {
+        try {
+          const { classifyTrendyolBlock, recordTrendyolBlock } = await import(
+            "../trendyol-block-guard"
+          );
+          const signal = classifyTrendyolBlock({
+            source: "browser_worker",
+            httpStatus: data.status ?? response.status,
+            html: typeof data.html === "string" ? data.html : null,
+            contentClass: data.diagnostics?.contentClass,
+            errorCategory: category,
+            errorMessage: data.error,
+          });
+          if (signal) recordTrendyolBlock(signal);
+        } catch {
+          /* ignore */
+        }
+      }
       logBrowserWorker("request failed category: invalid-response", {
         correlationId,
         httpStatus: response.status,

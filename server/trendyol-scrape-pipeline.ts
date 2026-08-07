@@ -18,7 +18,7 @@ import {
 import { evaluateScrapeQuality, assessTrendyolVariantGaps } from "./scrape-quality";
 import { hasRealTrendyolVariants } from "@shared/trendyol-variant-utils";
 import { buildStockAnalysisFromVariants } from "./trendyol-html-enrichment";
-import { fetchTrendyolProductByUrl } from "./trendyol-product-api";
+import { fetchTrendyolProductByUrl, consumeLastTrendyolApiBlockSignal } from "./trendyol-product-api";
 import {
   brandFromTrendyolUrl,
   isValidTrendyolProductTitle,
@@ -28,6 +28,19 @@ import { mergeApiWithScrape, resolveProductTitle } from "./trendyol-result-norma
 import { scenarioBasedScrape } from "./scenario-based-scraper";
 import { getScrapeEnvironmentPolicy } from "./services/scrape-environment.service";
 import { resolveChromiumPath } from "./puppeteer-config";
+import {
+  classifyTrendyolBlock,
+  formatCircuitOpenUserMessage,
+  getTrendyolBlockStatus,
+  isTrendyolCircuitOpen,
+  mapBlockSignalToStageError,
+  recordTrendyolBlock,
+  recordTrendyolSuccess,
+  shouldSkipDirectHtmlAfterBlock,
+  waitTrendyolBlockBackoff,
+  type BlockSignal,
+} from "./trendyol-block-guard";
+import { consumeLastDirectHtmlBlockSignal } from "./trendyol-direct-html";
 
 function stageTimeouts(policy = getScrapeEnvironmentPolicy()) {
   return {
@@ -116,6 +129,16 @@ function pushStageError(diagnostics: ScrapeDiagnostics, code: ScrapeStageErrorCo
   if (!diagnostics.stageErrors.includes(code)) {
     diagnostics.stageErrors.push(code);
   }
+}
+
+function notePipelineBlock(
+  diagnostics: ScrapeDiagnostics,
+  signal: BlockSignal | null,
+): void {
+  if (!signal) return;
+  const code = mapBlockSignalToStageError(signal);
+  pushStageError(diagnostics, code);
+  recordTrendyolBlock(signal);
 }
 
 function emptyResult(url: string) {
@@ -220,6 +243,10 @@ function finalizeOutcome(
 
   diagnostics.finalSuccessReason = quality.finalSuccessReason;
   diagnostics.partialSuccess = quality.partialSuccess;
+
+  if (quality.jobSuccess) {
+    recordTrendyolSuccess();
+  }
 
   const finalResult = {
     ...result,
@@ -374,38 +401,50 @@ async function finalizeTrendyolPipelineWithVariants(
     );
 
     if (rootId && candidates.length >= 2 && members.length < 2) {
-      const { fetchColorFamilyMembersViaApi } = await import("./trendyol-color-family");
-      const apiMembers = await fetchColorFamilyMembersViaApi(candidates, rootId);
-      const okApi = apiMembers.filter((m) => m.ok);
-      if (okApi.length >= 2) {
-        members = apiMembers;
-        result._colorFamilyMembers = apiMembers;
+      // Hız: adaylarda renk+görsel varsa soft birleştir — API/HTML kardeş çekimi ~30-60s yiyordu
+      const {
+        buildSoftColorFamilyMembersFromCandidates,
+        extractImagesByColorFromProduct,
+        mergeImagesByColorMaps,
+      } = await import("./trendyol-color-family");
+      const rootColor =
+        (Array.isArray(result.variants?.colors) && result.variants.colors[0]) ||
+        (typeof result.color === "string" ? result.color : "") ||
+        "";
+      const soft = buildSoftColorFamilyMembersFromCandidates({
+        candidates,
+        rootProductId: rootId,
+        rootColor,
+        rootImages: Array.isArray(result.images) ? (result.images as string[]) : [],
+        rootVariants: result.variants as
+          | import("@shared/trendyol-variant-utils").SanitizedVariants
+          | null
+          | undefined,
+      });
+      const okSoft = soft.filter((m) => m.ok);
+      const softDistinctColors = new Set(
+        okSoft.map((m) => (m.color || "").trim().toLowerCase()).filter(Boolean),
+      ).size;
+
+      if (okSoft.length >= 2 && softDistinctColors >= 1) {
+        members = soft;
+        result._colorFamilyMembers = soft;
         console.log(
-          `[ColorFamily] API fallback members=${okApi.length}/${apiMembers.length}`,
+          `[ColorFamily] soft-first members=${okSoft.length}/${soft.length} colors=${[
+            ...new Set(okSoft.map((m) => m.color)),
+          ].join(",")}`,
         );
       } else {
-        // API/HTML üye çekimi başarısız — adaylardaki renk adı + thumbnail ile soft birleştir
-        const {
-          buildSoftColorFamilyMembersFromCandidates,
-          extractImagesByColorFromProduct,
-          mergeImagesByColorMaps,
-        } = await import("./trendyol-color-family");
-        const rootColor =
-          (Array.isArray(result.variants?.colors) && result.variants.colors[0]) ||
-          (typeof result.color === "string" ? result.color : "") ||
-          "";
-        const soft = buildSoftColorFamilyMembersFromCandidates({
-          candidates,
-          rootProductId: rootId,
-          rootColor,
-          rootImages: Array.isArray(result.images) ? (result.images as string[]) : [],
-          rootVariants: result.variants as
-            | import("@shared/trendyol-variant-utils").SanitizedVariants
-            | null
-            | undefined,
-        });
-        const okSoft = soft.filter((m) => m.ok);
-        if (okSoft.length >= 2) {
+        const { fetchColorFamilyMembersViaApi } = await import("./trendyol-color-family");
+        const apiMembers = await fetchColorFamilyMembersViaApi(candidates, rootId);
+        const okApi = apiMembers.filter((m) => m.ok);
+        if (okApi.length >= 2) {
+          members = apiMembers;
+          result._colorFamilyMembers = apiMembers;
+          console.log(
+            `[ColorFamily] API fallback members=${okApi.length}/${apiMembers.length}`,
+          );
+        } else if (okSoft.length >= 2) {
           members = soft;
           result._colorFamilyMembers = soft;
           console.log(
@@ -414,27 +453,27 @@ async function finalizeTrendyolPipelineWithVariants(
               .join(",")}`,
           );
         }
-        // colorImages map'ini her durumda sakla
-        const rawProduct =
-          variantOpts?.rawProduct ??
-          (result._browserWorkerRawProduct as Record<string, unknown> | undefined) ??
-          null;
-        const fromProduct = extractImagesByColorFromProduct(rawProduct);
-        const fromCandidates: Record<string, string[]> = {};
-        for (const c of candidates) {
-          if (!c.color) continue;
-          const imgs = c.images?.length ? c.images : c.image ? [c.image] : [];
-          if (!imgs.length) continue;
-          fromCandidates[c.color] = imgs;
-        }
-        const mergedMap = mergeImagesByColorMaps(
-          result.imagesByColor as Record<string, string[]> | undefined,
-          fromProduct,
-          fromCandidates,
-        );
-        if (Object.keys(mergedMap).length) {
-          result.imagesByColor = mergedMap;
-        }
+      }
+
+      const rawProduct =
+        variantOpts?.rawProduct ??
+        (result._browserWorkerRawProduct as Record<string, unknown> | undefined) ??
+        null;
+      const fromProduct = extractImagesByColorFromProduct(rawProduct);
+      const fromCandidates: Record<string, string[]> = {};
+      for (const c of candidates) {
+        if (!c.color) continue;
+        const imgs = c.images?.length ? c.images : c.image ? [c.image] : [];
+        if (!imgs.length) continue;
+        fromCandidates[c.color] = imgs;
+      }
+      const mergedMap = mergeImagesByColorMaps(
+        result.imagesByColor as Record<string, string[]> | undefined,
+        fromProduct,
+        fromCandidates,
+      );
+      if (Object.keys(mergedMap).length) {
+        result.imagesByColor = mergedMap;
       }
     }
 
@@ -542,11 +581,43 @@ export async function runTrendyolScrapePipeline(
   url: string,
   selectedScrapeMode?: SelectedScrapeMode,
 ): Promise<PipelineOutcome> {
-  const policy = getScrapeEnvironmentPolicy();
-  const pipelineStart = Date.now();
-  const globalDeadline = pipelineStart + policy.globalTimeoutMs;
   const modes = resolveEffectiveScrapeMode(selectedScrapeMode);
   const diagnostics = createDiagnostics(modes);
+  const pipelineStart = Date.now();
+
+  if (isTrendyolCircuitOpen()) {
+    const status = getTrendyolBlockStatus();
+    pushStageError(diagnostics, "trendyol-circuit-open");
+    diagnostics.apiError = "trendyol-circuit-open";
+    diagnostics.scenarioSkippedReason = "trendyol-circuit-open";
+    diagnostics.pipelineDurationMs = 0;
+    const message = formatCircuitOpenUserMessage(status);
+    logScrapeDiagnostics(diagnostics);
+    console.warn("[TRENDYOL_BLOCK] scrape rejected — circuit open", status);
+    const result = {
+      ...emptyResult(url),
+      success: false,
+      partialSuccess: false,
+      previewOk: false,
+      usableForCsv: false,
+      usableForShopify: false,
+      blockedForExport: true,
+      stageErrors: diagnostics.stageErrors,
+      scrapeDiagnostics: diagnostics,
+      deployUserMessage: message,
+      message,
+      error: message,
+    };
+    return {
+      result,
+      diagnostics,
+      success: false,
+      partialSuccess: false,
+    };
+  }
+
+  const policy = getScrapeEnvironmentPolicy();
+  const globalDeadline = pipelineStart + policy.globalTimeoutMs;
   const STAGE_TIMEOUT = stageTimeouts(policy);
 
   const isPastDeadline = () => Date.now() >= globalDeadline;
@@ -559,6 +630,7 @@ export async function runTrendyolScrapePipeline(
   let directHtml: string | null = null;
   let forcedGlobalTimeout = false;
   let skipHeavyStages = false;
+  let confirmedBlock: BlockSignal | null = null;
 
   const convertApiProduct = (api: NonNullable<typeof apiProduct>) => ({
     success: true,
@@ -665,6 +737,26 @@ export async function runTrendyolScrapePipeline(
           const errCode = (bw.stageError ?? "browser-worker-failed") as ScrapeStageErrorCode;
           diagnostics.gatewayError = errCode;
           pushStageError(diagnostics, errCode);
+          const bwBlock = classifyTrendyolBlock({
+            source: "browser_worker",
+            httpStatus: bw.status,
+            html: bw.html,
+            contentClass: undefined,
+            errorCategory: bw.errorCategory,
+            errorMessage: bw.error,
+          });
+          if (bwBlock || errCode === "browser-worker-blocked") {
+            const signal =
+              bwBlock ||
+              ({
+                kind: "bot-challenge" as const,
+                source: "browser_worker" as const,
+                detail: bw.error,
+              } satisfies BlockSignal);
+            confirmedBlock = signal;
+            notePipelineBlock(diagnostics, signal);
+            await waitTrendyolBlockBackoff();
+          }
           console.warn(
             `⚠️ Browser Worker [${bw.errorCategory ?? "unknown"}]: ${bw.error ?? errCode}`,
             { correlationId },
@@ -703,6 +795,11 @@ export async function runTrendyolScrapePipeline(
           diagnostics.apiSuccess = false;
           diagnostics.apiError = apiProduct ? "api-empty-payload" : "api-null-response";
           console.warn(`⚠️ Trendyol API boş: ${diagnostics.apiError}`);
+          const apiBlock = consumeLastTrendyolApiBlockSignal();
+          if (apiBlock) {
+            confirmedBlock = apiBlock;
+            notePipelineBlock(diagnostics, apiBlock);
+          }
         }
       } catch (err) {
         diagnostics.apiDurationMs = Date.now() - apiStart;
@@ -711,10 +808,20 @@ export async function runTrendyolScrapePipeline(
         pushStageError(diagnostics, code);
         diagnostics.apiError = code;
         diagnostics.apiSuccess = false;
+        const apiBlock = consumeLastTrendyolApiBlockSignal();
+        if (apiBlock) {
+          confirmedBlock = apiBlock;
+          notePipelineBlock(diagnostics, apiBlock);
+        }
       }
     }
 
-    if (needsCoreData() && !directHtml && !isPastDeadline()) {
+    if (
+      needsCoreData() &&
+      !directHtml &&
+      !isPastDeadline() &&
+      !shouldSkipDirectHtmlAfterBlock(confirmedBlock)
+    ) {
       diagnostics.directHtmlStarted = true;
       console.log("⚡ [3] Direct HTML...");
       try {
@@ -731,6 +838,11 @@ export async function runTrendyolScrapePipeline(
         } else {
           pushStageError(diagnostics, "direct-html-error");
           diagnostics.directHtmlError = "direct-html-error";
+          const htmlBlock = consumeLastDirectHtmlBlockSignal();
+          if (htmlBlock) {
+            confirmedBlock = htmlBlock;
+            notePipelineBlock(diagnostics, htmlBlock);
+          }
         }
       } catch (err) {
         const code: ScrapeStageErrorCode =
@@ -738,7 +850,15 @@ export async function runTrendyolScrapePipeline(
         pushStageError(diagnostics, code);
         diagnostics.directHtmlError = code;
         console.warn(`⚠️ Direct HTML soft-fail (${code})`);
+        const htmlBlock = consumeLastDirectHtmlBlockSignal();
+        if (htmlBlock) {
+          confirmedBlock = htmlBlock;
+          notePipelineBlock(diagnostics, htmlBlock);
+        }
       }
+    } else if (shouldSkipDirectHtmlAfterBlock(confirmedBlock)) {
+      diagnostics.directHtmlSkippedReason = "trendyol-block-skip-html";
+      console.warn("⚡ [3] Direct HTML atlandı (confirmed WAF/ban — hammer yok)");
     }
 
     if (
@@ -818,6 +938,11 @@ export async function runTrendyolScrapePipeline(
         console.warn(
           `⚠️ [1/6] Trendyol API boş yanıt (${diagnostics.apiDurationMs}ms): apiSuccess=false, apiError=${diagnostics.apiError}`,
         );
+        const apiBlock = consumeLastTrendyolApiBlockSignal();
+        if (apiBlock) {
+          confirmedBlock = apiBlock;
+          notePipelineBlock(diagnostics, apiBlock);
+        }
       }
     } else {
       const err = apiSettled.reason;
@@ -827,6 +952,11 @@ export async function runTrendyolScrapePipeline(
       diagnostics.apiSuccess = false;
       diagnostics.apiError = code;
       console.warn(`⚠️ [1/6] API soft-fail (${code}, ${diagnostics.apiDurationMs}ms)`);
+      const apiBlock = consumeLastTrendyolApiBlockSignal();
+      if (apiBlock) {
+        confirmedBlock = apiBlock;
+        notePipelineBlock(diagnostics, apiBlock);
+      }
     }
 
     if (htmlSettled.status === "fulfilled") {
@@ -836,6 +966,11 @@ export async function runTrendyolScrapePipeline(
         console.log(`✅ [2/6] Direct HTML: ${directHtml!.length} bytes (${diagnostics.apiDurationMs}ms)`);
       } else {
         console.warn("⚠️ [2/6] Direct HTML: ürün verisi içeren HTML alınamadı");
+        const htmlBlock = consumeLastDirectHtmlBlockSignal();
+        if (htmlBlock) {
+          confirmedBlock = htmlBlock;
+          notePipelineBlock(diagnostics, htmlBlock);
+        }
       }
     } else {
       const err = htmlSettled.reason;
@@ -844,6 +979,11 @@ export async function runTrendyolScrapePipeline(
       pushStageError(diagnostics, code);
       diagnostics.directHtmlError = code;
       console.warn(`⚠️ [2/6] Direct HTML soft-fail (${code})`);
+      const htmlBlock = consumeLastDirectHtmlBlockSignal();
+      if (htmlBlock) {
+        confirmedBlock = htmlBlock;
+        notePipelineBlock(diagnostics, htmlBlock);
+      }
     }
   }
 
