@@ -78,6 +78,8 @@ export function isLikelySiteBrandingImage(url: string): boolean {
   if (/n11scdn\d*-im\.akamaized\.net\/a1\/640\//i.test(u) && !/\/img-\d+/i.test(u)) {
     return true;
   }
+  // Amazon site grafikleri (ürün değil)
+  if (/media-amazon\.com\/images\/[gs]\//i.test(u)) return true;
   return false;
 }
 
@@ -236,8 +238,12 @@ async function fetchHtml(
         redirect: "follow",
       });
       const html = await res.text();
+      const amazonChallenge =
+        /validateCaptcha|opfcaptcha|Alışverişe Devam Et|Continue shopping/i.test(html) &&
+        html.length < 20_000;
       const blocked =
         !res.ok ||
+        amazonChallenge ||
         /Attention Required!|Just a moment|cf-browser-verification|Sorry, you have been blocked/i.test(
           html,
         ) ||
@@ -259,16 +265,28 @@ function isUsableProductHtml(html: string): boolean {
   if (/Attention Required!|Just a moment|cf-browser-verification|Sorry, you have been blocked/i.test(html)) {
     return false;
   }
+  // Amazon bot/captcha interstitial
+  if (
+    /validateCaptcha|opfcaptcha|api-services-support@amazon\.|Alışverişe Devam Et|Continue shopping/i.test(
+      html,
+    ) &&
+    html.length < 20_000
+  ) {
+    return false;
+  }
   return true;
 }
 
-/** n11: önce crawler UA; canlı CF engelinde Browser Worker → yerel stealth Chromium */
-async function fetchN11Html(url: string): Promise<string> {
+async function fetchProtectedMarketplaceHtml(
+  url: string,
+  label: string,
+  failMessage: string,
+): Promise<string> {
   try {
     return await fetchHtml(url, { crawlerFallback: true });
   } catch (directErr) {
     console.warn(
-      "[ProductPool/n11] Direct fetch blocked, trying browser fallbacks:",
+      `[ProductPool/${label}] Direct fetch blocked, trying browser fallbacks:`,
       directErr instanceof Error ? directErr.message : String(directErr),
     );
   }
@@ -281,29 +299,44 @@ async function fetchN11Html(url: string): Promise<string> {
     if (isBrowserWorkerConfigured()) {
       const bw = await fetchHtmlWithBrowserWorker(url);
       if (bw.success && bw.html && isUsableProductHtml(bw.html)) {
-        console.log(`[ProductPool/n11] Browser Worker HTML ok (${bw.html.length} bytes)`);
+        console.log(`[ProductPool/${label}] Browser Worker HTML ok (${bw.html.length} bytes)`);
         return bw.html;
       }
       console.warn(
-        "[ProductPool/n11] Browser Worker failed:",
+        `[ProductPool/${label}] Browser Worker failed:`,
         bw.error || bw.errorCategory || "empty",
       );
     }
   } catch (err) {
     console.warn(
-      "[ProductPool/n11] Browser Worker error:",
+      `[ProductPool/${label}] Browser Worker error:`,
       err instanceof Error ? err.message : String(err),
     );
   }
 
   const stealthHtml = await fetchHtmlWithStealthBrowser(url);
   if (stealthHtml && isUsableProductHtml(stealthHtml)) {
-    console.log(`[ProductPool/n11] Stealth Chromium HTML ok (${stealthHtml.length} bytes)`);
+    console.log(`[ProductPool/${label}] Stealth Chromium HTML ok (${stealthHtml.length} bytes)`);
     return stealthHtml;
   }
 
-  throw new Error(
+  throw new Error(failMessage);
+}
+
+/** n11: önce crawler UA; canlı CF engelinde Browser Worker → yerel stealth Chromium */
+async function fetchN11Html(url: string): Promise<string> {
+  return fetchProtectedMarketplaceHtml(
+    url,
+    "n11",
     "n11 sayfası alınamadı (Cloudflare). Canlıda BROWSER_WORKER_URL yapılandırın veya daha sonra tekrar deneyin.",
+  );
+}
+
+async function fetchAmazonHtml(url: string): Promise<string> {
+  return fetchProtectedMarketplaceHtml(
+    url,
+    "amazon",
+    "Amazon sayfası alınamadı (bot koruması). Canlıda BROWSER_WORKER_URL yapılandırın veya daha sonra tekrar deneyin.",
   );
 }
 
@@ -1100,6 +1133,8 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
     if (!(product.salePrice > 0)) {
       throw new Error("n11 ürün fiyatı alınamadı");
     }
+  } else if (host.includes("amazon.")) {
+    product = await scrapeAmazonPool(trimmed);
   } else {
     const html = await fetchHtml(trimmed);
 
@@ -1118,6 +1153,226 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
     ...product,
     images: filterProductImagesForShopify(product.images, product.siteLogoUrl),
   };
+}
+
+function normalizeAmazonProductUrl(sourceUrl: string): { asin: string; cleanUrl: string } {
+  const asinMatch =
+    sourceUrl.match(/\/(?:dp|gp\/product|product)\/([A-Z0-9]{10})/i) ||
+    sourceUrl.match(/[?&]asin=([A-Z0-9]{10})/i);
+  const asin = asinMatch?.[1]?.toUpperCase() || "";
+  if (!asin) {
+    throw new Error("Amazon ASIN bulunamadı (ör. /dp/B07L7RCGJC)");
+  }
+  let host = "www.amazon.com.tr";
+  try {
+    host = new URL(sourceUrl).hostname || host;
+  } catch {
+    /* keep default */
+  }
+  if (!/amazon\./i.test(host)) host = "www.amazon.com.tr";
+  return {
+    asin,
+    cleanUrl: `https://${host}/dp/${asin}?language=tr_TR`,
+  };
+}
+
+function amazonImageScore(url: string): number {
+  const sl = url.match(/_SL(\d+)_/i)?.[1];
+  if (sl) return Number(sl);
+  const ux = url.match(/_UX(\d+)_/i)?.[1];
+  if (ux) return Number(ux);
+  const sx = url.match(/_SX(\d+)_/i)?.[1];
+  if (sx) return Number(sx);
+  return 200;
+}
+
+function preferAmazonProductImages(urls: string[]): string[] {
+  const byId = new Map<string, string>();
+  for (const raw of urls) {
+    if (!raw.startsWith("http")) continue;
+    const u = raw.replace(/\\u002F/gi, "/").split("?")[0];
+    if (isLikelySiteBrandingImage(u)) continue;
+    if (!/media-amazon\.com\/images\/I\//i.test(u)) continue;
+    const id = u.match(/\/images\/I\/([^./]+)/i)?.[1];
+    if (!id) continue;
+    const prev = byId.get(id);
+    if (!prev || amazonImageScore(u) > amazonImageScore(prev)) byId.set(id, u);
+  }
+  return [...byId.values()]
+    .sort((a, b) => amazonImageScore(b) - amazonImageScore(a))
+    .slice(0, 12);
+}
+
+function scrapeAmazon(html: string, sourceUrl: string): ProductPoolProduct {
+  const { asin, cleanUrl } = normalizeAmazonProductUrl(sourceUrl);
+  const $ = cheerio.load(html);
+
+  let title =
+    cleanText($("#productTitle").text()) ||
+    cleanText($('meta[property="og:title"]').attr("content") || "") ||
+    cleanText($("#title").text()) ||
+    cleanText($("title").text());
+  title = title
+    .replace(/\s*:\s*Amazon\.com\.tr.*$/i, "")
+    .replace(/\s*[|-]\s*Amazon.*$/i, "")
+    .trim();
+
+  let brand =
+    cleanText($("#bylineInfo").text()) ||
+    cleanText($("a#bylineInfo").text()) ||
+    html.match(/"brand"\s*:\s*"([^"]{2,80})"/i)?.[1] ||
+    "";
+  brand = brand
+    .replace(/^(Marka\s*:|Brand\s*:|Visit the|Store)\s*/i, "")
+    .replace(/\s+Store$/i, "")
+    .trim();
+
+  const priceCandidates: number[] = [];
+  const listCandidates: number[] = [];
+
+  $("#corePrice_feature_div .a-price:not(.a-text-price) .a-offscreen, #corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price) .a-offscreen, .apexPriceToPay .a-offscreen")
+    .each((_, el) => {
+      const p = parseTrPrice($(el).text());
+      if (p && p > 0 && p < 5_000_000) priceCandidates.push(p);
+    });
+  $(".a-price.a-text-price .a-offscreen, #listPrice, span.a-price.a-text-price span[aria-hidden]")
+    .each((_, el) => {
+      const p = parseTrPrice($(el).text());
+      if (p && p > 0 && p < 5_000_000) listCandidates.push(p);
+    });
+
+  // Fallback: all offscreen prices (first is usually sale)
+  if (!priceCandidates.length) {
+    $(".a-price .a-offscreen").each((_, el) => {
+      const p = parseTrPrice($(el).text());
+      if (p && p > 0 && p < 5_000_000) priceCandidates.push(p);
+    });
+  }
+
+  const ldPrices: number[] = [];
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const raw = JSON.parse($(el).html() || "");
+      const nodes = Array.isArray(raw) ? raw : [raw];
+      for (const node of nodes) {
+        if (String(node?.["@type"] || "") !== "Product") continue;
+        if (!title && node.name) title = cleanText(String(node.name));
+        const brandVal = node.brand;
+        if (!brand) {
+          if (typeof brandVal === "string") brand = brandVal;
+          else if (brandVal && typeof brandVal === "object") {
+            brand = String((brandVal as { name?: string }).name || "");
+          }
+        }
+        const offer = node.offers;
+        const offers = Array.isArray(offer) ? offer : offer ? [offer] : [];
+        for (const o of offers) {
+          const p = parseTrPrice(String(o?.price ?? o?.lowPrice ?? ""));
+          if (p && p > 0) ldPrices.push(p);
+        }
+      }
+    } catch {
+      /* next */
+    }
+  });
+
+  let salePrice =
+    (priceCandidates.length ? Math.min(...priceCandidates) : 0) ||
+    (ldPrices.length ? Math.min(...ldPrices) : 0);
+  let listPrice = listCandidates.length ? Math.max(...listCandidates) : 0;
+  if (listPrice > 0 && salePrice > 0 && listPrice < salePrice) {
+    const tmp = listPrice;
+    listPrice = salePrice;
+    salePrice = tmp;
+  }
+
+  const imageUrls: string[] = [];
+  const landing =
+    $("#landingImage").attr("data-old-hires") ||
+    $("#imgTagWrapperId img").attr("data-old-hires") ||
+    $("#landingImage").attr("src") ||
+    $('meta[property="og:image"]').attr("content") ||
+    "";
+  if (landing.startsWith("http")) imageUrls.push(landing);
+  try {
+    const dyn = $("#landingImage").attr("data-a-dynamic-image");
+    if (dyn) {
+      const map = JSON.parse(dyn) as Record<string, unknown>;
+      for (const u of Object.keys(map)) {
+        if (u.startsWith("http")) imageUrls.push(u);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  for (const m of html.matchAll(/"(?:hiRes|large|mainUrl)"\s*:\s*"(https:[^"]+)"/g)) {
+    imageUrls.push(m[1].replace(/\\u002F/gi, "/"));
+  }
+  const images = preferAmazonProductImages(imageUrls);
+
+  const features: ProductPoolFeature[] = [];
+  const pushFeat = (name: string, value: string) => {
+    const n = cleanText(name).replace(/:$/, "");
+    const v = cleanText(value);
+    if (!n || !v || n.length > 80 || v.length > 400) return;
+    if (features.some((f) => f.name === n && f.value === v)) return;
+    features.push({ name: n, value: v });
+  };
+
+  $("#feature-bullets li span.a-list-item").each((_, el) => {
+    const t = cleanText($(el).text());
+    if (!t || t.length < 8) return;
+    if (/Bu ürünle ilgili|Make sure|Garanti bilgisini/i.test(t)) return;
+    pushFeat("Özellik", t);
+  });
+  $("#productOverview_feature_div tr, #productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr").each(
+    (_, tr) => {
+      const $tr = $(tr);
+      const th = cleanText($tr.find("th").first().text() || $tr.find("td").eq(0).text());
+      const td = cleanText($tr.find("td").last().text());
+      if (th && td && th !== td) pushFeat(th, td);
+    },
+  );
+  if (brand) pushFeat("Marka", brand);
+  pushFeat("ASIN", asin);
+
+  const availText = cleanText($("#availability").text() || $("#availability_feature_div").text());
+  const inStock = !/stokta\s*yok|şu anda mevcut değil|currently unavailable|out of stock/i.test(
+    availText,
+  );
+
+  const compareAt = listPrice > salePrice ? listPrice : null;
+
+  return {
+    title: title || `Amazon ${asin}`,
+    sourceUrl: cleanUrl,
+    siteName: "Amazon",
+    siteLogoUrl: "https://www.amazon.com.tr/favicon.ico",
+    brand: brand || undefined,
+    sku: asin,
+    currency: "TRY",
+    price: compareAt || salePrice,
+    compareAtPrice: compareAt,
+    discountPercent: discountPercent(salePrice, compareAt),
+    salePrice,
+    images,
+    features: features.slice(0, 24),
+    inStock,
+    scrapedAt: new Date().toISOString(),
+  };
+}
+
+async function scrapeAmazonPool(sourceUrl: string): Promise<ProductPoolProduct> {
+  const { cleanUrl } = normalizeAmazonProductUrl(sourceUrl);
+  const html = await fetchAmazonHtml(cleanUrl);
+  const product = scrapeAmazon(html, cleanUrl);
+  if (!product.title || product.title === `Amazon ${product.sku}`) {
+    throw new Error("Amazon ürün başlığı alınamadı");
+  }
+  if (!(product.salePrice > 0)) {
+    throw new Error("Amazon ürün fiyatı alınamadı");
+  }
+  return product;
 }
 
 /** PTT AVM → ürün havuzu (Cloudflare bypass için pttavm-scraper) */

@@ -871,7 +871,7 @@ export default function UrunHavuzuPage() {
           )}
 
           <p className="text-xs text-neutral-600">
-            Destek: hepegitim.com, idefix.com, pazarama.com, pttavm.com, n11.com ve genel Open Graph.
+            Destek: hepegitim.com, idefix.com, pazarama.com, pttavm.com, n11.com, amazon.com.tr ve genel Open Graph.
             Toplu gönderim butonu 2+ üründe görünür.
           </p>
         </div>
