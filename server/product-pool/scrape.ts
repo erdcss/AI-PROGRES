@@ -18,13 +18,24 @@ function parseTrPrice(raw: string): number | null {
     .replace(/[^\d.,]/g, "")
     .trim();
   if (!cleaned) return null;
+  // 17.299,50 / 1.234.567,89 → binlik nokta + ondalık virgül
   if (cleaned.includes(",") && cleaned.includes(".")) {
-    return Number.parseFloat(cleaned.replace(/\./g, "").replace(",", "."));
+    const n = Number.parseFloat(cleaned.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) && n > 0 ? n : null;
   }
+  // 17781,12 → ondalık virgül
   if (cleaned.includes(",")) {
-    return Number.parseFloat(cleaned.replace(",", "."));
+    const n = Number.parseFloat(cleaned.replace(",", "."));
+    return Number.isFinite(n) && n > 0 ? n : null;
   }
-  return Number.parseFloat(cleaned);
+  // 17.299 / 1.234.567 → yalnızca binlik nokta (TR)
+  if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
+    const n = Number.parseFloat(cleaned.replace(/\./g, ""));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  // 17399.00 / 17781.12 → İngilizce ondalık
+  const n = Number.parseFloat(cleaned);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function discountPercent(price: number, compareAt: number | null): number {
@@ -243,6 +254,147 @@ async function fetchHtml(
   throw lastErr || new Error("Sayfa alınamadı");
 }
 
+function isUsableProductHtml(html: string): boolean {
+  if (!html || html.length < 4000) return false;
+  if (/Attention Required!|Just a moment|cf-browser-verification|Sorry, you have been blocked/i.test(html)) {
+    return false;
+  }
+  return true;
+}
+
+/** n11: önce crawler UA; canlı CF engelinde Browser Worker → yerel stealth Chromium */
+async function fetchN11Html(url: string): Promise<string> {
+  try {
+    return await fetchHtml(url, { crawlerFallback: true });
+  } catch (directErr) {
+    console.warn(
+      "[ProductPool/n11] Direct fetch blocked, trying browser fallbacks:",
+      directErr instanceof Error ? directErr.message : String(directErr),
+    );
+  }
+
+  try {
+    const {
+      fetchHtmlWithBrowserWorker,
+      isBrowserWorkerConfigured,
+    } = await import("../services/browser-worker-client.service");
+    if (isBrowserWorkerConfigured()) {
+      const bw = await fetchHtmlWithBrowserWorker(url);
+      if (bw.success && bw.html && isUsableProductHtml(bw.html)) {
+        console.log(`[ProductPool/n11] Browser Worker HTML ok (${bw.html.length} bytes)`);
+        return bw.html;
+      }
+      console.warn(
+        "[ProductPool/n11] Browser Worker failed:",
+        bw.error || bw.errorCategory || "empty",
+      );
+    }
+  } catch (err) {
+    console.warn(
+      "[ProductPool/n11] Browser Worker error:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  const stealthHtml = await fetchHtmlWithStealthBrowser(url);
+  if (stealthHtml && isUsableProductHtml(stealthHtml)) {
+    console.log(`[ProductPool/n11] Stealth Chromium HTML ok (${stealthHtml.length} bytes)`);
+    return stealthHtml;
+  }
+
+  throw new Error(
+    "n11 sayfası alınamadı (Cloudflare). Canlıda BROWSER_WORKER_URL yapılandırın veya daha sonra tekrar deneyin.",
+  );
+}
+
+async function fetchHtmlWithStealthBrowser(url: string): Promise<string | null> {
+  try {
+    const { createRequire } = await import("module");
+    const { getChromiumPath } = await import("../puppeteer-config");
+    const require = createRequire(import.meta.url);
+    const puppeteerExtraLib = require("puppeteer-extra");
+    const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+    const puppeteerExtra = puppeteerExtraLib.default || puppeteerExtraLib;
+    puppeteerExtra.use(StealthPlugin());
+
+    const chromePath = getChromiumPath();
+    let browser: { close: () => Promise<void> } | null = null;
+    let page: {
+      setViewport: (v: object) => Promise<void>;
+      setUserAgent: (ua: string) => Promise<void>;
+      setExtraHTTPHeaders: (h: Record<string, string>) => Promise<void>;
+      setRequestInterception: (v: boolean) => Promise<void>;
+      on: (ev: string, fn: (req: { resourceType: () => string; abort: () => void; continue: () => void }) => void) => void;
+      goto: (u: string, o: object) => Promise<unknown>;
+      content: () => Promise<string>;
+      close: () => Promise<void>;
+    } | null = null;
+
+    try {
+      browser = await puppeteerExtra.launch({
+        headless: true,
+        executablePath: chromePath,
+        protocolTimeout: 120000,
+        timeout: 120000,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--disable-blink-features=AutomationControlled",
+          "--lang=tr-TR,tr",
+          "--window-size=1366,768",
+        ],
+      });
+      page = await (browser as any).newPage();
+      if (!page) return null;
+      await page.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
+      await page.setUserAgent(UA);
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      });
+      await page.setRequestInterception(true);
+      page.on("request", (req) => {
+        const rt = req.resourceType();
+        if (["image", "font", "media"].includes(rt)) req.abort();
+        else req.continue();
+      });
+
+      // magaza/renk query korunur
+      await page.goto(url.split("#")[0], { waitUntil: "domcontentloaded", timeout: 60000 });
+      await new Promise((r) => setTimeout(r, 5000));
+      let html = await page.content();
+      if (/Just a moment|cf-browser-verification|cf-wrapper/i.test(html)) {
+        await new Promise((r) => setTimeout(r, 12000));
+        html = await page.content();
+      }
+      return html;
+    } finally {
+      if (page) {
+        try {
+          await page.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (browser) {
+        try {
+          await browser.close();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(
+      "[ProductPool/n11] Stealth Chromium failed:",
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
+}
+
 function isLikelyN11ProductImage(url: string, productId = ""): boolean {
   const u = url.toLowerCase();
   if (!u.startsWith("http")) return false;
@@ -302,6 +454,13 @@ async function filterRealN11Images(urls: string[]): Promise<string[]> {
     } catch {
       /* skip broken */
     }
+  }
+  // Canlı CDN sunucu IP'sini engelleyebilir — güvenilir org/IMG yollarını yine de bırak
+  if (!out.length) {
+    return urls
+      .filter((u) => /\/a1\/org\//i.test(u) || /\/img-\d+/i.test(u))
+      .filter((u) => !isLikelySiteBrandingImage(u))
+      .slice(0, 12);
   }
   return out;
 }
@@ -364,7 +523,10 @@ async function scrapeN11(html: string, sourceUrl: string): Promise<ProductPoolPr
         }
         const offer = node.offers as Record<string, unknown> | undefined;
         if (offer) {
-          const p = parseTrPrice(String(offer.price ?? ""));
+          const p =
+            parseTrPrice(String(offer.price ?? "")) ||
+            parseTrPrice(String(offer.lowPrice ?? "")) ||
+            parseTrPrice(String(offer.highPrice ?? ""));
           if (p && p > 0) salePrice = p;
           const avail = String(offer.availability || "");
           if (/OutOfStock|SoldOut/i.test(avail)) inStock = false;
@@ -375,7 +537,7 @@ async function scrapeN11(html: string, sourceUrl: string): Promise<ProductPoolPr
     }
   });
 
-  // Embedded JSON prices: sale often "769,70 TL", list "895 TL" / "895.00"
+  // Embedded JSON prices: "17.299 TL", "17399.00", "19.351,50 TL"
   const priceCandidates: number[] = [];
   const listCandidates: number[] = [];
   for (const m of html.matchAll(/"price"\s*:\s*"([^"]+)"/gi)) {
@@ -386,14 +548,24 @@ async function scrapeN11(html: string, sourceUrl: string): Promise<ProductPoolPr
     const p = parseTrPrice(m[1]);
     if (p && p > 0 && p < 1_000_000) listCandidates.push(p);
   }
-  if (!salePrice && priceCandidates.length) {
-    salePrice = Math.min(...priceCandidates);
+  // Aykırı küçük değerleri ele (yanlış parse / kargo vb.)
+  const sanePrices = (arr: number[]) => {
+    if (!arr.length) return [] as number[];
+    const max = Math.max(...arr);
+    return arr.filter((p) => p >= Math.max(50, max * 0.15));
+  };
+  const salePool = sanePrices(priceCandidates);
+  const listPool = sanePrices(listCandidates);
+  // Satıcı JSON fiyatları AggregateOffer.lowPrice'tan daha spesifik (magaza=...)
+  if (salePool.length) {
+    const minSale = Math.min(...salePool);
+    if (!salePrice || minSale <= salePrice) salePrice = minSale;
   }
-  if (listCandidates.length) {
-    listPrice = Math.max(...listCandidates);
+  if (listPool.length) {
+    listPrice = Math.max(...listPool);
   }
-  if (!listPrice && priceCandidates.length > 1) {
-    listPrice = Math.max(...priceCandidates);
+  if (!listPrice && salePool.length > 1) {
+    listPrice = Math.max(...salePool);
   }
   if (listPrice > 0 && salePrice > 0 && listPrice < salePrice) {
     const tmp = listPrice;
@@ -922,9 +1094,12 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
   if (host.includes("pttavm.com")) {
     product = await scrapePttavmPool(trimmed);
   } else if (host.includes("n11.com")) {
-    // n11 Cloudflare — crawler UA ile HTML
-    const html = await fetchHtml(trimmed, { crawlerFallback: true });
+    // n11 Cloudflare — crawler UA → Browser Worker → stealth Chromium
+    const html = await fetchN11Html(trimmed);
     product = await scrapeN11(html, trimmed);
+    if (!(product.salePrice > 0)) {
+      throw new Error("n11 ürün fiyatı alınamadı");
+    }
   } else {
     const html = await fetchHtml(trimmed);
 
