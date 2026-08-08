@@ -574,6 +574,30 @@ async function finalizeTrendyolPipelineWithVariants(
     }
   }
 
+  // Renk/slicer → mediaGroupKey / featuredImage (varyant sırası ≠ görsel sırası)
+  try {
+    const { applyTrendyolVariantMediaToScrapeResult } = await import(
+      "./trendyol-variant-media-resolver"
+    );
+    const html =
+      typeof variantOpts?.html === "string" ? variantOpts.html : null;
+    const resolution = applyTrendyolVariantMediaToScrapeResult(result, { html });
+    if (resolution?.variantMediaGroups?.length) {
+      console.log(
+        `[VariantMedia] driving=${resolution.mediaDrivingOption || "null"} groups=${resolution.variantMediaGroups.length} contentId=${resolution.productContentId ?? "-"}`,
+      );
+      for (const g of resolution.variantMediaGroups) {
+        console.log(
+          `[VariantMedia] ${g.key} value=${g.optionValue} images=${g.images.length} featured=${g.featuredImage ? "yes" : "no"}`,
+        );
+      }
+    }
+  } catch (err) {
+    console.warn(
+      `[VariantMedia] soft-fail: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
 }
 

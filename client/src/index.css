@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&family=Poppins:wght@300;400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -29,6 +29,262 @@
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(200%); }
+}
+
+/* Shopify gönder — gerçekçi 3D dalgalı su */
+@keyframes shopify-wave-drift-a {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes shopify-wave-drift-b {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes shopify-wave-bob {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -3px, 0); }
+}
+
+@keyframes shopify-water-shimmer {
+  0% { transform: translate3d(-30%, 0, 0) skewX(-12deg); opacity: 0.15; }
+  50% { opacity: 0.45; }
+  100% { transform: translate3d(130%, 0, 0) skewX(-12deg); opacity: 0.15; }
+}
+
+@keyframes shopify-crest-pulse {
+  0%, 100% { opacity: 0.55; filter: blur(0.5px); }
+  50% { opacity: 0.95; filter: blur(1.2px); }
+}
+
+@keyframes orvian-metal-shimmer {
+  0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+  20% { opacity: 0.55; }
+  55% { opacity: 0.25; }
+  100% { transform: translateX(160%) skewX(-18deg); opacity: 0; }
+}
+
+.orvian-logo-stage {
+  transform-style: preserve-3d;
+  background: transparent !important;
+}
+
+.orvian-logo-img,
+.orvian-mark-img {
+  mix-blend-mode: normal;
+  background: transparent !important;
+  -webkit-user-drag: none;
+  filter: none;
+}
+
+.orvian-mark-img {
+  object-fit: contain;
+  object-position: center;
+}
+
+/* Metalik ORVIAN harfleri — görsel değil, karakter */
+.orvian-word {
+  font-family: "Outfit", "Poppins", sans-serif !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  margin: 0;
+  padding: 0;
+}
+
+.orvian-letter {
+  font-weight: 500 !important;
+  background: linear-gradient(
+    175deg,
+    #f5f7fa 0%,
+    #d8dde6 18%,
+    #9aa3b2 42%,
+    #e8ecf2 58%,
+    #6f7785 78%,
+    #c9d0db 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 2px 0 rgba(255, 255, 255, 0.18))
+    drop-shadow(0 10px 18px rgba(0, 0, 0, 0.55));
+}
+
+.orvian-tag-letter {
+  font-family: "Outfit", "Poppins", sans-serif !important;
+  font-weight: 300 !important;
+  color: #c4c4cc !important;
+  text-transform: uppercase;
+}
+
+.home-orvian .orvian-letter {
+  font-weight: 500 !important;
+}
+
+.home-orvian .orvian-tag-letter {
+  color: #c4c4cc !important;
+  font-weight: 300 !important;
+}
+
+.orvian-metal-shimmer {
+  position: absolute;
+  inset: -20% auto -20% 0;
+  width: 38%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(200, 230, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.06) 70%,
+    transparent 100%
+  );
+  animation: orvian-metal-shimmer 4.2s ease-in-out 1.15s infinite;
+  will-change: transform, opacity;
+}
+
+/* Ana sayfa — ince font + okunabilir koyu palet (global !important renkleri ezer) */
+.home-orvian,
+.home-orvian * {
+  font-family: "Outfit", "Poppins", sans-serif !important;
+  font-weight: 300 !important;
+}
+
+.home-orvian .home-title {
+  color: #f4f4f5 !important;
+  font-weight: 300 !important;
+}
+
+.home-orvian .home-muted,
+.home-orvian .home-lede {
+  color: #a8a8b0 !important;
+  font-weight: 300 !important;
+}
+
+.home-orvian button,
+.home-orvian button * {
+  color: inherit;
+}
+
+.home-orvian button .home-title {
+  color: #f4f4f5 !important;
+}
+
+.home-orvian button .home-muted {
+  color: #a8a8b0 !important;
+}
+
+@keyframes orvian-exit {
+  0% { opacity: 1; filter: blur(0) brightness(1); }
+  40% { opacity: 0.45; filter: blur(2px) brightness(1.3); }
+  100% { opacity: 0; filter: blur(6px) brightness(1.6); }
+}
+
+@keyframes erdem-enter {
+  0% { opacity: 0; filter: blur(6px) brightness(1.8); text-shadow: none; }
+  45% { opacity: 1; filter: blur(0) brightness(1.15); text-shadow: 0 0 16px rgba(150,191,72,0.55), 0 0 36px rgba(150,191,72,0.28); }
+  100% { opacity: 1; filter: blur(0) brightness(1); text-shadow: 0 0 10px rgba(150,191,72,0.3); }
+}
+
+@keyframes erdem-flash {
+  0%, 100% { opacity: 1; }
+  25% { opacity: 0.55; }
+  50% { opacity: 1; }
+  75% { opacity: 0.7; }
+}
+
+.orvian-credit {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18rem;
+  height: 2rem;
+  cursor: default;
+  vertical-align: middle;
+}
+
+.orvian-credit .credit-orvian,
+.orvian-credit .credit-erdem {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 0.75rem;
+  line-height: 1;
+  white-space: nowrap;
+  transform: none !important;
+  transform-origin: center center;
+}
+
+.orvian-credit .credit-orvian {
+  opacity: 1;
+  color: #a3a3a3;
+  z-index: 1;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.orvian-credit .credit-orvian .credit-orvian-brand {
+  font-weight: 600;
+  color: #a3a3a3;
+  letter-spacing: 0.16em;
+  text-transform: none;
+}
+
+.orvian-credit .credit-erdem {
+  opacity: 0;
+  pointer-events: none;
+  color: #e8f0d8;
+  z-index: 2;
+  text-transform: none;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.orvian-credit:hover .credit-orvian,
+.orvian-credit:focus-within .credit-orvian {
+  animation: orvian-exit 0.4s ease forwards;
+}
+
+.orvian-credit:hover .credit-erdem,
+.orvian-credit:focus-within .credit-erdem {
+  animation:
+    erdem-enter 0.55s ease forwards,
+    erdem-flash 0.28s linear 0.08s 1;
+}
+
+.shopify-wave-layer-a {
+  animation: shopify-wave-drift-a 2.2s linear infinite;
+  will-change: transform;
+}
+
+.shopify-wave-layer-b {
+  animation: shopify-wave-drift-b 1.35s linear infinite reverse;
+  will-change: transform;
+}
+
+.shopify-wave-bob {
+  animation: shopify-wave-bob 2.4s ease-in-out infinite;
+  will-change: transform;
+}
+
+.shopify-water-shimmer {
+  animation: shopify-water-shimmer 2.8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.shopify-crest-pulse {
+  animation: shopify-crest-pulse 1.1s ease-in-out infinite;
 }
 
 /* Animation Classes */

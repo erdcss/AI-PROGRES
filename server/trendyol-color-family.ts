@@ -151,7 +151,7 @@ function isStrongColorSiblingCandidate(c: TrendyolColorSiblingCandidate): boolea
 export function buildMemberStatuses(
   members: TrendyolColorFamilyMember[],
 ): ColorFamilyMemberStatus[] {
-  return members.map((m) => {
+  const raw = members.map((m) => {
     const snap = m.hydratedSnapshot;
     const variants = m.variants?.allVariants ?? snap?.variants ?? [];
     const sizes =
@@ -177,6 +177,21 @@ export function buildMemberStatuses(
       sizeSource: snap?.sizes?.[0]?.source,
       error: m.ok ? undefined : m.error || "fetch-failed",
       warnings: snap?.diagnostics?.warnings,
+    };
+  });
+
+  // Hiçbir kardeşte beden yoksa → tek ebat (Standart). Görselli üyeleri "0 beden" diye
+  // eksik sayma; aksi halde Shopify'da görsel varken UI sahte kırmızı engel basıyordu.
+  const anyExplicitSizes = raw.some((m) => m.fetched && m.sizeCount > 0);
+  const anyExplicitVariants = raw.some((m) => m.fetched && m.variantCount > 0);
+
+  return raw.map((m) => {
+    if (!m.fetched || m.imageCount === 0) return m;
+    return {
+      ...m,
+      sizeCount: m.sizeCount > 0 ? m.sizeCount : anyExplicitSizes ? 0 : 1,
+      variantCount: m.variantCount > 0 ? m.variantCount : anyExplicitVariants ? 0 : 1,
+      sizeSource: m.sizeSource || (!anyExplicitSizes && m.sizeCount === 0 ? "standart-fallback" : m.sizeSource),
     };
   });
 }
@@ -210,11 +225,13 @@ export function buildColorFamilyStatus(input: {
   const membersMissingImages = memberStatuses
     .filter((m) => m.fetched && m.imageCount === 0)
     .map((m) => m.color || m.productId);
+  // sizeCount/variantCount buildMemberStatuses içinde tek-ebat için 1'e yükseltilir;
+  // karışık ailede (birinde beden var, diğerinde yok) hâlâ 0 kalır → eksik sayılır.
   const membersMissingSizes = memberStatuses
-    .filter((m) => m.fetched && m.sizeCount === 0)
+    .filter((m) => m.fetched && m.imageCount > 0 && m.sizeCount === 0)
     .map((m) => m.color || m.productId);
   const membersMissingVariants = memberStatuses
-    .filter((m) => m.fetched && m.variantCount === 0)
+    .filter((m) => m.fetched && m.imageCount > 0 && m.variantCount === 0)
     .map((m) => m.color || m.productId);
 
   // Crawl yalnızca BW/members listesi geldiyse denendi sayılır
@@ -665,14 +682,25 @@ export function attachVariantImagesFromColorMap(
         ),
       ];
 
+  const slugPart = (value: string) =>
+    value
+      .toLocaleLowerCase("tr-TR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "standart";
+
   for (const v of allVariants) {
     const color = String(v.color || "").trim();
     const gallery = findColorGallery(imagesByColor, color);
-    if (!gallery.length) continue;
-    if (!v.image) v.image = gallery[0];
-    if (!Array.isArray(v.images) || !(v.images as string[]).length) {
-      v.images = gallery;
+    if (color && !isPlaceholderColor(color)) {
+      v.mediaGroupKey = `color:${slugPart(color)}`;
     }
+    if (!gallery.length) continue;
+    // Renk grubunun ilk görseli — varyant index'ine göre images[i] YOK
+    v.featuredImage = gallery[0];
+    v.image = gallery[0];
+    v.images = gallery;
   }
 
   // Flat gallery: yalnızca varyant renklerinin görselleri (yabancı renk karışmasın)
@@ -832,7 +860,7 @@ export function buildColorFamilyVariantMatrix(
     const color = member.color || "Renk";
     if (color && !colors.includes(color)) colors.push(color);
 
-    const memberVariants = member.variants?.allVariants?.length
+    let memberVariants = member.variants?.allVariants?.length
       ? member.variants.allVariants
       : member.variants?.sizes?.length
         ? member.variants.sizes.map((size) => ({
@@ -841,6 +869,21 @@ export function buildColorFamilyVariantMatrix(
             inStock: true,
           }))
         : [];
+
+    // Görsel var, beden yok → tek ebat Standart (UI/Shopify tutarlılığı)
+    if (!memberVariants.length && member.images?.length) {
+      memberVariants = [
+        {
+          color,
+          size: "Standart",
+          inStock: true,
+          image: member.images[0],
+          images: member.images,
+          sourceProductId: member.productId,
+          sourceUrl: member.finalUrl || member.url,
+        },
+      ];
+    }
 
     if (!memberVariants.length) continue;
 
@@ -1270,6 +1313,14 @@ export function mergeColorFamilyIntoScrapeResult(input: ColorFamilyMergeInput): 
   if (status.shopifyUploadBlocked) {
     input.result.shopifyUploadBlocked = true;
     input.result.shopifyUploadBlockReason = status.blockReason;
+  } else if (
+    String(input.result.shopifyUploadBlockReason || "").includes(
+      "Renk ailesindeki en az bir renk",
+    )
+  ) {
+    // Önceki sahte tek-ebat engelini temizle
+    input.result.shopifyUploadBlocked = false;
+    delete input.result.shopifyUploadBlockReason;
   }
 
   console.log(`[ColorFamily] rootProductId=${input.rootProductId}`);

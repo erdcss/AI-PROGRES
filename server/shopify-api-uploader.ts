@@ -80,6 +80,7 @@ export async function uploadProductToShopify(
   }>;
   message: string;
   httpStatus?: number;
+  variantMediaDiagnostics?: import('./shopify-variant-media-association').VariantMediaDiagnostics;
 }> {
   try {
     console.log('🛒 Shopify upload başlatılıyor...');
@@ -191,6 +192,7 @@ export async function uploadProductToShopify(
             handle: upsertResult.handle,
             mode: upsertResult.mode,
             message: upsertResult.message,
+            variantMediaDiagnostics: upsertResult.variantMediaDiagnostics,
           };
         }
         if (upsertResult.httpStatus === 409) {
@@ -198,6 +200,19 @@ export async function uploadProductToShopify(
             success: false,
             message: upsertResult.message,
             httpStatus: 409,
+            variantMediaDiagnostics: upsertResult.variantMediaDiagnostics,
+          };
+        }
+        // Varyant media verification fail — ürün oluşmuş olabilir, yine de hata dön
+        if (upsertResult.productId && upsertResult.variantMediaDiagnostics) {
+          return {
+            success: false,
+            productId: upsertResult.productId,
+            handle: upsertResult.handle,
+            mode: upsertResult.mode,
+            message: upsertResult.message,
+            httpStatus: upsertResult.httpStatus,
+            variantMediaDiagnostics: upsertResult.variantMediaDiagnostics,
           };
         }
         console.warn('[ShopifyUpsert] upsert failed, legacy create deneniyor:', upsertResult.message);
@@ -438,12 +453,46 @@ export async function uploadProductToShopify(
     });
     
     console.log(`📦 Returning ${variantMappings.length} variant IDs to caller for database sync`);
+
+    const { associateVariantMedia, buildSourceVariantsForMedia } = await import(
+      './shopify-variant-media-association'
+    );
+    const { fetchShopifyVariantMappings } = await import('./services/shopify-variant-fetch.service');
+    const shopifyVariants = await fetchShopifyVariantMappings(String(productId));
+    const sourceVariants = buildSourceVariantsForMedia({
+      csvVariants: productData.variants.map((v) => ({
+        option1: v.option1,
+        option2: v.option2,
+        sku: v.sku,
+        image: v.image,
+      })),
+    });
+    const mediaDiag = await associateVariantMedia({
+      productId: String(productId),
+      sourceVariants,
+      shopifyVariants,
+    });
+
+    if (
+      sourceVariants.some((v) => Boolean(v.featuredImage || v.imageUrl)) &&
+      !mediaDiag.variantMediaVerification
+    ) {
+      return {
+        success: false,
+        productId: String(productId),
+        variants: variantMappings,
+        message: `Ürün oluştu fakat varyant görselleri bağlanamadı (${mediaDiag.variantsAssociated}/${mediaDiag.variantsMatched})`,
+        httpStatus: 422,
+        variantMediaDiagnostics: mediaDiag,
+      };
+    }
     
     return { 
       success: true, 
       productId: result.product.id.toString(),
       variants: variantMappings,
-      message: `Ürün başarıyla Shopify'a eklendi. ID: ${result.product.id}` 
+      message: `Ürün başarıyla Shopify'a eklendi. ID: ${result.product.id}`,
+      variantMediaDiagnostics: mediaDiag,
     };
 
   } catch (error) {
@@ -458,7 +507,14 @@ export async function uploadProductToShopify(
 async function uploadProductViaGraphQL(
   productData: ShopifyProductData,
   trackingId: string | null,
-): Promise<{ success: boolean; productId?: string; handle?: string; variants?: any[]; message: string }> {
+): Promise<{
+  success: boolean;
+  productId?: string;
+  handle?: string;
+  variants?: any[];
+  message: string;
+  variantMediaDiagnostics?: import('./shopify-variant-media-association').VariantMediaDiagnostics;
+}> {
   const option1Values = Array.from(new Set(productData.variants.map((v) => v.option1).filter((v) => v && v.trim())));
   const option2Values = Array.from(new Set(productData.variants.map((v) => v.option2).filter((v) => v && v.trim())));
 
@@ -649,12 +705,57 @@ async function uploadProductViaGraphQL(
     };
   });
 
+  const { associateVariantMedia, buildSourceVariantsForMedia } = await import(
+    './shopify-variant-media-association'
+  );
+  const sourceVariants = buildSourceVariantsForMedia({
+    csvVariants: productData.variants.map((v) => ({
+      option1: v.option1,
+      option2: v.option2,
+      sku: v.sku,
+      image: v.image,
+    })),
+  });
+  const mediaDiag = await associateVariantMedia({
+    productId,
+    sourceVariants,
+    shopifyVariants: allCreatedVariants.map((sv, index) => {
+      const opts = sv.selectedOptions || [];
+      return {
+        shopifyVariantId: sv.id.split('/').pop() || '',
+        shopifyVariantGid: sv.id,
+        option1:
+          opts.find((o) => o.name === productData.option1Name)?.value ||
+          productData.variants[index]?.option1,
+        option2:
+          opts.find((o) => o.name === productData.option2Name)?.value ||
+          productData.variants[index]?.option2,
+        sku: productData.variants[index]?.sku,
+      };
+    }),
+  });
+
+  if (
+    sourceVariants.some((v) => Boolean(v.featuredImage || v.imageUrl)) &&
+    !mediaDiag.variantMediaVerification
+  ) {
+    return {
+      success: false,
+      productId,
+      handle: createdProduct.handle,
+      variants: variantMappings,
+      message: `GraphQL ürün oluştu fakat varyant görselleri bağlanamadı (${mediaDiag.variantsAssociated}/${mediaDiag.variantsMatched})`,
+      variantMediaDiagnostics: mediaDiag,
+    };
+  }
+
   return {
     success: true,
     productId,
     handle: createdProduct.handle,
     variants: variantMappings,
     message: `GraphQL ile yüklendi (${allCreatedVariants.length}/${productData.variants.length} varyant). ID: ${productId}`,
+    variantMediaDiagnostics: mediaDiag,
   };
 }
 

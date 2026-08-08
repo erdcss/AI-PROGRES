@@ -584,8 +584,35 @@ function convertProductToShopifyCSV(productData: any): string {
   
   combinations.forEach(({opt1, opt2}) => {
     const isFirstVariant = variantIndex === 0;
-    const imageIndex = variantIndex % Math.max(images.length, 1);
-    const imageUrl = images[imageIndex] || '';
+    // Renk → görsel: index ile images[i] eşleme YOK
+    const imagesByColor =
+      productData.imagesByColor && typeof productData.imagesByColor === "object"
+        ? (productData.imagesByColor as Record<string, string[]>)
+        : {};
+    const colorKey = hasColors ? opt1 : "";
+    const colorGallery =
+      (colorKey && imagesByColor[colorKey]) ||
+      (colorKey
+        ? Object.entries(imagesByColor).find(
+            ([k]) => k.toLocaleLowerCase("tr-TR") === colorKey.toLocaleLowerCase("tr-TR"),
+          )?.[1]
+        : undefined) ||
+      [];
+    const mediaGroups = Array.isArray(productData.variantMediaGroups)
+      ? productData.variantMediaGroups
+      : [];
+    const mediaGroup = colorKey
+      ? mediaGroups.find(
+          (g: any) =>
+            String(g?.optionValue || "").toLocaleLowerCase("tr-TR") ===
+            colorKey.toLocaleLowerCase("tr-TR"),
+        )
+      : null;
+    const imageUrl =
+      (typeof mediaGroup?.featuredImage === "string" && mediaGroup.featuredImage) ||
+      colorGallery[0] ||
+      (Array.isArray(productData.images) ? productData.images[0] : "") ||
+      "";
     
     const row = [
       handle, // Handle
@@ -668,8 +695,11 @@ function convertMultiUrlProductToCSV(productData: any): string {
     fakeSizes.forEach((size, sizeIndex) => {
       const handle = productData.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') || 'product';
       const isFirstVariant = variantIndex === 0;
-      const imageIndex = variantIndex % (productData.images?.length || 1);
-      const imageUrl = productData.images?.[imageIndex]?.url || '';
+      // Index-based image seçimi yok — ürün/renk featured görseli
+      const imageUrl =
+        productData.images?.[0]?.url ||
+        (typeof productData.images?.[0] === "string" ? productData.images[0] : "") ||
+        "";
       
       // Her varyant iÃ§in CSV satÄ±rÄ± oluÅŸtur
       const row = [
@@ -4266,16 +4296,25 @@ setTimeout(check, 1000);
           productId: uploadResult.productId,
           mode: (uploadResult as { mode?: string }).mode,
           message: uploadResult.message,
-          tracking: trackingResult
+          tracking: trackingResult,
+          variantMediaDiagnostics: (uploadResult as { variantMediaDiagnostics?: unknown })
+            .variantMediaDiagnostics,
         });
       } else {
         // Duplicate detection â†’ 409 Conflict (frontend counts 409 as "already uploaded" = success)
         const isDuplicate = uploadResult.message?.includes('yakÄ±n zamanda yÃ¼klendi');
-        const statusCode = isDuplicate ? 409 : 400;
+        const statusCode = isDuplicate
+          ? 409
+          : (uploadResult as { httpStatus?: number }).httpStatus === 422
+            ? 422
+            : 400;
         console.log(isDuplicate ? 'âš ï¸ Duplicate upload detected â†’ 409' : 'âŒ Upload failed â†’ 400', uploadResult.message);
         return res.status(statusCode).json({
           success: false,
-          error: uploadResult.message
+          error: uploadResult.message,
+          productId: uploadResult.productId,
+          variantMediaDiagnostics: (uploadResult as { variantMediaDiagnostics?: unknown })
+            .variantMediaDiagnostics,
         });
       }
       

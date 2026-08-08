@@ -34,6 +34,8 @@ export type BlockSignal = {
 export type TrendyolBlockStatus = {
   open: boolean;
   remainingMs: number;
+  /** Epoch ms — circuit açıkken bitiş zamanı; kapalıysa null */
+  openUntil: number | null;
   lastKind: TrendyolBlockKind | null;
   lastSource: TrendyolBlockSource | null;
   consecutiveFails: number;
@@ -95,6 +97,7 @@ export function getTrendyolBlockStatus(now = Date.now()): TrendyolBlockStatus {
   return {
     open: remainingMs > 0,
     remainingMs,
+    openUntil: remainingMs > 0 ? state.openUntil : null,
     lastKind: state.lastKind,
     lastSource: state.lastSource,
     consecutiveFails: state.consecutiveFails,

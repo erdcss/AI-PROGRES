@@ -243,6 +243,32 @@ export function generateCanonicalShopifyCSV(
     row[COL.REQUIRES_SHIPPING] = "TRUE";
     row[COL.FULFILLMENT_SERVICE] = "manual";
 
+    // Shopify variant ↔ image: featuredImage / mediaGroup — asla index→images[i]
+    const variantFeatured =
+      (typeof (variant as { featuredImage?: string }).featuredImage === "string" &&
+        (variant as { featuredImage?: string }).featuredImage) ||
+      variant.image ||
+      "";
+    const mediaGroups = Array.isArray(
+      (product as { variantMediaGroups?: Array<{ key?: string; optionValue?: string; featuredImage?: string }> })
+        .variantMediaGroups,
+    )
+      ? (product as { variantMediaGroups: Array<{ key?: string; optionValue?: string; featuredImage?: string }> })
+          .variantMediaGroups
+      : [];
+    const mediaGroupKey = (variant as { mediaGroupKey?: string }).mediaGroupKey;
+    const groupFeatured =
+      (mediaGroupKey &&
+        mediaGroups.find((g) => g.key === mediaGroupKey)?.featuredImage) ||
+      mediaGroups.find(
+        (g) =>
+          String(g.optionValue || "").toLocaleLowerCase("tr-TR") ===
+          String(variant.color || "").toLocaleLowerCase("tr-TR"),
+      )?.featuredImage ||
+      "";
+    const resolvedVariantImage =
+      variantFeatured || groupFeatured || (isFirst ? product.images[0] : "") || "";
+
     if (isFirst && product.images[0]) {
       row[COL.PRODUCT_IMAGE_URL] = product.images[0];
       row[COL.IMAGE_POSITION] = String(imagePosition);
@@ -251,19 +277,16 @@ export function generateCanonicalShopifyCSV(
         : product.title;
       addedImages.add(product.images[0]);
       imagePosition++;
-    } else if (variant.image && !addedImages.has(variant.image)) {
-      row[COL.PRODUCT_IMAGE_URL] = variant.image;
+    } else if (resolvedVariantImage && !addedImages.has(resolvedVariantImage)) {
+      row[COL.PRODUCT_IMAGE_URL] = resolvedVariantImage;
       row[COL.IMAGE_POSITION] = String(imagePosition);
       row[COL.IMAGE_ALT_TEXT] = `${product.title} - ${variant.color}`;
-      addedImages.add(variant.image);
+      addedImages.add(resolvedVariantImage);
       imagePosition++;
     }
 
-    // Shopify variant ↔ image bağlama
-    if (variant.image) {
-      row[COL.VARIANT_IMAGE_URL] = variant.image;
-    } else if (isFirst && product.images[0]) {
-      row[COL.VARIANT_IMAGE_URL] = product.images[0];
+    if (resolvedVariantImage) {
+      row[COL.VARIANT_IMAGE_URL] = resolvedVariantImage;
     }
 
     rows.push(row);

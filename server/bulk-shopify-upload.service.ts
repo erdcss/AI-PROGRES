@@ -225,6 +225,7 @@ async function uploadSingleItem(
             shopifyStatus,
             errorCode: "shopify_verify_failed",
             error: "Shopify'da ürün doğrulanamadı — admin panelini kontrol edin",
+            variantMediaDiagnostics: upsert.variantMediaDiagnostics,
           };
         }
 
@@ -237,6 +238,22 @@ async function uploadSingleItem(
           mode: upsert.mode,
           verified,
           shopifyStatus,
+          variantMediaDiagnostics: upsert.variantMediaDiagnostics,
+        };
+      }
+
+      // Association fail — ürün oluşmuş olabilir
+      if (upsert.productId && upsert.variantMediaDiagnostics && !upsert.success) {
+        return {
+          ...base,
+          success: false,
+          status: "failed",
+          productId: upsert.productId,
+          adminUrl: buildAdminProductUrl(upsert.productId),
+          mode: upsert.mode,
+          errorCode: "variant_media_association_failed",
+          error: upsert.message,
+          variantMediaDiagnostics: upsert.variantMediaDiagnostics,
         };
       }
 

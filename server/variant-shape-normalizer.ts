@@ -31,6 +31,10 @@ export interface CanonicalVariantItem {
   disabledReason?: string;
   price: string;
   image?: string;
+  /** Renk medya grubu anahtarı — örn. color:turuncu */
+  mediaGroupKey?: string;
+  /** Grubun ana görseli (bedenler paylaşır) */
+  featuredImage?: string;
 }
 
 export interface CanonicalProductForShopify {
@@ -52,6 +56,15 @@ export interface CanonicalProductForShopify {
   images: string[];
   /** Renk → galeri; CSV Variant Image / Image Alt için */
   imagesByColor?: Record<string, string[]>;
+  /** Renk medya grupları (slicer → gallery) */
+  variantMediaGroups?: Array<{
+    key: string;
+    optionName?: string;
+    optionValue: string;
+    images: string[];
+    featuredImage?: string;
+  }>;
+  mediaDrivingOption?: string | null;
   variants: CanonicalVariantItem[];
   outOfStockVariants: CanonicalVariantItem[];
   stockSummary: {
@@ -186,6 +199,8 @@ interface RawVariantRow {
   stockCount?: number | null;
   price?: string | number;
   image?: string;
+  mediaGroupKey?: string;
+  featuredImage?: string;
   disabledReason?: string;
   confidence: "high" | "medium" | "low";
   evidenceSource?: EvidenceSource;
@@ -286,10 +301,13 @@ function collectFromAllVariants(allVariants: unknown[]): RawVariantRow[] {
     const images = Array.isArray(o.images)
       ? o.images.filter((u): u is string => typeof u === "string" && /^https?:\/\//i.test(u))
       : [];
+    const featuredImage =
+      typeof o.featuredImage === "string" && /^https?:\/\//i.test(o.featuredImage)
+        ? o.featuredImage
+        : undefined;
     const image =
-      typeof o.image === "string" && /^https?:\/\//i.test(o.image)
-        ? o.image
-        : images[0];
+      featuredImage ||
+      (typeof o.image === "string" && /^https?:\/\//i.test(o.image) ? o.image : images[0]);
     rows.push({
       color,
       size,
@@ -303,6 +321,9 @@ function collectFromAllVariants(allVariants: unknown[]): RawVariantRow[] {
       price:
         typeof o.price === "number" || typeof o.price === "string" ? o.price : undefined,
       image,
+      featuredImage,
+      mediaGroupKey:
+        typeof o.mediaGroupKey === "string" ? o.mediaGroupKey : undefined,
       confidence: resolveRowStockUnknown(o) ? "low" : "high",
       evidenceSource: "all_variants" as const,
       sourceListingId:
@@ -822,7 +843,9 @@ export function buildCanonicalProductForShopify(
       stockConfidence: row.confidence,
       disabledReason: row.disabledReason,
       price: variantPrice,
-      image: row.image,
+      image: row.featuredImage || row.image,
+      mediaGroupKey: row.mediaGroupKey,
+      featuredImage: row.featuredImage || row.image,
     };
   });
 
@@ -868,24 +891,46 @@ export function buildCanonicalProductForShopify(
         )
       : {};
 
-  // Her varyanta kendi renk görselini bağla
-  for (const v of exportVariants) {
+  // Her varyanta kendi renk görselini bağla (featuredImage / media group — index değil)
+  const mediaGroupsRaw = input.scrapeResult.variantMediaGroups;
+  const mediaGroups = Array.isArray(mediaGroupsRaw)
+    ? (mediaGroupsRaw as Array<Record<string, unknown>>)
+    : [];
+  const mediaByKey = new Map(
+    mediaGroups
+      .filter((g) => typeof g.key === "string")
+      .map((g) => [String(g.key), g]),
+  );
+
+  for (const v of [...exportVariants, ...rowsForColor]) {
+    if (v.featuredImage && /^https?:\/\//i.test(v.featuredImage)) {
+      v.image = v.featuredImage;
+      continue;
+    }
+    if (v.mediaGroupKey) {
+      const g = mediaByKey.get(v.mediaGroupKey);
+      const featured =
+        typeof g?.featuredImage === "string"
+          ? g.featuredImage
+          : Array.isArray(g?.images)
+            ? (g.images as string[])[0]
+            : undefined;
+      if (featured && /^https?:\/\//i.test(featured)) {
+        v.featuredImage = featured;
+        v.image = featured;
+        continue;
+      }
+    }
     if (v.image) continue;
     const gallery =
       imagesByColor[v.color] ||
       Object.entries(imagesByColor).find(
         ([k]) => k.toLocaleLowerCase("tr-TR") === v.color.toLocaleLowerCase("tr-TR"),
       )?.[1];
-    if (gallery?.[0]) v.image = gallery[0];
-  }
-  for (const v of rowsForColor) {
-    if (v.image) continue;
-    const gallery =
-      imagesByColor[v.color] ||
-      Object.entries(imagesByColor).find(
-        ([k]) => k.toLocaleLowerCase("tr-TR") === v.color.toLocaleLowerCase("tr-TR"),
-      )?.[1];
-    if (gallery?.[0]) v.image = gallery[0];
+    if (gallery?.[0]) {
+      v.image = gallery[0];
+      v.featuredImage = gallery[0];
+    }
   }
 
   // Ürün galerisi: renk sırasıyla (yabancı renk görselleri karışmasın)
@@ -1030,6 +1075,23 @@ export function buildCanonicalProductForShopify(
     compareAtPrice,
     images: productImages,
     imagesByColor: Object.keys(imagesByColor).length ? imagesByColor : undefined,
+    variantMediaGroups: mediaGroups.length
+      ? mediaGroups.map((g) => ({
+          key: String(g.key || ""),
+          optionName: typeof g.optionName === "string" ? g.optionName : undefined,
+          optionValue: String(g.optionValue || ""),
+          images: Array.isArray(g.images)
+            ? (g.images as unknown[]).filter((u): u is string => typeof u === "string")
+            : [],
+          featuredImage:
+            typeof g.featuredImage === "string" ? g.featuredImage : undefined,
+        }))
+      : undefined,
+    mediaDrivingOption:
+      typeof input.scrapeResult.mediaDrivingOption === "string" ||
+      input.scrapeResult.mediaDrivingOption === null
+        ? (input.scrapeResult.mediaDrivingOption as string | null)
+        : undefined,
     variants: exportVariants,
     outOfStockVariants: exportOutOfStock,
     stockSummary: {

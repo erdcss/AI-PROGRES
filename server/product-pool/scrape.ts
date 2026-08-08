@@ -842,6 +842,169 @@ function scrapeGeneric(html: string, sourceUrl: string): ProductPoolProduct {
   };
 }
 
+function scrapeBeymen(html: string, sourceUrl: string): ProductPoolProduct {
+  const $ = cheerio.load(html);
+  const origin = new URL(sourceUrl).origin;
+
+  let title = "";
+  let brand = "";
+  let sku = "";
+  let salePrice = 0;
+  let listPrice = 0;
+  let color = "";
+  let inStock = true;
+  const images: string[] = [];
+  const features: ProductPoolFeature[] = [];
+
+  const marker = "BEYMEN.productMain = ";
+  const markerIdx = html.indexOf(marker);
+  if (markerIdx >= 0) {
+    const start = markerIdx + marker.length;
+    let depth = 0;
+    let end = -1;
+    for (let p = start; p < html.length; p++) {
+      const c = html[p];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) {
+          end = p + 1;
+          break;
+        }
+      }
+    }
+    if (end > start) {
+      try {
+        const data = JSON.parse(html.slice(start, end)) as Record<string, unknown>;
+        const displayName = cleanText(String(data.displayName || ""));
+        brand = cleanText(String(data.brandName || ""));
+        color = cleanText(String(data.colorName || ""));
+        sku = String(data.productId || "");
+        title = brand && displayName ? `${brand} ${displayName}` : displayName || brand;
+
+        const actual = Number(data.actualPrice);
+        if (Number.isFinite(actual) && actual > 0) salePrice = actual;
+
+        if (data.isStrikeThroughPriceExist && data.strikeThroughPriceText) {
+          const struck = parseTrPrice(String(data.strikeThroughPriceText));
+          if (struck && struck > salePrice) listPrice = struck;
+        }
+
+        const imgs = (data.images as { default?: unknown } | undefined)?.default;
+        if (Array.isArray(imgs)) {
+          for (const img of imgs) {
+            if (typeof img === "string" && img.startsWith("http")) images.push(img);
+          }
+        }
+      } catch {
+        /* fall through */
+      }
+    }
+  }
+
+  // JSON-LD yedek (kontrol karakterleri olabilir — temizle)
+  if (!salePrice || !title) {
+    const ldMatch = html.match(
+      /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/i,
+    );
+    if (ldMatch) {
+      try {
+        const cleaned = ldMatch[1]
+          .replace(/[\u0000-\u001f]+/g, " ")
+          .replace(/&quot;/g, '"')
+          .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+        const data = JSON.parse(cleaned) as Record<string, unknown>;
+        if (String(data["@type"] || "") === "Product") {
+          if (!title) title = cleanText(String(data.name || ""));
+          const brandVal = data.brand;
+          if (!brand) {
+            if (typeof brandVal === "string") brand = brandVal;
+            else if (brandVal && typeof brandVal === "object") {
+              brand = cleanText(String((brandVal as { name?: string }).name || ""));
+            }
+          }
+          const offer = data.offers as Record<string, unknown> | undefined;
+          if (offer) {
+            const p = Number(offer.price);
+            if (!salePrice && Number.isFinite(p) && p > 0) salePrice = p;
+            const avail = String(offer.availability || "");
+            if (/OutOfStock|SoldOut/i.test(avail)) inStock = false;
+          }
+          const img = data.image;
+          if (typeof img === "string" && img) images.push(img);
+          else if (Array.isArray(img)) {
+            for (const i of img) if (typeof i === "string" && i) images.push(i);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  if (!title) {
+    title =
+      $('meta[property="og:title"]').attr("content")?.trim() ||
+      $("h1").first().text().trim() ||
+      $("title").text().trim() ||
+      "Ürün";
+    title = title
+      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+      .replace(/\s*[|-]\s*Beymen.*$/i, "")
+      .trim();
+  }
+
+  if (!salePrice) {
+    salePrice =
+      parseTrPrice($('meta[property="product:price:amount"]').attr("content") || "") ||
+      parseTrPrice($(".o-productDetail__price").first().text()) ||
+      0;
+  }
+
+  if (!images.length) {
+    const og = $('meta[property="og:image"]').attr("content");
+    if (og) images.push(absoluteUrl(origin, og));
+  }
+
+  // Sepette kampanya fiyatı (bilgi; alış fiyatı productMain.actualPrice)
+  const basketMatch =
+    html.match(/Sepette[^0-9]{0,80}?(\d{1,3}(?:\.\d{3})*,\d{2})\s*TL/i) ||
+    cleanText($("body").text()).match(/Sepette\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s*TL/i);
+  if (basketMatch) {
+    const basket = parseTrPrice(basketMatch[1]);
+    if (basket && basket > 0 && basket < salePrice) {
+      features.push({ name: "Sepette fiyat", value: `${basket.toLocaleString("tr-TR")} TL` });
+    }
+  }
+
+  if (brand && !features.some((f) => /marka/i.test(f.name))) {
+    features.unshift({ name: "Marka", value: brand });
+  }
+  if (color) features.push({ name: "Renk", value: color });
+  if (sku) features.push({ name: "Ürün ID", value: sku });
+
+  const compareAt = listPrice > salePrice ? listPrice : null;
+  const siteLogoUrl = absoluteUrl(origin, "//cdn.beymen.com/assets/images/favicon.ico");
+
+  return {
+    title: cleanText(title),
+    sourceUrl,
+    siteName: "Beymen",
+    siteLogoUrl,
+    brand: brand || undefined,
+    sku: sku || undefined,
+    currency: "TRY",
+    price: compareAt || salePrice,
+    compareAtPrice: compareAt,
+    discountPercent: discountPercent(salePrice, compareAt),
+    salePrice,
+    images: [...new Set(images)].slice(0, 12),
+    features: features.slice(0, 24),
+    inStock,
+    scrapedAt: new Date().toISOString(),
+  };
+}
+
 function scrapePazarama(html: string, sourceUrl: string): ProductPoolProduct {
   const $ = cheerio.load(html);
   const origin = new URL(sourceUrl).origin;
@@ -1144,6 +1307,11 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
       product = scrapeIdefix(html, trimmed);
     } else if (host.includes("pazarama.com")) {
       product = scrapePazarama(html, trimmed);
+    } else if (host.includes("beymen.com")) {
+      product = scrapeBeymen(html, trimmed);
+      if (!(product.salePrice > 0)) {
+        throw new Error("Beymen ürün fiyatı alınamadı");
+      }
     } else {
       product = scrapeGeneric(html, trimmed);
     }

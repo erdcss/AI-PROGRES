@@ -124,8 +124,40 @@ export function generateVariantCSV(productData: any): { csvContent: string; file
     Object.entries(stockMatrix).forEach(([combination, variant]: [string, any], index) => {
       if (!variant.inStock) return; // Sadece stokta olanlar
       
-      const imageIndex = Math.min(index, (productData.images?.length || 1) - 1);
-      const variantImage = productData.images?.[imageIndex] || '';
+      // Variant Image: featuredImage / mediaGroup — asla index → images[i]
+      const colorValueEarly = getRealValue(variant, ['color', 'colorName']) || '';
+      const imagesByColor =
+        productData.imagesByColor && typeof productData.imagesByColor === 'object'
+          ? (productData.imagesByColor as Record<string, string[]>)
+          : {};
+      const mediaGroups = Array.isArray(productData.variantMediaGroups)
+        ? productData.variantMediaGroups
+        : [];
+      const mediaGroup =
+        (variant.mediaGroupKey &&
+          mediaGroups.find((g: any) => g?.key === variant.mediaGroupKey)) ||
+        mediaGroups.find(
+          (g: any) =>
+            String(g?.optionValue || '').toLocaleLowerCase('tr-TR') ===
+            colorValueEarly.toLocaleLowerCase('tr-TR'),
+        );
+      const colorGallery =
+        (colorValueEarly && imagesByColor[colorValueEarly]) ||
+        (colorValueEarly
+          ? Object.entries(imagesByColor).find(
+              ([k]) =>
+                k.toLocaleLowerCase('tr-TR') ===
+                colorValueEarly.toLocaleLowerCase('tr-TR'),
+            )?.[1]
+          : undefined) ||
+        [];
+      const variantImage =
+        variant.featuredImage ||
+        variant.image ||
+        mediaGroup?.featuredImage ||
+        colorGallery[0] ||
+        productData.images?.[0] ||
+        '';
       
       // Varyant fiyatı hesaplama (originalPrice varsa onu kullan, yoksa default fiyat)
       const originalPrice = variant.originalPrice || productData.price;
@@ -151,7 +183,7 @@ export function generateVariantCSV(productData: any): { csvContent: string; file
         'Image Src': variantImage,
         'Image Position': (index + 1).toString(),
         'Image Alt Text': productData.title,
-        'Variant Image': index === 0 ? variantImage : '',
+        'Variant Image': variantImage,
         'Cost per item': costPrice.toString(),
         'Google Shopping / Custom Label 0': `Orijinal: ${originalPrice}₺`,
         'Google Shopping / Custom Label 1': `Kar: %10`,

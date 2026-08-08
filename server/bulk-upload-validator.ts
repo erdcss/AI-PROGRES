@@ -35,6 +35,7 @@ export interface BulkUploadItemResult {
   errorCode?: string;
   error?: string;
   requestId?: string;
+  variantMediaDiagnostics?: unknown;
 }
 
 export interface BulkUploadValidation {

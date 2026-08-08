@@ -161,12 +161,15 @@ function buildCsvShopifyUploadBody(
     description?: string;
     price?: { original?: number; withProfit?: number };
     images?: string[];
+    imagesByColor?: Record<string, string[]>;
     variants?: unknown;
     features?: Array<{ key: string; value: string }>;
     category?: string;
     csvInfo?: unknown;
     csvPreview?: unknown;
     titleSource?: string;
+    canonicalProduct?: unknown;
+    colorFamily?: unknown;
   },
   csvContent: string,
   individualTags: string[],
@@ -178,6 +181,14 @@ function buildCsvShopifyUploadBody(
       ? { ready: true, productCount: 1, filename: 'shopify-urunler.csv', downloadUrl: '/api/download/shopify-urunler.csv' }
       : { ready: false, productCount: 0, filename: 'shopify-urunler.csv', downloadUrl: '/api/download/shopify-urunler.csv' });
 
+  const canonical = preview.canonicalProduct as
+    | {
+        variantMediaGroups?: unknown;
+        imagesByColor?: Record<string, string[]>;
+        variants?: Array<{ featuredImage?: string; image?: string; mediaGroupKey?: string }>;
+      }
+    | undefined;
+
   return {
     productData: {
       title: preview.productTitle,
@@ -186,6 +197,8 @@ function buildCsvShopifyUploadBody(
       category: preview.category,
       price: preview.price,
       images: preview.images,
+      imagesByColor: preview.imagesByColor || canonical?.imagesByColor,
+      variantMediaGroups: canonical?.variantMediaGroups,
       sourceUrl: preview.sourceUrl,
       variants: preview.variants,
       features: preview.features || [],
@@ -193,6 +206,7 @@ function buildCsvShopifyUploadBody(
       csvInfo,
       csvPreview: preview.csvPreview,
       titleSource: preview.titleSource,
+      colorFamily: preview.colorFamily,
     },
     csvContent,
     csvInfo,
@@ -202,6 +216,7 @@ function buildCsvShopifyUploadBody(
     approvedForShopify: true,
     titleSource: preview.titleSource,
     scrapedTitle: preview.productTitle,
+    canonicalProduct: preview.canonicalProduct,
   };
 }
 
@@ -361,6 +376,50 @@ function ScraperPage() {
     previousCsvPreviewCountRef.current = csvPreviews.length;
   }, [csvPreviews.length, isBulkProcessing]);
 
+  const hydrateBanMetaFromServer = useCallback(async (fallbackMessage?: string) => {
+    try {
+      const res = await fetch("/api/trendyol/block-status", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        open?: boolean;
+        remainingMs?: number;
+        openUntil?: number | null;
+        lastKind?: string | null;
+        message?: string | null;
+      };
+      if (!data.open) return;
+      setScrapeError(data.message || fallbackMessage || "Trendyol erişimi engellendi");
+      setScrapeErrorMeta((prev) => ({
+        ...prev,
+        reason: prev?.reason || "trendyol-circuit-open",
+        userMessage: data.message || prev?.userMessage || fallbackMessage,
+        stageErrors:
+          prev?.stageErrors?.length
+            ? prev.stageErrors
+            : ["trendyol-circuit-open"],
+        blockCooldownMs: data.remainingMs,
+        blockEndsAt:
+          typeof data.openUntil === "number" && data.openUntil > 0
+            ? data.openUntil
+            : typeof data.remainingMs === "number"
+              ? Date.now() + data.remainingMs
+              : undefined,
+        blockKind: data.lastKind || prev?.blockKind,
+      }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleBanCleared = useCallback((info: { waitedMs: number; lastKind?: string }) => {
+    const waitedMin = Math.max(1, Math.round(info.waitedMs / 60_000));
+    toast({
+      title: "Trendyol ban kalktı ✓",
+      description: `Erişim yeniden açıldı (~${waitedMin} dk beklendi). Ürün çekimine devam edebilirsiniz.`,
+      duration: 10_000,
+    });
+    setWorkflowStep("Ban kalktı — tekrar deneyebilirsiniz");
+  }, []);
 
   const singleScrapeMutation = useMutation({
     onMutate: () => {
@@ -504,12 +563,16 @@ function ScraperPage() {
                   size: string;
                   inStock: boolean;
                   image?: string;
+                  featuredImage?: string;
+                  mediaGroupKey?: string;
                   sourceProductId?: string;
                 }) => ({
                   color: v.color,
                   size: v.size,
                   inStock: v.inStock,
-                  image: v.image,
+                  image: v.featuredImage || v.image,
+                  featuredImage: v.featuredImage || v.image,
+                  mediaGroupKey: v.mediaGroupKey,
                   sourceProductId: v.sourceProductId,
                 }),
               ),
@@ -713,8 +776,17 @@ function ScraperPage() {
           stageErrorsHuman: error.stageErrorsHuman,
           finalSuccessReason: error.finalSuccessReason,
         });
+        const looksLikeBan =
+          (error.stageErrors || []).some((e: string) =>
+            /trendyol-circuit|trendyol-blocked|upstream-556|browser-worker-blocked/i.test(e),
+          ) ||
+          /trendyol-circuit|erişimi engelledi|upstream 556|ban koruması/i.test(msg);
+        if (looksLikeBan) void hydrateBanMetaFromServer(msg);
       } else {
         setScrapeErrorMeta(null);
+        if (/trendyol-circuit|erişimi engelledi|upstream 556|ban koruması/i.test(msg)) {
+          void hydrateBanMetaFromServer(msg);
+        }
       }
       setWorkflowStep(null);
       toast({
@@ -1219,6 +1291,7 @@ function ScraperPage() {
       const data = (await res.json()) as {
         open?: boolean;
         remainingMs?: number;
+        openUntil?: number | null;
         lastKind?: string | null;
         message?: string | null;
       };
@@ -1229,6 +1302,12 @@ function ScraperPage() {
         userMessage: data.message || undefined,
         stageErrors: ["trendyol-circuit-open"],
         blockCooldownMs: data.remainingMs,
+        blockEndsAt:
+          typeof data.openUntil === "number" && data.openUntil > 0
+            ? data.openUntil
+            : typeof data.remainingMs === "number"
+              ? Date.now() + data.remainingMs
+              : undefined,
         blockKind: data.lastKind || undefined,
       });
       if (isBulkProcessing) stopBulkScrape();
@@ -2039,11 +2118,14 @@ function ScraperPage() {
             category: preview.category,
             price: preview.price,
             images: preview.images,
+            imagesByColor: preview.imagesByColor,
+            variantMediaGroups: preview.canonicalProduct?.variantMediaGroups,
             sourceUrl: preview.sourceUrl,
             variants: preview.variants,
             features: preview.features,
             titleSource: preview.titleSource,
             scrapeRunId: preview.scrapeRunId,
+            colorFamily: preview.colorFamily,
           },
           canonicalProduct: preview.canonicalProduct,
           csvContent: csvToUpload,
@@ -2956,6 +3038,7 @@ function ScraperPage() {
                     details={scrapeError}
                     meta={scrapeErrorMeta ?? undefined}
                     onRetry={() => singleForm.handleSubmit((d) => singleScrapeMutation.mutate(d))()}
+                    onBanCleared={handleBanCleared}
                   />
                 )}
                 {lastShopifyResult?.adminUrl && (

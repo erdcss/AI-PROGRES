@@ -283,6 +283,65 @@ console.log("\n=== Trendyol Hydrated Member ===\n");
 }
 
 {
+  console.log("H2) Tüm renkler görselli ama bedensiz → Standart, Shopify engeli YOK");
+  const status = buildColorFamilyStatus({
+    attempted: true,
+    rootProductId: "1175713642",
+    familySourceKey: "trendyol-group:1175713642",
+    sourceAliases: [
+      "trendyol:1175713642",
+      "trendyol:1175713662",
+      "trendyol:1175713746",
+    ],
+    colors: ["Kırmızı", "Siyah", "Mint"],
+    imagesByColor: {
+      Kırmızı: ["https://cdn.dsmcdn.com/r.jpg"],
+      Siyah: ["https://cdn.dsmcdn.com/s.jpg"],
+      Mint: ["https://cdn.dsmcdn.com/m.jpg"],
+    },
+    variants: [
+      { color: "Kırmızı", size: "Standart", image: "https://cdn.dsmcdn.com/r.jpg" },
+      { color: "Siyah", size: "Standart", image: "https://cdn.dsmcdn.com/s.jpg" },
+      { color: "Mint", size: "Standart", image: "https://cdn.dsmcdn.com/m.jpg" },
+    ],
+    members: [
+      {
+        productId: "1175713642",
+        url: "https://www.trendyol.com/a-p-1175713642",
+        color: "Kırmızı",
+        images: ["https://cdn.dsmcdn.com/r.jpg"],
+        ok: true,
+        variants: { colors: ["Kırmızı"], sizes: [], allVariants: [] },
+      },
+      {
+        productId: "1175713662",
+        url: "https://www.trendyol.com/a-p-1175713662",
+        color: "Siyah",
+        images: ["https://cdn.dsmcdn.com/s.jpg"],
+        ok: true,
+        variants: { colors: ["Siyah"], sizes: [], allVariants: [] },
+      },
+      {
+        productId: "1175713746",
+        url: "https://www.trendyol.com/a-p-1175713746",
+        color: "Mint",
+        images: ["https://cdn.dsmcdn.com/m.jpg"],
+        ok: true,
+        variants: { colors: ["Mint"], sizes: [], allVariants: [] },
+      },
+    ],
+    isApparel: true,
+  });
+  assert(status.shopifyUploadBlocked !== true, "tek ebat ailede Shopify engeli olmamalı");
+  assert(status.membersMissingSizes.length === 0, "membersMissingSizes boş");
+  assert(
+    status.memberStatuses.every((m) => m.sizeCount >= 1 && m.variantCount >= 1),
+    "görselli üyelerde Standart sayacı",
+  );
+  assert(status.state === "success" || status.state === "partial", `state ok got ${status.state}`);
+}
+
+{
   console.log("I) Sibling contentId → çapraz yok; OOS CSV dışı");
   const { buildVariantMatrixFromSlicingData } = await import("../trendyol-slicing-parser");
   const matrix = buildVariantMatrixFromSlicingData(

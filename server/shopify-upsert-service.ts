@@ -8,6 +8,11 @@ import { buildUploadLockKey } from "./shopify-source-key";
 import type { CanonicalProductForShopify } from "./variant-shape-normalizer";
 import { fetchShopifyVariantMappings } from "./services/shopify-variant-fetch.service";
 import {
+  associateVariantMedia,
+  buildSourceVariantsForMedia,
+  type VariantMediaDiagnostics,
+} from "./shopify-variant-media-association";
+import {
   buildAutomaticProductTags,
   buildLegacySourceLookupTag,
   buildSourceLookupTag,
@@ -40,6 +45,7 @@ export interface UpsertResult {
   metafieldResults?: Array<{ key: string; status: string }>;
   warnings?: string[];
   httpStatus?: number;
+  variantMediaDiagnostics?: VariantMediaDiagnostics;
 }
 
 const uploadLocks = new Map<string, { startedAt: number }>();
@@ -272,6 +278,59 @@ function parseCsvVariants(csvContent: string) {
   return { handle, title, bodyHtml, vendor, tags, variants, images, option1Name, option2Name };
 }
 
+async function attachVariantMediaAfterUpsert(
+  result: UpsertResult,
+  parsed: ReturnType<typeof parseCsvVariants>,
+  canonical: CanonicalProductForShopify,
+): Promise<UpsertResult> {
+  if (!result.success || !result.productId) return result;
+
+  const shopifyVariants =
+    result.variantMappings && result.variantMappings.length > 0
+      ? result.variantMappings
+      : await fetchShopifyVariantMappings(result.productId);
+
+  const sourceVariants = buildSourceVariantsForMedia({
+    csvVariants: parsed.variants,
+    canonical: {
+      variants: (canonical.variants || []).map((v) => ({
+        color: v.color,
+        size: v.size,
+        sku: v.sku,
+        image: v.image,
+        featuredImage: v.featuredImage || v.image,
+        mediaGroupKey: v.mediaGroupKey,
+      })),
+      variantMediaGroups: canonical.variantMediaGroups,
+      imagesByColor: canonical.imagesByColor,
+    },
+  });
+
+  const diagnostics = await associateVariantMedia({
+    productId: result.productId,
+    sourceVariants,
+    shopifyVariants,
+    mediaGroupCount: canonical.variantMediaGroups?.length ?? 0,
+  });
+
+  const next: UpsertResult = {
+    ...result,
+    variantMappings: shopifyVariants,
+    variantMediaDiagnostics: diagnostics,
+  };
+
+  if (
+    sourceVariants.some((v) => Boolean(v.featuredImage || v.imageUrl)) &&
+    !diagnostics.variantMediaVerification
+  ) {
+    next.success = false;
+    next.message = `Ürün oluşturuldu fakat varyant görselleri bağlanamadı (associated=${diagnostics.variantsAssociated}/${diagnostics.variantsMatched}, missing=${diagnostics.variantsMissingMedia})`;
+    next.httpStatus = 422;
+  }
+
+  return next;
+}
+
 /** Idempotent create/update — aynı sourceKey için ikinci create engellenir */
 export async function upsertProductFromSource(
   csvContent: string,
@@ -304,21 +363,23 @@ export async function upsertProductFromSource(
 
     if (existing) {
       console.log(`[ShopifyUpsert] existingProductId=${existing.id}`);
-      const updateResult = await updateExistingProduct(
+      let updateResult = await updateExistingProduct(
         existing,
         parsed,
         sourceTags,
         canonical,
       );
       await setSourceMetafields(existing.id, canonical);
+      updateResult = await attachVariantMediaAfterUpsert(updateResult, parsed, canonical);
       console.log(`[ShopifyUpsert] mode=updated`);
       return updateResult;
     }
 
-    const createResult = await createNewProduct(parsed, sourceTags, canonical);
+    let createResult = await createNewProduct(parsed, sourceTags, canonical);
     if (createResult.productId) {
       await setSourceMetafields(createResult.productId, canonical);
     }
+    createResult = await attachVariantMediaAfterUpsert(createResult, parsed, canonical);
     console.log(
       `[ShopifyUpsert] mode=${createResult.mode ?? "create"} success=${createResult.success} productId=${createResult.productId ?? "none"} message=${createResult.message}`,
     );
