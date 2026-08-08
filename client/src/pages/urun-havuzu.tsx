@@ -243,166 +243,210 @@ function ShopifyBagIcon({
   );
 }
 
-/** Gerçekçi 3D dalgalı su dolumu — ön kenar su akışı (düz çizgi değil) */
+/** Gerçekçi su dolumu — gövde düz, uçta sabit genlikte organik dalga dili */
 function ShopifyWaterFill({ progress, uid }: { progress: number; uid: string }) {
   const p = Math.max(0, Math.min(100, progress));
   if (p <= 0.1) return null;
 
-  // Dalga tepesi taşsın diye biraz genişlet; pill overflow keser
-  const widthPct = Math.min(104, p + Math.min(5, p * 0.06));
-  const clipId = `${uid}-flow-clip`;
+  const gradId = `${uid}-body`;
+  const crestGradId = `${uid}-crest`;
+  const softBlurId = `${uid}-soft`;
+
+  // Uç dalgası sabit px — progress ile büyüyüp dişli görünmesin
+  const crestPx = 34;
+  const bodyMask = `linear-gradient(90deg, #000 0%, #000 calc(100% - ${crestPx * 0.55}px), transparent 100%)`;
 
   return (
     <span
       aria-hidden
       className="pointer-events-none absolute inset-0 z-[1] overflow-hidden rounded-full"
     >
-      <svg width="0" height="0" className="absolute" aria-hidden>
-        <defs>
-          <clipPath id={clipId} clipPathUnits="objectBoundingBox">
-            {/* Sağ kenar: dikine sinüs — su yüzeyi gibi salınır */}
-            <path d="M0,0 H0.86 C0.94,0.06 0.78,0.14 0.88,0.22 C0.98,0.30 0.80,0.38 0.90,0.46 C1.00,0.54 0.82,0.62 0.91,0.70 C1.00,0.78 0.84,0.86 0.90,0.94 C0.93,0.98 0.90,1 0.88,1 H0 Z">
-              <animate
-                attributeName="d"
-                dur="1.35s"
-                repeatCount="indefinite"
-                calcMode="spline"
-                keyTimes="0;0.5;1"
-                keySplines="0.4 0 0.2 1; 0.4 0 0.2 1"
-                values="
-                  M0,0 H0.86 C0.94,0.06 0.78,0.14 0.88,0.22 C0.98,0.30 0.80,0.38 0.90,0.46 C1.00,0.54 0.82,0.62 0.91,0.70 C1.00,0.78 0.84,0.86 0.90,0.94 C0.93,0.98 0.90,1 0.88,1 H0 Z;
-                  M0,0 H0.88 C0.78,0.05 0.96,0.13 0.84,0.22 C0.72,0.31 0.97,0.39 0.85,0.48 C0.73,0.57 0.98,0.65 0.86,0.74 C0.74,0.83 0.96,0.91 0.87,0.97 C0.84,0.99 0.86,1 0.86,1 H0 Z;
-                  M0,0 H0.86 C0.94,0.06 0.78,0.14 0.88,0.22 C0.98,0.30 0.80,0.38 0.90,0.46 C1.00,0.54 0.82,0.62 0.91,0.70 C1.00,0.78 0.84,0.86 0.90,0.94 C0.93,0.98 0.90,1 0.88,1 H0 Z
-                "
-              />
-            </path>
-          </clipPath>
-        </defs>
-      </svg>
-
+      {/* Su gövdesi */}
       <span
-        className="shopify-water-flow absolute inset-y-0 left-0"
+        className="absolute inset-y-0 left-0 overflow-hidden"
         style={{
-          width: `${widthPct}%`,
-          clipPath: `url(#${clipId})`,
-          WebkitClipPath: `url(#${clipId})`,
+          width: `${p}%`,
+          WebkitMaskImage: bodyMask,
+          maskImage: bodyMask,
         }}
       >
-        {/* Su gövdesi — dikey 3D hacim + yatay akış hissi */}
         <span
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(180deg, #e8f99a 0%, #c5eb6a 12%, #96bf48 38%, #6fa82e 68%, #3f7018 100%)",
+              "linear-gradient(180deg, #eaf9a8 0%, #c8ec6e 14%, #96bf48 40%, #6fa82e 70%, #3f7018 100%)",
             boxShadow:
-              "inset 0 10px 18px rgba(255,255,255,0.38), inset 0 -14px 22px rgba(20,40,0,0.38), inset 8px 0 16px rgba(255,255,255,0.12)",
+              "inset 0 9px 16px rgba(255,255,255,0.4), inset 0 -12px 20px rgba(20,40,0,0.36)",
           }}
         />
 
-        {/* Akış çizgileri — öne doğru */}
-        <span className="shopify-flow-streaks absolute inset-0 opacity-50" />
+        <span className="shopify-flow-streaks absolute inset-0 opacity-40" />
 
-        {/* Derinlik gölgesi */}
         <span
           className="absolute inset-x-0 bottom-0 h-[55%]"
           style={{
             background:
-              "linear-gradient(180deg, transparent 0%, rgba(35,70,8,0.25) 45%, rgba(20,45,5,0.55) 100%)",
+              "linear-gradient(180deg, transparent 0%, rgba(35,70,8,0.22) 40%, rgba(20,45,5,0.5) 100%)",
           }}
         />
-
-        {/* Üst ışık bandı */}
         <span
-          className="absolute inset-x-0 top-0 h-[42%]"
+          className="absolute inset-x-0 top-0 h-[40%]"
           style={{
             background:
-              "linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.12) 40%, transparent 100%)",
+              "linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 45%, transparent 100%)",
           }}
         />
 
-        {/* Dalga katmanları — yatay sürüklenme */}
-        <span className="shopify-wave-bob absolute inset-[-12%_-8%] overflow-hidden">
+        {/* Yüzey dalgaları — yatay akış */}
+        <span className="shopify-wave-bob absolute inset-[-14%_-6%] overflow-hidden">
           <svg
-            className="shopify-wave-layer-a absolute left-0 top-[-10%] h-[120%] w-[220%]"
+            className="shopify-wave-layer-a absolute left-0 top-[-8%] h-[115%] w-[200%]"
             viewBox="0 0 1200 120"
             preserveAspectRatio="none"
           >
             <defs>
-              <linearGradient id={`${uid}-w1`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f2ffb0" stopOpacity="0.85" />
-                <stop offset="35%" stopColor="#a8d05a" stopOpacity="0.7" />
-                <stop offset="100%" stopColor="#5e8e28" stopOpacity="0.35" />
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f4ffb8" stopOpacity="0.75" />
+                <stop offset="40%" stopColor="#a8d05a" stopOpacity="0.55" />
+                <stop offset="100%" stopColor="#5e8e28" stopOpacity="0.2" />
               </linearGradient>
-              <filter id={`${uid}-blur`} x="-5%" y="-20%" width="110%" height="140%">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" />
-              </filter>
             </defs>
             <path
-              fill={`url(#${uid}-w1)`}
-              filter={`url(#${uid}-blur)`}
-              d="M0 52 C75 22 150 22 225 52 S375 82 450 52 S600 22 675 52 S825 82 900 52 S1050 22 1125 52 S1200 72 1200 72 V120 H0 Z"
+              fill={`url(#${gradId})`}
+              d="M0 56 C100 34 200 34 300 56 S500 78 600 56 S800 34 900 56 S1100 78 1200 56 V120 H0 Z"
             />
             <path
-              fill={`url(#${uid}-w1)`}
-              filter={`url(#${uid}-blur)`}
-              d="M1200 52 C1275 22 1350 22 1425 52 S1575 82 1650 52 S1800 22 1875 52 S2025 82 2100 52 S2250 22 2325 52 S2400 72 2400 72 V120 H1200 Z"
-              transform="translate(-1200 0)"
+              fill={`url(#${gradId})`}
+              d="M0 56 C100 34 200 34 300 56 S500 78 600 56 S800 34 900 56 S1100 78 1200 56 V120 H0 Z"
+              transform="translate(1200 0)"
             />
           </svg>
-
           <svg
-            className="shopify-wave-layer-b absolute left-0 top-[8%] h-[110%] w-[220%] opacity-80"
+            className="shopify-wave-layer-b absolute left-0 top-[12%] h-[100%] w-[200%] opacity-70"
             viewBox="0 0 1200 120"
             preserveAspectRatio="none"
           >
             <path
-              fill="#9fd44a"
-              opacity="0.55"
-              d="M0 58 C60 38 120 38 180 58 S300 78 360 58 S480 38 540 58 S660 78 720 58 S840 38 900 58 S1020 78 1080 58 S1200 48 1200 48 V120 H0 Z"
+              fill="#8fc93a"
+              opacity="0.45"
+              d="M0 64 C90 48 180 48 270 64 S450 80 540 64 S720 48 810 64 S990 80 1080 64 S1200 56 1200 56 V120 H0 Z"
             />
             <path
-              fill="#7ab83a"
-              opacity="0.4"
-              d="M0 68 C50 52 100 52 150 68 S250 84 300 68 S400 52 450 68 S550 84 600 68 S700 52 750 68 S850 84 900 68 S1000 52 1050 68 S1200 60 1200 60 V120 H0 Z"
-            />
-          </svg>
-
-          <svg
-            className="shopify-wave-layer-a absolute left-0 top-0 h-[70%] w-[220%] opacity-70"
-            viewBox="0 0 1200 80"
-            preserveAspectRatio="none"
-            style={{ animationDuration: "1.45s" }}
-          >
-            <path
-              fill="none"
-              stroke="rgba(255,255,255,0.75)"
-              strokeWidth="2.5"
-              d="M0 40 C80 18 160 18 240 40 S400 62 480 40 S640 18 720 40 S880 62 960 40 S1120 18 1200 40"
-            />
-            <path
-              fill="none"
-              stroke="rgba(255,255,255,0.35)"
-              strokeWidth="6"
-              d="M0 42 C80 20 160 20 240 42 S400 64 480 42 S640 20 720 42 S880 64 960 42 S1120 20 1200 42"
+              fill="#8fc93a"
+              opacity="0.45"
+              d="M0 64 C90 48 180 48 270 64 S450 80 540 64 S720 48 810 64 S990 80 1080 64 S1200 56 1200 56 V120 H0 Z"
+              transform="translate(1200 0)"
             />
           </svg>
         </span>
 
-        {/* Caustic shimmer — akış yönünde */}
         <span
-          className="shopify-water-shimmer absolute top-[10%] h-[35%] w-[32%] rounded-full"
+          className="shopify-water-shimmer absolute top-[12%] h-[32%] w-[30%] rounded-full"
           style={{
             background:
-              "linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)",
-            filter: "blur(6px)",
+              "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)",
+            filter: "blur(5px)",
           }}
         />
-
-        {/* Ön kenar köpük / su dili — düz çizgi değil, salınan ışık */}
-        <span className="shopify-leading-crest absolute inset-y-[-10%] right-0 w-[18%] min-w-[1.25rem]">
-          <span className="shopify-leading-crest-core absolute inset-0" />
-        </span>
       </span>
+
+      {/* Uç: gerçek su dili — sabit genişlik, yumuşak 1–2 lob */}
+      <svg
+        className="shopify-wave-front absolute"
+        style={{
+          left: `calc(${p}% - ${crestPx * 0.42}px)`,
+          top: "50%",
+          width: crestPx,
+          height: "160%",
+        }}
+        viewBox="0 0 40 160"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient id={crestGradId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#96bf48" stopOpacity="0" />
+            <stop offset="18%" stopColor="#a8d05a" stopOpacity="0.95" />
+            <stop offset="55%" stopColor="#c5eb6a" stopOpacity="1" />
+            <stop offset="82%" stopColor="#e8f99a" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#f6ffc8" stopOpacity="0.55" />
+          </linearGradient>
+          <linearGradient id={`${crestGradId}-v`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f2ffb0" stopOpacity="0.9" />
+            <stop offset="45%" stopColor="#96bf48" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#3f7018" stopOpacity="0.55" />
+          </linearGradient>
+          <filter id={softBlurId} x="-20%" y="-5%" width="140%" height="110%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="0.85" />
+          </filter>
+        </defs>
+
+        {/* Ana su dili — az sayıda yumuşak kıvrım */}
+        <path
+          className="shopify-wave-front-shape"
+          fill={`url(#${crestGradId})`}
+          filter={`url(#${softBlurId})`}
+          d="M0,0 C8,12 6,28 12,40 C20,56 8,72 14,88 C21,106 9,122 13,138 C15,148 10,154 0,160 Z"
+        >
+          <animate
+            attributeName="d"
+            dur="1.8s"
+            repeatCount="indefinite"
+            calcMode="spline"
+            keyTimes="0;0.5;1"
+            keySplines="0.37 0 0.63 1; 0.37 0 0.63 1"
+            values="
+              M0,0 C8,12 6,28 12,40 C20,56 8,72 14,88 C21,106 9,122 13,138 C15,148 10,154 0,160 Z;
+              M0,0 C10,10 4,26 16,42 C8,58 22,74 12,90 C6,108 20,124 11,140 C8,150 6,156 0,160 Z;
+              M0,0 C8,12 6,28 12,40 C20,56 8,72 14,88 C21,106 9,122 13,138 C15,148 10,154 0,160 Z
+            "
+          />
+        </path>
+
+        {/* Üst parlak menisküs */}
+        <path
+          className="shopify-wave-front-foam"
+          fill={`url(#${crestGradId}-v)`}
+          opacity="0.55"
+          d="M0,0 C10,14 8,30 14,44 C18,52 12,60 0,68 Z"
+        >
+          <animate
+            attributeName="d"
+            dur="1.8s"
+            repeatCount="indefinite"
+            calcMode="spline"
+            keyTimes="0;0.5;1"
+            keySplines="0.37 0 0.63 1; 0.37 0 0.63 1"
+            values="
+              M0,0 C10,14 8,30 14,44 C18,52 12,60 0,68 Z;
+              M0,0 C6,12 14,28 10,46 C8,54 10,62 0,70 Z;
+              M0,0 C10,14 8,30 14,44 C18,52 12,60 0,68 Z
+            "
+          />
+        </path>
+
+        {/* İnce köpük çizgisi — dalga konturu */}
+        <path
+          fill="none"
+          stroke="rgba(255,255,255,0.65)"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          d="M12,8 C18,28 8,48 16,68 C24,88 10,108 15,128 C17,140 12,150 4,158"
+        >
+          <animate
+            attributeName="d"
+            dur="1.8s"
+            repeatCount="indefinite"
+            calcMode="spline"
+            keyTimes="0;0.5;1"
+            keySplines="0.37 0 0.63 1; 0.37 0 0.63 1"
+            values="
+              M12,8 C18,28 8,48 16,68 C24,88 10,108 15,128 C17,140 12,150 4,158;
+              M14,6 C8,26 20,46 10,66 C6,86 22,106 12,126 C8,140 10,152 4,158;
+              M12,8 C18,28 8,48 16,68 C24,88 10,108 15,128 C17,140 12,150 4,158
+            "
+          />
+        </path>
+      </svg>
     </span>
   );
 }
@@ -1704,44 +1748,47 @@ export default function UrunHavuzuPage() {
                       </button>
                     </div>
 
-                    <div className="flex gap-0 min-h-[7.5rem]">
-                      <div className="w-[7.25rem] sm:w-32 self-stretch shrink-0 bg-neutral-900 overflow-hidden">
+                    <div className="flex gap-3 p-3 items-stretch">
+                      <div className="w-24 h-24 sm:w-[6.75rem] sm:h-[6.75rem] shrink-0 rounded-lg overflow-hidden bg-neutral-900 border border-neutral-800">
                         {item.image ? (
                           <img
                             src={item.image}
                             alt=""
-                            className="w-full h-full min-h-[7.5rem] object-cover object-center"
+                            className="w-full h-full object-cover object-center"
+                            loading="lazy"
                           />
                         ) : (
-                          <div className="w-full h-full min-h-[7.5rem] flex items-center justify-center text-[10px] text-neutral-600">
+                          <div className="w-full h-full flex items-center justify-center text-[10px] text-neutral-600">
                             Görsel yok
                           </div>
                         )}
                       </div>
-                      <div className="min-w-0 flex-1 p-3 pr-14 flex flex-col">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-mono text-[11px] font-semibold text-neutral-400">
-                            {item.id}
+                      <div className="min-w-0 flex-1 pr-12 flex flex-col justify-between gap-1.5">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-mono text-[11px] font-semibold text-neutral-400">
+                              {item.id}
+                            </p>
+                            <span className="rounded-full border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-[10px] font-semibold text-neutral-300">
+                              {catLabel}
+                            </span>
+                            {item.removed ? (
+                              <span className="text-[10px] text-red-400 font-semibold">kaldırıldı</span>
+                            ) : !item.inStock ? (
+                              <span className="text-[10px] text-amber-400 font-semibold">stok yok</span>
+                            ) : null}
+                          </div>
+                          <p className="text-sm font-semibold text-neutral-100 line-clamp-2 mt-1">
+                            {item.title}
                           </p>
-                          <span className="rounded-full border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-[10px] font-semibold text-neutral-300">
-                            {catLabel}
-                          </span>
-                          {item.removed ? (
-                            <span className="text-[10px] text-red-400 font-semibold">kaldırıldı</span>
-                          ) : !item.inStock ? (
-                            <span className="text-[10px] text-amber-400 font-semibold">stok yok</span>
-                          ) : null}
+                          <p className="text-xs text-neutral-400 mt-1">
+                            Alış {formatMoney(item.salePrice)}
+                            {item.shopifyPrice != null
+                              ? ` · Shopify ${formatMoney(item.shopifyPrice)}`
+                              : ""}
+                          </p>
                         </div>
-                        <p className="text-sm font-semibold text-neutral-100 line-clamp-2 mt-1">
-                          {item.title}
-                        </p>
-                        <p className="text-xs text-neutral-400 mt-1">
-                          Alış {formatMoney(item.salePrice)}
-                          {item.shopifyPrice != null
-                            ? ` · Shopify ${formatMoney(item.shopifyPrice)}`
-                            : ""}
-                        </p>
-                        <div className="mt-auto pt-2 flex items-end justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2">
                           <button
                             type="button"
                             className="text-xs font-semibold text-neutral-300 hover:text-white"

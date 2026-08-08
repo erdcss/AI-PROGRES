@@ -43,42 +43,24 @@
 }
 
 @keyframes shopify-wave-bob {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-  33% { transform: translate3d(0, -2.5px, 0) rotate(0.15deg); }
-  66% { transform: translate3d(0, 1.5px, 0) rotate(-0.12deg); }
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -2px, 0); }
 }
 
 @keyframes shopify-water-shimmer {
-  0% { transform: translate3d(-40%, 0, 0) skewX(-14deg); opacity: 0.12; }
-  45% { opacity: 0.5; }
-  100% { transform: translate3d(140%, 0, 0) skewX(-14deg); opacity: 0.1; }
+  0% { transform: translate3d(-35%, 0, 0) skewX(-10deg); opacity: 0.12; }
+  50% { opacity: 0.42; }
+  100% { transform: translate3d(135%, 0, 0) skewX(-10deg); opacity: 0.1; }
 }
 
 @keyframes shopify-flow-streaks {
-  0% { background-position: 0% 0%, 40% 50%, 80% 20%; }
-  100% { background-position: 120% 0%, 160% 50%, 200% 20%; }
+  0% { background-position: 0% 0%, 35% 40%, 70% 15%; }
+  100% { background-position: 110% 0%, 145% 40%, 180% 15%; }
 }
 
-@keyframes shopify-leading-crest {
-  0%, 100% {
-    transform: translate3d(0, -4%, 0) scaleY(1.02);
-    opacity: 0.75;
-  }
-  50% {
-    transform: translate3d(2%, 3%, 0) scaleY(0.96);
-    opacity: 1;
-  }
-}
-
-@keyframes shopify-leading-crest-core {
-  0%, 100% {
-    border-radius: 55% 70% 45% 65% / 40% 55% 60% 45%;
-    filter: blur(2px);
-  }
-  50% {
-    border-radius: 45% 60% 70% 40% / 55% 40% 50% 65%;
-    filter: blur(3.5px);
-  }
+@keyframes shopify-wave-front {
+  0%, 100% { transform: translate3d(0, -50%, 0) translateY(-2%); }
+  50% { transform: translate3d(1px, -50%, 0) translateY(2%); }
 }
 
 @keyframes orvian-metal-shimmer {
@@ -287,80 +269,52 @@
 }
 
 .shopify-wave-layer-a {
-  animation: shopify-wave-drift-a 1.85s linear infinite;
+  animation: shopify-wave-drift-a 2.4s linear infinite;
   will-change: transform;
 }
 
 .shopify-wave-layer-b {
-  animation: shopify-wave-drift-b 1.15s linear infinite reverse;
+  animation: shopify-wave-drift-b 1.7s linear infinite reverse;
   will-change: transform;
 }
 
 .shopify-wave-bob {
-  animation: shopify-wave-bob 2.1s ease-in-out infinite;
+  animation: shopify-wave-bob 2.6s ease-in-out infinite;
   will-change: transform;
 }
 
 .shopify-water-shimmer {
-  animation: shopify-water-shimmer 2.4s ease-in-out infinite;
+  animation: shopify-water-shimmer 2.8s ease-in-out infinite;
   will-change: transform, opacity;
 }
 
 .shopify-flow-streaks {
   background-image:
     linear-gradient(
-      100deg,
+      98deg,
       transparent 0%,
-      rgba(255, 255, 255, 0.14) 18%,
-      transparent 36%,
-      transparent 52%,
-      rgba(255, 255, 255, 0.1) 68%,
-      transparent 88%
+      rgba(255, 255, 255, 0.1) 22%,
+      transparent 40%
     ),
     linear-gradient(
-      85deg,
-      transparent 10%,
-      rgba(200, 240, 120, 0.18) 30%,
-      transparent 48%
-    ),
-    linear-gradient(
-      110deg,
-      transparent 40%,
-      rgba(255, 255, 255, 0.08) 55%,
-      transparent 70%
+      88deg,
+      transparent 25%,
+      rgba(200, 240, 120, 0.12) 42%,
+      transparent 58%
     );
-  background-size: 180% 100%, 160% 80%, 140% 60%;
+  background-size: 170% 100%, 150% 70%;
   background-repeat: no-repeat;
-  animation: shopify-flow-streaks 2.6s linear infinite;
+  animation: shopify-flow-streaks 3.2s linear infinite;
   mix-blend-mode: soft-light;
   pointer-events: none;
 }
 
-.shopify-leading-crest {
-  animation: shopify-leading-crest 1.25s ease-in-out infinite;
-  will-change: transform, opacity;
+.shopify-wave-front {
+  animation: shopify-wave-front 1.8s ease-in-out infinite;
+  will-change: transform;
+  overflow: visible;
+  filter: drop-shadow(0 0 6px rgba(200, 240, 100, 0.35));
   pointer-events: none;
-}
-
-.shopify-leading-crest-core {
-  background:
-    radial-gradient(
-      120% 90% at 30% 50%,
-      rgba(255, 255, 255, 0.55) 0%,
-      rgba(232, 249, 154, 0.45) 28%,
-      rgba(150, 191, 72, 0.2) 55%,
-      transparent 78%
-    ),
-    linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(200, 240, 100, 0.25) 40%,
-      rgba(255, 255, 255, 0.35) 70%,
-      transparent 100%
-    );
-  box-shadow: 0 0 14px rgba(200, 240, 100, 0.45);
-  animation: shopify-leading-crest-core 1.4s ease-in-out infinite;
-  will-change: border-radius, filter;
 }
 
 /* Animation Classes */
