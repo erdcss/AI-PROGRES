@@ -243,137 +243,166 @@ function ShopifyBagIcon({
   );
 }
 
-/** Gerçekçi 3D dalgalı su dolumu — clip-path ile ilerleme */
+/** Gerçekçi 3D dalgalı su dolumu — ön kenar su akışı (düz çizgi değil) */
 function ShopifyWaterFill({ progress, uid }: { progress: number; uid: string }) {
   const p = Math.max(0, Math.min(100, progress));
   if (p <= 0.1) return null;
+
+  // Dalga tepesi taşsın diye biraz genişlet; pill overflow keser
+  const widthPct = Math.min(104, p + Math.min(5, p * 0.06));
+  const clipId = `${uid}-flow-clip`;
 
   return (
     <span
       aria-hidden
       className="pointer-events-none absolute inset-0 z-[1] overflow-hidden rounded-full"
-      style={{
-        clipPath: `inset(0 ${100 - p}% 0 0)`,
-        WebkitClipPath: `inset(0 ${100 - p}% 0 0)`,
-      }}
     >
-      {/* Su gövdesi — dikey 3D hacim */}
+      <svg width="0" height="0" className="absolute" aria-hidden>
+        <defs>
+          <clipPath id={clipId} clipPathUnits="objectBoundingBox">
+            {/* Sağ kenar: dikine sinüs — su yüzeyi gibi salınır */}
+            <path d="M0,0 H0.86 C0.94,0.06 0.78,0.14 0.88,0.22 C0.98,0.30 0.80,0.38 0.90,0.46 C1.00,0.54 0.82,0.62 0.91,0.70 C1.00,0.78 0.84,0.86 0.90,0.94 C0.93,0.98 0.90,1 0.88,1 H0 Z">
+              <animate
+                attributeName="d"
+                dur="1.35s"
+                repeatCount="indefinite"
+                calcMode="spline"
+                keyTimes="0;0.5;1"
+                keySplines="0.4 0 0.2 1; 0.4 0 0.2 1"
+                values="
+                  M0,0 H0.86 C0.94,0.06 0.78,0.14 0.88,0.22 C0.98,0.30 0.80,0.38 0.90,0.46 C1.00,0.54 0.82,0.62 0.91,0.70 C1.00,0.78 0.84,0.86 0.90,0.94 C0.93,0.98 0.90,1 0.88,1 H0 Z;
+                  M0,0 H0.88 C0.78,0.05 0.96,0.13 0.84,0.22 C0.72,0.31 0.97,0.39 0.85,0.48 C0.73,0.57 0.98,0.65 0.86,0.74 C0.74,0.83 0.96,0.91 0.87,0.97 C0.84,0.99 0.86,1 0.86,1 H0 Z;
+                  M0,0 H0.86 C0.94,0.06 0.78,0.14 0.88,0.22 C0.98,0.30 0.80,0.38 0.90,0.46 C1.00,0.54 0.82,0.62 0.91,0.70 C1.00,0.78 0.84,0.86 0.90,0.94 C0.93,0.98 0.90,1 0.88,1 H0 Z
+                "
+              />
+            </path>
+          </clipPath>
+        </defs>
+      </svg>
+
       <span
-        className="absolute inset-0"
+        className="shopify-water-flow absolute inset-y-0 left-0"
         style={{
-          background:
-            "linear-gradient(180deg, #e8f99a 0%, #c5eb6a 12%, #96bf48 38%, #6fa82e 68%, #3f7018 100%)",
-          boxShadow:
-            "inset 0 10px 18px rgba(255,255,255,0.38), inset 0 -14px 22px rgba(20,40,0,0.38), inset 8px 0 16px rgba(255,255,255,0.12)",
+          width: `${widthPct}%`,
+          clipPath: `url(#${clipId})`,
+          WebkitClipPath: `url(#${clipId})`,
         }}
-      />
+      >
+        {/* Su gövdesi — dikey 3D hacim + yatay akış hissi */}
+        <span
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, #e8f99a 0%, #c5eb6a 12%, #96bf48 38%, #6fa82e 68%, #3f7018 100%)",
+            boxShadow:
+              "inset 0 10px 18px rgba(255,255,255,0.38), inset 0 -14px 22px rgba(20,40,0,0.38), inset 8px 0 16px rgba(255,255,255,0.12)",
+          }}
+        />
 
-      {/* Derinlik gölgesi */}
-      <span
-        className="absolute inset-x-0 bottom-0 h-[55%]"
-        style={{
-          background:
-            "linear-gradient(180deg, transparent 0%, rgba(35,70,8,0.25) 45%, rgba(20,45,5,0.55) 100%)",
-        }}
-      />
+        {/* Akış çizgileri — öne doğru */}
+        <span className="shopify-flow-streaks absolute inset-0 opacity-50" />
 
-      {/* Üst ışık bandı */}
-      <span
-        className="absolute inset-x-0 top-0 h-[42%]"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.12) 40%, transparent 100%)",
-        }}
-      />
+        {/* Derinlik gölgesi */}
+        <span
+          className="absolute inset-x-0 bottom-0 h-[55%]"
+          style={{
+            background:
+              "linear-gradient(180deg, transparent 0%, rgba(35,70,8,0.25) 45%, rgba(20,45,5,0.55) 100%)",
+          }}
+        />
 
-      {/* Dalga katmanları */}
-      <span className="shopify-wave-bob absolute inset-[-8%_-5%] overflow-hidden">
-        <svg
-          className="shopify-wave-layer-a absolute left-0 top-[-10%] h-[120%] w-[200%]"
-          viewBox="0 0 1200 120"
-          preserveAspectRatio="none"
-        >
-          <defs>
-            <linearGradient id={`${uid}-w1`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f2ffb0" stopOpacity="0.85" />
-              <stop offset="35%" stopColor="#a8d05a" stopOpacity="0.7" />
-              <stop offset="100%" stopColor="#5e8e28" stopOpacity="0.35" />
-            </linearGradient>
-            <filter id={`${uid}-blur`} x="-5%" y="-20%" width="110%" height="140%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" />
-            </filter>
-          </defs>
-          <path
-            fill={`url(#${uid}-w1)`}
-            filter={`url(#${uid}-blur)`}
-            d="M0 52 C75 22 150 22 225 52 S375 82 450 52 S600 22 675 52 S825 82 900 52 S1050 22 1125 52 S1200 72 1200 72 V120 H0 Z"
-          />
-          <path
-            fill={`url(#${uid}-w1)`}
-            filter={`url(#${uid}-blur)`}
-            d="M1200 52 C1275 22 1350 22 1425 52 S1575 82 1650 52 S1800 22 1875 52 S2025 82 2100 52 S2250 22 2325 52 S2400 72 2400 72 V120 H1200 Z"
-            transform="translate(-1200 0)"
-          />
-        </svg>
+        {/* Üst ışık bandı */}
+        <span
+          className="absolute inset-x-0 top-0 h-[42%]"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.12) 40%, transparent 100%)",
+          }}
+        />
 
-        <svg
-          className="shopify-wave-layer-b absolute left-0 top-[8%] h-[110%] w-[200%] opacity-80"
-          viewBox="0 0 1200 120"
-          preserveAspectRatio="none"
-        >
-          <path
-            fill="#9fd44a"
-            opacity="0.55"
-            d="M0 58 C60 38 120 38 180 58 S300 78 360 58 S480 38 540 58 S660 78 720 58 S840 38 900 58 S1020 78 1080 58 S1200 48 1200 48 V120 H0 Z"
-          />
-          <path
-            fill="#7ab83a"
-            opacity="0.4"
-            d="M0 68 C50 52 100 52 150 68 S250 84 300 68 S400 52 450 68 S550 84 600 68 S700 52 750 68 S850 84 900 68 S1000 52 1050 68 S1200 60 1200 60 V120 H0 Z"
-          />
-        </svg>
+        {/* Dalga katmanları — yatay sürüklenme */}
+        <span className="shopify-wave-bob absolute inset-[-12%_-8%] overflow-hidden">
+          <svg
+            className="shopify-wave-layer-a absolute left-0 top-[-10%] h-[120%] w-[220%]"
+            viewBox="0 0 1200 120"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id={`${uid}-w1`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f2ffb0" stopOpacity="0.85" />
+                <stop offset="35%" stopColor="#a8d05a" stopOpacity="0.7" />
+                <stop offset="100%" stopColor="#5e8e28" stopOpacity="0.35" />
+              </linearGradient>
+              <filter id={`${uid}-blur`} x="-5%" y="-20%" width="110%" height="140%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" />
+              </filter>
+            </defs>
+            <path
+              fill={`url(#${uid}-w1)`}
+              filter={`url(#${uid}-blur)`}
+              d="M0 52 C75 22 150 22 225 52 S375 82 450 52 S600 22 675 52 S825 82 900 52 S1050 22 1125 52 S1200 72 1200 72 V120 H0 Z"
+            />
+            <path
+              fill={`url(#${uid}-w1)`}
+              filter={`url(#${uid}-blur)`}
+              d="M1200 52 C1275 22 1350 22 1425 52 S1575 82 1650 52 S1800 22 1875 52 S2025 82 2100 52 S2250 22 2325 52 S2400 72 2400 72 V120 H1200 Z"
+              transform="translate(-1200 0)"
+            />
+          </svg>
 
-        {/* Köpük / yüzey çizgisi */}
-        <svg
-          className="shopify-wave-layer-a absolute left-0 top-0 h-[70%] w-[200%] opacity-70"
-          viewBox="0 0 1200 80"
-          preserveAspectRatio="none"
-          style={{ animationDuration: "1.6s" }}
-        >
-          <path
-            fill="none"
-            stroke="rgba(255,255,255,0.75)"
-            strokeWidth="2.5"
-            d="M0 40 C80 18 160 18 240 40 S400 62 480 40 S640 18 720 40 S880 62 960 40 S1120 18 1200 40"
-          />
-          <path
-            fill="none"
-            stroke="rgba(255,255,255,0.35)"
-            strokeWidth="6"
-            d="M0 42 C80 20 160 20 240 42 S400 64 480 42 S640 20 720 42 S880 64 960 42 S1120 20 1200 42"
-          />
-        </svg>
+          <svg
+            className="shopify-wave-layer-b absolute left-0 top-[8%] h-[110%] w-[220%] opacity-80"
+            viewBox="0 0 1200 120"
+            preserveAspectRatio="none"
+          >
+            <path
+              fill="#9fd44a"
+              opacity="0.55"
+              d="M0 58 C60 38 120 38 180 58 S300 78 360 58 S480 38 540 58 S660 78 720 58 S840 38 900 58 S1020 78 1080 58 S1200 48 1200 48 V120 H0 Z"
+            />
+            <path
+              fill="#7ab83a"
+              opacity="0.4"
+              d="M0 68 C50 52 100 52 150 68 S250 84 300 68 S400 52 450 68 S550 84 600 68 S700 52 750 68 S850 84 900 68 S1000 52 1050 68 S1200 60 1200 60 V120 H0 Z"
+            />
+          </svg>
+
+          <svg
+            className="shopify-wave-layer-a absolute left-0 top-0 h-[70%] w-[220%] opacity-70"
+            viewBox="0 0 1200 80"
+            preserveAspectRatio="none"
+            style={{ animationDuration: "1.45s" }}
+          >
+            <path
+              fill="none"
+              stroke="rgba(255,255,255,0.75)"
+              strokeWidth="2.5"
+              d="M0 40 C80 18 160 18 240 40 S400 62 480 40 S640 18 720 40 S880 62 960 40 S1120 18 1200 40"
+            />
+            <path
+              fill="none"
+              stroke="rgba(255,255,255,0.35)"
+              strokeWidth="6"
+              d="M0 42 C80 20 160 20 240 42 S400 64 480 42 S640 20 720 42 S880 64 960 42 S1120 20 1200 42"
+            />
+          </svg>
+        </span>
+
+        {/* Caustic shimmer — akış yönünde */}
+        <span
+          className="shopify-water-shimmer absolute top-[10%] h-[35%] w-[32%] rounded-full"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)",
+            filter: "blur(6px)",
+          }}
+        />
+
+        {/* Ön kenar köpük / su dili — düz çizgi değil, salınan ışık */}
+        <span className="shopify-leading-crest absolute inset-y-[-10%] right-0 w-[18%] min-w-[1.25rem]">
+          <span className="shopify-leading-crest-core absolute inset-0" />
+        </span>
       </span>
-
-      {/* Caustic shimmer */}
-      <span
-        className="shopify-water-shimmer absolute top-[10%] h-[35%] w-[28%] rounded-full"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)",
-          filter: "blur(6px)",
-        }}
-      />
-
-      {/* İlerleme kenarı — dalga tepesi */}
-      <span
-        className="shopify-crest-pulse absolute top-0 bottom-0 right-0 w-10"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent 0%, rgba(232,249,154,0.55) 45%, rgba(255,255,255,0.75) 70%, rgba(150,191,72,0.35) 100%)",
-          boxShadow: "0 0 18px rgba(200,240,100,0.65)",
-        }}
-      />
     </span>
   );
 }
