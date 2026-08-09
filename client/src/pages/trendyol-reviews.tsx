@@ -160,12 +160,12 @@ export default function TrendyolReviewsPage() {
             <ArrowLeft className="w-4 h-4 mr-1" /> Geri
           </Button>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-black border border-white/20 rounded-xl flex items-center justify-center">
               <MessageSquare className="w-5 h-5 text-white" />
             </div>
             <div>
               <h1 className="text-xl font-black text-white">ÜRÜN YORUM ÇIKARICI</h1>
-              <p className="text-purple-300 text-xs font-bold">Trendyol yorumlarını CSV olarak dışa aktar</p>
+              <p className="text-white/50 text-xs font-bold">Trendyol yorumlarını CSV olarak dışa aktar</p>
             </div>
           </div>
         </div>
@@ -180,7 +180,7 @@ export default function TrendyolReviewsPage() {
           className="business-card p-6 space-y-5"
         >
           <h2 className="text-white font-black text-lg flex items-center gap-2">
-            <Search className="w-5 h-5 text-purple-400" />
+            <Search className="w-5 h-5 text-white/70" />
             Ürün URL Gir
           </h2>
 
@@ -222,7 +222,7 @@ export default function TrendyolReviewsPage() {
           <Button
             onClick={scrapeReviews}
             disabled={loading}
-            className="w-full h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-black text-base"
+            className="w-full h-12 bg-black hover:bg-neutral-900 border border-white/20 text-white font-black text-base"
           >
             {loading ? (
               <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Yorumlar Çekiliyor...</>
@@ -248,7 +248,7 @@ export default function TrendyolReviewsPage() {
                   )}
                   <div className="flex items-center gap-4 flex-wrap">
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-purple-600/30 text-purple-300 border-purple-500/30 font-bold">
+                      <Badge className="bg-black/60 text-white/80 border-white/20 font-bold">
                         {reviews.length} yorum
                       </Badge>
                     </div>
@@ -313,7 +313,7 @@ export default function TrendyolReviewsPage() {
                     className="business-card p-4"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shrink-0 text-white font-black text-sm">
+                      <div className="w-9 h-9 rounded-full bg-black border border-white/20 flex items-center justify-center shrink-0 text-white font-black text-sm">
                         {review.reviewer_name?.[0]?.toUpperCase() || "?"}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -345,7 +345,7 @@ export default function TrendyolReviewsPage() {
                           )}
                         </div>
                         {review.title && (
-                          <p className="text-purple-300 font-bold text-sm mb-1">{review.title}</p>
+                          <p className="text-white/70 font-bold text-sm mb-1">{review.title}</p>
                         )}
                         <p className={`text-white/80 text-sm leading-relaxed ${!isExpanded && review.body.length > 160 ? "line-clamp-2" : ""}`}>
                           {review.body}
@@ -353,7 +353,7 @@ export default function TrendyolReviewsPage() {
                         {review.body.length > 160 && (
                           <button
                             onClick={() => setExpandedReview(isExpanded ? null : review.id)}
-                            className="text-purple-400 text-xs font-bold mt-1 flex items-center gap-1 hover:text-purple-300"
+                            className="text-white/50 text-xs font-bold mt-1 flex items-center gap-1 hover:text-white/80"
                           >
                             {isExpanded ? <><ChevronUp className="w-3 h-3" />Daha az</> : <><ChevronDown className="w-3 h-3" />Devamını oku</>}
                           </button>
@@ -401,7 +401,7 @@ export default function TrendyolReviewsPage() {
         {/* Empty State */}
         {!loading && reviews.length === 0 && (
           <div className="business-card p-12 text-center">
-            <MessageSquare className="w-12 h-12 text-purple-400/40 mx-auto mb-4" />
+            <MessageSquare className="w-12 h-12 text-white/20 mx-auto mb-4" />
             <p className="text-white/40 font-bold">Yorum çekmek için yukarıya bir Trendyol URL'si girin</p>
           </div>
         )}
