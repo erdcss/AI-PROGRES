@@ -1,0 +1,9 @@
+# ORVIAN Monitor — sideload Android APK
+# google-services.json Firebase Console'dan indirilip buraya konur (git'e commit etme)
+google-services.json
+.env
+.expo/
+dist/
+node_modules/
+*.jks
+*.keystore

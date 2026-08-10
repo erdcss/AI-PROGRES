@@ -811,10 +811,25 @@ export const auditLogs = pgTable('audit_logs', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+/** ORVIAN Monitor — FCM cihaz kaydı (izole mobil katman) */
+export const mobilePushDevices = pgTable('mobile_push_devices', {
+  id: serial('id').primaryKey(),
+  deviceId: text('device_id').notNull().unique(),
+  platform: text('platform').notNull().default('android'),
+  pushToken: text('push_token').notNull().unique(),
+  enabled: boolean('enabled').notNull().default(true),
+  appVersion: text('app_version'),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
 export type ImportJob = typeof importJobs.$inferSelect;
 export type InsertImportJob = typeof importJobs.$inferInsert;
 export type ImportJobEvent = typeof importJobEvents.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type MobilePushDevice = typeof mobilePushDevices.$inferSelect;
+export type InsertMobilePushDevice = typeof mobilePushDevices.$inferInsert;
 
 export type TrackedProduct = typeof trackedProducts.$inferSelect;
 export type InsertTrackedProduct = typeof trackedProducts.$inferInsert;

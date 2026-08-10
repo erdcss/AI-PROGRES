@@ -1317,10 +1317,41 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
     }
   }
 
-  return {
+  const result = {
     ...product,
     images: filterProductImagesForShopify(product.images, product.siteLogoUrl),
   };
+
+  // Supabase mobile mirror — fire-and-forget; scrape sonucunu etkilemez
+  void import("../services/mobile-sync.service")
+    .then(({ upsertMobileProduct }) => {
+      const sourceKey =
+        result.sku ||
+        result.sourceUrl?.match(/\/dp\/([A-Z0-9]{10})/i)?.[1] ||
+        result.sourceUrl?.match(/-(\d{6,})(?:\?|$)/)?.[1] ||
+        result.sourceUrl;
+      return upsertMobileProduct({
+        sourceProductId: String(sourceKey || result.sourceUrl),
+        source: String(result.siteName || host || "unknown").toLowerCase(),
+        title: result.title,
+        imageUrl: result.images?.[0] || null,
+        sourceUrl: result.sourceUrl,
+        price: result.salePrice,
+        currency: result.currency || "TRY",
+        variantCount: 0,
+        stockStatus: result.inStock ? "in_stock" : "out_of_stock",
+        shopifyStatus: "none",
+        scrapedAt: result.scrapedAt,
+      });
+    })
+    .catch((err) =>
+      console.warn(
+        "[mobile-sync] pool scrape upsert skipped:",
+        err instanceof Error ? err.message : String(err),
+      ),
+    );
+
+  return result;
 }
 
 function normalizeAmazonProductUrl(sourceUrl: string): { asin: string; cleanUrl: string } {

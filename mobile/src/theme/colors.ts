@@ -1,0 +1,22 @@
+export const colors = {
+  bg: "#000000",
+  surface: "#0A0A0A",
+  surfaceElevated: "#101010",
+  border: "#1C1C1C",
+  text: "#FFFFFF",
+  textSecondary: "#8A8A8A",
+  textMuted: "#555555",
+  skeleton: "#0A0A0A",
+  skeletonHighlight: "#151515",
+  positive: "#22C55E",
+  negative: "#EF4444",
+  warning: "#F59E0B",
+  /** @deprecated aliases for gradual migration */
+  bgElevated: "#101010",
+  card: "#0A0A0A",
+  success: "#22C55E",
+  danger: "#EF4444",
+  priceUp: "#EF4444",
+  priceDown: "#22C55E",
+  accent: "#FFFFFF",
+};

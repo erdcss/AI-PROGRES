@@ -33,6 +33,7 @@ if (!fs.existsSync(indexDst)) {
 for (const migrationFile of [
   "0001_product_tracking_system.sql",
   "0002_control_center_import_system.sql",
+  "0003_mobile_push_devices.sql",
 ]) {
   const migrationSrc = path.resolve("migrations", migrationFile);
   const migrationTargets = [
