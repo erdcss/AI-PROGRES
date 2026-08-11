@@ -2,7 +2,7 @@
  * ORVIAN Monitor — FCM push (izole).
  * Tracking / scrape / Shopify hatalarını ASLA yukarı fırlatmaz.
  */
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db";
 import { mobilePushDevices, trackedProducts, type DetectedChange } from "@shared/schema";
 import { runMobilePushMigration } from "../migrations/run-mobile-push-migration";
@@ -166,6 +166,38 @@ async function ensureTable(): Promise<void> {
   } catch {
     /* ignore */
   }
+}
+
+function maskId(value: string): string {
+  const v = String(value || "").trim();
+  if (v.length <= 8) return v ? `${v.slice(0, 2)}…` : "—";
+  return `${v.slice(0, 4)}…${v.slice(-4)}`;
+}
+
+export async function listMobilePushDevices() {
+  await ensureTable();
+  const rows = await db
+    .select({
+      id: mobilePushDevices.id,
+      deviceId: mobilePushDevices.deviceId,
+      platform: mobilePushDevices.platform,
+      enabled: mobilePushDevices.enabled,
+      appVersion: mobilePushDevices.appVersion,
+      lastSeenAt: mobilePushDevices.lastSeenAt,
+      createdAt: mobilePushDevices.createdAt,
+    })
+    .from(mobilePushDevices)
+    .orderBy(desc(mobilePushDevices.lastSeenAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    deviceLabel: maskId(row.deviceId),
+    platform: row.platform,
+    enabled: row.enabled,
+    appVersion: row.appVersion,
+    lastSeenAt: row.lastSeenAt,
+    createdAt: row.createdAt,
+  }));
 }
 
 export async function registerMobilePushDevice(

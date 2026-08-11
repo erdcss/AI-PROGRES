@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import {
+  listMobilePushDevices,
   registerMobilePushDevice,
   unregisterMobilePushDevice,
 } from "../services/mobile-push.service";
@@ -8,6 +9,16 @@ import { runMobilePushMigration } from "../migrations/run-mobile-push-migration"
 /** ORVIAN Monitor FCM — izole; mevcut tracking route'larını değiştirmez */
 export function registerMobilePushRoutes(app: Express): void {
   void runMobilePushMigration(false);
+
+  app.get("/api/notifications/devices", async (_req, res) => {
+    try {
+      const devices = await listMobilePushDevices();
+      return res.json({ success: true, devices });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message, devices: [] });
+    }
+  });
 
   app.post("/api/mobile/push/register", async (req, res) => {
     try {

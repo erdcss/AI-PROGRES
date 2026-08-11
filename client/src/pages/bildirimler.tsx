@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Bell, Send } from "lucide-react";
+import { ArrowLeft, Bell, Send, Smartphone, Clock } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -12,6 +12,24 @@ type NotificationSetting = {
   notificationType: string;
   enabled: boolean;
   description?: string | null;
+};
+
+type HistoryRow = {
+  id: string;
+  title: string;
+  detail: string;
+  status: string;
+  type: string;
+  at: string | null;
+};
+
+type DeviceRow = {
+  id: number;
+  deviceLabel: string;
+  platform: string;
+  enabled: boolean;
+  appVersion?: string | null;
+  lastSeenAt?: string | null;
 };
 
 const LABELS: Record<string, { title: string; hint: string }> = {
@@ -39,7 +57,27 @@ const LABELS: Record<string, { title: string; hint: string }> = {
     title: "Shopify yükleme",
     hint: "Ürün mağazaya aktarıldığında",
   },
+  test: { title: "Test", hint: "" },
 };
+
+const STATUS_LABEL: Record<string, string> = {
+  sent: "Gönderildi",
+  failed: "Başarısız",
+  blocked: "Kapalı",
+  pending: "Bekliyor",
+};
+
+function formatWhen(iso?: string | null) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function BildirimlerPage() {
   const [, setLocation] = useLocation();
@@ -96,6 +134,52 @@ export default function BildirimlerPage() {
     },
   });
 
+  const historyQ = useQuery({
+    queryKey: ["/api/telegram/history"],
+    queryFn: async () => {
+      const res = await fetch("/api/telegram/history?limit=40");
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Geçmiş alınamadı");
+      return (data.history || []) as Array<{
+        id: number;
+        notificationType: string;
+        message: string;
+        productTitle?: string | null;
+        status: string;
+        sentAt?: string | null;
+        createdAt?: string | null;
+        errorMessage?: string | null;
+      }>;
+    },
+  });
+
+  const trackingQ = useQuery({
+    queryKey: ["/api/tracking/notifications"],
+    queryFn: async () => {
+      const res = await fetch("/api/tracking/notifications");
+      const data = await res.json();
+      return (data.lastChanges || []) as Array<{
+        id: number;
+        changeType: string;
+        productTitle?: string | null;
+        createdAt?: string | null;
+        status?: string | null;
+      }>;
+    },
+  });
+
+  const devicesQ = useQuery({
+    queryKey: ["/api/notifications/devices"],
+    queryFn: async () => {
+      const res = await fetch("/api/notifications/devices");
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || "Cihazlar alınamadı");
+      }
+      return (data.devices || []) as DeviceRow[];
+    },
+  });
+
   const testMut = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/notifications/test", { method: "POST" });
@@ -106,6 +190,7 @@ export default function BildirimlerPage() {
       return data;
     },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["/api/telegram/history"] });
       toast({ title: "Test bildirimi gönderildi", description: "Telegram bağlantınızı kontrol edin." });
     },
     onError: (err: Error) => {
@@ -119,6 +204,30 @@ export default function BildirimlerPage() {
     [settings],
   );
 
+  const history = useMemo((): HistoryRow[] => {
+    const telegram: HistoryRow[] = (historyQ.data || []).map((h) => ({
+      id: `tg-${h.id}`,
+      title: h.productTitle || LABELS[h.notificationType]?.title || h.notificationType,
+      detail: h.errorMessage || h.message,
+      status: h.status,
+      type: h.notificationType,
+      at: h.sentAt || h.createdAt || null,
+    }));
+    const tracking: HistoryRow[] = (trackingQ.data || []).map((c) => ({
+      id: `tr-${c.id}`,
+      title: c.productTitle || `Takip #${c.id}`,
+      detail: c.changeType,
+      status: c.status || "pending",
+      type: c.changeType,
+      at: c.createdAt || null,
+    }));
+    return [...telegram, ...tracking]
+      .sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime())
+      .slice(0, 40);
+  }, [historyQ.data, trackingQ.data]);
+
+  const devices = devicesQ.data || [];
+
   return (
     <div className="home-orvian relative min-h-screen overflow-x-hidden bg-black">
       <div
@@ -130,7 +239,7 @@ export default function BildirimlerPage() {
         }}
       />
 
-      <div className="relative z-10 mx-auto max-w-2xl px-4 pb-16 pt-8 sm:px-6">
+      <div className="relative z-10 mx-auto max-w-3xl px-4 pb-16 pt-8 sm:px-6">
         <button
           type="button"
           onClick={() => setLocation("/")}
@@ -225,6 +334,82 @@ export default function BildirimlerPage() {
             {testMut.isPending ? "Gönderiliyor…" : "Test bildirimi gönder"}
           </button>
         </motion.div>
+
+        <motion.section
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-4 rounded-2xl border border-zinc-800/80 bg-[#070707] p-4 sm:p-5"
+        >
+          <header className="mb-4 flex items-center gap-2 border-b border-zinc-900 pb-4">
+            <Clock className="h-4 w-4 text-zinc-400" strokeWidth={1.25} />
+            <div>
+              <div className="home-title text-[13px] uppercase tracking-[0.22em]">Bildirim geçmişi</div>
+              <p className="home-muted mt-1 text-[12px]">Son gönderilen ve bekleyen kayıtlar</p>
+            </div>
+          </header>
+          {historyQ.isLoading ? (
+            <p className="py-6 text-center text-sm text-zinc-500">Geçmiş yükleniyor…</p>
+          ) : history.length === 0 ? (
+            <p className="py-6 text-center text-sm text-zinc-500">Henüz bildirim kaydı yok.</p>
+          ) : (
+            <div className="max-h-[28rem] space-y-0 divide-y divide-zinc-900 overflow-y-auto">
+              {history.map((item) => (
+                <div key={item.id} className="py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] text-zinc-100">{item.title}</div>
+                      <p className="mt-0.5 line-clamp-2 text-[12px] text-zinc-500">{item.detail}</p>
+                    </div>
+                    <span className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                      {STATUS_LABEL[item.status] || item.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-zinc-600">{formatWhen(item.at)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.section>
+
+        <motion.section
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.26, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-4 rounded-2xl border border-zinc-800/80 bg-[#070707] p-4 sm:p-5"
+        >
+          <header className="mb-4 flex items-center gap-2 border-b border-zinc-900 pb-4">
+            <Smartphone className="h-4 w-4 text-zinc-400" strokeWidth={1.25} />
+            <div>
+              <div className="home-title text-[13px] uppercase tracking-[0.22em]">Kayıtlı cihazlar</div>
+              <p className="home-muted mt-1 text-[12px]">ORVIAN uygulamasından kayıtlı bildirim cihazları</p>
+            </div>
+          </header>
+          {devicesQ.isLoading ? (
+            <p className="py-6 text-center text-sm text-zinc-500">Cihazlar yükleniyor…</p>
+          ) : devices.length === 0 ? (
+            <p className="py-6 text-center text-sm text-zinc-500">Kayıtlı cihaz yok.</p>
+          ) : (
+            <div className="divide-y divide-zinc-900">
+              {devices.map((d) => (
+                <div key={d.id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <div className="text-[13px] text-zinc-100">
+                      {d.platform || "android"} · {d.deviceLabel}
+                    </div>
+                    <p className="mt-0.5 text-[12px] text-zinc-500">
+                      {d.appVersion ? `v${d.appVersion} · ` : ""}
+                      son görülme {formatWhen(d.lastSeenAt)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                    {d.enabled ? "Aktif" : "Kapalı"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.section>
       </div>
     </div>
   );
