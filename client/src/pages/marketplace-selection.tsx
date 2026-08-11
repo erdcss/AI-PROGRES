@@ -190,6 +190,13 @@ const MarketplaceSelection = () => {
       icon: Activity,
     },
     {
+      name: "Bildirimler",
+      description: "Bildirim türlerini aç/kapa ve test gönder",
+      path: "/bildirimler",
+      icon: Bell,
+      testId: "card-system-bildirimler",
+    },
+    {
       name: "Shopify Sistem Analizi",
       description: "Token yenileme, bağlantı durumu ve kaynak izleme",
       path: "/shopify-system",

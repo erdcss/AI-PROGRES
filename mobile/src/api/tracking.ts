@@ -24,6 +24,7 @@ export type DashboardResponse = {
     watchRed?: number;
     watchGreen?: number;
     shopifyMemoryTotal?: number;
+    catalogTotal?: number;
   };
   recentChanges: ChangeRow[];
 };

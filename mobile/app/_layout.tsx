@@ -11,6 +11,7 @@ import { useAllMobileRealtime } from "../src/hooks/useRealtime";
 import { useLocalChangeAlerts } from "../src/hooks/useLocalChangeAlerts";
 import { parseDeepLink } from "../src/lib/format";
 import { NotificationDrawerProvider } from "../src/components/NotificationDrawer";
+import { BootSplash } from "../src/components/BootSplash";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,12 +79,15 @@ export default function RootLayout() {
             headerShadowVisible: false,
             headerTitleStyle: { fontWeight: "600", fontSize: 16 },
             contentStyle: { backgroundColor: colors.bg },
+            animation: "fade_from_bottom",
+            animationDuration: 280,
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="product/[id]" options={{ title: "Ürün Detayı" }} />
           <Stack.Screen name="change/[id]" options={{ title: "Değişiklik" }} />
         </Stack>
+        <BootSplash onDone={() => undefined} />
         </NotificationDrawerProvider>
       </QueryClientProvider>
     </SafeAreaProvider>

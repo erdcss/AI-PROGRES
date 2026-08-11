@@ -17,12 +17,14 @@ import PriceMovementTest from "@/pages/price-movement-test";
 // Removed auto-csv page import
 // Removed bulk-csv page import
 import { useState, useEffect, useSyncExternalStore, Component, type ReactNode, type ErrorInfo } from "react";
+import { AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Lock, ShieldCheck, AlertCircle, CheckCircle } from "lucide-react";
+import { ShieldCheck, AlertCircle, CheckCircle } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
+import { AppOpenSplash } from "@/components/AppOpenSplash";
 import { AIBrandLogo } from "@/components/AILogo";
 import ProductDataAnalysisPage from "@/pages/product-data-analysis";
 import SchedulerPage from "@/pages/scheduler";
@@ -37,6 +39,7 @@ import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
 import TrackingDashboard from "@/pages/tracking-dashboard";
 import ProductPreview from "@/pages/product-preview";
 import TelegramNotifications from "@/pages/TelegramNotifications";
+import BildirimlerPage from "@/pages/bildirimler";
 import ProductTrackingPage from "@/pages/ProductTrackingPage";
 import UrunTakipPage from "@/pages/urun-takip";
 import ControlCenterPage from "@/pages/control-center";
@@ -106,11 +109,13 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
       />
       <Card className="relative z-10 w-full max-w-md border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-md md:max-w-lg">
         <CardHeader className="space-y-4 px-4 text-center md:space-y-6 md:px-6">
-          <div className="mx-auto w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl flex items-center justify-center shadow-lg">
-            <Lock className="h-6 w-6 md:h-8 md:w-8 text-white" />
-          </div>
+          <img
+            src="/orvian-logo.png"
+            alt="ORVIAN"
+            className="mx-auto h-10 w-auto object-contain md:h-12"
+          />
           <CardTitle className="text-2xl md:text-3xl font-bold text-white">
-            Veri Transfer Programı
+            ORVIAN
           </CardTitle>
           <CardDescription className="text-white text-base md:text-lg font-bold">
             Güvenli sistem erişimi için kimlik doğrulama
@@ -407,6 +412,11 @@ function Router() {
           <TelegramNotifications />
         </PageTransition>
       </Route>
+      <Route path="/bildirimler">
+        <PageTransition>
+          <BildirimlerPage />
+        </PageTransition>
+      </Route>
       <Route path="/product-tracking">
         <Redirect to="/control-center?tab=tracking" />
       </Route>
@@ -457,6 +467,7 @@ function AppShell() {
 }
 
 function App() {
+  const [bootSplash, setBootSplash] = useState(true);
   const isLoggedIn = useSyncExternalStore(
     subscribeAppSession,
     getAppSessionSnapshot,
@@ -499,6 +510,11 @@ function App() {
 
   return (
     <>
+      <AnimatePresence>
+        {bootSplash ? (
+          <AppOpenSplash key="boot" onDone={() => setBootSplash(false)} />
+        ) : null}
+      </AnimatePresence>
       <AppShell />
       <TrackingStartupNotifier />
       <Toaster />

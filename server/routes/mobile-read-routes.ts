@@ -6,6 +6,7 @@ import {
   getTrackingNotifications,
   getTrackingSchedulerStatus,
 } from "../services/tracking.scheduler";
+import { computeCatalogCounts } from "../services/mobile-dashboard.service";
 import { trackingService } from "../services/tracking.service";
 
 function firstMediaUrl(images: unknown): string | null {
@@ -31,39 +32,13 @@ function asVariantList(raw: unknown): unknown[] {
 export function registerMobileReadRoutes(app: Express): void {
   app.get("/api/mobile/dashboard", async (_req, res) => {
     try {
-      const [notifications, scheduler, changeCounts, scrapedCountRow, trackedRows] =
+      const [notifications, scheduler, changeCounts, catalog] =
         await Promise.all([
           getTrackingNotifications(),
           getTrackingSchedulerStatus(),
           trackingService.countChangesForPanel(),
-          db
-            .select({ c: count() })
-            .from(products)
-            .where(eq(products.isActive, true)),
-          trackingService.listProductsForPanel(),
+          computeCatalogCounts(),
         ]);
-
-      const scrapedTotal = Number(scrapedCountRow[0]?.c ?? 0);
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const scrapedTodayRow = await db
-        .select({ c: count() })
-        .from(products)
-        .where(
-          and(eq(products.isActive, true), sql`${products.createdAt} >= ${todayStart}`),
-        );
-
-      const tracked = trackedRows || [];
-      const activeTracked = tracked.filter((p) => p.trackingEnabled && !p.archivedAt);
-      const watchRed = tracked.filter((p) => p.watchTag === "red").length;
-      const watchGreen = tracked.filter((p) => p.watchTag === "green").length;
-      let shopifyMemoryTotal = 0;
-      try {
-        const memoryCountRow = await db.select({ c: count() }).from(shopifyMemoryProducts);
-        shopifyMemoryTotal = Number(memoryCountRow[0]?.c ?? 0);
-      } catch {
-        shopifyMemoryTotal = 0;
-      }
 
       return res.json({
         success: true,
@@ -78,17 +53,18 @@ export function registerMobileReadRoutes(app: Express): void {
           healthOk: Boolean(scheduler.migration?.allTablesReady),
         },
         cards: {
-          scrapedTotal,
-          scrapedToday: Number(scrapedTodayRow[0]?.c ?? 0),
-          trackedTotal: tracked.length,
-          trackedActive: activeTracked.length,
+          scrapedTotal: catalog.catalogTotal,
+          scrapedToday: catalog.scrapedToday,
+          trackedTotal: catalog.trackedTotal,
+          trackedActive: catalog.trackedActive,
           pendingChanges: changeCounts.actionable ?? changeCounts.pending ?? 0,
           priceChanges: notifications.priceChangeCount ?? 0,
           stockChanges: notifications.stockChangeCount ?? 0,
           variantChanges: notifications.variantChangeCount ?? 0,
-          watchRed,
-          watchGreen,
-          shopifyMemoryTotal,
+          watchRed: catalog.watchRed,
+          watchGreen: catalog.watchGreen,
+          shopifyMemoryTotal: catalog.shopifyMemoryTotal,
+          catalogTotal: catalog.catalogTotal,
         },
         recentChanges: notifications.lastChanges || [],
         changeCounts,
@@ -106,7 +82,7 @@ export function registerMobileReadRoutes(app: Express): void {
       const q = String(req.query.q || "").trim();
       const marketplace = String(req.query.marketplace || "").trim().toLowerCase();
 
-      const conditions = [eq(products.isActive, true)];
+      const conditions = [];
       if (q) {
         conditions.push(
           or(

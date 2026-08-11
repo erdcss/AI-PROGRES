@@ -70,7 +70,9 @@ export function registerTrackingRoutes(app: Express): void {
   app.get("/api/tracking/products", async (req, res) => {
     try {
       const includeArchived = req.query.includeArchived === "true";
-      const includeUnlinked = req.query.includeUnlinked === "true";
+      const includeUnlinked = req.query.includeShopifyOnly === "true"
+        ? false
+        : req.query.includeUnlinked !== "false";
       const products = await trackingService.listProductsForPanel({
         includeArchived,
         includeUnlinked,

@@ -1,0 +1,231 @@
+import { useMemo } from "react";
+import { motion } from "framer-motion";
+import { useLocation } from "wouter";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Bell, Send } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+
+type NotificationSetting = {
+  id: number;
+  notificationType: string;
+  enabled: boolean;
+  description?: string | null;
+};
+
+const LABELS: Record<string, { title: string; hint: string }> = {
+  new_product: {
+    title: "Yeni ürün",
+    hint: "Hafızaya veya takip listesine ürün eklendiğinde",
+  },
+  variant_change: {
+    title: "Varyant değişikliği",
+    hint: "Renk, beden veya seçenek değiştiğinde",
+  },
+  variant_removed: {
+    title: "Varyant kaldırıldı",
+    hint: "Bir seçenek kaynaktan silindiğinde",
+  },
+  price_change: {
+    title: "Fiyat değişikliği",
+    hint: "Alış veya satış fiyatı değiştiğinde",
+  },
+  stock_update: {
+    title: "Stok güncellemesi",
+    hint: "Stok bitti, geldi veya adet değiştiğinde",
+  },
+  shopify_upload: {
+    title: "Shopify yükleme",
+    hint: "Ürün mağazaya aktarıldığında",
+  },
+};
+
+export default function BildirimlerPage() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const settingsQ = useQuery({
+    queryKey: ["/api/telegram/settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/telegram/settings");
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Ayarlar alınamadı");
+      return (data.settings || []) as NotificationSetting[];
+    },
+  });
+
+  const statusQ = useQuery({
+    queryKey: ["/api/telegram/status"],
+    queryFn: async () => {
+      const res = await fetch("/api/telegram/status");
+      return res.json();
+    },
+  });
+
+  const settings = settingsQ.data || [];
+  const allOn = settings.length > 0 && settings.every((s) => s.enabled);
+  const connected = Boolean(statusQ.data?.status?.connected || statusQ.data?.status?.botConfigured);
+
+  const toggleOne = useMutation({
+    mutationFn: async ({ type, enabled }: { type: string; enabled: boolean }) => {
+      await apiRequest("PUT", `/api/telegram/settings/${type}`, { enabled });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["/api/telegram/settings"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Ayar kaydedilemedi", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const toggleAll = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      await apiRequest("POST", "/api/telegram/settings/toggle-all", { enabled });
+    },
+    onSuccess: (_d, enabled) => {
+      void qc.invalidateQueries({ queryKey: ["/api/telegram/settings"] });
+      toast({
+        title: enabled ? "Bildirimler açıldı" : "Bildirimler kapatıldı",
+        description: "Tüm bildirim türleri güncellendi",
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Toplu ayar", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const testMut = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/notifications/test", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || data.message || "Test gönderilemedi");
+      }
+      return data;
+    },
+    onSuccess: () => {
+      toast({ title: "Test bildirimi gönderildi", description: "Telegram bağlantınızı kontrol edin." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Test başarısız", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const rows = useMemo(
+    () =>
+      settings.filter((s) => s.notificationType !== "test"),
+    [settings],
+  );
+
+  return (
+    <div className="home-orvian relative min-h-screen overflow-x-hidden bg-black">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255,255,255,0.03), transparent 55%), linear-gradient(180deg, #050505 0%, #000 40%, #000 100%)",
+        }}
+      />
+
+      <div className="relative z-10 mx-auto max-w-2xl px-4 pb-16 pt-8 sm:px-6">
+        <button
+          type="button"
+          onClick={() => setLocation("/")}
+          className="mb-6 inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.18em] text-zinc-500 transition-colors hover:text-zinc-200"
+        >
+          <ArrowLeft className="h-4 w-4" strokeWidth={1.25} />
+          Ana sayfa
+        </button>
+
+        <motion.header
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-8"
+        >
+          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950">
+            <Bell className="h-5 w-5 text-zinc-300" strokeWidth={1.25} />
+          </div>
+          <h1 className="home-title text-2xl tracking-[0.18em]">Bildirimler</h1>
+          <p className="home-muted mt-2 text-[13px] leading-relaxed">
+            Hangi olaylarda bildirim gideceğini açıp kapatın. Test ile bağlantıyı doğrulayın.
+          </p>
+          <p className="mt-3 text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+            {connected ? "Bağlantı hazır" : "Telegram bağlantısı kontrol edin"}
+          </p>
+        </motion.header>
+
+        <motion.section
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
+          className="rounded-2xl border border-zinc-800/80 bg-[#070707] p-4 sm:p-5"
+        >
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-900 pb-4">
+            <div>
+              <div className="home-title text-[13px] uppercase tracking-[0.22em]">Tüm bildirimler</div>
+              <p className="home-muted mt-1 text-[12px]">Tek tuşla hepsini aç veya kapat</p>
+            </div>
+            <Switch
+              checked={allOn}
+              disabled={toggleAll.isPending || settingsQ.isLoading}
+              onCheckedChange={(v) => toggleAll.mutate(v)}
+              className="data-[state=checked]:bg-zinc-200 data-[state=unchecked]:bg-zinc-800"
+            />
+          </div>
+
+          <div className="divide-y divide-zinc-900">
+            {settingsQ.isLoading ? (
+              <p className="py-8 text-center text-sm text-zinc-500">Ayarlar yükleniyor…</p>
+            ) : rows.length === 0 ? (
+              <p className="py-8 text-center text-sm text-zinc-500">Bildirim ayarı bulunamadı.</p>
+            ) : (
+              rows.map((row) => {
+                const meta = LABELS[row.notificationType] || {
+                  title: row.notificationType,
+                  hint: row.description || "",
+                };
+                return (
+                  <div key={row.notificationType} className="flex items-center justify-between gap-4 py-4">
+                    <div className="min-w-0">
+                      <div className="text-[14px] text-zinc-100">{meta.title}</div>
+                      <p className="mt-0.5 text-[12px] leading-relaxed text-zinc-500">{meta.hint}</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(row.enabled)}
+                      disabled={toggleOne.isPending}
+                      onCheckedChange={(v) =>
+                        toggleOne.mutate({ type: row.notificationType, enabled: v })
+                      }
+                      className="data-[state=checked]:bg-zinc-200 data-[state=unchecked]:bg-zinc-800"
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </motion.section>
+
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.16, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-4"
+        >
+          <button
+            type="button"
+            onClick={() => testMut.mutate()}
+            disabled={testMut.isPending}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3.5 text-[13px] uppercase tracking-[0.18em] text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-black disabled:opacity-50"
+          >
+            <Send className="h-4 w-4" strokeWidth={1.25} />
+            {testMut.isPending ? "Gönderiliyor…" : "Test bildirimi gönder"}
+          </button>
+        </motion.div>
+      </div>
+    </div>
+  );
+}

@@ -1,14 +1,26 @@
 import { motion } from "framer-motion";
 import { ReactNode } from "react";
+import { useLocation } from "wouter";
 
 interface PageTransitionProps {
   children: ReactNode;
   className?: string;
 }
 
-/** Route wrapper — no opacity exit animations (they caused blank screens on navigation). */
+/** Enter-only route animation (no exit fade — that blanked the next page). */
 export function PageTransition({ children, className = "" }: PageTransitionProps) {
-  return <div className={`min-h-screen ${className}`}>{children}</div>;
+  const [location] = useLocation();
+  return (
+    <motion.div
+      key={location}
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+      className={`min-h-screen ${className}`}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 export function AnimatedContainer({ children, className = "" }: PageTransitionProps) {

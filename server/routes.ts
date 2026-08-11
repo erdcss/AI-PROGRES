@@ -7517,6 +7517,24 @@ setTimeout(check, 1000);
   });
   
   // TÃ¼m bildirimleri aÃ§/kapat
+  app.post('/api/notifications/test', async (_req, res) => {
+    try {
+      await telegramIntegration.sendNotification(
+        "Test bildirimi — ORVIAN bildirim bağlantısı çalışıyor.",
+        "test",
+        undefined,
+        undefined,
+        { source: "bildirimler_page" },
+      );
+      res.json({ success: true, message: "Test bildirimi gönderildi" });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
   app.post('/api/telegram/settings/toggle-all', async (req, res) => {
     try {
       const { enabled } = req.body;

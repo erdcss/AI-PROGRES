@@ -2,50 +2,103 @@
  * Mobil dashboard istatistikleri — mevcut DB'den hesapla, Supabase'e mirror et.
  * Debounced; ana tracking'i bekletmez.
  */
-import { and, count, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, count, eq, isNull, ne, notExists, sql } from "drizzle-orm";
 import { db } from "../db";
-import { detectedChanges, products, trackedProducts } from "@shared/schema";
+import { detectedChanges, products, shopifyMemoryProducts, trackedProducts } from "@shared/schema";
 import { syncDashboardStats } from "./mobile-sync.service";
 import { getTrackingSchedulerStatus } from "./tracking.scheduler";
+
+function visibleTracked() {
+  return and(
+    ne(trackedProducts.currentStatus, "shopify_deleted"),
+    isNull(trackedProducts.archivedAt),
+  );
+}
+
+export async function computeCatalogCounts() {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const visible = visibleTracked();
+
+  const [scrapedAll, scrapedToday, trackedAll, trackedActive, watchRed, watchGreen] =
+    await Promise.all([
+      db.select({ c: count() }).from(products),
+      db
+        .select({ c: count() })
+        .from(products)
+        .where(sql`${products.createdAt} >= ${todayStart}`),
+      db.select({ c: count() }).from(trackedProducts).where(visible),
+      db
+        .select({ c: count() })
+        .from(trackedProducts)
+        .where(and(eq(trackedProducts.trackingEnabled, true), visible)),
+      db
+        .select({ c: count() })
+        .from(trackedProducts)
+        .where(and(visible, eq(trackedProducts.watchTag, "red"))),
+      db
+        .select({ c: count() })
+        .from(trackedProducts)
+        .where(and(visible, eq(trackedProducts.watchTag, "green"))),
+    ]);
+
+  let shopifyMemoryTotal = 0;
+  let memoryOnly = 0;
+  try {
+    const [mem] = await db.select({ c: count() }).from(shopifyMemoryProducts);
+    shopifyMemoryTotal = Number(mem?.c ?? 0);
+    const [only] = await db
+      .select({ c: count() })
+      .from(shopifyMemoryProducts)
+      .where(
+        notExists(
+          db
+            .select({ id: trackedProducts.id })
+            .from(trackedProducts)
+            .where(
+              and(
+                eq(trackedProducts.shopifyProductId, shopifyMemoryProducts.shopifyProductId),
+                visible,
+              ),
+            ),
+        ),
+      );
+    memoryOnly = Number(only?.c ?? 0);
+  } catch {
+    shopifyMemoryTotal = 0;
+    memoryOnly = 0;
+  }
+
+  const scrapedTotal = Number(scrapedAll[0]?.c ?? 0);
+  const trackedTotal = Number(trackedAll[0]?.c ?? 0);
+  const catalogTotal = Math.max(trackedTotal + memoryOnly, shopifyMemoryTotal, scrapedTotal);
+
+  return {
+    scrapedTotal,
+    scrapedToday: Number(scrapedToday[0]?.c ?? 0),
+    trackedTotal,
+    trackedActive: Number(trackedActive[0]?.c ?? 0),
+    watchRed: Number(watchRed[0]?.c ?? 0),
+    watchGreen: Number(watchGreen[0]?.c ?? 0),
+    shopifyMemoryTotal,
+    catalogTotal,
+  };
+}
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 5000;
 let lastComputed: Awaited<ReturnType<typeof computeDashboardStats>> | null = null;
 
 export async function computeDashboardStats() {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
   const [
-    scrapedTotal,
-    scrapedToday,
-    trackedTotal,
-    trackedActive,
+    catalog,
     pendingChanges,
     priceChanges,
     stockChanges,
     variantChanges,
     scheduler,
   ] = await Promise.all([
-    db.select({ c: count() }).from(products).where(eq(products.isActive, true)),
-    db
-      .select({ c: count() })
-      .from(products)
-      .where(and(eq(products.isActive, true), sql`${products.createdAt} >= ${todayStart}`)),
-    db
-      .select({ c: count() })
-      .from(trackedProducts)
-      .where(and(ne(trackedProducts.currentStatus, "shopify_deleted"), isNull(trackedProducts.archivedAt))),
-    db
-      .select({ c: count() })
-      .from(trackedProducts)
-      .where(
-        and(
-          eq(trackedProducts.trackingEnabled, true),
-          ne(trackedProducts.currentStatus, "shopify_deleted"),
-          isNull(trackedProducts.archivedAt),
-        ),
-      ),
+    computeCatalogCounts(),
     db
       .select({ c: count() })
       .from(detectedChanges)
@@ -75,10 +128,10 @@ export async function computeDashboardStats() {
         : "unknown";
 
   const stats = {
-    totalProducts: Number(scrapedTotal[0]?.c ?? 0),
-    todayProducts: Number(scrapedToday[0]?.c ?? 0),
-    trackedProducts: Number(trackedTotal[0]?.c ?? 0),
-    activeTracking: Number(trackedActive[0]?.c ?? 0),
+    totalProducts: catalog.catalogTotal,
+    todayProducts: catalog.scrapedToday,
+    trackedProducts: catalog.trackedTotal,
+    activeTracking: catalog.trackedActive,
     pendingChanges: Number(pendingChanges[0]?.c ?? 0),
     priceChanges: Number(priceChanges[0]?.c ?? 0),
     stockChanges: Number(stockChanges[0]?.c ?? 0),

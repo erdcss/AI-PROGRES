@@ -79,7 +79,7 @@ export function useRealtimeProducts() {
   useRealtimeTable(
     "rt-products",
     "mobile_products",
-    [["scraped-products"], ["tracked-products"], ["dashboard"]],
+    [["scraped-products"], ["tracked-products"], ["memory-products"], ["dashboard"]],
     "UPDATE",
   );
 }

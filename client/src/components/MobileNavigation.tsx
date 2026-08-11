@@ -21,7 +21,8 @@ import {
   Activity,
   Cpu,
   TrendingUp,
-  FolderTree
+  FolderTree,
+  Bell
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -55,6 +56,7 @@ const navigationItems: NavigationItem[] = [
   { name: 'Sistem Durumu', path: '/system-status', icon: Shield, description: 'Sistem kontrolü', category: 'system' },
   { name: 'Zamanlayıcı', path: '/scheduler', icon: Calendar, description: 'Otomatik görevler', category: 'system' },
   { name: 'E-posta Ayarları', path: '/email', icon: Mail, description: 'Bildirim ayarları', category: 'system' },
+  { name: 'Bildirimler', path: '/bildirimler', icon: Bell, description: 'Bildirim aç/kapa ve test', category: 'system' },
   { name: 'Telegram', path: '/telegram', icon: MessageCircle, description: 'Telegram botu', category: 'system' },
   { name: 'S.O.S Kontrol', path: '/sos-control', icon: TrendingUp, description: 'Acil durum kontrol', category: 'system' }
 ];

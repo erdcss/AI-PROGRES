@@ -29,7 +29,11 @@ export default function HomeScreen() {
   const online = useOnline();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const q = useQuery({ queryKey: ["dashboard"], queryFn: fetchDashboard });
+  const q = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: fetchDashboard,
+    refetchInterval: 12_000,
+  });
 
   const cards = q.data?.cards;
   const system = q.data?.system;
@@ -73,8 +77,12 @@ export default function HomeScreen() {
         ) : (
           <>
             <View style={styles.grid}>
-              <StatCard label="Toplam Ürün" value={cards?.scrapedTotal ?? 0} icon="▣" />
-              <StatCard label="Aktif Takip" value={cards?.trackedActive ?? 0} icon="◎" />
+              <StatCard
+                label="Toplam Ürün"
+                value={cards?.catalogTotal ?? cards?.shopifyMemoryTotal ?? cards?.scrapedTotal ?? 0}
+                icon="▣"
+              />
+              <StatCard label="Aktif Takip" value={cards?.trackedActive ?? cards?.trackedTotal ?? 0} icon="◎" />
               <StatCard label="Bekleyen Değişiklik" value={cards?.pendingChanges ?? 0} icon="…" />
               <StatCard label="Fiyat Değişiklikleri" value={cards?.priceChanges ?? 0} icon="⇄" />
               <StatCard label="Stok Değişiklikleri" value={cards?.stockChanges ?? 0} icon="▢" />
