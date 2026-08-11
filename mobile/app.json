@@ -18,16 +18,19 @@
     },
     "android": {
       "package": "com.orvian.productmonitor",
-      "versionCode": 10,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
+        "WAKE_LOCK",
         "VIBRATE",
         "POST_NOTIFICATIONS",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK"
       ],
       "intentFilters": [
         {
@@ -63,7 +66,9 @@
         }
       ],
       "expo-asset",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-task-manager",
+      "expo-background-task"
     ],
     "extra": {
       "eas": {

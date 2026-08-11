@@ -26,7 +26,7 @@ export default function TabsLayout() {
   const { data } = useQuery({
     queryKey: ["notifications-badge"],
     queryFn: () => fetchPushInboxRecent(40),
-    refetchInterval: 15_000,
+    refetchInterval: false,
   });
   const badge = data?.items?.length || 0;
 

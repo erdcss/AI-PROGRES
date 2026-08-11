@@ -189,6 +189,16 @@ export function registerTrackingRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/tracking/sync-from-catalog", async (_req, res) => {
+    try {
+      const { syncShopifyMemoryToTracking } = await import("../services/tracking-sync.service");
+      const result = await syncShopifyMemoryToTracking();
+      return res.json({ success: true, ...result });
+    } catch (err) {
+      return migrationErrorResponse(res, err);
+    }
+  });
+
   app.post("/api/tracking/restore-from-transferred", async (_req, res) => {
     try {
       const result = await restoreTrackedProductsFromTransferred();

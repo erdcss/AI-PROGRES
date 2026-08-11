@@ -65,7 +65,7 @@ export default function TrackingScreen() {
   const changes = useQuery({
     queryKey: ["changes-all"],
     queryFn: () => fetchAllChanges(),
-    refetchInterval: 8_000,
+    refetchInterval: false,
   });
 
   const items = useMemo(() => {

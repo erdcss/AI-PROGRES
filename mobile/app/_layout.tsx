@@ -15,6 +15,9 @@ import { NotificationPermissionGate } from "../src/components/NotificationPermis
 import { InAppBannerProvider } from "../src/components/InAppBanner";
 import { BootSplash } from "../src/components/BootSplash";
 import { LoginGate } from "../src/components/LoginGate";
+import { registerInboxBackgroundTask } from "../src/background/inbox-task";
+
+void registerInboxBackgroundTask();
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -276,6 +276,7 @@ export function scheduleMobileEventAfterChange(
 ): void {
   void (async () => {
     try {
+      let sourceUrl = "";
       // Enrich / upsert product mirror from tracked product
       try {
         const { db } = await import("../db");
@@ -287,6 +288,7 @@ export function scheduleMobileEventAfterChange(
           .where(eq(trackedProducts.id, change.trackedProductId))
           .limit(1);
         if (p) {
+          sourceUrl = p.sourceUrl || "";
           const [snap] = await db
             .select()
             .from(productSnapshots)
@@ -328,6 +330,26 @@ export function scheduleMobileEventAfterChange(
           scheduleChangePush(change);
         } catch (pushErr) {
           console.warn("[mobile-sync] FCM schedule skipped:", errMessage(pushErr));
+        }
+        try {
+          const { notifyProductChange } = await import("./telegram-notifier.service");
+          const t = String(change.changeType || "");
+          const oldV = change.oldValue == null ? "—" : String(
+            typeof change.oldValue === "object" ? JSON.stringify(change.oldValue) : change.oldValue,
+          );
+          const newV = change.newValue == null ? "—" : String(
+            typeof change.newValue === "object" ? JSON.stringify(change.newValue) : change.newValue,
+          );
+          const delta = `${oldV} → ${newV}`;
+          await notifyProductChange({
+            title: opts?.productTitle || `Ürün #${change.trackedProductId}`,
+            url: sourceUrl,
+            priceChange: t.includes("price") ? delta : undefined,
+            stockChange: t.includes("stock") ? delta : undefined,
+            variantChange: t.startsWith("variant") && !t.includes("price") && !t.includes("stock") ? delta : undefined,
+          });
+        } catch (tgErr) {
+          console.warn("[mobile-sync] telegram notify skipped:", errMessage(tgErr));
         }
       }
 

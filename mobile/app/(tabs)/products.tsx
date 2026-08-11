@@ -82,17 +82,17 @@ export default function ProductsScreen() {
   const scraped = useQuery({
     queryKey: ["scraped-products", "all"],
     queryFn: fetchAllScrapedProducts,
-    refetchInterval: 8_000,
+    refetchInterval: false,
   });
   const tracked = useQuery({
     queryKey: ["tracked-products"],
     queryFn: () => fetchTrackedProducts({ includeUnlinked: true }),
-    refetchInterval: 8_000,
+    refetchInterval: false,
   });
   const memory = useQuery({
     queryKey: ["memory-products", "all"],
     queryFn: fetchAllMemoryProducts,
-    refetchInterval: 8_000,
+    refetchInterval: false,
   });
 
   const items = useMemo(() => {

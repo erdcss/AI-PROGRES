@@ -42,7 +42,7 @@ export default function NotificationsScreen() {
   const inbox = useQuery({
     queryKey: ["push-inbox-recent"],
     queryFn: () => fetchPushInboxRecent(40),
-    refetchInterval: 8000,
+    refetchInterval: false,
   });
 
   const clearMut = useMutation({

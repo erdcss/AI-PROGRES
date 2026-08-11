@@ -81,6 +81,10 @@ export function registerMobileReadRoutes(app: Express): void {
   app.get("/api/mobile/dashboard", async (_req, res) => {
     try {
       void hydrateIncompleteCatalog();
+      const { scheduleShopifyMemoryTrackingSync } = await import(
+        "../services/tracking-sync.service"
+      );
+      scheduleShopifyMemoryTrackingSync();
       const [notifications, scheduler, changeCounts, catalog] =
         await Promise.all([
           getTrackingNotifications(),

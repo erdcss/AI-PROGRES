@@ -15,7 +15,7 @@ import {
 } from "./tracking.scheduler";
 import {
   ensureLocalTrackingAutoStart,
-  syncTransferredProductsToTracking,
+  syncShopifyMemoryToTracking,
 } from "./tracking-sync.service";
 import { backfillTrackingUids } from "./tracking-uid-backfill.service";
 import {
@@ -65,7 +65,7 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
     }
 
     try {
-      await syncTransferredProductsToTracking();
+      await syncShopifyMemoryToTracking();
     } catch (err) {
       console.warn("⚠️ Shopify → v2 takip senkronu atlandı:", err);
     }

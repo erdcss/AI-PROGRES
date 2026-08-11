@@ -32,7 +32,7 @@ export default function HomeScreen() {
   const q = useQuery({
     queryKey: ["dashboard"],
     queryFn: fetchDashboard,
-    refetchInterval: 8_000,
+    refetchInterval: false,
   });
 
   const cards = q.data?.cards;

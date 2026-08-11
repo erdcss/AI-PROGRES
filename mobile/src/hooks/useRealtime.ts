@@ -50,7 +50,7 @@ export function useRealtimeTracking() {
   useRealtimeTable(
     "rt-tracking-changes",
     "mobile_tracking_changes",
-    [["changes-actionable"], ["changes-all"], ["notifications"], ["notifications-badge"], ["dashboard"]],
+    [["changes-actionable"], ["changes-all"], ["notifications"], ["notifications-badge"]],
     "INSERT",
   );
 }
@@ -68,7 +68,7 @@ export function useRealtimeProducts() {
   useRealtimeTable(
     "rt-products",
     "mobile_products",
-    [["scraped-products"], ["tracked-products"], ["memory-products"], ["dashboard"]],
+    [["scraped-products"], ["tracked-products"], ["memory-products"]],
     "UPDATE",
   );
 }
@@ -86,5 +86,4 @@ export function useAllMobileRealtime() {
   useRealtimeTracking();
   useRealtimeNotifications();
   useRealtimeProducts();
-  useRealtimeDashboard();
 }
