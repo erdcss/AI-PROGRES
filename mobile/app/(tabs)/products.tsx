@@ -99,12 +99,6 @@ export default function ProductsScreen() {
     const trackedList: TrackedProduct[] = tracked.data?.products || [];
     const scrapedList: ScrapedProduct[] = scraped.data?.products || [];
     const memoryList: MemoryProduct[] = memory.data?.products || [];
-    const trackedByUrl = new Set(
-      trackedList.map((t) => String(t.sourceUrl || "").toLowerCase()).filter(Boolean),
-    );
-    const trackedByShopify = new Set(
-      trackedList.map((t) => String(t.shopifyProductId || "")).filter(Boolean),
-    );
     const scrapedTagByUrl = new Map(
       scrapedList
         .filter((p) => p.trendyolUrl)
@@ -116,97 +110,100 @@ export default function ProductsScreen() {
         .map((p) => [String(p.trendyolUrl).toLowerCase(), p] as const),
     );
 
+    const trackedByShopifyMap = new Map(
+      trackedList
+        .filter((t) => t.shopifyProductId)
+        .map((t) => [String(t.shopifyProductId), t] as const),
+    );
+    const trackedByUrlMap = new Map(
+      trackedList
+        .filter((t) => t.sourceUrl)
+        .map((t) => [String(t.sourceUrl).toLowerCase(), t] as const),
+    );
+    const scrapedByShopify = new Map(
+      scrapedList
+        .filter((p) => p.shopifyProductId)
+        .map((p) => [String(p.shopifyProductId), p] as const),
+    );
+
     const unified: UnifiedProduct[] = [];
 
-    for (const t of trackedList) {
-      const scrapedMatch = scrapedByUrl.get(String(t.sourceUrl || "").toLowerCase());
-      const variantPrices = (scrapedMatch?.variants || []).map((v) => variantPrice(v));
-      unified.push({
-        key: `t-${t.id}`,
-        routeId: `tracked-${t.id}`,
-        title: t.sourceTitle,
-        subtitle:
-          domainFromUrl(t.sourceUrl) ||
-          `${marketplaceLabel(t.sourceSite).toLowerCase()}.com`,
-        price: formatMoney(
-          pickDisplayPrice(t.currentSourcePrice, scrapedMatch?.currentPrice, scrapedMatch?.originalPrice, ...variantPrices),
-        ),
-        imageUrl: t.productImageUrl || uniqueImageUrls(scrapedMatch?.image, scrapedMatch?.images)[0],
-        tracked: true,
-        shopify: Boolean(t.shopifyProductId),
-        watchTag:
-          t.watchTag ||
-          scrapedTagByUrl.get(String(t.sourceUrl || "").toLowerCase()) ||
-          null,
-      });
-    }
-
-    for (const p of scrapedList) {
-      const url = String(p.trendyolUrl || "").toLowerCase();
-      const already =
-        (url && trackedByUrl.has(url)) ||
-        (p.shopifyProductId && trackedByShopify.has(String(p.shopifyProductId)));
-      if (already) continue;
-      const variantHint =
-        typeof p.variantCount === "number" && p.variantCount > 0
-          ? ` · ${p.variantCount} varyant`
-          : "";
-      unified.push({
-        key: `s-${p.id}`,
-        routeId: String(p.id),
-        title: p.title,
-        subtitle:
-          (domainFromUrl(p.trendyolUrl) ||
-            marketplaceLabel(p.marketplace || p.sourcePlatform).toLowerCase()) +
-          variantHint,
-        price: formatMoney(
-          pickDisplayPrice(
-            p.currentPrice,
-            p.originalPrice,
-            ...(p.variants || []).map((v) => variantPrice(v)),
-          ),
-        ),
-        imageUrl: uniqueImageUrls(p.image, p.images)[0],
-        tracked: false,
-        shopify: Boolean(p.shopifyProductId),
-        watchTag: p.watchTag || null,
-      });
-    }
-
-    for (const m of memoryList) {
-      const url = String(m.sourceUrl || "").toLowerCase();
-      const already =
-        (m.shopifyProductId && trackedByShopify.has(String(m.shopifyProductId))) ||
-        (url && trackedByUrl.has(url)) ||
-        (m.shopifyProductId &&
-          scrapedList.some((p) => p.shopifyProductId === m.shopifyProductId));
-      if (already) continue;
-      const variantHint =
-        typeof m.variantCount === "number" && m.variantCount > 0
-          ? ` · ${m.variantCount} varyant`
-          : "";
-      unified.push({
-        key: `m-${m.id}`,
-        routeId: `memory-${m.id}`,
-        title: m.title,
-        subtitle: `Shopify${variantHint}`,
-        price: formatMoney(
-          pickDisplayPrice(
-            m.price,
-            m.compareAtPrice,
-            ...((Array.isArray(m.variants) ? m.variants : []) as ProductVariantRow[]).map((v) =>
-              variantPrice(v),
+    if (memoryList.length > 0) {
+      for (const m of memoryList) {
+        const url = String(m.sourceUrl || "").toLowerCase();
+        const trackedMatch =
+          (m.shopifyProductId && trackedByShopifyMap.get(String(m.shopifyProductId))) ||
+          (url ? trackedByUrlMap.get(url) : undefined);
+        const scrapedMatch =
+          (m.shopifyProductId && scrapedByShopify.get(String(m.shopifyProductId))) ||
+          (url ? scrapedByUrl.get(url) : undefined);
+        const variantHint =
+          typeof m.variantCount === "number" && m.variantCount > 0
+            ? ` · ${m.variantCount} varyant`
+            : scrapedMatch?.variantCount
+              ? ` · ${scrapedMatch.variantCount} varyant`
+              : "";
+        unified.push({
+          key: `m-${m.id}`,
+          routeId: trackedMatch ? `tracked-${trackedMatch.id}` : `memory-${m.id}`,
+          title: m.title || trackedMatch?.sourceTitle || scrapedMatch?.title || "Ürün",
+          subtitle: `Shopify${variantHint}`,
+          price: formatMoney(
+            pickDisplayPrice(
+              m.price,
+              m.compareAtPrice,
+              trackedMatch?.currentSourcePrice,
+              scrapedMatch?.currentPrice,
+              scrapedMatch?.originalPrice,
+              ...((Array.isArray(m.variants) ? m.variants : []) as ProductVariantRow[]).map((v) =>
+                variantPrice(v),
+              ),
+              ...(scrapedMatch?.variants || []).map((v) => variantPrice(v)),
             ),
           ),
-        ),
-        imageUrl: uniqueImageUrls(m.image, m.images)[0],
-        tracked: Boolean(m.isTracking),
-        shopify: true,
-        watchTag: null,
-      });
+          imageUrl:
+            uniqueImageUrls(m.image, m.images)[0] ||
+            trackedMatch?.productImageUrl ||
+            uniqueImageUrls(scrapedMatch?.image, scrapedMatch?.images)[0],
+          tracked: Boolean(trackedMatch || m.isTracking),
+          shopify: true,
+          watchTag:
+            trackedMatch?.watchTag ||
+            scrapedMatch?.watchTag ||
+            (url ? scrapedTagByUrl.get(url) : null) ||
+            null,
+        });
+      }
+    } else {
+      for (const t of trackedList) {
+        const scrapedMatch = scrapedByUrl.get(String(t.sourceUrl || "").toLowerCase());
+        unified.push({
+          key: `t-${t.id}`,
+          routeId: `tracked-${t.id}`,
+          title: t.sourceTitle,
+          subtitle:
+            domainFromUrl(t.sourceUrl) ||
+            `${marketplaceLabel(t.sourceSite).toLowerCase()}.com`,
+          price: formatMoney(
+            pickDisplayPrice(
+              t.currentSourcePrice,
+              scrapedMatch?.currentPrice,
+              scrapedMatch?.originalPrice,
+              ...(scrapedMatch?.variants || []).map((v) => variantPrice(v)),
+            ),
+          ),
+          imageUrl: t.productImageUrl || uniqueImageUrls(scrapedMatch?.image, scrapedMatch?.images)[0],
+          tracked: true,
+          shopify: Boolean(t.shopifyProductId),
+          watchTag:
+            t.watchTag ||
+            scrapedTagByUrl.get(String(t.sourceUrl || "").toLowerCase()) ||
+            null,
+        });
+      }
     }
 
-    let filtered = unified.filter((u) => u.price !== "—" || u.subtitle.includes("varyant"));
+    let filtered = unified;
     if (filter === "Kırmızı") filtered = unified.filter((u) => u.watchTag === "red");
     if (filter === "Yeşil") filtered = unified.filter((u) => u.watchTag === "green");
     if (filter === "Takipte") filtered = unified.filter((u) => u.tracked);
@@ -229,7 +226,7 @@ export default function ProductsScreen() {
     [router],
   );
 
-  const loading = (scraped.isLoading || tracked.isLoading) && !scraped.data && !tracked.data;
+  const loading = memory.isLoading && tracked.isLoading && !memory.data && !tracked.data;
   const error = scraped.isError && tracked.isError && memory.isError;
 
   return (

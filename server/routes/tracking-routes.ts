@@ -70,7 +70,7 @@ export function registerTrackingRoutes(app: Express): void {
 
   app.get("/api/tracking/products", async (req, res) => {
     try {
-      await hydrateIncompleteCatalog();
+      void hydrateIncompleteCatalog();
       const includeArchived = req.query.includeArchived === "true";
       const includeUnlinked = req.query.includeShopifyOnly === "true"
         ? false

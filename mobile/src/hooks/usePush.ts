@@ -1,11 +1,21 @@
 import { useEffect } from "react";
-import { Linking, PermissionsAndroid, Platform } from "react-native";
+import { AppState, Linking, PermissionsAndroid, Platform } from "react-native";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { registerPushDevice } from "../api/tracking";
 
 const CHANNEL_ID = "tracking_alerts";
+
+let remotePushReady = false;
+
+export function hasRemotePushToken(): boolean {
+  return remotePushReady;
+}
+
+export function isAppInForeground(): boolean {
+  return AppState.currentState === "active";
+}
 
 export type NotificationPermissionStatus = "granted" | "denied" | "undetermined";
 
@@ -26,13 +36,16 @@ export function isRemotePushAvailable(): boolean {
 
 try {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: false,
-      shouldShowBanner: false,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
+    handleNotification: async () => {
+      const inApp = AppState.currentState === "active";
+      return {
+        shouldShowAlert: !inApp,
+        shouldShowBanner: !inApp,
+        shouldShowList: !inApp,
+        shouldPlaySound: !inApp,
+        shouldSetBadge: true,
+      };
+    },
   });
 } catch (err) {
   console.warn("[push] setNotificationHandler skipped", err);
@@ -134,16 +147,23 @@ export async function registerForPushAsync(): Promise<string | null> {
 
   try {
     const tokenRes = await Notifications.getExpoPushTokenAsync({ projectId });
-    if (tokenRes.data) return tokenRes.data;
+    if (tokenRes.data) {
+      remotePushReady = true;
+      return tokenRes.data;
+    }
   } catch (err) {
     console.warn("[push] expo token failed", err);
   }
   try {
     const device = await Notifications.getDevicePushTokenAsync();
-    if (device?.data) return String(device.data);
+    if (device?.data) {
+      remotePushReady = true;
+      return String(device.data);
+    }
   } catch (err) {
     console.warn("[push] device token failed", err);
   }
+  remotePushReady = false;
   return null;
 }
 

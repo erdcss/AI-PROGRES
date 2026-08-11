@@ -493,6 +493,18 @@ export async function fetchPushInbox(afterId = 0) {
   );
 }
 
+export async function fetchPushInboxRecent(limit = 40) {
+  return apiFetch<{ success: boolean; items: PushInboxItem[] }>(
+    `/api/mobile/push/inbox?mode=recent&limit=${encodeURIComponent(String(limit))}`,
+  );
+}
+
+export async function clearPushInbox() {
+  return apiFetch<{ success: boolean; deleted?: number }>("/api/mobile/push/inbox", {
+    method: "DELETE",
+  });
+}
+
 export async function registerPushDevice(body: {
   deviceId: string;
   platform: string;

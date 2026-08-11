@@ -140,6 +140,8 @@ const CHANGE_FILTERS = [
   { value: "failed", label: "Hatalı", countKey: "failed" },
   { value: "ignored", label: "Yok sayılan", countKey: "ignored" },
   { value: "seen", label: "Görüldü", countKey: "seen" },
+  { value: "applied", label: "Uygulanan", countKey: "applied" },
+  { value: "history", label: "Tümü", countKey: "all" },
 ] as const;
 
 type ChangeKindFilter = "price" | "color_oos" | "size_oos" | "product_oos";
@@ -158,6 +160,8 @@ type ChangeFilterCounts = {
   failed: number;
   ignored: number;
   seen: number;
+  applied: number;
+  all: number;
 };
 
 function formatDate(value: string | null) {
@@ -310,7 +314,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const productsQuery = useQuery({
     queryKey: ["tracking-products"],
     queryFn: async () => {
-      const res = await fetch("/api/tracking/products", { cache: "no-store" });
+      const res = await fetch("/api/tracking/products?includeUnlinked=true", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Liste alınamadı");
       return (data.products || []) as TrackedProduct[];
@@ -345,6 +349,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         failed: 0,
         ignored: 0,
         seen: 0,
+        applied: 0,
+        all: 0,
       }) as ChangeFilterCounts;
     },
     refetchInterval: 15_000,
@@ -868,8 +874,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
 
         <TabsContent value="changes" className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground max-w-2xl">
-            Düzeltilecekler aktif tespitleri gösterir. Görüldü / Yok sayılan kayıtlar kendi
-            sekmelerine taşınır; Shopify&apos;da düzeltilenler listeden kalkar.
+            Düzeltilecekler bekleyen tespitleri gösterir. Shopify&apos;a uygulananlar
+            Uygulanan / Tümü sekmelerinde kalır.
           </p>
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2 items-center justify-between">
@@ -900,7 +906,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 })}
               </div>
               <div className="flex gap-2">
-                {statusFilter !== "ignored" && statusFilter !== "seen" && bulkFixIds.length > 0 && (
+                {statusFilter !== "ignored" && statusFilter !== "seen" && statusFilter !== "applied" && statusFilter !== "history" && bulkFixIds.length > 0 && (
                   <Button
                     size="sm"
                     disabled={bulkShopifySyncMutation.isPending}
@@ -911,7 +917,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       : `Toplu düzelt (${bulkFixIds.length})`}
                   </Button>
                 )}
-                {statusFilter !== "ignored" && statusFilter !== "seen" && approvableIds.length > 0 && (
+                {statusFilter !== "ignored" && statusFilter !== "seen" && statusFilter !== "applied" && statusFilter !== "history" && approvableIds.length > 0 && (
                   <Button
                     size="sm"
                     variant="outline"

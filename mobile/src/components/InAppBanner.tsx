@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
 
@@ -95,6 +95,7 @@ export function InAppBannerProvider({ children }: { children: React.ReactNode })
     let sub: { remove: () => void } | null = null;
     try {
       sub = Notifications.addNotificationReceivedListener((notification) => {
+        if (AppState.currentState !== "active") return;
         const content = notification.request.content;
         showBanner(String(content.title || "Bildirim"), content.body ? String(content.body) : undefined);
       });

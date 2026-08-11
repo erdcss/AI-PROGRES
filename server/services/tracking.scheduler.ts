@@ -503,20 +503,18 @@ export async function getTrackingSchedulerStatus() {
     };
   }
 
+  const panelVisible = trackingService.panelTrackedProductCondition();
   const [trackedCount] = await db
     .select({ c: count() })
     .from(trackedProducts)
-    .where(
-      visibleTrackedProductCondition(),
-    );
+    .where(panelVisible);
   const [activeCount] = await db
     .select({ c: count() })
     .from(trackedProducts)
     .where(
       and(
         eq(trackedProducts.trackingEnabled, true),
-        eq(trackedProducts.currentStatus, "active"),
-        visibleTrackedProductCondition(),
+        panelVisible,
       ),
     );
 
@@ -524,13 +522,13 @@ export async function getTrackingSchedulerStatus() {
     .select({ c: count() })
     .from(detectedChanges)
     .innerJoin(trackedProducts, eq(detectedChanges.trackedProductId, trackedProducts.id))
-    .where(and(eq(detectedChanges.status, "pending"), visibleTrackedProductCondition()));
+    .where(and(eq(detectedChanges.status, "pending"), isNull(detectedChanges.seenAt), panelVisible));
 
   const [manualCount] = await db
     .select({ c: count() })
     .from(detectedChanges)
     .innerJoin(trackedProducts, eq(detectedChanges.trackedProductId, trackedProducts.id))
-    .where(and(eq(detectedChanges.status, "manual_review"), visibleTrackedProductCondition()));
+    .where(and(eq(detectedChanges.status, "manual_review"), isNull(detectedChanges.seenAt), panelVisible));
 
   const [errorCount] = await db
     .select({ c: count() })

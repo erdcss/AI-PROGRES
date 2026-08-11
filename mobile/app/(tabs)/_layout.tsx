@@ -4,8 +4,7 @@ import { Text, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../src/theme/colors";
-import { fetchNotifications } from "../../src/api/tracking";
-import { badgeCountFromNotifications } from "../../src/lib/format";
+import { fetchPushInboxRecent } from "../../src/api/tracking";
 import { TabBarIcon } from "../../src/components/TabIcons";
 
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
@@ -26,10 +25,10 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const { data } = useQuery({
     queryKey: ["notifications-badge"],
-    queryFn: fetchNotifications,
-    refetchInterval: 60_000,
+    queryFn: () => fetchPushInboxRecent(40),
+    refetchInterval: 15_000,
   });
-  const badge = data ? badgeCountFromNotifications(data) : 0;
+  const badge = data?.items?.length || 0;
 
   return (
     <Tabs

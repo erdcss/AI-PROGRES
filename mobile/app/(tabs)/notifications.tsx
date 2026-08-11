@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React from "react";
 import {
   View,
   StyleSheet,
@@ -6,55 +6,74 @@ import {
   RefreshControl,
   Text,
   Pressable,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../src/theme/colors";
 import {
-  fetchAllChanges,
-  fetchNotifications,
-  type ChangeRow,
+  clearPushInbox,
+  fetchPushInboxRecent,
+  type PushInboxItem,
 } from "../../src/api/tracking";
-import {
-  changeTypeLabel,
-  formatChangeValue,
-  formatRelativeTime,
-} from "../../src/lib/format";
+import { formatRelativeTime } from "../../src/lib/format";
 import { EmptyState, ErrorState, OfflineBanner, SkeletonList } from "../../src/components/Ui";
 import { useOnline } from "../../src/hooks/useOnline";
 
-const STATUS_LABEL: Record<string, string> = {
-  sent: "Gönderildi",
-  failed: "Başarısız",
-  blocked: "Kapalı",
-  pending: "Bekliyor",
-};
+function typeLabel(type?: string) {
+  const t = String(type || "").toUpperCase();
+  if (t === "TEST") return "Test";
+  if (t.includes("PRICE")) return "Fiyat";
+  if (t.includes("STOCK")) return "Stok";
+  if (t.includes("VARIANT")) return "Varyant";
+  if (t.includes("PRODUCT")) return "Ürün";
+  if (t.includes("SHOPIFY")) return "Shopify";
+  return "Bildirim";
+}
 
 export default function NotificationsScreen() {
   const online = useOnline();
   const router = useRouter();
+  const qc = useQueryClient();
   const insets = useSafeAreaInsets();
-  const [filter, setFilter] = useState<"Tümü" | "Okunmamış">("Tümü");
 
-  const notif = useQuery({ queryKey: ["notifications"], queryFn: fetchNotifications });
-  const changes = useQuery({
-    queryKey: ["changes-all"],
-    queryFn: () => fetchAllChanges(),
-    refetchInterval: false,
+  const inbox = useQuery({
+    queryKey: ["push-inbox-recent"],
+    queryFn: () => fetchPushInboxRecent(40),
+    refetchInterval: 8000,
   });
 
-  const items = useMemo(() => {
-    let list: ChangeRow[] = changes.data?.changes?.length
-      ? changes.data.changes
-      : notif.data?.lastChanges || [];
-    if (filter === "Okunmamış") list = list.filter((c) => !c.seenAt);
-    return list.slice(0, 40);
-  }, [changes.data, notif.data, filter]);
+  const clearMut = useMutation({
+    mutationFn: clearPushInbox,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["push-inbox-recent"] });
+      void qc.invalidateQueries({ queryKey: ["notifications-badge"] });
+    },
+    onError: (err: Error) => Alert.alert("Temizle", err.message || "Silinemedi"),
+  });
 
-  const loading = changes.isLoading && notif.isLoading;
-  const error = changes.isError && notif.isError;
+  const items: PushInboxItem[] = inbox.data?.items || [];
+
+  const onClear = () => {
+    if (!items.length || clearMut.isPending) return;
+    Alert.alert("Bildirimleri temizle", "Tüm bildirimler listeden silinsin mi?", [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: "Temizle",
+        style: "destructive",
+        onPress: () => clearMut.mutate(),
+      },
+    ]);
+  };
+
+  const openItem = (item: PushInboxItem) => {
+    const changeId = item.data?.changeId;
+    const productId = item.data?.productId;
+    if (changeId) router.push(`/change/${changeId}`);
+    else if (productId) router.push(`/product/tracked-${productId}`);
+  };
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -63,44 +82,41 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            refreshing={changes.isFetching || notif.isFetching}
-            onRefresh={() => {
-              changes.refetch();
-              notif.refetch();
-            }}
+            refreshing={inbox.isFetching}
+            onRefresh={() => inbox.refetch()}
             tintColor={colors.text}
           />
         }
       >
-        <View style={styles.iconBox}>
-          <Ionicons name="notifications-outline" size={20} color={colors.text} />
+        <View style={styles.head}>
+          <View style={styles.iconBox}>
+            <Ionicons name="notifications-outline" size={20} color={colors.text} />
+          </View>
+          <Pressable
+            onPress={onClear}
+            disabled={!items.length || clearMut.isPending}
+            style={({ pressed }) => [
+              styles.clearBtn,
+              (!items.length || clearMut.isPending) && styles.clearBtnOff,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.clearText}>
+              {clearMut.isPending ? "TEMİZLENİYOR…" : "BİLDİRİMLERİ TEMİZLE"}
+            </Text>
+          </Pressable>
         </View>
         <Text style={styles.pageTitle}>BİLDİRİMLER</Text>
         <Text style={styles.pageCopy}>
-          Fiyat, stok ve varyant değişiklikleri. Bildirim türlerini web panelinden yönetin.
+          Test ve programlı uyarılar. Uygulama açıkken kart olarak, kapalıyken sistem bildirimi olarak gelir.
         </Text>
 
-        <View style={styles.filterRow}>
-          {(["Tümü", "Okunmamış"] as const).map((opt) => (
-            <Pressable
-              key={opt}
-              onPress={() => setFilter(opt)}
-              style={[styles.filterTab, filter === opt && styles.filterTabOn]}
-            >
-              <Text style={[styles.filterText, filter === opt && styles.filterTextOn]}>{opt}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {loading ? (
+        {inbox.isLoading ? (
           <SkeletonList rows={5} />
-        ) : error ? (
+        ) : inbox.isError ? (
           <ErrorState
             message="Bildirimler alınamadı"
-            onRetry={() => {
-              changes.refetch();
-              notif.refetch();
-            }}
+            onRetry={() => inbox.refetch()}
           />
         ) : items.length === 0 ? (
           <EmptyState message="Henüz bildirim kaydı yok." />
@@ -108,21 +124,22 @@ export default function NotificationsScreen() {
           items.map((item) => (
             <Pressable
               key={item.id}
-              onPress={() => router.push(`/change/${item.id}`)}
-              style={styles.historyRow}
+              onPress={() => openItem(item)}
+              style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}
             >
               <View style={styles.historyTop}>
                 <Text style={styles.historyTitle} numberOfLines={1}>
-                  {item.productTitle || `Takip #${item.trackedProductId}`}
+                  {item.title}
                 </Text>
-                <Text style={styles.historyStatus}>
-                  {STATUS_LABEL[item.status || "pending"] || item.status || "Bekliyor"}
-                </Text>
+                <View style={styles.typeChip}>
+                  <Text style={styles.typeChipText}>{typeLabel(item.data?.type)}</Text>
+                </View>
               </View>
-              <Text style={styles.hint} numberOfLines={2}>
-                {changeTypeLabel(item.changeType)} · {formatChangeValue(item.oldValue)} →{" "}
-                {formatChangeValue(item.newValue)}
-              </Text>
+              {item.body ? (
+                <Text style={styles.hint} numberOfLines={2}>
+                  {item.body}
+                </Text>
+              ) : null}
               <Text style={styles.historyTime}>{formatRelativeTime(item.createdAt)}</Text>
             </Pressable>
           ))
@@ -135,16 +152,37 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000000" },
   content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    gap: 12,
+  },
   iconBox: {
     width: 44,
     height: 44,
     borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#27272A",
-    backgroundColor: "#09090B",
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+    backgroundColor: "#0B0B0B",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
+  },
+  clearBtn: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+    backgroundColor: "#0B0B0B",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  clearBtnOff: { opacity: 0.4 },
+  clearText: {
+    color: "#E4E4E7",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.2,
   },
   pageTitle: {
     color: colors.text,
@@ -160,29 +198,32 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   hint: { color: "#71717A", fontSize: 12, lineHeight: 18, marginTop: 4 },
-  filterRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  filterTab: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#27272A",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  filterTabOn: { borderColor: "#A1A1AA" },
-  filterText: { color: "#71717A", fontSize: 12 },
-  filterTextOn: { color: colors.text, fontWeight: "600" },
   historyRow: {
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#18181B",
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+    backgroundColor: "#0B0B0B",
   },
-  historyTop: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
-  historyTitle: { color: colors.text, fontSize: 13, flex: 1 },
-  historyStatus: {
-    color: "#71717A",
+  historyTop: { flexDirection: "row", justifyContent: "space-between", gap: 10, alignItems: "center" },
+  historyTitle: { color: colors.text, fontSize: 13, flex: 1, fontWeight: "600" },
+  typeChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+    backgroundColor: "#111111",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  typeChipText: {
+    color: "#A1A1AA",
     fontSize: 10,
-    letterSpacing: 1.4,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
+    fontWeight: "700",
   },
-  historyTime: { color: "#52525B", fontSize: 11, marginTop: 4 },
+  historyTime: { color: "#52525B", fontSize: 11, marginTop: 6 },
+  pressed: { opacity: 0.75 },
 });

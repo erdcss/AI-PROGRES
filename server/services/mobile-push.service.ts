@@ -201,6 +201,22 @@ export async function listMobilePushInbox(afterId = 0, limit = 30) {
     .limit(safeLimit);
 }
 
+export async function listMobilePushInboxRecent(limit = 40) {
+  await ensureTable();
+  const safeLimit = Math.min(80, Math.max(1, Number(limit) || 40));
+  return db
+    .select()
+    .from(mobilePushInbox)
+    .orderBy(desc(mobilePushInbox.id))
+    .limit(safeLimit);
+}
+
+export async function clearMobilePushInbox(): Promise<{ deleted: number }> {
+  await ensureTable();
+  const rows = await db.delete(mobilePushInbox).returning({ id: mobilePushInbox.id });
+  return { deleted: rows.length };
+}
+
 function maskId(value: string): string {
   const v = String(value || "").trim();
   if (v.length <= 8) return v ? `${v.slice(0, 2)}…` : "—";

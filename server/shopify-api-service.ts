@@ -253,6 +253,7 @@ export class ShopifyApiService {
   // Hafızadaki ürünleri listele
   async getMemoryProducts(limit: number = 50, offset: number = 0) {
     try {
+      const [totalRow] = await db.select({ c: count() }).from(shopifyMemoryProducts);
       const products = await db
         .select()
         .from(shopifyMemoryProducts)
@@ -263,7 +264,7 @@ export class ShopifyApiService {
       return {
         success: true,
         products,
-        total: products.length
+        total: Number(totalRow?.c ?? products.length)
       };
     } catch (error) {
       console.error('❌ Hafızadaki ürünleri listeleme hatası:', error);

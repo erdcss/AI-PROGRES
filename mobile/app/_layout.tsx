@@ -14,6 +14,7 @@ import { NotificationDrawerProvider } from "../src/components/NotificationDrawer
 import { NotificationPermissionGate } from "../src/components/NotificationPermissionGate";
 import { InAppBannerProvider } from "../src/components/InAppBanner";
 import { BootSplash } from "../src/components/BootSplash";
+import { LoginGate } from "../src/components/LoginGate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +80,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <StatusBar style="light" backgroundColor={colors.bg} />
+        <LoginGate>
         <NotificationPermissionGate ready={splashDone}>
         <InAppBannerProvider>
         <NotificationDrawerProvider>
@@ -102,6 +104,7 @@ export default function RootLayout() {
         </NotificationDrawerProvider>
         </InAppBannerProvider>
         </NotificationPermissionGate>
+        </LoginGate>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

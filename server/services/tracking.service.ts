@@ -153,6 +153,14 @@ export class TrackingService {
     return this.listChangesForPanel(filters);
   }
 
+  /** Panel listesi: arşiv/silinmiş hariç (Shopify eşleşmesi zorunlu değil). Scheduler koşulunu değiştirmez. */
+  panelTrackedProductCondition() {
+    return and(
+      ne(trackedProducts.currentStatus, "shopify_deleted"),
+      isNull(trackedProducts.archivedAt),
+    );
+  }
+
   /** Kontrol merkezi — takip kapalı olsa bile listeler */
   async listProductsForPanel(options?: { includeArchived?: boolean; includeUnlinked?: boolean }) {
     const includeArchived = options?.includeArchived === true;
@@ -160,13 +168,9 @@ export class TrackingService {
     const visibility = includeArchived
       ? undefined
       : includeUnlinked
-        ? and(
-            ne(trackedProducts.currentStatus, "shopify_deleted"),
-            isNull(trackedProducts.archivedAt),
-          )
+        ? this.panelTrackedProductCondition()
         : and(
-            ne(trackedProducts.currentStatus, "shopify_deleted"),
-            isNull(trackedProducts.archivedAt),
+            this.panelTrackedProductCondition(),
             or(
               isNotNull(trackedProducts.shopifyProductId),
               isNotNull(trackedProducts.shopifyProductGid),
@@ -235,16 +239,7 @@ export class TrackingService {
           db
             .select({ id: trackedProducts.id })
             .from(trackedProducts)
-            .where(
-              and(
-                ne(trackedProducts.currentStatus, "shopify_deleted"),
-                isNull(trackedProducts.archivedAt),
-                or(
-                  isNotNull(trackedProducts.shopifyProductId),
-                  isNotNull(trackedProducts.shopifyProductGid),
-                ),
-              ),
-            ),
+            .where(this.panelTrackedProductCondition()),
         ),
       );
     }
@@ -264,8 +259,10 @@ export class TrackingService {
     } else if (filters.status === "pending" || filters.status === "manual_review" || filters.status === "failed") {
       conditions.push(eq(detectedChanges.status, filters.status));
       conditions.push(isNull(detectedChanges.seenAt));
-    } else if (filters.status === "approved" || filters.status === "applied" || filters.status === "rejected" || filters.status === "superseded") {
-      conditions.push(sql`false`);
+    } else if (filters.status === "applied" || filters.status === "approved") {
+      conditions.push(inArray(detectedChanges.status, ["applied", "approved"]));
+    } else if (filters.status === "rejected" || filters.status === "superseded") {
+      conditions.push(eq(detectedChanges.status, filters.status));
     } else {
       conditions.push(eq(detectedChanges.status, filters.status));
     }
@@ -285,20 +282,13 @@ export class TrackingService {
     failed: number;
     ignored: number;
     seen: number;
+    applied: number;
+    all: number;
   }> {
     const visibleProductIds = db
       .select({ id: trackedProducts.id })
       .from(trackedProducts)
-      .where(
-        and(
-          ne(trackedProducts.currentStatus, "shopify_deleted"),
-          isNull(trackedProducts.archivedAt),
-          or(
-            isNotNull(trackedProducts.shopifyProductId),
-            isNotNull(trackedProducts.shopifyProductGid),
-          ),
-        ),
-      );
+      .where(this.panelTrackedProductCondition());
 
     const openStatuses = ["pending", "manual_review", "failed"] as const;
     const base = inArray(detectedChanges.trackedProductId, visibleProductIds);
@@ -311,7 +301,7 @@ export class TrackingService {
       return Number(row?.c ?? 0);
     };
 
-    const [actionable, pending, manual_review, failed, ignored, seen] = await Promise.all([
+    const [actionable, pending, manual_review, failed, ignored, seen, applied, all] = await Promise.all([
       countWhere(and(inArray(detectedChanges.status, [...openStatuses]), isNull(detectedChanges.seenAt))),
       countWhere(and(eq(detectedChanges.status, "pending"), isNull(detectedChanges.seenAt))),
       countWhere(and(eq(detectedChanges.status, "manual_review"), isNull(detectedChanges.seenAt))),
@@ -320,9 +310,11 @@ export class TrackingService {
       countWhere(
         and(inArray(detectedChanges.status, [...openStatuses]), isNotNull(detectedChanges.seenAt)),
       ),
+      countWhere(inArray(detectedChanges.status, ["applied", "approved"])),
+      countWhere(undefined),
     ]);
 
-    return { actionable, pending, manual_review, failed, ignored, seen };
+    return { actionable, pending, manual_review, failed, ignored, seen, applied, all };
   }
 
   async listChangesWithProductForPanel(filters?: {

@@ -68,6 +68,16 @@ function variantPrices(variants: Array<Record<string, unknown>>): unknown[] {
  * Yeni ürün veya tracking sistemi oluşturmaz — mevcut tabloları okur.
  */
 export function registerMobileReadRoutes(app: Express): void {
+  app.get("/api/catalog/summary", async (_req, res) => {
+    try {
+      const catalog = await computeCatalogCounts();
+      return res.json({ success: true, ...catalog });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
   app.get("/api/mobile/dashboard", async (_req, res) => {
     try {
       void hydrateIncompleteCatalog();
@@ -92,7 +102,7 @@ export function registerMobileReadRoutes(app: Express): void {
           healthOk: Boolean(scheduler.migration?.allTablesReady),
         },
         cards: {
-          scrapedTotal: catalog.catalogTotal,
+          scrapedTotal: catalog.scrapedTotal,
           scrapedToday: catalog.scrapedToday,
           trackedTotal: catalog.trackedTotal,
           trackedActive: catalog.trackedActive,
@@ -193,9 +203,7 @@ export function registerMobileReadRoutes(app: Express): void {
           variantCount: variants.length,
           variants,
         };
-      }).filter((p) =>
-        hasDisplayablePrice(p.currentPrice, p.originalPrice) || p.variantCount > 0,
-      );
+      });
 
       return res.json({
         success: true,
@@ -356,22 +364,20 @@ export function registerMobileReadRoutes(app: Express): void {
       const total = Number(totalRow[0]?.c ?? 0);
       return res.json({
         success: true,
-        products: rows
-          .map((p) => {
-            const variants = asVariantList(p.variants);
-            const price =
-              firstPositivePrice(p.price, p.compareAtPrice, ...variantPrices(variants as Array<Record<string, unknown>>)) ??
-              p.price;
-            return {
-              ...p,
-              image: firstMediaUrl(p.images),
-              images: Array.isArray(p.images) ? p.images : [],
-              variants,
-              variantCount: variants.length,
-              price,
-            };
-          })
-          .filter((p) => hasDisplayablePrice(p.price, p.compareAtPrice) || p.variantCount > 0),
+        products: rows.map((p) => {
+          const variants = asVariantList(p.variants);
+          const price =
+            firstPositivePrice(p.price, p.compareAtPrice, ...variantPrices(variants as Array<Record<string, unknown>>)) ??
+            p.price;
+          return {
+            ...p,
+            image: firstMediaUrl(p.images),
+            images: Array.isArray(p.images) ? p.images : [],
+            variants,
+            variantCount: variants.length,
+            price,
+          };
+        }),
         pagination: { total, limit, offset, hasMore: offset + limit < total },
       });
     } catch (err) {

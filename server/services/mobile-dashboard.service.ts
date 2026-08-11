@@ -7,6 +7,7 @@ import { db } from "../db";
 import { detectedChanges, products, shopifyMemoryProducts, trackedProducts } from "@shared/schema";
 import { syncDashboardStats } from "./mobile-sync.service";
 import { getTrackingSchedulerStatus } from "./tracking.scheduler";
+import { trackingService } from "./tracking.service";
 
 function visibleTracked() {
   return and(
@@ -73,7 +74,7 @@ export async function computeCatalogCounts() {
 
   const scrapedTotal = Number(scrapedAll[0]?.c ?? 0);
   const trackedTotal = Number(trackedAll[0]?.c ?? 0);
-  const catalogTotal = Math.max(trackedTotal + memoryOnly, shopifyMemoryTotal, scrapedTotal);
+  const catalogTotal = shopifyMemoryTotal || trackedTotal + memoryOnly || scrapedTotal;
 
   return {
     scrapedTotal,
@@ -94,6 +95,7 @@ let lastComputed: Awaited<ReturnType<typeof computeDashboardStats>> | null = nul
 export async function computeDashboardStats() {
   const [
     catalog,
+    panelChangeCounts,
     pendingChanges,
     priceChanges,
     stockChanges,
@@ -101,6 +103,7 @@ export async function computeDashboardStats() {
     scheduler,
   ] = await Promise.all([
     computeCatalogCounts(),
+    trackingService.countChangesForPanel().catch(() => null),
     db
       .select({ c: count() })
       .from(detectedChanges)
@@ -134,7 +137,7 @@ export async function computeDashboardStats() {
     todayProducts: catalog.scrapedToday,
     trackedProducts: catalog.trackedTotal,
     activeTracking: catalog.trackedActive,
-    pendingChanges: Number(pendingChanges[0]?.c ?? 0),
+    pendingChanges: Number(panelChangeCounts?.actionable ?? pendingChanges[0]?.c ?? 0),
     priceChanges: Number(priceChanges[0]?.c ?? 0),
     stockChanges: Number(stockChanges[0]?.c ?? 0),
     variantChanges: Number(variantChanges[0]?.c ?? 0),
