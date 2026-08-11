@@ -205,8 +205,8 @@ export async function registerTrackingFromUpsert(
   const { trackingService } = await import("./tracking.service");
   const mappingBySku = new Map((upsert.variantMappings || []).map((m) => [m.sku, m]));
 
-  const { upsertShopifyMemoryAfterTransfer } = await import("./shopify-memory-upsert.service");
-  await upsertShopifyMemoryAfterTransfer({
+  const { publishShopifyTransferToMobile } = await import("./shopify-memory-upsert.service");
+  await publishShopifyTransferToMobile({
     shopifyProductId: upsert.productId || "",
     title: canonical.title || "Ürün",
     handle: upsert.handle,
@@ -215,6 +215,7 @@ export async function registerTrackingFromUpsert(
     images: canonical.images,
     variants: canonical.variants,
     sourceUrl: canonical.sourceUrl,
+    sourceLabel: "Trendyol",
   }).catch((err) => {
     console.warn("⚠️ Shopify hafıza kaydı yazılamadı (mobil katalog):", err);
   });

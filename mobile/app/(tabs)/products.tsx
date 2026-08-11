@@ -49,7 +49,18 @@ type UnifiedProduct = {
   tracked: boolean;
   shopify: boolean;
   watchTag?: string | null;
+  addedAt: number;
 };
+
+function addedAtMs(...vals: Array<string | number | null | undefined>): number {
+  for (const v of vals) {
+    if (v == null || v === "") continue;
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+    const t = new Date(String(v)).getTime();
+    if (Number.isFinite(t) && t > 0) return t;
+  }
+  return 0;
+}
 
 const FILTERS = ["Tümü", "Kırmızı", "Yeşil", "Takipte", "Takipte Değil", "Shopify"];
 
@@ -178,6 +189,7 @@ export default function ProductsScreen() {
             scrapedMatch?.watchTag ||
             (url ? scrapedTagByUrl.get(url) : null) ||
             null,
+          addedAt: addedAtMs(m.createdAt, m.shopifyCreatedAt, m.id),
         });
       }
     }
@@ -216,6 +228,7 @@ export default function ProductsScreen() {
           t.watchTag ||
           scrapedTagByUrl.get(String(t.sourceUrl || "").toLowerCase()) ||
           null,
+        addedAt: addedAtMs(t.createdAt, t.id),
       });
     }
 
@@ -238,8 +251,11 @@ export default function ProductsScreen() {
         tracked: Boolean(s.tracking?.id),
         shopify: Boolean(s.shopifyProductId),
         watchTag: s.watchTag || null,
+        addedAt: addedAtMs(s.createdAt, s.scrapedAt, s.id),
       });
     }
+
+    unified.sort((a, b) => b.addedAt - a.addedAt || b.key.localeCompare(a.key));
 
     let filtered = unified;
     if (filter === "Kırmızı") filtered = unified.filter((u) => u.watchTag === "red");

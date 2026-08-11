@@ -36,10 +36,10 @@ async function registerBulkUploadTracking(
 
   const price = extractTrackingPrice(item, canonical);
   try {
-    const { upsertShopifyMemoryAfterTransfer } = await import(
+    const { publishShopifyTransferToMobile } = await import(
       "./services/shopify-memory-upsert.service"
     );
-    await upsertShopifyMemoryAfterTransfer({
+    await publishShopifyTransferToMobile({
       shopifyProductId: upsert.productId,
       title: canonical.title,
       handle: upsert.handle,
@@ -48,6 +48,7 @@ async function registerBulkUploadTracking(
       images: canonical.images,
       variants: canonical.variants,
       sourceUrl,
+      sourceLabel: "Trendyol",
     });
   } catch (err) {
     console.warn("[BulkUpload] Mobil katalog kaydı atlandı:", err);

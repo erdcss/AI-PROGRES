@@ -364,7 +364,7 @@ export function registerMobileReadRoutes(app: Express): void {
       const rows = await db
         .select()
         .from(shopifyMemoryProducts)
-        .orderBy(desc(shopifyMemoryProducts.lastSyncAt))
+        .orderBy(desc(shopifyMemoryProducts.createdAt), desc(shopifyMemoryProducts.id))
         .limit(limit)
         .offset(offset);
       const totalRow = await db.select({ c: count() }).from(shopifyMemoryProducts);

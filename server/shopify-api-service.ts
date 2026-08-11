@@ -257,7 +257,7 @@ export class ShopifyApiService {
       const products = await db
         .select()
         .from(shopifyMemoryProducts)
-        .orderBy(desc(shopifyMemoryProducts.lastSyncAt))
+        .orderBy(desc(shopifyMemoryProducts.createdAt), desc(shopifyMemoryProducts.id))
         .limit(limit)
         .offset(offset);
 

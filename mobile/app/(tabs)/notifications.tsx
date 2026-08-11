@@ -25,6 +25,7 @@ import { useOnline } from "../../src/hooks/useOnline";
 function typeLabel(type?: string) {
   const t = String(type || "").toUpperCase();
   if (t === "TEST") return "Test";
+  if (t.includes("TRANSFERRED")) return "Aktarım";
   if (t.includes("PRICE")) return "Fiyat";
   if (t.includes("STOCK")) return "Stok";
   if (t.includes("VARIANT")) return "Varyant";
@@ -70,9 +71,16 @@ export default function NotificationsScreen() {
 
   const openItem = (item: PushInboxItem) => {
     const changeId = item.data?.changeId;
-    const productId = item.data?.productId;
-    if (changeId) router.push(`/change/${changeId}`);
-    else if (productId) router.push(`/product/tracked-${productId}`);
+    const productId = String(item.data?.productId || "");
+    if (changeId) {
+      router.push(`/change/${changeId}`);
+      return;
+    }
+    if (productId.startsWith("memory-") || productId.startsWith("tracked-") || productId.startsWith("scraped-")) {
+      router.push(`/product/${productId}`);
+      return;
+    }
+    if (productId) router.push(`/product/tracked-${productId}`);
   };
 
   return (

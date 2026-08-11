@@ -190,6 +190,20 @@ router.post('/import', requireImportKey, async (req: Request, res: Response) => 
     // Shopify'a yükle
     const result = await uploadProductToShopify(csvContent, productTitle);
 
+    if (result.success && result.productId) {
+      try {
+        const { publishShopifyTransferToMobile } = await import("./services/shopify-memory-upsert.service");
+        await publishShopifyTransferToMobile({
+          shopifyProductId: String(result.productId),
+          title: productTitle,
+          handle: result.handle,
+          sourceLabel: "Trendyol",
+        });
+      } catch (err) {
+        console.warn("⚠️ Mobil yayın atlandı (importer):", err);
+      }
+    }
+
     const response: ImportResult = {
       success: result.success,
       productTitle,

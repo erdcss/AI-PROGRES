@@ -4172,6 +4172,21 @@ setTimeout(check, 1000);
       });
       
       if (uploadResult.success) {
+        try {
+          const { publishShopifyTransferToMobile } = await import("./services/shopify-memory-upsert.service");
+          await publishShopifyTransferToMobile({
+            shopifyProductId: String(uploadResult.productId || ""),
+            title: productTitle,
+            handle: uploadResult.handle,
+            vendor: req.body.brand || "",
+            price: Number(req.body.productData?.price?.original || req.body.productData?.price || 0) || null,
+            images: req.body.productData?.images,
+            sourceUrl: req.body.sourceUrl || req.body.trendyolUrl || "",
+            sourceLabel: "Trendyol",
+          });
+        } catch (mobileErr) {
+          console.warn("⚠️ Mobil yayın atlandı (csv upload):", mobileErr);
+        }
         // âœ… Register product in shopifyTransferredProducts table for MemoryTrackingPage
         try {
           const sourceUrl = req.body.sourceUrl || req.body.trendyolUrl || '';

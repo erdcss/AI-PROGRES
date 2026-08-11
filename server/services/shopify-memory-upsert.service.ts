@@ -43,9 +43,9 @@ export async function upsertShopifyMemoryAfterTransfer(input: {
   options?: unknown;
   sourceUrl?: string | null;
   shopifyProduct?: Record<string, unknown> | null;
-}): Promise<void> {
+}): Promise<{ id: number } | null> {
   const shopifyProductId = String(input.shopifyProductId || "").trim();
-  if (!shopifyProductId || !input.title?.trim()) return;
+  if (!shopifyProductId || !input.title?.trim()) return null;
 
   const product = input.shopifyProduct || {};
   const variants = Array.isArray(product.variants) ? product.variants : input.variants;
@@ -105,8 +105,33 @@ export async function upsertShopifyMemoryAfterTransfer(input: {
       .update(shopifyMemoryProducts)
       .set(payload)
       .where(eq(shopifyMemoryProducts.shopifyProductId, shopifyProductId));
-    return;
+    return { id: existing.id };
   }
 
-  await db.insert(shopifyMemoryProducts).values(payload);
+  const [inserted] = await db.insert(shopifyMemoryProducts).values(payload).returning({
+    id: shopifyMemoryProducts.id,
+  });
+  return inserted?.id ? { id: inserted.id } : null;
+}
+
+/** Shopify aktarımı → mobil katalog + tepsi bildirimi. Tracking/scrape algoritmasını değiştirmez. */
+export async function publishShopifyTransferToMobile(
+  input: Parameters<typeof upsertShopifyMemoryAfterTransfer>[0] & {
+    sourceLabel?: string;
+  },
+): Promise<void> {
+  try {
+    const row = await upsertShopifyMemoryAfterTransfer(input);
+    const { notifyMobileProductTransferred } = await import("./mobile-push.service");
+    await notifyMobileProductTransferred({
+      title: input.title,
+      memoryProductId: row?.id ?? null,
+      shopifyProductId: input.shopifyProductId,
+      sourceLabel: input.sourceLabel,
+    });
+    const { scheduleDashboardRefresh } = await import("./mobile-dashboard.service");
+    scheduleDashboardRefresh();
+  } catch (err) {
+    console.warn("⚠️ Mobil yayın atlandı:", err);
+  }
 }

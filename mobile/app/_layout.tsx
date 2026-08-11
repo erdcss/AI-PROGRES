@@ -61,7 +61,14 @@ function DeepLinkHandler() {
         };
         if (data?.type === "TEST") return;
         if (data?.changeId) router.push(`/change/${data.changeId}`);
-        else if (data?.productId) router.push(`/product/tracked-${data.productId}`);
+        else if (data?.productId) {
+          const pid = String(data.productId);
+          if (pid.startsWith("memory-") || pid.startsWith("tracked-") || pid.startsWith("scraped-")) {
+            router.push(`/product/${pid}`);
+          } else {
+            router.push(`/product/tracked-${pid}`);
+          }
+        }
       });
     } catch (err) {
       console.warn("[push] notification response listener skipped", err);

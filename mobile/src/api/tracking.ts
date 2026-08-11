@@ -102,6 +102,7 @@ export type TrackedProduct = {
   currentStatus?: string;
   watchTag?: string | null;
   checkIntervalMinutes?: number | null;
+  createdAt?: string | null;
 };
 
 export type ProductVariantRow = {
@@ -153,6 +154,7 @@ export type MemoryProduct = {
   shopifyProductId?: string | null;
   shopifyVariantId?: string | null;
   uniqueTrackingId?: string | null;
+  createdAt?: string | null;
   lastSyncAt?: string | null;
   shopifyCreatedAt?: string | null;
   shopifyUpdatedAt?: string | null;

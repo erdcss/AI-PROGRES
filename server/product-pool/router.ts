@@ -105,6 +105,27 @@ async function uploadOneProduct(product: Record<string, unknown>) {
     throw new Error(err);
   }
 
+  try {
+    const { publishShopifyTransferToMobile } = await import(
+      "../services/shopify-memory-upsert.service"
+    );
+    await publishShopifyTransferToMobile({
+      shopifyProductId: String(body.product.id),
+      title: String(product.title),
+      handle: body.product.handle,
+      vendor: String(product.brand || product.siteName || "Ürün Havuzu"),
+      productType: "Ürün Havuzu",
+      status: "active",
+      price: shopifyPrice,
+      images: safeImages,
+      sourceUrl: String(product.sourceUrl || ""),
+      sourceLabel: "Ürün havuzu",
+      shopifyProduct: (body.product as Record<string, unknown>) || null,
+    });
+  } catch (err) {
+    console.warn("[ProductPool] mobil yayın atlandı:", err);
+  }
+
   return {
     productId: String(body.product.id),
     handle: body.product.handle,

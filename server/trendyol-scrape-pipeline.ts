@@ -708,10 +708,13 @@ export async function runTrendyolScrapePipeline(
     if (providers.includes("browser_worker") && policy.preferBrowserWorker) {
       diagnostics.gatewayStarted = true;
       const correlationId = `scrape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-      // Renk ailesi ~45s ek süre ister; bütçe yetmezse yalnızca ana ürün çek.
-      const includeColorFamily = remainingMs() >= 70_000;
+      // Trendyol sayfası (auto-fast): ana ürün yeter; renk ailesi kardeş crawl canlıda 45–90s ekliyor.
+      const includeColorFamily =
+        modes.effective !== "auto-fast" && remainingMs() >= 70_000;
       const bwBudgetMs = Math.min(
-        Math.max(policy.browserWorkerTimeoutMs, includeColorFamily ? 100_000 : 45_000),
+        includeColorFamily
+          ? Math.max(policy.browserWorkerTimeoutMs, 100_000)
+          : Math.min(policy.browserWorkerTimeoutMs || 45_000, 40_000),
         remainingMs(),
       );
       console.log("⚡ [1] Browser Worker (primary)...", {
@@ -798,7 +801,13 @@ export async function runTrendyolScrapePipeline(
       }
     }
 
-    const needsCoreData = () => !isCompleteScrapeData(evaluateFields(result, url));
+    const needsCoreData = () => {
+      if (isCompleteScrapeData(evaluateFields(result, url))) return false;
+      // BW HTML/raw zaten var — API+Direct HTML tekrarını atla, parse aşamasına geç.
+      if (result._browserWorkerRawProduct) return false;
+      if (directHtml && directHtml.length > 5000 && !confirmedBlock) return false;
+      return true;
+    };
 
     if (needsCoreData() && !isPastDeadline()) {
       diagnostics.apiStarted = true;

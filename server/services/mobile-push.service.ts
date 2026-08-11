@@ -25,6 +25,7 @@ export type MobilePushEventType =
   | "TRACKING_ERROR"
   | "SHOPIFY_SYNC_ERROR"
   | "TITLE_CHANGED"
+  | "PRODUCT_TRANSFERRED"
   | "TEST";
 
 export type RegisterMobilePushInput = {
@@ -136,6 +137,7 @@ export function buildPushPayload(
     TRACKING_ERROR: "Takip hatası",
     SHOPIFY_SYNC_ERROR: "Shopify senkron hatası",
     TITLE_CHANGED: "Başlık değişti",
+    PRODUCT_TRANSFERRED: "Shopify'a aktarıldı",
     TEST: "Test bildirimi",
   };
   const tagPrefix = watchTagLabel(watchTag);
@@ -167,6 +169,62 @@ async function ensureTable(): Promise<void> {
     await runMobilePushMigration(false);
   } catch {
     /* ignore */
+  }
+}
+
+async function deliverPayloadToAndroidDevices(payload: MobilePushPayload): Promise<void> {
+  await enqueueInbox(payload);
+  const devices = await db
+    .select()
+    .from(mobilePushDevices)
+    .where(and(eq(mobilePushDevices.enabled, true), eq(mobilePushDevices.platform, "android")));
+  if (!devices.length) {
+    console.log("[mobile-push] inbox queued, no enabled devices for remote send");
+    return;
+  }
+  const send = fcmSender || defaultFcmSend;
+  for (const device of devices) {
+    try {
+      const result = await send(device.pushToken, payload);
+      if (!result.ok) {
+        console.warn("[mobile-push] send failed:", result.error);
+        if (result.invalidToken) await disableToken(device.pushToken);
+      }
+    } catch (err) {
+      console.warn(
+        "[mobile-push] send threw (isolated):",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+}
+
+export async function notifyMobileProductTransferred(input: {
+  title: string;
+  memoryProductId?: number | null;
+  shopifyProductId?: string | null;
+  sourceLabel?: string;
+}): Promise<void> {
+  try {
+    await ensureTable();
+    const name = String(input.title || "Ürün").trim() || "Ürün";
+    const source = String(input.sourceLabel || "Shopify").trim();
+    await deliverPayloadToAndroidDevices({
+      title: "Shopify'a aktarıldı",
+      body: `${name}\n${source}`,
+      data: {
+        type: "PRODUCT_TRANSFERRED",
+        productId: input.memoryProductId
+          ? `memory-${input.memoryProductId}`
+          : String(input.shopifyProductId || ""),
+        changeId: "",
+      },
+    });
+  } catch (err) {
+    console.warn(
+      "[mobile-push] notifyMobileProductTransferred:",
+      err instanceof Error ? err.message : String(err),
+    );
   }
 }
 
@@ -556,32 +614,7 @@ export async function dispatchChangePush(change: DetectedChange): Promise<void> 
     lastNotifyAt.set(notifyKey, Date.now());
 
     const payload = buildPushPayload(change, productTitle, watchTag);
-    await enqueueInbox(payload);
-    const devices = await db
-      .select()
-      .from(mobilePushDevices)
-      .where(and(eq(mobilePushDevices.enabled, true), eq(mobilePushDevices.platform, "android")));
-
-    if (!devices.length) {
-      console.log("[mobile-push] inbox queued, no enabled devices for remote send");
-      return;
-    }
-
-    const send = fcmSender || defaultFcmSend;
-    for (const device of devices) {
-      try {
-        const result = await send(device.pushToken, payload);
-        if (!result.ok) {
-          console.warn("[mobile-push] send failed:", result.error);
-          if (result.invalidToken) await disableToken(device.pushToken);
-        }
-      } catch (err) {
-        console.warn(
-          "[mobile-push] send threw (isolated):",
-          err instanceof Error ? err.message : String(err),
-        );
-      }
-    }
+    await deliverPayloadToAndroidDevices(payload);
   } catch (err) {
     console.warn(
       "[mobile-push] dispatchChangePush isolated failure:",

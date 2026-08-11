@@ -269,10 +269,10 @@ export async function handleShopifyProductUpload(
 
   if (productId) {
     try {
-      const { upsertShopifyMemoryAfterTransfer } = await import(
+      const { publishShopifyTransferToMobile } = await import(
         "./services/shopify-memory-upsert.service"
       );
-      await upsertShopifyMemoryAfterTransfer({
+      await publishShopifyTransferToMobile({
         shopifyProductId: String(productId),
         title: normalized.title,
         handle,
@@ -282,6 +282,7 @@ export async function handleShopifyProductUpload(
         images: normalized.images,
         variants: normalized.variants?.allVariants,
         sourceUrl,
+        sourceLabel: "Trendyol",
         shopifyProduct: (uploadResult as { product?: Record<string, unknown> }).product || null,
       });
     } catch (err) {
