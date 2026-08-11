@@ -154,23 +154,28 @@ export class TrackingService {
   }
 
   /** Kontrol merkezi — takip kapalı olsa bile listeler */
-  async listProductsForPanel(options?: { includeArchived?: boolean }) {
+  async listProductsForPanel(options?: { includeArchived?: boolean; includeUnlinked?: boolean }) {
     const includeArchived = options?.includeArchived === true;
+    const includeUnlinked = options?.includeUnlinked === true;
+    const visibility = includeArchived
+      ? undefined
+      : includeUnlinked
+        ? and(
+            ne(trackedProducts.currentStatus, "shopify_deleted"),
+            isNull(trackedProducts.archivedAt),
+          )
+        : and(
+            ne(trackedProducts.currentStatus, "shopify_deleted"),
+            isNull(trackedProducts.archivedAt),
+            or(
+              isNotNull(trackedProducts.shopifyProductId),
+              isNotNull(trackedProducts.shopifyProductGid),
+            ),
+          );
     const products = await db
       .select()
       .from(trackedProducts)
-      .where(
-        includeArchived
-          ? undefined
-          : and(
-              ne(trackedProducts.currentStatus, "shopify_deleted"),
-              isNull(trackedProducts.archivedAt),
-              or(
-                isNotNull(trackedProducts.shopifyProductId),
-                isNotNull(trackedProducts.shopifyProductGid),
-              ),
-            ),
-      )
+      .where(visibility)
       .orderBy(desc(trackedProducts.updatedAt));
 
     const imageMap = await this.getLatestImageMap(products.map((p) => p.id));

@@ -11,8 +11,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { colors } from "../../src/theme/colors";
 import {
+  fetchAllMemoryProducts,
   fetchAllScrapedProducts,
   fetchTrackedProducts,
+  type MemoryProduct,
   type ScrapedProduct,
   type TrackedProduct,
 } from "../../src/api/tracking";
@@ -20,6 +22,7 @@ import {
   domainFromUrl,
   formatMoney,
   marketplaceLabel,
+  mediaUrl,
 } from "../../src/lib/format";
 import {
   EmptyState,
@@ -41,10 +44,11 @@ type UnifiedProduct = {
   price: string;
   imageUrl?: string | null;
   tracked: boolean;
+  shopify: boolean;
   watchTag?: string | null;
 };
 
-const FILTERS = ["Tümü", "Kırmızı", "Yeşil", "Takipte", "Takipte Değil"];
+const FILTERS = ["Tümü", "Kırmızı", "Yeşil", "Takipte", "Takipte Değil", "Shopify"];
 
 const Row = memo(function Row({
   item,
@@ -79,15 +83,24 @@ export default function ProductsScreen() {
   });
   const tracked = useQuery({
     queryKey: ["tracked-products"],
-    queryFn: () => fetchTrackedProducts(),
+    queryFn: () => fetchTrackedProducts({ includeUnlinked: true }),
     refetchInterval: 20_000,
+  });
+  const memory = useQuery({
+    queryKey: ["memory-products", "all"],
+    queryFn: fetchAllMemoryProducts,
+    refetchInterval: 30_000,
   });
 
   const items = useMemo(() => {
     const trackedList: TrackedProduct[] = tracked.data?.products || [];
     const scrapedList: ScrapedProduct[] = scraped.data?.products || [];
+    const memoryList: MemoryProduct[] = memory.data?.products || [];
     const trackedByUrl = new Set(
       trackedList.map((t) => String(t.sourceUrl || "").toLowerCase()).filter(Boolean),
+    );
+    const trackedByShopify = new Set(
+      trackedList.map((t) => String(t.shopifyProductId || "")).filter(Boolean),
     );
     const scrapedTagByUrl = new Map(
       scrapedList
@@ -108,6 +121,7 @@ export default function ProductsScreen() {
         price: formatMoney(t.currentSourcePrice),
         imageUrl: t.productImageUrl,
         tracked: true,
+        shopify: Boolean(t.shopifyProductId),
         watchTag:
           t.watchTag ||
           scrapedTagByUrl.get(String(t.sourceUrl || "").toLowerCase()) ||
@@ -119,20 +133,50 @@ export default function ProductsScreen() {
       const url = String(p.trendyolUrl || "").toLowerCase();
       const already =
         (url && trackedByUrl.has(url)) ||
-        (p.shopifyProductId &&
-          trackedList.some((t) => t.shopifyProductId === p.shopifyProductId));
+        (p.shopifyProductId && trackedByShopify.has(String(p.shopifyProductId)));
       if (already) continue;
+      const variantHint =
+        typeof p.variantCount === "number" && p.variantCount > 0
+          ? ` · ${p.variantCount} varyant`
+          : "";
       unified.push({
         key: `s-${p.id}`,
         routeId: String(p.id),
         title: p.title,
         subtitle:
-          domainFromUrl(p.trendyolUrl) ||
-          marketplaceLabel(p.marketplace || p.sourcePlatform).toLowerCase(),
+          (domainFromUrl(p.trendyolUrl) ||
+            marketplaceLabel(p.marketplace || p.sourcePlatform).toLowerCase()) +
+          variantHint,
         price: formatMoney(p.currentPrice),
-        imageUrl: p.image || (Array.isArray(p.images) ? p.images[0] : null),
+        imageUrl: p.image || mediaUrl(Array.isArray(p.images) ? p.images[0] : p.images),
         tracked: false,
+        shopify: Boolean(p.shopifyProductId),
         watchTag: p.watchTag || null,
+      });
+    }
+
+    for (const m of memoryList) {
+      const url = String(m.sourceUrl || "").toLowerCase();
+      const already =
+        (m.shopifyProductId && trackedByShopify.has(String(m.shopifyProductId))) ||
+        (url && trackedByUrl.has(url)) ||
+        (m.shopifyProductId &&
+          scrapedList.some((p) => p.shopifyProductId === m.shopifyProductId));
+      if (already) continue;
+      const variantHint =
+        typeof m.variantCount === "number" && m.variantCount > 0
+          ? ` · ${m.variantCount} varyant`
+          : "";
+      unified.push({
+        key: `m-${m.id}`,
+        routeId: `memory-${m.id}`,
+        title: m.title,
+        subtitle: `Shopify${variantHint}`,
+        price: formatMoney(m.price),
+        imageUrl: m.image || mediaUrl(Array.isArray(m.images) ? m.images[0] : m.images),
+        tracked: Boolean(m.isTracking),
+        shopify: true,
+        watchTag: null,
       });
     }
 
@@ -141,6 +185,7 @@ export default function ProductsScreen() {
     if (filter === "Yeşil") filtered = unified.filter((u) => u.watchTag === "green");
     if (filter === "Takipte") filtered = unified.filter((u) => u.tracked);
     if (filter === "Takipte Değil") filtered = unified.filter((u) => !u.tracked);
+    if (filter === "Shopify") filtered = unified.filter((u) => u.shopify);
 
     const needle = q.trim().toLowerCase();
     if (needle) {
@@ -151,15 +196,15 @@ export default function ProductsScreen() {
       );
     }
     return filtered;
-  }, [scraped.data, tracked.data, filter, q]);
+  }, [scraped.data, tracked.data, memory.data, filter, q]);
 
   const onPress = useCallback(
     (id: string) => router.push(`/product/${id}`),
     [router],
   );
 
-  const loading = scraped.isLoading || tracked.isLoading;
-  const error = scraped.isError && tracked.isError;
+  const loading = (scraped.isLoading || tracked.isLoading) && !scraped.data && !tracked.data;
+  const error = scraped.isError && tracked.isError && memory.isError;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -190,6 +235,7 @@ export default function ProductsScreen() {
           onRetry={() => {
             scraped.refetch();
             tracked.refetch();
+            memory.refetch();
           }}
         />
       ) : (
@@ -202,10 +248,11 @@ export default function ProductsScreen() {
           removeClippedSubviews
           refreshControl={
             <RefreshControl
-              refreshing={(scraped.isFetching || tracked.isFetching) && !loading}
+              refreshing={(scraped.isFetching || tracked.isFetching || memory.isFetching) && !loading}
               onRefresh={() => {
                 scraped.refetch();
                 tracked.refetch();
+                memory.refetch();
               }}
               tintColor={colors.text}
             />

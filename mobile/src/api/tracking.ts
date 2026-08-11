@@ -23,6 +23,7 @@ export type DashboardResponse = {
     variantChanges: number;
     watchRed?: number;
     watchGreen?: number;
+    shopifyMemoryTotal?: number;
   };
   recentChanges: ChangeRow[];
 };
@@ -64,6 +65,8 @@ export type ScrapedProduct = {
   trendyolUrl?: string | null;
   stockStatus?: string | null;
   watchTag?: string | null;
+  variantCount?: number;
+  variants?: ProductVariantRow[];
 };
 
 export type TrackedProduct = {
@@ -82,6 +85,49 @@ export type TrackedProduct = {
   currentStatus?: string;
   watchTag?: string | null;
   checkIntervalMinutes?: number | null;
+};
+
+export type ProductVariantRow = {
+  id?: number;
+  title?: string;
+  sourceVariantTitle?: string;
+  option1?: string | null;
+  option2?: string | null;
+  color?: string | null;
+  size?: string | null;
+  sku?: string | null;
+  sourceSku?: string | null;
+  price?: string | number | null;
+  trendyolPrice?: string | number | null;
+  shopifyPrice?: string | number | null;
+  currentSourcePrice?: string | number | null;
+  stockCount?: number | null;
+  inventory_quantity?: number | null;
+  inventoryQuantity?: number | null;
+  currentSourceStock?: number | null;
+  inStock?: boolean | null;
+};
+
+export type MemoryProduct = {
+  id: number;
+  title: string;
+  handle?: string | null;
+  vendor?: string | null;
+  productType?: string | null;
+  status?: string | null;
+  price?: string | number | null;
+  compareAtPrice?: string | number | null;
+  inventoryQuantity?: number | null;
+  sku?: string | null;
+  image?: string | null;
+  images?: unknown;
+  variants?: ProductVariantRow[] | unknown;
+  variantCount?: number;
+  sourceUrl?: string | null;
+  shopifyProductId?: string | null;
+  lastSyncAt?: string | null;
+  isTracking?: boolean | null;
+  tracking?: TrackedProduct | null;
 };
 
 export async function fetchDashboard() {
@@ -146,13 +192,120 @@ export async function fetchScrapedProduct(id: number) {
   );
 }
 
-export async function fetchTrackedProducts(params?: { includeArchived?: boolean }) {
+export async function fetchTrackedProducts(params?: {
+  includeArchived?: boolean;
+  includeUnlinked?: boolean;
+}) {
   const sp = new URLSearchParams();
   if (params?.includeArchived) sp.set("includeArchived", "true");
+  if (params?.includeUnlinked) sp.set("includeUnlinked", "true");
   const q = sp.toString();
   return apiFetch<{ success: boolean; products: TrackedProduct[] }>(
     `/api/tracking/products${q ? `?${q}` : ""}`,
   );
+}
+
+export async function fetchMemoryProducts(params?: { limit?: number; offset?: number }) {
+  const limit = params?.limit ?? 40;
+  const offset = params?.offset ?? 0;
+  const sp = new URLSearchParams();
+  sp.set("limit", String(limit));
+  sp.set("offset", String(offset));
+  try {
+    const page = await apiFetch<{
+      success: boolean;
+      products?: MemoryProduct[];
+      pagination?: { total: number; hasMore: boolean; limit: number; offset: number };
+    }>(`/api/mobile/memory-products?${sp.toString()}`);
+    if (Array.isArray(page.products) && page.pagination) return { ...page, products: page.products, pagination: page.pagination };
+  } catch {
+    /* production henüz /api/mobile/memory-products yok */
+  }
+  const legacy = await apiFetch<{
+    success: boolean;
+    products?: MemoryProduct[];
+    total?: number;
+  }>(`/api/shopify/memory-products?${sp.toString()}`);
+  const products = legacy.products || [];
+  const total = Number(legacy.total ?? products.length);
+  return {
+    success: true,
+    products,
+    pagination: {
+      total,
+      limit,
+      offset,
+      hasMore: offset + products.length < total && products.length > 0,
+    },
+  };
+}
+
+export async function fetchAllMemoryProducts(): Promise<{
+  success: boolean;
+  products: MemoryProduct[];
+  pagination: { total: number; hasMore: boolean; limit: number; offset: number };
+}> {
+  const pageSize = 100;
+  const products: MemoryProduct[] = [];
+  let offset = 0;
+  let total = 0;
+  for (let i = 0; i < 50; i++) {
+    const page = await fetchMemoryProducts({ limit: pageSize, offset });
+    const batch = page.products || [];
+    products.push(...batch);
+    total = page.pagination?.total ?? products.length;
+    if (!page.pagination?.hasMore || batch.length === 0) break;
+    offset += pageSize;
+  }
+  return {
+    success: true,
+    products,
+    pagination: { total, hasMore: false, limit: products.length, offset: 0 },
+  };
+}
+
+export async function fetchMemoryProduct(id: number) {
+  return apiFetch<{ success: boolean; product: MemoryProduct }>(
+    `/api/mobile/memory-products/${id}`,
+  );
+}
+
+export type ShopifyConnection = {
+  success: boolean;
+  connected: boolean;
+  shopDomain?: string | null;
+  canReadProducts?: boolean;
+  canWriteProducts?: boolean;
+  productCount?: number | null;
+  error?: string | null;
+};
+
+export async function fetchShopifyConnection() {
+  return apiFetch<ShopifyConnection>("/api/mobile/shopify-connection");
+}
+
+export type MobileScanStatus = {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  total: number;
+  checked: number;
+  skipped: number;
+  errors: number;
+  changesCreated: number;
+  lastMessage: string;
+};
+
+export async function fetchMobileScan() {
+  return apiFetch<{ success: boolean; scan: MobileScanStatus }>("/api/mobile/scan");
+}
+
+export async function startMobileScan() {
+  return apiFetch<{ success: boolean; scan: MobileScanStatus }>("/api/mobile/scan", {
+    method: "POST",
+    body: "{}",
+    timeoutMs: 30_000,
+  });
 }
 
 export async function fetchTrackedSnapshots(id: number) {
@@ -162,7 +315,7 @@ export async function fetchTrackedSnapshots(id: number) {
 }
 
 export async function fetchTrackedVariants(id: number) {
-  return apiFetch<{ success: boolean; variants: unknown[] }>(
+  return apiFetch<{ success: boolean; variants: ProductVariantRow[] }>(
     `/api/tracking/products/${id}/variants`,
   );
 }

@@ -1,12 +1,28 @@
 import type { Express } from "express";
-import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "../db";
-import { products, trackedProducts } from "@shared/schema";
+import { productVariants, products, shopifyMemoryProducts, trackedProducts } from "@shared/schema";
 import {
   getTrackingNotifications,
   getTrackingSchedulerStatus,
 } from "../services/tracking.scheduler";
 import { trackingService } from "../services/tracking.service";
+
+function firstMediaUrl(images: unknown): string | null {
+  if (!Array.isArray(images) || images.length === 0) return null;
+  const first = images[0] as unknown;
+  if (typeof first === "string" && /^https?:\/\//i.test(first)) return first;
+  if (first && typeof first === "object") {
+    const o = first as Record<string, unknown>;
+    const src = o.src || o.url || o.originalSrc;
+    if (typeof src === "string" && /^https?:\/\//i.test(src)) return src;
+  }
+  return null;
+}
+
+function asVariantList(raw: unknown): unknown[] {
+  return Array.isArray(raw) ? raw : [];
+}
 
 /**
  * Mobil için ince READ-ONLY özet / ürün listesi sarmalayıcı.
@@ -41,6 +57,13 @@ export function registerMobileReadRoutes(app: Express): void {
       const activeTracked = tracked.filter((p) => p.trackingEnabled && !p.archivedAt);
       const watchRed = tracked.filter((p) => p.watchTag === "red").length;
       const watchGreen = tracked.filter((p) => p.watchTag === "green").length;
+      let shopifyMemoryTotal = 0;
+      try {
+        const memoryCountRow = await db.select({ c: count() }).from(shopifyMemoryProducts);
+        shopifyMemoryTotal = Number(memoryCountRow[0]?.c ?? 0);
+      } catch {
+        shopifyMemoryTotal = 0;
+      }
 
       return res.json({
         success: true,
@@ -65,6 +88,7 @@ export function registerMobileReadRoutes(app: Express): void {
           variantChanges: notifications.variantChangeCount ?? 0,
           watchRed,
           watchGreen,
+          shopifyMemoryTotal,
         },
         recentChanges: notifications.lastChanges || [],
         changeCounts,
@@ -122,19 +146,35 @@ export function registerMobileReadRoutes(app: Express): void {
 
       const totalRow = await db.select({ c: count() }).from(products).where(where);
       const total = Number(totalRow[0]?.c ?? 0);
+      const ids = rows.map((p) => p.id);
+      const variantRows =
+        ids.length > 0
+          ? await db
+              .select()
+              .from(productVariants)
+              .where(inArray(productVariants.productId, ids))
+          : [];
+      const variantsByProduct = new Map<number, typeof variantRows>();
+      for (const v of variantRows) {
+        const list = variantsByProduct.get(v.productId) || [];
+        list.push(v);
+        variantsByProduct.set(v.productId, list);
+      }
 
       return res.json({
         success: true,
-        products: rows.map((p) => ({
-          ...p,
-          image:
-            Array.isArray(p.images) && p.images.length
-              ? String(p.images[0])
-              : null,
-          marketplace: p.sourcePlatform || "unknown",
-          scrapedAt: p.createdAt,
-          shopifyStatus: p.shopifyProductId ? "linked" : "none",
-        })),
+        products: rows.map((p) => {
+          const variants = variantsByProduct.get(p.id) || [];
+          return {
+            ...p,
+            image: firstMediaUrl(p.images),
+            marketplace: p.sourcePlatform || "unknown",
+            scrapedAt: p.createdAt,
+            shopifyStatus: p.shopifyProductId ? "linked" : "none",
+            variantCount: variants.length,
+            variants,
+          };
+        }),
         pagination: {
           total,
           limit,
@@ -172,18 +212,22 @@ export function registerMobileReadRoutes(app: Express): void {
         )
         .limit(1);
 
+      const variants = await db
+        .select()
+        .from(productVariants)
+        .where(eq(productVariants.productId, id));
+
       return res.json({
         success: true,
         product: {
           ...product,
-          image:
-            Array.isArray(product.images) && product.images.length
-              ? String(product.images[0])
-              : null,
+          image: firstMediaUrl(product.images),
           marketplace: product.sourcePlatform || "unknown",
           scrapedAt: product.createdAt,
           shopifyStatus: product.shopifyProductId ? "linked" : "none",
           tracking: tracked[0] || null,
+          variantCount: variants.length,
+          variants,
         },
       });
     } catch (err) {
@@ -244,6 +288,115 @@ export function registerMobileReadRoutes(app: Express): void {
         lastDashboardSync: timestamps.lastDashboardSyncAt,
         security: { serviceRoleNotInPublicEnv: guard.ok },
       });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.get("/api/mobile/shopify-connection", async (_req, res) => {
+    try {
+      const { getShopifyHealthSnapshot } = await import("../shopify-credentials");
+      const snapshot = await getShopifyHealthSnapshot();
+      return res.json({
+        success: true,
+        connected: Boolean(snapshot.ok),
+        shopDomain: snapshot.shopDomain || null,
+        canReadProducts: Boolean(snapshot.canReadProducts),
+        canWriteProducts: Boolean(snapshot.canWriteProducts),
+        productCount: snapshot.productCountCheck?.count ?? null,
+        error: snapshot.error || null,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, connected: false, error: message });
+    }
+  });
+
+  app.get("/api/mobile/memory-products", async (req, res) => {
+    try {
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
+      const offset = Math.max(0, Number(req.query.offset) || 0);
+      const rows = await db
+        .select()
+        .from(shopifyMemoryProducts)
+        .orderBy(desc(shopifyMemoryProducts.lastSyncAt))
+        .limit(limit)
+        .offset(offset);
+      const totalRow = await db.select({ c: count() }).from(shopifyMemoryProducts);
+      const total = Number(totalRow[0]?.c ?? 0);
+      return res.json({
+        success: true,
+        products: rows.map((p) => {
+          const variants = asVariantList(p.variants);
+          return {
+            ...p,
+            image: firstMediaUrl(p.images),
+            images: Array.isArray(p.images) ? p.images : [],
+            variants,
+            variantCount: variants.length,
+          };
+        }),
+        pagination: { total, limit, offset, hasMore: offset + limit < total },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.get("/api/mobile/memory-products/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ success: false, error: "Geçersiz id" });
+      }
+      const [row] = await db
+        .select()
+        .from(shopifyMemoryProducts)
+        .where(eq(shopifyMemoryProducts.id, id))
+        .limit(1);
+      if (!row) return res.status(404).json({ success: false, error: "Ürün bulunamadı" });
+      const variants = asVariantList(row.variants);
+      const tracked = row.shopifyProductId
+        ? await db
+            .select()
+            .from(trackedProducts)
+            .where(eq(trackedProducts.shopifyProductId, row.shopifyProductId))
+            .limit(1)
+        : [];
+      return res.json({
+        success: true,
+        product: {
+          ...row,
+          image: firstMediaUrl(row.images),
+          images: Array.isArray(row.images) ? row.images : [],
+          variants,
+          variantCount: variants.length,
+          tracking: tracked[0] || null,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.get("/api/mobile/scan", async (_req, res) => {
+    try {
+      const { getMobileScanStatus } = await import("../services/mobile-scan.service");
+      return res.json({ success: true, scan: getMobileScanStatus() });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.post("/api/mobile/scan", async (_req, res) => {
+    try {
+      const { startMobileCatalogScan } = await import("../services/mobile-scan.service");
+      const scan = startMobileCatalogScan();
+      return res.json({ success: true, scan });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return res.status(500).json({ success: false, error: message });

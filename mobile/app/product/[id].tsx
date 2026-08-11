@@ -14,11 +14,13 @@ import { colors } from "../../src/theme/colors";
 import {
   fetchAllChanges,
   fetchAllScrapedProducts,
+  fetchMemoryProduct,
   fetchScrapedProduct,
   fetchTrackedProducts,
   fetchTrackedSnapshots,
   fetchTrackedVariants,
   setWatchTag,
+  type ProductVariantRow,
 } from "../../src/api/tracking";
 import {
   domainFromUrl,
@@ -26,6 +28,9 @@ import {
   formatMoney,
   marketplaceLabel,
   uniqueImageUrls,
+  variantPrice,
+  variantStock,
+  variantTitle,
 } from "../../src/lib/format";
 import {
   EmptyState,
@@ -42,19 +47,26 @@ export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const raw = String(id || "");
   const isTracked = raw.startsWith("tracked-");
-  const numericId = Number(raw.replace("tracked-", ""));
+  const isMemory = raw.startsWith("memory-");
+  const numericId = Number(raw.replace("tracked-", "").replace("memory-", ""));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const qc = useQueryClient();
 
   const scraped = useQuery({
     queryKey: ["scraped-product", numericId],
     queryFn: () => fetchScrapedProduct(numericId),
-    enabled: !isTracked && Number.isFinite(numericId),
+    enabled: !isTracked && !isMemory && Number.isFinite(numericId),
+  });
+
+  const memory = useQuery({
+    queryKey: ["memory-product", numericId],
+    queryFn: () => fetchMemoryProduct(numericId),
+    enabled: isMemory && Number.isFinite(numericId),
   });
 
   const trackedList = useQuery({
     queryKey: ["tracked-products"],
-    queryFn: () => fetchTrackedProducts(),
+    queryFn: () => fetchTrackedProducts({ includeUnlinked: true }),
     enabled: isTracked,
   });
 
@@ -68,7 +80,12 @@ export default function ProductDetailScreen() {
     (p: { id: number }) => p.id === numericId,
   );
   const scrapedProduct = scraped.data?.product;
-  const linkedTrackedId = isTracked ? numericId : scrapedProduct?.tracking?.id;
+  const memoryProduct = memory.data?.product;
+  const linkedTrackedId = isTracked
+    ? numericId
+    : isMemory
+      ? memoryProduct?.tracking?.id
+      : scrapedProduct?.tracking?.id;
 
   const variants = useQuery({
     queryKey: ["tracked-variants", linkedTrackedId],
@@ -91,7 +108,7 @@ export default function ProductDetailScreen() {
       setWatchTag({
         tag: next,
         trackedProductId: isTracked ? numericId : scrapedProduct?.tracking?.id,
-        scrapedProductId: !isTracked ? numericId : undefined,
+        scrapedProductId: !isTracked && !isMemory ? numericId : undefined,
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["tracked-products"] });
@@ -145,11 +162,37 @@ export default function ProductDetailScreen() {
       snapshots.refetch();
       history.refetch();
       allScraped.refetch();
+    } else if (isMemory) {
+      memory.refetch();
+      variants.refetch();
+      snapshots.refetch();
+      history.refetch();
     } else {
       scraped.refetch();
       snapshots.refetch();
       history.refetch();
     }
+  };
+
+  const renderVariantList = (list: ProductVariantRow[] | undefined) => {
+    const rows = list || [];
+    return (
+      <>
+        <Text style={styles.section}>Varyantlar ({rows.length})</Text>
+        {rows.length === 0 ? (
+          <EmptyState message="Varyant kaydı yok." />
+        ) : (
+          rows.map((v, idx) => (
+            <View key={String(v.id ?? idx)} style={styles.variant}>
+              <Text style={styles.variantTitle}>{variantTitle(v)}</Text>
+              <Text style={styles.variantMeta}>
+                {formatMoney(variantPrice(v))} · stok {variantStock(v) ?? "—"}
+              </Text>
+            </View>
+          ))
+        )}
+      </>
+    );
   };
 
   if (isTracked) {
@@ -245,29 +288,109 @@ export default function ProductDetailScreen() {
           </Text>
         ) : null}
 
-        <Text style={styles.section}>
-          Varyantlar ({variants.data?.variants?.length || 0})
-        </Text>
-        {(variants.data?.variants || []).length === 0 ? (
-          <EmptyState message="Varyant kaydı yok." />
-        ) : (
-          (variants.data?.variants || []).map((v: any) => (
-            <View key={v.id} style={styles.variant}>
-              <Text style={styles.variantTitle}>
-                {v.sourceVariantTitle || v.option1 || v.sourceSku || `#${v.id}`}
-              </Text>
-              <Text style={styles.variantMeta}>
-                {formatMoney(v.currentSourcePrice)} · stok {v.currentSourceStock ?? "—"}
-              </Text>
-            </View>
-          ))
-        )}
+        {renderVariantList(variants.data?.variants)}
 
         <PriceMovementDrawer
           visible={drawerOpen}
           onClose={() => setDrawerOpen(false)}
           price={tracked.currentSourcePrice}
           stock={tracked.currentSourceStock}
+          snapshots={snapshots.data?.snapshots || []}
+          changes={history.data?.changes || []}
+        />
+      </ScrollView>
+    );
+  }
+
+  if (isMemory) {
+    if (memory.isLoading) {
+      return (
+        <View style={styles.root}>
+          <SkeletonList rows={5} />
+        </View>
+      );
+    }
+    if (memory.isError || !memoryProduct) {
+      return (
+        <View style={styles.root}>
+          <ErrorState
+            message={
+              memory.isError ? (memory.error as Error).message : "Ürün bulunamadı"
+            }
+            onRetry={() => memory.refetch()}
+          />
+        </View>
+      );
+    }
+    const memoryVariants = Array.isArray(memoryProduct.variants)
+      ? (memoryProduct.variants as ProductVariantRow[])
+      : [];
+    return (
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={memory.isFetching}
+            onRefresh={refetchAll}
+            tintColor={colors.text}
+          />
+        }
+      >
+        <ImageGallery urls={uniqueImageUrls(memoryProduct.images, memoryProduct.image)} />
+        <Text style={styles.title}>{memoryProduct.title}</Text>
+        <Text style={styles.source}>Shopify hafıza</Text>
+        <TouchableOpacity
+          style={styles.priceBtn}
+          onPress={() => setDrawerOpen(true)}
+          activeOpacity={0.75}
+        >
+          <View>
+            <Text style={styles.priceBtnLabel}>Güncel fiyat</Text>
+            <Text style={styles.priceBtnValue}>{formatMoney(memoryProduct.price)}</Text>
+          </View>
+          <Text style={styles.priceBtnHint}>Hareketler</Text>
+        </TouchableOpacity>
+        <View style={styles.panel}>
+          <MetaLine label="Kaynak" value="Shopify" />
+          <MetaLine label="SKU" value={memoryProduct.sku || "—"} />
+          <MetaLine
+            label="Stok"
+            value={
+              memoryProduct.inventoryQuantity != null
+                ? String(memoryProduct.inventoryQuantity)
+                : "—"
+            }
+          />
+          <MetaLine label="Durum" value={memoryProduct.status || "—"} />
+          <MetaLine
+            label="Takip"
+            value={
+              memoryProduct.tracking
+                ? memoryProduct.tracking.trackingEnabled
+                  ? "Aktif"
+                  : "Pasif"
+                : memoryProduct.isTracking
+                  ? "Hafızada takip"
+                  : "Takipte değil"
+            }
+          />
+          <MetaLine label="Son senkron" value={formatDateTime(memoryProduct.lastSyncAt)} />
+        </View>
+        {memoryProduct.sourceUrl ? (
+          <Text
+            style={styles.link}
+            onPress={() => Linking.openURL(memoryProduct.sourceUrl!)}
+          >
+            Kaynak bağlantısını aç
+          </Text>
+        ) : null}
+        {renderVariantList(memoryVariants)}
+        <PriceMovementDrawer
+          visible={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          price={memoryProduct.price}
+          stock={memoryProduct.inventoryQuantity}
           snapshots={snapshots.data?.snapshots || []}
           changes={history.data?.changes || []}
         />
@@ -351,6 +474,10 @@ export default function ProductDetailScreen() {
           label="Son çekim"
           value={formatDateTime(scrapedProduct.scrapedAt || scrapedProduct.createdAt)}
         />
+        <MetaLine
+          label="Varyant"
+          value={String(scrapedProduct.variantCount ?? scrapedProduct.variants?.length ?? "—")}
+        />
       </View>
       {scrapedProduct.trendyolUrl ? (
         <Text
@@ -360,6 +487,7 @@ export default function ProductDetailScreen() {
           Kaynak bağlantısını aç
         </Text>
       ) : null}
+      {renderVariantList(scrapedProduct.variants)}
       <PriceMovementDrawer
         visible={drawerOpen}
         onClose={() => setDrawerOpen(false)}

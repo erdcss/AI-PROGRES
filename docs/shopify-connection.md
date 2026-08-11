@@ -56,6 +56,15 @@ $env:SHOPIFY_TEST_BASE_URL = "http://127.0.0.1:3000"
 npm run shopify:connection-test
 ```
 
+## Mobil uygulama
+
+Uygulama aynı mağaza bağlantısını kullanır (`/api/mobile/shopify-connection`). Katalog: çekilmiş ürünler + takip + `shopify_memory_products`. Ayarlar → **Taramayı başlat** mevcut `runManualProductCheck` zincirini çalıştırır; değişiklikler persist kancasıyla bildirilir.
+
+```powershell
+curl.exe -i http://127.0.0.1:3000/api/mobile/shopify-connection
+curl.exe -i -X POST http://127.0.0.1:3000/api/mobile/scan -H "Content-Type: application/json" -d "{}"
+```
+
 ## Token akışı
 
 1. `getValidShopifyAccessToken()` — cache → env token → DB token → `client_credentials`

@@ -70,7 +70,11 @@ export function registerTrackingRoutes(app: Express): void {
   app.get("/api/tracking/products", async (req, res) => {
     try {
       const includeArchived = req.query.includeArchived === "true";
-      const products = await trackingService.listProductsForPanel({ includeArchived });
+      const includeUnlinked = req.query.includeUnlinked === "true";
+      const products = await trackingService.listProductsForPanel({
+        includeArchived,
+        includeUnlinked,
+      });
       return res.json({ success: true, products });
     } catch (err) {
       return migrationErrorResponse(res, err);

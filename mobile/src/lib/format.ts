@@ -153,22 +153,78 @@ export function changeStatusLabel(status?: string | null): string {
   return map[key] || (status ? String(status) : "—");
 }
 
+export function mediaUrl(raw: unknown): string | null {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    const u = raw.trim();
+    return /^https?:\/\//i.test(u) ? u : null;
+  }
+  if (typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    return mediaUrl(o.src || o.url || o.originalSrc);
+  }
+  return null;
+}
+
 export function uniqueImageUrls(
-  ...groups: Array<string | null | undefined | Array<string | null | undefined>>
+  ...groups: Array<unknown>
 ): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const g of groups) {
     const arr = Array.isArray(g) ? g : [g];
     for (const raw of arr) {
-      const u = String(raw || "").trim();
-      if (!u || !/^https?:\/\//i.test(u)) continue;
-      if (seen.has(u)) continue;
+      const u = mediaUrl(raw);
+      if (!u || seen.has(u)) continue;
       seen.add(u);
       out.push(u);
     }
   }
   return out;
+}
+
+export function variantTitle(v: {
+  id?: number;
+  title?: string;
+  sourceVariantTitle?: string;
+  option1?: string | null;
+  option2?: string | null;
+  color?: string | null;
+  size?: string | null;
+  sku?: string | null;
+  sourceSku?: string | null;
+}): string {
+  return (
+    v.sourceVariantTitle ||
+    v.title ||
+    [v.color, v.size, v.option1, v.option2].filter(Boolean).join(" / ") ||
+    v.sku ||
+    v.sourceSku ||
+    (v.id != null ? `#${v.id}` : "Varyant")
+  );
+}
+
+export function variantPrice(v: {
+  currentSourcePrice?: string | number | null;
+  trendyolPrice?: string | number | null;
+  shopifyPrice?: string | number | null;
+  price?: string | number | null;
+}): string | number | null | undefined {
+  return v.currentSourcePrice ?? v.trendyolPrice ?? v.shopifyPrice ?? v.price;
+}
+
+export function variantStock(v: {
+  currentSourceStock?: number | null;
+  stockCount?: number | null;
+  inventoryQuantity?: number | null;
+  inventory_quantity?: number | null;
+}): number | null | undefined {
+  return (
+    v.currentSourceStock ??
+    v.stockCount ??
+    v.inventoryQuantity ??
+    v.inventory_quantity
+  );
 }
 
 export function marketplaceLabel(raw?: string | null): string {

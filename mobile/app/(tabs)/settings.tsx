@@ -5,7 +5,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../src/theme/colors";
 import {
   fetchDashboard,
+  fetchMobileScan,
+  fetchShopifyConnection,
   fetchTrackingSettings,
+  startMobileScan,
   updateTrackingSettings,
 } from "../../src/api/tracking";
 import { apiFetch, getApiBaseUrl } from "../../src/api/client";
@@ -68,6 +71,37 @@ export default function SettingsScreen() {
     queryFn: fetchMobileHealth,
     retry: 0,
   });
+  const shopify = useQuery({
+    queryKey: ["shopify-connection"],
+    queryFn: fetchShopifyConnection,
+    retry: 0,
+  });
+  const scan = useQuery({
+    queryKey: ["mobile-scan"],
+    queryFn: fetchMobileScan,
+    refetchInterval: (q) => (q.state.data?.scan?.running ? 1500 : false),
+  });
+  const scanMut = useMutation({
+    mutationFn: startMobileScan,
+    onSuccess: (data) => {
+      qc.setQueryData(["mobile-scan"], data);
+      void qc.invalidateQueries({ queryKey: ["mobile-scan"] });
+      void qc.invalidateQueries({ queryKey: ["changes-all"] });
+      void qc.invalidateQueries({ queryKey: ["scraped-products"] });
+      void qc.invalidateQueries({ queryKey: ["tracked-products"] });
+      void qc.invalidateQueries({ queryKey: ["memory-products"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+      Alert.alert(
+        "Tarama",
+        data.scan.running
+          ? "Hafıza ve takip ürünleri taranıyor. Değişiklikler bildirim olarak gelir."
+          : data.scan.lastMessage,
+      );
+    },
+    onError: (err: Error) => {
+      Alert.alert("Tarama", err.message || "Başlatılamadı");
+    },
+  });
 
   const systemOk = Boolean(
     health.data?.backend === "ok" ||
@@ -91,6 +125,8 @@ export default function SettingsScreen() {
               health.refetch();
               dash.refetch();
               trackingSettings.refetch();
+              shopify.refetch();
+              scan.refetch();
             }}
             tintColor={colors.text}
           />
@@ -125,6 +161,47 @@ export default function SettingsScreen() {
 
         <SectionLabel>BİLDİRİMLER</SectionLabel>
         <SettingRow label="Bildirim Ayarları" value="Cihaz kayıtlı / FCM" />
+
+        <SectionLabel>SHOPIFY</SectionLabel>
+        <SettingRow
+          label="Mağaza bağlantısı"
+          value={
+            shopify.data?.connected
+              ? shopify.data.shopDomain || "Bağlı"
+              : shopify.isLoading
+                ? "Kontrol ediliyor"
+                : shopify.isError
+                  ? "Bağlantı yok"
+                  : shopify.data?.error || "Bağlı değil"
+          }
+        />
+        <SettingRow
+          label="Shopify ürün sayısı"
+          value={
+            shopify.data?.productCount != null
+              ? String(shopify.data.productCount)
+              : dash.data?.cards?.shopifyMemoryTotal != null
+                ? String(dash.data.cards.shopifyMemoryTotal)
+                : "—"
+          }
+        />
+        <SettingRow
+          label="Taramayı başlat"
+          value={
+            scan.data?.scan.running
+              ? `${scan.data.scan.checked}/${scan.data.scan.total}`
+              : scanMut.isPending
+                ? "Başlatılıyor"
+                : "Hafızayı tara"
+          }
+          onPress={() => {
+            if (scan.data?.scan.running || scanMut.isPending) return;
+            scanMut.mutate();
+          }}
+        />
+        {scan.data?.scan.lastMessage ? (
+          <Text style={styles.scanNote}>{scan.data.scan.lastMessage}</Text>
+        ) : null}
 
         <SectionLabel>TAKİP</SectionLabel>
         <SettingRow
@@ -165,4 +242,5 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   head: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   note: { color: colors.textMuted, fontSize: 12, marginTop: 20, lineHeight: 18 },
+  scanNote: { color: colors.textMuted, fontSize: 12, marginTop: 6, marginBottom: 8, lineHeight: 18 },
 });
