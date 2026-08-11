@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { colors } from "../../src/theme/colors";
 import { fetchAllChanges, shopifySyncChange, type ChangeRow } from "../../src/api/tracking";
-import { canOneTapShopifyFix } from "../../src/lib/shopify-fix";
+import { showShopifyFixButton } from "../../src/lib/shopify-fix";
 import {
   isPriceChangeType,
   isStockChangeType,
@@ -47,7 +47,7 @@ const Row = memo(function Row({
     <ChangeRowItem
       item={item}
       onPress={() => onPress(item.id)}
-      onShopifyFix={canOneTapShopifyFix(item) ? () => onShopifyFix(item.id) : undefined}
+      onShopifyFix={showShopifyFixButton(item) ? () => onShopifyFix(item.id) : undefined}
       shopifyFixing={shopifyFixing}
     />
   );
@@ -65,7 +65,7 @@ export default function TrackingScreen() {
   const changes = useQuery({
     queryKey: ["changes-all"],
     queryFn: () => fetchAllChanges(),
-    refetchInterval: false,
+    refetchInterval: 8_000,
   });
 
   const items = useMemo(() => {
@@ -107,7 +107,12 @@ export default function TrackingScreen() {
   });
 
   const onShopifyFix = useCallback(
-    (id: number) => fixMut.mutate(id),
+    (id: number) => {
+      Alert.alert("Shopify'da düzelt", "Bu değişiklik Shopify'a anında uygulanacak.", [
+        { text: "Vazgeç", style: "cancel" },
+        { text: "Düzelt", onPress: () => fixMut.mutate(id) },
+      ]);
+    },
     [fixMut],
   );
 
@@ -115,7 +120,11 @@ export default function TrackingScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <OfflineBanner online={online} />
       <View style={styles.pad}>
-        <ScreenHeader title="Takip" right={<NotificationBell />} />
+        <ScreenHeader
+          title="Takip"
+          subtitle={changes.data?.changes ? `${changes.data.changes.length} değişiklik` : undefined}
+          right={<NotificationBell />}
+        />
         <TextInput
           placeholder="Ürün ara..."
           placeholderTextColor={colors.textMuted}

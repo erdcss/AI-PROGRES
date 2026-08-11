@@ -111,16 +111,16 @@ export async function computeDashboardStats() {
     db
       .select({ c: count() })
       .from(detectedChanges)
-      .where(and(eq(detectedChanges.changeType, "price_changed"), eq(detectedChanges.status, "pending"))),
+      .where(eq(detectedChanges.changeType, "price_changed")),
     db
       .select({ c: count() })
       .from(detectedChanges)
-      .where(and(eq(detectedChanges.changeType, "stock_changed"), eq(detectedChanges.status, "pending"))),
+      .where(eq(detectedChanges.changeType, "stock_changed")),
     db
       .select({ c: count() })
       .from(detectedChanges)
       .where(
-        sql`${detectedChanges.changeType} IN ('variant_added','variant_removed','variant_changed','variant_price_changed','variant_stock_changed') AND ${detectedChanges.status} = 'pending'`,
+        sql`${detectedChanges.changeType} IN ('variant_added','variant_removed','variant_changed','variant_price_changed','variant_stock_changed')`,
       ),
     getTrackingSchedulerStatus().catch(() => null),
   ]);
@@ -137,7 +137,7 @@ export async function computeDashboardStats() {
     todayProducts: catalog.scrapedToday,
     trackedProducts: catalog.trackedTotal,
     activeTracking: catalog.trackedActive,
-    pendingChanges: Number(panelChangeCounts?.actionable ?? pendingChanges[0]?.c ?? 0),
+    pendingChanges: Number(panelChangeCounts?.all ?? pendingChanges[0]?.c ?? 0),
     priceChanges: Number(priceChanges[0]?.c ?? 0),
     stockChanges: Number(stockChanges[0]?.c ?? 0),
     variantChanges: Number(variantChanges[0]?.c ?? 0),

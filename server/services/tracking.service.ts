@@ -232,16 +232,6 @@ export class TrackingService {
     const conditions = [];
     if (filters?.productId) {
       conditions.push(eq(detectedChanges.trackedProductId, filters.productId));
-    } else {
-      conditions.push(
-        inArray(
-          detectedChanges.trackedProductId,
-          db
-            .select({ id: trackedProducts.id })
-            .from(trackedProducts)
-            .where(this.panelTrackedProductCondition()),
-        ),
-      );
     }
     const openStatuses = ["pending", "manual_review", "failed"] as const;
 
@@ -285,19 +275,11 @@ export class TrackingService {
     applied: number;
     all: number;
   }> {
-    const visibleProductIds = db
-      .select({ id: trackedProducts.id })
-      .from(trackedProducts)
-      .where(this.panelTrackedProductCondition());
-
     const openStatuses = ["pending", "manual_review", "failed"] as const;
-    const base = inArray(detectedChanges.trackedProductId, visibleProductIds);
 
-    const countWhere = async (condition: ReturnType<typeof and> | undefined) => {
-      const [row] = await db
-        .select({ c: sql<number>`count(*)::int` })
-        .from(detectedChanges)
-        .where(condition ? and(base, condition) : base);
+    const countWhere = async (condition?: any) => {
+      const base = db.select({ c: sql<number>`count(*)::int` }).from(detectedChanges);
+      const [row] = condition ? await base.where(condition) : await base;
       return Number(row?.c ?? 0);
     };
 
@@ -311,7 +293,7 @@ export class TrackingService {
         and(inArray(detectedChanges.status, [...openStatuses]), isNotNull(detectedChanges.seenAt)),
       ),
       countWhere(inArray(detectedChanges.status, ["applied", "approved"])),
-      countWhere(undefined),
+      countWhere(),
     ]);
 
     return { actionable, pending, manual_review, failed, ignored, seen, applied, all };

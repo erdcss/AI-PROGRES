@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { useQueryClient } from "@tanstack/react-query";
 import { fetchPushInbox, type PushInboxItem } from "../api/tracking";
 import {
+  CHANNEL_ID,
   ensureAndroidChannel,
   getNotificationPermissionStatus,
-  hasRemotePushToken,
   isAppInForeground,
 } from "./usePush";
 import { useInAppBanner } from "../components/InAppBanner";
@@ -18,7 +18,10 @@ async function presentSystemNotification(item: PushInboxItem): Promise<void> {
       content: {
         title: item.title,
         body: item.body,
-        sound: true,
+        sound: "default",
+        channelId: CHANNEL_ID,
+        priority: Notifications.AndroidNotificationPriority.MAX,
+        vibrate: Platform.OS === "android" ? [0, 250, 250, 250] : undefined,
         data: {
           type: item.data?.type || "",
           productId: item.data?.productId || "",
@@ -32,23 +35,7 @@ async function presentSystemNotification(item: PushInboxItem): Promise<void> {
   }
 }
 
-function presentItems(
-  items: PushInboxItem[],
-  showBanner: (title: string, body?: string) => void,
-): void {
-  const inApp = isAppInForeground();
-  for (const item of items) {
-    if (inApp) {
-      showBanner(item.title, item.body);
-      continue;
-    }
-    if (!hasRemotePushToken()) {
-      void presentSystemNotification(item);
-    }
-  }
-}
-
-/** Test + programlı bildirimler: içeride uygulama içi, dışarıda sistem bildirimi. */
+/** Test + programlı bildirimler her zaman telefon tepsisine gider; uygulama açıkken kart da gösterilir. */
 export function useLocalChangeAlerts(): void {
   const { showBanner } = useInAppBanner();
   const qc = useQueryClient();
@@ -60,6 +47,7 @@ export function useLocalChangeAlerts(): void {
 
   useEffect(() => {
     void getNotificationPermissionStatus();
+    void ensureAndroidChannel();
   }, []);
 
   useEffect(() => {
@@ -85,7 +73,12 @@ export function useLocalChangeAlerts(): void {
           fresh.push(item);
         }
         if (!fresh.length) return;
-        presentItems(fresh, showBannerRef.current);
+        for (const item of fresh) {
+          await presentSystemNotification(item);
+          if (isAppInForeground()) {
+            showBannerRef.current(item.title, item.body);
+          }
+        }
         void qc.invalidateQueries({ queryKey: ["push-inbox-recent"] });
         void qc.invalidateQueries({ queryKey: ["notifications-badge"] });
       } catch (err) {
@@ -97,8 +90,8 @@ export function useLocalChangeAlerts(): void {
     const timer = setInterval(() => {
       void tick();
     }, 4000);
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state !== "active") void tick();
+    const sub = AppState.addEventListener("change", () => {
+      void tick();
     });
 
     return () => {

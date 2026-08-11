@@ -374,21 +374,22 @@ function mergeChanges(...lists: Array<ChangeRow[] | undefined>): ChangeRow[] {
   });
 }
 
-/** Tüm takip durumları — üretimde `status=all` yoksa bilinen filtrelere düşer. */
+/** Tüm takip durumları — web panel `history` ile aynı kaynak. */
 export async function fetchAllChanges(params?: { productId?: number }) {
   try {
-    const all = await fetchChanges({ status: "all", productId: params?.productId });
-    if (all.changes?.length) {
+    const all = await fetchChanges({ status: "history", productId: params?.productId });
+    if (Array.isArray(all.changes)) {
       return all;
     }
   } catch {
     // eski API
   }
-  const [actionable, seen, ignored, failed] = await Promise.all([
+  const [actionable, seen, ignored, failed, applied] = await Promise.all([
     fetchChanges({ productId: params?.productId }),
     fetchChanges({ status: "seen", productId: params?.productId }),
     fetchChanges({ status: "ignored", productId: params?.productId }),
     fetchChanges({ status: "failed", productId: params?.productId }),
+    fetchChanges({ status: "applied", productId: params?.productId }),
   ]);
   return {
     success: true as const,
@@ -397,6 +398,7 @@ export async function fetchAllChanges(params?: { productId?: number }) {
       seen.changes,
       ignored.changes,
       failed.changes,
+      applied.changes,
     ),
   };
 }

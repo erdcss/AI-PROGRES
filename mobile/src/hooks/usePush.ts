@@ -5,7 +5,7 @@ import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { registerPushDevice } from "../api/tracking";
 
-const CHANNEL_ID = "tracking_alerts";
+export const CHANNEL_ID = "tracking_alerts";
 
 let remotePushReady = false;
 
@@ -36,16 +36,13 @@ export function isRemotePushAvailable(): boolean {
 
 try {
   Notifications.setNotificationHandler({
-    handleNotification: async () => {
-      const inApp = AppState.currentState === "active";
-      return {
-        shouldShowAlert: !inApp,
-        shouldShowBanner: !inApp,
-        shouldShowList: !inApp,
-        shouldPlaySound: !inApp,
-        shouldSetBadge: true,
-      };
-    },
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
   });
 } catch (err) {
   console.warn("[push] setNotificationHandler skipped", err);
@@ -62,7 +59,9 @@ export async function ensureAndroidChannel(): Promise<void> {
       lightColor: "#FFFFFF",
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       enableVibrate: true,
+      enableLights: true,
       showBadge: true,
+      bypassDnd: false,
     });
   } catch (err) {
     console.warn("[push] notification channel skipped", err);

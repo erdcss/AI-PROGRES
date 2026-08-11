@@ -35,6 +35,24 @@ async function registerBulkUploadTracking(
   if (!sourceUrl || !upsert.productId) return;
 
   const price = extractTrackingPrice(item, canonical);
+  try {
+    const { upsertShopifyMemoryAfterTransfer } = await import(
+      "./services/shopify-memory-upsert.service"
+    );
+    await upsertShopifyMemoryAfterTransfer({
+      shopifyProductId: upsert.productId,
+      title: canonical.title,
+      handle: upsert.handle,
+      vendor: canonical.brand,
+      price,
+      images: canonical.images,
+      variants: canonical.variants,
+      sourceUrl,
+    });
+  } catch (err) {
+    console.warn("[BulkUpload] Mobil katalog kaydı atlandı:", err);
+  }
+
   if (price <= 0) return;
 
   try {

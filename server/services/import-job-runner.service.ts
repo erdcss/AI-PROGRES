@@ -205,6 +205,20 @@ export async function registerTrackingFromUpsert(
   const { trackingService } = await import("./tracking.service");
   const mappingBySku = new Map((upsert.variantMappings || []).map((m) => [m.sku, m]));
 
+  const { upsertShopifyMemoryAfterTransfer } = await import("./shopify-memory-upsert.service");
+  await upsertShopifyMemoryAfterTransfer({
+    shopifyProductId: upsert.productId || "",
+    title: canonical.title || "Ürün",
+    handle: upsert.handle,
+    vendor: canonical.brand,
+    price: canonical.originalPrice || canonical.sourcePrice || null,
+    images: canonical.images,
+    variants: canonical.variants,
+    sourceUrl: canonical.sourceUrl,
+  }).catch((err) => {
+    console.warn("⚠️ Shopify hafıza kaydı yazılamadı (mobil katalog):", err);
+  });
+
   await trackingService.registerFromShopifyUpload({
     sourceUrl: canonical.sourceUrl,
     title: canonical.title,

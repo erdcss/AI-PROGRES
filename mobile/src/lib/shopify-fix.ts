@@ -42,3 +42,9 @@ export function canOneTapShopifyFix(item: Pick<ChangeRow, "status" | "changeType
   if (!ACTIONABLE.has(status)) return false;
   return isDirectlyApplicableTrackingChange(item.changeType, item.fieldName, item.newValue);
 }
+
+/** Takip listesinde buton: uygulanabilir durumdaysa göster (sunucu tipi doğrular). */
+export function showShopifyFixButton(item: Pick<ChangeRow, "status">): boolean {
+  const status = String(item.status || "pending");
+  return ACTIONABLE.has(status);
+}

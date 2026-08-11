@@ -7,9 +7,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Animated, AppState, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Notifications from "expo-notifications";
 
 export type InAppBannerItem = {
   id: string;
@@ -90,20 +89,6 @@ export function InAppBannerProvider({ children }: { children: React.ReactNode })
   const onDone = useCallback((id: string) => {
     setItems((prev) => prev.filter((x) => x.id !== id));
   }, []);
-
-  useEffect(() => {
-    let sub: { remove: () => void } | null = null;
-    try {
-      sub = Notifications.addNotificationReceivedListener((notification) => {
-        if (AppState.currentState !== "active") return;
-        const content = notification.request.content;
-        showBanner(String(content.title || "Bildirim"), content.body ? String(content.body) : undefined);
-      });
-    } catch {
-      /* Expo Go */
-    }
-    return () => sub?.remove();
-  }, [showBanner]);
 
   const value = useMemo(() => ({ showBanner }), [showBanner]);
   const top = insets.top + 10;

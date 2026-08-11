@@ -106,7 +106,7 @@ export function registerMobileReadRoutes(app: Express): void {
           scrapedToday: catalog.scrapedToday,
           trackedTotal: catalog.trackedTotal,
           trackedActive: catalog.trackedActive,
-          pendingChanges: changeCounts.actionable ?? changeCounts.pending ?? 0,
+          pendingChanges: changeCounts.all ?? changeCounts.actionable ?? changeCounts.pending ?? 0,
           priceChanges: notifications.priceChangeCount ?? 0,
           stockChanges: notifications.stockChangeCount ?? 0,
           variantChanges: notifications.variantChangeCount ?? 0,

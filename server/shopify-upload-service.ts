@@ -267,6 +267,28 @@ export async function handleShopifyProductUpload(
       ? `https://${conn.shopDomain}/admin/products/${productId}`
       : undefined);
 
+  if (productId) {
+    try {
+      const { upsertShopifyMemoryAfterTransfer } = await import(
+        "./services/shopify-memory-upsert.service"
+      );
+      await upsertShopifyMemoryAfterTransfer({
+        shopifyProductId: String(productId),
+        title: normalized.title,
+        handle,
+        vendor: normalized.brand,
+        status: uploadResult.status || "draft",
+        price: Number(normalized.price.withProfit || normalized.price.original || 0) || null,
+        images: normalized.images,
+        variants: normalized.variants?.allVariants,
+        sourceUrl,
+        shopifyProduct: (uploadResult as { product?: Record<string, unknown> }).product || null,
+      });
+    } catch (err) {
+      console.warn("⚠️ Shopify hafıza kaydı yazılamadı (mobil katalog):", err);
+    }
+  }
+
   if (sourceUrl && productId) {
     try {
       await db.insert(shopifyTransferredProducts).values({

@@ -521,14 +521,12 @@ export async function getTrackingSchedulerStatus() {
   const [pendingCount] = await db
     .select({ c: count() })
     .from(detectedChanges)
-    .innerJoin(trackedProducts, eq(detectedChanges.trackedProductId, trackedProducts.id))
-    .where(and(eq(detectedChanges.status, "pending"), isNull(detectedChanges.seenAt), panelVisible));
+    .where(and(eq(detectedChanges.status, "pending"), isNull(detectedChanges.seenAt)));
 
   const [manualCount] = await db
     .select({ c: count() })
     .from(detectedChanges)
-    .innerJoin(trackedProducts, eq(detectedChanges.trackedProductId, trackedProducts.id))
-    .where(and(eq(detectedChanges.status, "manual_review"), isNull(detectedChanges.seenAt), panelVisible));
+    .where(and(eq(detectedChanges.status, "manual_review"), isNull(detectedChanges.seenAt)));
 
   const [errorCount] = await db
     .select({ c: count() })
@@ -569,25 +567,24 @@ export async function getTrackingNotifications() {
   const lastChanges = await db
     .select()
     .from(detectedChanges)
-    .where(and(isNull(detectedChanges.seenAt), eq(detectedChanges.status, "pending")))
     .orderBy(desc(detectedChanges.createdAt))
-    .limit(20);
+    .limit(40);
 
   const priceChangeCount = await db
     .select({ c: count() })
     .from(detectedChanges)
-    .where(and(eq(detectedChanges.changeType, "price_changed"), eq(detectedChanges.status, "pending")));
+    .where(eq(detectedChanges.changeType, "price_changed"));
 
   const stockChangeCount = await db
     .select({ c: count() })
     .from(detectedChanges)
-    .where(and(eq(detectedChanges.changeType, "stock_changed"), eq(detectedChanges.status, "pending")));
+    .where(eq(detectedChanges.changeType, "stock_changed"));
 
   const variantChangeCount = await db
     .select({ c: count() })
     .from(detectedChanges)
     .where(
-      sql`${detectedChanges.changeType} IN ('variant_added','variant_removed','variant_changed','variant_price_changed','variant_stock_changed') AND ${detectedChanges.status} = 'pending'`,
+      sql`${detectedChanges.changeType} IN ('variant_added','variant_removed','variant_changed','variant_price_changed','variant_stock_changed')`,
     );
 
   const { getLastStartupAuditResult, isStartupAuditRunning, listRecentStartupNotifications } =

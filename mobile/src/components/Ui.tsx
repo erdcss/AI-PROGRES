@@ -211,43 +211,45 @@ export const ChangeRowItem = memo(function ChangeRowItem({
   shopifyFixing?: boolean;
 }) {
   return (
-    <TouchableOpacity
-      style={[styles.changeRow, compact && { paddingVertical: 10 }]}
-      onPress={onPress}
-      activeOpacity={0.75}
-    >
-      {item.productImageUrl ? (
-        <Image source={{ uri: item.productImageUrl }} style={styles.thumb} />
-      ) : (
-        <View style={[styles.thumb, styles.thumbEmpty]} />
-      )}
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={styles.changeTitleRow}>
-          <Text style={styles.changeTitle} numberOfLines={1}>
-            {item.productTitle || `Ürün #${item.trackedProductId}`}
-          </Text>
-          <WatchTagBadge tag={item.watchTag} />
-          <ChangeDeltaMark item={item} />
-        </View>
-        <Text style={styles.changeMeta}>{changeTypeLabel(item.changeType)}</Text>
-        <Text style={styles.changeValues} numberOfLines={1}>
-          {formatChangeValue(item.oldValue)} → {formatChangeValue(item.newValue)}
-        </Text>
-        <Text style={styles.changeTime}>{formatRelativeTime(item.createdAt)}</Text>
-        {onShopifyFix ? (
-          <TouchableOpacity
-            style={styles.fixBtn}
-            onPress={onShopifyFix}
-            disabled={shopifyFixing}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.fixBtnText}>
-              {shopifyFixing ? "Düzeltiliyor…" : "Shopify'da düzelt"}
+    <View style={[styles.changeRow, compact && { paddingVertical: 10 }]}>
+      <TouchableOpacity
+        style={styles.changeRowMain}
+        onPress={onPress}
+        activeOpacity={0.75}
+      >
+        {item.productImageUrl ? (
+          <Image source={{ uri: item.productImageUrl }} style={styles.thumb} />
+        ) : (
+          <View style={[styles.thumb, styles.thumbEmpty]} />
+        )}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={styles.changeTitleRow}>
+            <Text style={styles.changeTitle} numberOfLines={1}>
+              {item.productTitle || `Ürün #${item.trackedProductId}`}
             </Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-    </TouchableOpacity>
+            <WatchTagBadge tag={item.watchTag} />
+            <ChangeDeltaMark item={item} />
+          </View>
+          <Text style={styles.changeMeta}>{changeTypeLabel(item.changeType)}</Text>
+          <Text style={styles.changeValues} numberOfLines={1}>
+            {formatChangeValue(item.oldValue)} → {formatChangeValue(item.newValue)}
+          </Text>
+          <Text style={styles.changeTime}>{formatRelativeTime(item.createdAt)}</Text>
+        </View>
+      </TouchableOpacity>
+      {onShopifyFix ? (
+        <TouchableOpacity
+          style={styles.fixBtn}
+          onPress={onShopifyFix}
+          disabled={shopifyFixing}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.fixBtnText}>
+            {shopifyFixing ? "Düzeltiliyor…" : "Shopify'da düzelt"}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
   );
 });
 
@@ -481,14 +483,17 @@ const styles = StyleSheet.create({
   filterText: { color: colors.textMuted, fontSize: 12 },
   filterTextOn: { color: colors.text, fontWeight: "600" },
   changeRow: {
-    flexDirection: "row",
-    gap: 12,
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
+  },
+  changeRowMain: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
   },
   thumb: { width: 52, height: 52, borderRadius: 8, backgroundColor: "#000" },
   thumbEmpty: { backgroundColor: colors.skeletonHighlight },

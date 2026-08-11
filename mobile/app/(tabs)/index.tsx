@@ -32,7 +32,7 @@ export default function HomeScreen() {
   const q = useQuery({
     queryKey: ["dashboard"],
     queryFn: fetchDashboard,
-    refetchInterval: false,
+    refetchInterval: 8_000,
   });
 
   const cards = q.data?.cards;
@@ -83,7 +83,7 @@ export default function HomeScreen() {
                 icon="▣"
               />
               <StatCard label="Aktif Takip" value={cards?.trackedActive ?? cards?.trackedTotal ?? 0} icon="◎" />
-              <StatCard label="Bekleyen Değişiklik" value={cards?.pendingChanges ?? 0} icon="…" />
+              <StatCard label="Tespit Edilen Değişiklik" value={cards?.pendingChanges ?? 0} icon="…" />
               <StatCard label="Fiyat Değişiklikleri" value={cards?.priceChanges ?? 0} icon="⇄" />
               <StatCard label="Stok Değişiklikleri" value={cards?.stockChanges ?? 0} icon="▢" />
               <StatCard label="Varyant Değişiklikleri" value={cards?.variantChanges ?? 0} icon="▦" />

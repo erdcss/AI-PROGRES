@@ -278,7 +278,7 @@ async function runBulkTrackingAction(
 export default function UrunTakipPage({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string>("actionable");
+  const [statusFilter, setStatusFilter] = useState<string>("history");
   const [kindFilter, setKindFilter] = useState<ChangeKindFilter | null>(null);
   const [settingsForm, setSettingsForm] = useState<Partial<TrackingSettings>>({});
 
@@ -683,7 +683,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             value: st?.trackedProductsCount ?? "—",
             hint: st?.activeTrackedProductsCount != null ? `${st.activeTrackedProductsCount} aktif` : undefined,
           },
-          { label: "Bekleyen değişiklik", value: st?.pendingChangesCount ?? "—" },
+          { label: "Tespit edilen değişiklik", value: changeCountsQuery.data?.all ?? st?.pendingChangesCount ?? "—" },
           { label: "Manuel inceleme", value: st?.manualReviewCount ?? "—" },
           {
             label: "Son kontrol",
@@ -706,9 +706,9 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           <TabsTrigger value="products">Takip Edilen Ürünler</TabsTrigger>
           <TabsTrigger value="changes">
             Değişiklikler
-            {((st?.pendingChangesCount ?? 0) + (st?.manualReviewCount ?? 0)) > 0 && (
+            {(changeCountsQuery.data?.all ?? 0) > 0 && (
               <Badge className="ml-2 h-5 px-1.5" variant="destructive">
-                {(st?.pendingChangesCount ?? 0) + (st?.manualReviewCount ?? 0)}
+                {changeCountsQuery.data?.all}
               </Badge>
             )}
           </TabsTrigger>

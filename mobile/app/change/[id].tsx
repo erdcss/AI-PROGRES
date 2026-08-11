@@ -12,7 +12,7 @@ import {
   priceDeltaDirection,
   isPriceChangeType,
 } from "../../src/lib/format";
-import { canOneTapShopifyFix } from "../../src/lib/shopify-fix";
+import { showShopifyFixButton } from "../../src/lib/shopify-fix";
 import { ErrorState, MetaLine, SkeletonList } from "../../src/components/Ui";
 
 export default function ChangeDetailScreen() {
@@ -79,7 +79,7 @@ export default function ChangeDetailScreen() {
   const dir = isPriceChangeType(item.changeType)
     ? priceDeltaDirection(item.oldValue, item.newValue)
     : null;
-  const canFix = canOneTapShopifyFix(item);
+  const canFix = showShopifyFixButton(item);
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
