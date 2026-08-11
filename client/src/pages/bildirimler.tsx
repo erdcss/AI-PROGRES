@@ -189,9 +189,13 @@ export default function BildirimlerPage() {
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data: { message?: string; mobile?: { sent?: number } }) => {
       void qc.invalidateQueries({ queryKey: ["/api/telegram/history"] });
-      toast({ title: "Test bildirimi gönderildi", description: "Telegram bağlantınızı kontrol edin." });
+      void qc.invalidateQueries({ queryKey: ["/api/notifications/devices"] });
+      toast({
+        title: "Mobil test gönderildi",
+        description: data.message || "ORVIAN uygulamasındaki bildirimi kontrol edin.",
+      });
     },
     onError: (err: Error) => {
       toast({ title: "Test başarısız", description: err.message, variant: "destructive" });
@@ -260,10 +264,10 @@ export default function BildirimlerPage() {
           </div>
           <h1 className="home-title text-2xl tracking-[0.18em]">Bildirimler</h1>
           <p className="home-muted mt-2 text-[13px] leading-relaxed">
-            Hangi olaylarda bildirim gideceğini açıp kapatın. Test ile bağlantıyı doğrulayın.
+            Hangi olaylarda bildirim gideceğini açıp kapatın. Test, kayıtlı ORVIAN cihazlarına mobil bildirim gönderir.
           </p>
           <p className="mt-3 text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-            {connected ? "Bağlantı hazır" : "Telegram bağlantısı kontrol edin"}
+            {connected ? "Telegram yedek kanal hazır" : "Telegram yedek kanalı isteğe bağlı"}
           </p>
         </motion.header>
 

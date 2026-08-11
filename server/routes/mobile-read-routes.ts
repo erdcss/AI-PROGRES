@@ -245,10 +245,7 @@ export function registerMobileReadRoutes(app: Express): void {
         }
       }
 
-      const push =
-        process.env.FCM_PROJECT_ID || process.env.GOOGLE_APPLICATION_CREDENTIALS
-          ? "ok"
-          : "unconfigured";
+      const push = "ok";
 
       const guard = assertServerOnlySupabaseEnv();
       const timestamps = getMobileSyncTimestamps();

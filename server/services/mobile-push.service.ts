@@ -24,7 +24,8 @@ export type MobilePushEventType =
   | "PRODUCT_REMOVED"
   | "TRACKING_ERROR"
   | "SHOPIFY_SYNC_ERROR"
-  | "TITLE_CHANGED";
+  | "TITLE_CHANGED"
+  | "TEST";
 
 export type RegisterMobilePushInput = {
   deviceId: string;
@@ -135,6 +136,7 @@ export function buildPushPayload(
     TRACKING_ERROR: "Takip hatası",
     SHOPIFY_SYNC_ERROR: "Shopify senkron hatası",
     TITLE_CHANGED: "Başlık değişti",
+    TEST: "Test bildirimi",
   };
   const tagPrefix = watchTagLabel(watchTag);
   const baseTitle = titleMap[type];
@@ -320,10 +322,74 @@ export async function unregisterMobilePushDevice(input: {
   return { removed: updated.length };
 }
 
+export function isExpoPushToken(token: string): boolean {
+  const t = String(token || "").trim();
+  return /^(ExponentPushToken|ExpoPushToken)\[/i.test(t);
+}
+
+async function sendViaExpoPush(
+  token: string,
+  payload: MobilePushPayload,
+): Promise<FcmSendResult> {
+  try {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Accept-Encoding": "gzip, deflate",
+      "Content-Type": "application/json",
+    };
+    const expoAuth = process.env.EXPO_ACCESS_TOKEN?.trim();
+    if (expoAuth) headers.Authorization = `Bearer ${expoAuth}`;
+
+    const res = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        to: token,
+        title: payload.title,
+        body: payload.body,
+        sound: "default",
+        channelId: "tracking_alerts",
+        priority: "high",
+        data: {
+          type: payload.data.type,
+          productId: payload.data.productId,
+          changeId: payload.data.changeId,
+        },
+      }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      data?: { status?: string; message?: string; details?: { error?: string } } | Array<{
+        status?: string;
+        message?: string;
+        details?: { error?: string };
+      }>;
+      errors?: Array<{ message?: string }>;
+    };
+    const ticket = Array.isArray(json.data) ? json.data[0] : json.data;
+    if (ticket?.status === "ok") return { ok: true };
+
+    const errMsg =
+      ticket?.message ||
+      ticket?.details?.error ||
+      json.errors?.[0]?.message ||
+      `expo push HTTP ${res.status}`;
+    const invalid = /DeviceNotRegistered|not a registered push notification recipient/i.test(
+      String(errMsg),
+    );
+    return { ok: false, invalidToken: invalid, error: String(errMsg) };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 async function defaultFcmSend(
   token: string,
   payload: MobilePushPayload,
 ): Promise<FcmSendResult> {
+  if (isExpoPushToken(token)) {
+    return sendViaExpoPush(token, payload);
+  }
+
   const projectId = process.env.FCM_PROJECT_ID?.trim();
   const clientEmail = process.env.FCM_CLIENT_EMAIL?.trim();
   const privateKey = process.env.FCM_PRIVATE_KEY?.replace(/\\n/g, "\n")?.trim();
@@ -478,4 +544,74 @@ export function scheduleChangePush(change: DetectedChange): void {
   void dispatchChangePush(change).catch((err) => {
     console.warn("[mobile-push] scheduleChangePush:", err);
   });
+}
+
+export type TestMobilePushResult = {
+  deviceCount: number;
+  sent: number;
+  failed: number;
+  error?: string;
+};
+
+/** Bildirimler sayfası test butonu — kayıtlı ORVIAN cihazlarına gider */
+export async function sendTestMobilePush(): Promise<TestMobilePushResult> {
+  try {
+    await ensureTable();
+    const devices = await db
+      .select()
+      .from(mobilePushDevices)
+      .where(and(eq(mobilePushDevices.enabled, true), eq(mobilePushDevices.platform, "android")));
+
+    if (!devices.length) {
+      return {
+        deviceCount: 0,
+        sent: 0,
+        failed: 0,
+        error: "Kayıtlı mobil cihaz yok. ORVIAN uygulamasını açıp bildirim izni verin.",
+      };
+    }
+
+    const payload: MobilePushPayload = {
+      title: "Test bildirimi",
+      body: "ORVIAN mobil bildirim bağlantısı çalışıyor.",
+      data: {
+        type: "TEST",
+        productId: "",
+        changeId: "",
+      },
+    };
+
+    const send = fcmSender || defaultFcmSend;
+    let sent = 0;
+    let failed = 0;
+    let lastError: string | undefined;
+    for (const device of devices) {
+      try {
+        const result = await send(device.pushToken, payload);
+        if (result.ok) {
+          sent += 1;
+        } else {
+          failed += 1;
+          lastError = result.error;
+          console.warn("[mobile-push] test send failed:", result.error);
+          if (result.invalidToken) await disableToken(device.pushToken);
+        }
+      } catch (err) {
+        failed += 1;
+        lastError = err instanceof Error ? err.message : String(err);
+        console.warn("[mobile-push] test send threw:", lastError);
+      }
+    }
+
+    return {
+      deviceCount: devices.length,
+      sent,
+      failed,
+      error: sent === 0 ? lastError || "Mobil bildirim gönderilemedi" : undefined,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[mobile-push] sendTestMobilePush:", message);
+    return { deviceCount: 0, sent: 0, failed: 0, error: message };
+  }
 }

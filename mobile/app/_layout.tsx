@@ -46,9 +46,11 @@ function DeepLinkHandler() {
     try {
       notifSub = Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data as {
+          type?: string;
           productId?: string;
           changeId?: string;
         };
+        if (data?.type === "TEST") return;
         if (data?.changeId) router.push(`/change/${data.changeId}`);
         else if (data?.productId) router.push(`/product/tracked-${data.productId}`);
       });

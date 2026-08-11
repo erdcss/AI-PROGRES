@@ -95,10 +95,9 @@ export function usePushRegistration(): void {
         const token = await registerForPushAsync();
         if (!token || cancelled) return;
         const deviceId =
-          Constants.sessionId ||
-          Device.modelId ||
-          Device.modelName ||
-          `android-${Date.now()}`;
+          [Device.osInternalBuildId, Device.modelId, Device.modelName, Platform.OS]
+            .filter(Boolean)
+            .join("-") || `android-${Device.modelName || "device"}`;
         await registerPushDevice({
           deviceId: String(deviceId),
           platform: "android",

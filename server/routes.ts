@@ -7519,14 +7519,41 @@ setTimeout(check, 1000);
   // TÃ¼m bildirimleri aÃ§/kapat
   app.post('/api/notifications/test', async (_req, res) => {
     try {
-      await telegramIntegration.sendNotification(
-        "Test bildirimi — ORVIAN bildirim bağlantısı çalışıyor.",
-        "test",
-        undefined,
-        undefined,
-        { source: "bildirimler_page" },
-      );
-      res.json({ success: true, message: "Test bildirimi gönderildi" });
+      const { sendTestMobilePush } = await import('./services/mobile-push.service');
+      const mobile = await sendTestMobilePush();
+
+      let telegram: { ok: boolean; error?: string } = { ok: false };
+      try {
+        await telegramIntegration.sendNotification(
+          "Test bildirimi — ORVIAN bildirim bağlantısı çalışıyor.",
+          "test",
+          undefined,
+          undefined,
+          { source: "bildirimler_page" },
+        );
+        telegram = { ok: true };
+      } catch (tgErr) {
+        telegram = {
+          ok: false,
+          error: tgErr instanceof Error ? tgErr.message : String(tgErr),
+        };
+      }
+
+      if (mobile.sent > 0) {
+        return res.json({
+          success: true,
+          message: `${mobile.sent} mobil cihaza gönderildi`,
+          mobile,
+          telegram,
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        error: mobile.error || "Mobil bildirimi gönderilemedi",
+        mobile,
+        telegram,
+      });
     } catch (error) {
       res.status(500).json({
         success: false,

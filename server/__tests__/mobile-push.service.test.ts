@@ -5,6 +5,7 @@
 import {
   buildPushPayload,
   mapChangeToPushEvent,
+  isExpoPushToken,
   setMobilePushFcmSender,
   dispatchChangePush,
   scheduleChangePush,
@@ -97,6 +98,9 @@ assert(payload.body.includes("100") && payload.body.includes("90"), "push body o
 assert(payload.data.type === "PRICE_CHANGED", "payload data.type");
 assert(payload.data.productId === "42", "payload data.productId");
 assert(payload.data.changeId === "1", "payload data.changeId");
+assert(isExpoPushToken("ExponentPushToken[abc]"), "detects Expo push token");
+assert(isExpoPushToken("ExpoPushToken[xyz]"), "detects ExpoPushToken form");
+assert(!isExpoPushToken("dK3fcmNativeTokenExample"), "native FCM token is not Expo");
 
 // Dispatch isolation: FCM throw must not reject
 setMobilePushFcmSender(async () => {

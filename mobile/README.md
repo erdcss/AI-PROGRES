@@ -19,11 +19,11 @@ cd mobile
 eas build --platform android --profile apk
 ```
 
-Firebase `google-services.json` dosyasını `mobile/` altına koyun (gitignore’da).
+APK, Expo push token kaydeder. Backend `ExponentPushToken[...]` için Expo Push API kullanır; native FCM token için isteğe bağlı `FCM_*` yeterlidir.
 
 ## Backend env
 
-`FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` (veya `GOOGLE_APPLICATION_CREDENTIALS`)
+Expo token’lar için ekstra secret gerekmez. Native FCM için: `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` (veya `GOOGLE_APPLICATION_CREDENTIALS`). İsteğe bağlı `EXPO_ACCESS_TOKEN`.
 
 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (yalnızca sunucu)
 
