@@ -174,6 +174,20 @@ export default function ProductDetailScreen() {
     }
   };
 
+  const joinList = (v?: unknown) =>
+    Array.isArray(v) ? v.filter(Boolean).map(String).join(", ") : "";
+
+  const featureLines = (features?: Record<string, unknown> | null) => {
+    if (!features || typeof features !== "object") return [];
+    return Object.entries(features)
+      .filter(([, val]) => val != null && String(val).trim() !== "")
+      .slice(0, 40)
+      .map(([label, val]) => ({
+        label,
+        value: Array.isArray(val) ? val.map(String).join(", ") : String(val),
+      }));
+  };
+
   const renderVariantList = (list: ProductVariantRow[] | undefined) => {
     const rows = list || [];
     return (
@@ -186,11 +200,35 @@ export default function ProductDetailScreen() {
             <View key={String(v.id ?? idx)} style={styles.variant}>
               <Text style={styles.variantTitle}>{variantTitle(v)}</Text>
               <Text style={styles.variantMeta}>
-                {formatMoney(variantPrice(v))} · stok {variantStock(v) ?? "—"}
+                Alış {formatMoney(v.trendyolPrice ?? variantPrice(v))}
+                {" · "}
+                Satış {formatMoney(v.shopifyPrice ?? v.price)}
+                {" · "}
+                stok {variantStock(v) ?? "—"}
+                {v.inStock === false ? " · tükendi" : ""}
               </Text>
+              {v.sku || v.sourceSku || v.barcode ? (
+                <Text style={styles.variantMeta}>
+                  SKU {v.sku || v.sourceSku || "—"}
+                  {v.barcode ? ` · barkod ${v.barcode}` : ""}
+                </Text>
+              ) : null}
+              {v.shopifyVariantId ? (
+                <Text style={styles.variantMeta}>Shopify {v.shopifyVariantId}</Text>
+              ) : null}
             </View>
           ))
         )}
+      </>
+    );
+  };
+
+  const renderDescription = (text?: string | null) => {
+    if (!text?.trim()) return null;
+    return (
+      <>
+        <Text style={styles.section}>Açıklama</Text>
+        <Text style={styles.description}>{text.trim()}</Text>
       </>
     );
   };
@@ -273,11 +311,30 @@ export default function ProductDetailScreen() {
             label="Takip"
             value={tracked.trackingEnabled ? "Aktif" : "Pasif"}
           />
+          <MetaLine label="Durum" value={tracked.currentStatus || "—"} />
+          <MetaLine label="Shopify ID" value={tracked.shopifyProductId || "—"} />
+          <MetaLine label="Shopify senkron" value={tracked.shopifySyncStatus || "—"} />
+          <MetaLine
+            label="Kontrol aralığı"
+            value={
+              tracked.checkIntervalMinutes != null
+                ? `${tracked.checkIntervalMinutes} dk`
+                : "—"
+            }
+          />
           <MetaLine
             label="Son kontrol"
             value={formatDateTime(tracked.lastCheckedAt || tracked.lastSuccessAt)}
           />
+          {matchedScraped?.brand ? <MetaLine label="Marka" value={matchedScraped.brand} /> : null}
+          {matchedScraped?.category ? (
+            <MetaLine label="Kategori" value={matchedScraped.category} />
+          ) : null}
+          {matchedScraped?.trendyolProductId ? (
+            <MetaLine label="Kaynak ürün ID" value={matchedScraped.trendyolProductId} />
+          ) : null}
         </View>
+        {renderDescription(matchedScraped?.description)}
 
         {tracked.sourceUrl ? (
           <Text
@@ -353,7 +410,11 @@ export default function ProductDetailScreen() {
         </TouchableOpacity>
         <View style={styles.panel}>
           <MetaLine label="Kaynak" value="Shopify" />
+          <MetaLine label="Handle" value={memoryProduct.handle || "—"} />
+          <MetaLine label="Satıcı" value={memoryProduct.vendor || "—"} />
+          <MetaLine label="Ürün tipi" value={memoryProduct.productType || "—"} />
           <MetaLine label="SKU" value={memoryProduct.sku || "—"} />
+          <MetaLine label="Barkod" value={memoryProduct.barcode || "—"} />
           <MetaLine
             label="Stok"
             value={
@@ -362,7 +423,24 @@ export default function ProductDetailScreen() {
                 : "—"
             }
           />
+          <MetaLine label="Stok politikası" value={memoryProduct.inventoryPolicy || "—"} />
+          <MetaLine
+            label="Karşılaştırma fiyatı"
+            value={formatMoney(memoryProduct.compareAtPrice)}
+          />
+          <MetaLine
+            label="Ağırlık"
+            value={
+              memoryProduct.weight != null
+                ? `${memoryProduct.weight} ${memoryProduct.weightUnit || "kg"}`
+                : "—"
+            }
+          />
           <MetaLine label="Durum" value={memoryProduct.status || "—"} />
+          <MetaLine label="Etiketler" value={joinList(memoryProduct.tags) || "—"} />
+          <MetaLine label="Shopify ID" value={memoryProduct.shopifyProductId || "—"} />
+          <MetaLine label="Shopify varyant" value={memoryProduct.shopifyVariantId || "—"} />
+          <MetaLine label="Takip ID" value={memoryProduct.uniqueTrackingId || "—"} />
           <MetaLine
             label="Takip"
             value={
@@ -376,6 +454,7 @@ export default function ProductDetailScreen() {
             }
           />
           <MetaLine label="Son senkron" value={formatDateTime(memoryProduct.lastSyncAt)} />
+          <MetaLine label="Shopify oluşturulma" value={formatDateTime(memoryProduct.shopifyCreatedAt)} />
         </View>
         {memoryProduct.sourceUrl ? (
           <Text
@@ -459,7 +538,17 @@ export default function ProductDetailScreen() {
           label="Kaynak"
           value={marketplaceLabel(scrapedProduct.marketplace || scrapedProduct.sourcePlatform)}
         />
+        <MetaLine label="Marka" value={scrapedProduct.brand || "—"} />
+        <MetaLine label="Kategori" value={scrapedProduct.category || "—"} />
+        <MetaLine label="Liste fiyatı" value={formatMoney(scrapedProduct.originalPrice)} />
+        <MetaLine label="Güncel fiyat" value={formatMoney(scrapedProduct.currentPrice)} />
         <MetaLine label="Stok" value={scrapedProduct.stockStatus || "—"} />
+        <MetaLine label="Renkler" value={joinList(scrapedProduct.colorOptions) || "—"} />
+        <MetaLine label="Bedenler" value={joinList(scrapedProduct.sizeOptions) || "—"} />
+        <MetaLine
+          label="Varyant"
+          value={String(scrapedProduct.variantCount ?? scrapedProduct.variants?.length ?? "—")}
+        />
         <MetaLine
           label="Takip"
           value={
@@ -470,21 +559,44 @@ export default function ProductDetailScreen() {
               : "Takipte değil"
           }
         />
+        <MetaLine label="Aktif" value={scrapedProduct.isActive === false ? "Hayır" : "Evet"} />
+        <MetaLine label="Kaynak ürün ID" value={scrapedProduct.trendyolProductId || "—"} />
+        <MetaLine label="Takip ID" value={scrapedProduct.uniqueTrackingId || "—"} />
+        <MetaLine label="Shopify ID" value={scrapedProduct.shopifyProductId || "—"} />
+        <MetaLine label="Shopify URL" value={scrapedProduct.shopifyUrl || "—"} />
+        <MetaLine label="Mağaza URL" value={scrapedProduct.shopifyStoreUrl || "—"} />
+        <MetaLine label="Kaynak URL" value={scrapedProduct.sourceUrl || scrapedProduct.trendyolUrl || "—"} />
+        <MetaLine
+          label="Kâr marjı"
+          value={scrapedProduct.profitMargin != null ? `%${scrapedProduct.profitMargin}` : "—"}
+        />
+        <MetaLine label="Senkron" value={scrapedProduct.syncStatus || "—"} />
         <MetaLine
           label="Son çekim"
           value={formatDateTime(scrapedProduct.scrapedAt || scrapedProduct.createdAt)}
         />
-        <MetaLine
-          label="Varyant"
-          value={String(scrapedProduct.variantCount ?? scrapedProduct.variants?.length ?? "—")}
-        />
+        <MetaLine label="Son kontrol" value={formatDateTime(scrapedProduct.lastChecked)} />
+        {featureLines(scrapedProduct.features).map((row) => (
+          <MetaLine key={row.label} label={row.label} value={row.value} />
+        ))}
       </View>
+      {renderDescription(scrapedProduct.description)}
       {scrapedProduct.trendyolUrl ? (
         <Text
           style={styles.link}
           onPress={() => Linking.openURL(scrapedProduct.trendyolUrl!)}
         >
           Kaynak bağlantısını aç
+        </Text>
+      ) : null}
+      {scrapedProduct.shopifyUrl || scrapedProduct.shopifyStoreUrl ? (
+        <Text
+          style={styles.link}
+          onPress={() =>
+            Linking.openURL(scrapedProduct.shopifyStoreUrl || scrapedProduct.shopifyUrl!)
+          }
+        >
+          Shopify bağlantısını aç
         </Text>
       ) : null}
       {renderVariantList(scrapedProduct.variants)}
@@ -550,4 +662,5 @@ const styles = StyleSheet.create({
   },
   variantTitle: { color: colors.text, fontWeight: "600", fontSize: 13 },
   variantMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
+  description: { color: colors.textSecondary, fontSize: 13, lineHeight: 20 },
 });

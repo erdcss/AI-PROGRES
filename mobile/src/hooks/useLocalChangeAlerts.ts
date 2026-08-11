@@ -8,7 +8,7 @@ import {
   formatChangeValue,
 } from "../lib/format";
 import { parseWatchTag, shouldNotifyForWatchTag, watchTagLabel } from "../lib/watch-tag";
-import { ensureAndroidChannel, requestNotificationPermission } from "./usePush";
+import { ensureAndroidChannel, getNotificationPermissionStatus } from "./usePush";
 
 async function presentLocal(change: ChangeRow): Promise<void> {
   try {
@@ -46,7 +46,7 @@ export function useLocalChangeAlerts(): void {
   });
 
   useEffect(() => {
-    void requestNotificationPermission();
+    void getNotificationPermissionStatus();
   }, []);
 
   useEffect(() => {

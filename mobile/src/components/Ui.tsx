@@ -372,8 +372,8 @@ export function SettingToggle({
         value={value}
         onValueChange={onValueChange}
         disabled={disabled}
-        trackColor={{ false: colors.border, true: colors.textMuted }}
-        thumbColor={value ? colors.text : colors.textSecondary}
+        trackColor={{ false: "#27272A", true: "#E4E4E7" }}
+        thumbColor={value ? "#FAFAFA" : "#A1A1AA"}
       />
     </View>
   );

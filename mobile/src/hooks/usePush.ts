@@ -1,11 +1,13 @@
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { Linking, PermissionsAndroid, Platform } from "react-native";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { registerPushDevice } from "../api/tracking";
 
 const CHANNEL_ID = "tracking_alerts";
+
+export type NotificationPermissionStatus = "granted" | "denied" | "undetermined";
 
 /** Expo Go (SDK 53+) does not support remote push. Standalone/dev builds do. */
 export function isExpoGoRuntime(): boolean {
@@ -40,29 +42,75 @@ export async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
   try {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: "Tracking Alerts",
-      importance: Notifications.AndroidImportance.HIGH,
+      name: "Bildirimler",
+      description: "Fiyat, stok ve varyant uyarıları",
+      importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FFFFFF",
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      enableVibrate: true,
+      showBadge: true,
     });
   } catch (err) {
     console.warn("[push] notification channel skipped", err);
   }
 }
 
+function mapStatus(status?: string | null): NotificationPermissionStatus {
+  if (status === "granted") return "granted";
+  if (status === "denied") return "denied";
+  return "undetermined";
+}
+
+export async function getNotificationPermissionStatus(): Promise<NotificationPermissionStatus> {
+  try {
+    const current = await Notifications.getPermissionsAsync();
+    return mapStatus(current.status);
+  } catch (err) {
+    console.warn("[push] get permission skipped", err);
+    return "undetermined";
+  }
+}
+
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    let finalStatus = existing;
-    if (existing !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    await ensureAndroidChannel();
+
+    if (Platform.OS === "android" && Number(Platform.Version) >= 33) {
+      const perm = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
+      if (perm) {
+        const androidResult = await PermissionsAndroid.request(perm);
+        if (androidResult !== PermissionsAndroid.RESULTS.GRANTED) {
+          return false;
+        }
+      }
     }
-    return finalStatus === "granted";
+
+    const current = await Notifications.getPermissionsAsync();
+    if (current.status === "granted") return true;
+
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === "granted";
   } catch (err) {
     console.warn("[push] permission skipped", err);
     return false;
   }
+}
+
+export async function openNotificationSettings(): Promise<void> {
+  try {
+    await Linking.openSettings();
+  } catch (err) {
+    console.warn("[push] openSettings skipped", err);
+  }
+}
+
+function stableDeviceId(): string {
+  return (
+    [Device.osInternalBuildId, Device.modelId, Device.modelName, Platform.OS]
+      .filter(Boolean)
+      .join("-") || `android-${Device.modelName || "device"}`
+  );
 }
 
 export async function registerForPushAsync(): Promise<string | null> {
@@ -71,7 +119,7 @@ export async function registerForPushAsync(): Promise<string | null> {
     return null;
   }
   await ensureAndroidChannel();
-  const granted = await requestNotificationPermission();
+  const granted = (await getNotificationPermissionStatus()) === "granted";
   if (!granted) return null;
 
   const projectId =
@@ -87,26 +135,50 @@ export async function registerForPushAsync(): Promise<string | null> {
   return tokenRes.data || null;
 }
 
+export type RegisterPushResult = {
+  ok: boolean;
+  error?: string;
+};
+
+export async function registerPushIfAllowed(): Promise<RegisterPushResult> {
+  try {
+    if (isExpoGoRuntime()) {
+      return {
+        ok: false,
+        error: "Expo Go uzak bildirim kaydetmez. Kurulu APK kullanın.",
+      };
+    }
+    if (!Device.isDevice) {
+      return { ok: false, error: "Kayıt için fiziksel cihaz gerekli." };
+    }
+    if ((await getNotificationPermissionStatus()) !== "granted") {
+      return { ok: false, error: "Önce sistem bildirim iznini verin." };
+    }
+    const token = await registerForPushAsync();
+    if (!token) {
+      return { ok: false, error: "Push token alınamadı." };
+    }
+    await registerPushDevice({
+      deviceId: stableDeviceId(),
+      platform: "android",
+      pushToken: token,
+      appVersion: Constants.expoConfig?.version || "1.0.0",
+    });
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[push] register failed", message);
+    return { ok: false, error: message };
+  }
+}
+
 export function usePushRegistration(): void {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const token = await registerForPushAsync();
-        if (!token || cancelled) return;
-        const deviceId =
-          [Device.osInternalBuildId, Device.modelId, Device.modelName, Platform.OS]
-            .filter(Boolean)
-            .join("-") || `android-${Device.modelName || "device"}`;
-        await registerPushDevice({
-          deviceId: String(deviceId),
-          platform: "android",
-          pushToken: token,
-          appVersion: Constants.expoConfig?.version || "1.0.0",
-        });
-      } catch (err) {
-        console.warn("[push] register failed", err);
-      }
+      const status = await getNotificationPermissionStatus();
+      if (cancelled || status !== "granted") return;
+      await registerPushIfAllowed();
     })();
     return () => {
       cancelled = true;

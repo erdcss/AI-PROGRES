@@ -44,6 +44,14 @@ assert(
   uniqueImageUrls("https://a.com/1.jpg", ["https://a.com/1.jpg", "https://b.com/2.jpg"]).length === 2,
   "uniqueImageUrls dedupes",
 );
+assert(
+  uniqueImageUrls("//cdn.dsmcdn.com/x.jpg")[0] === "https://cdn.dsmcdn.com/x.jpg",
+  "protocol-relative image becomes https",
+);
+assert(
+  uniqueImageUrls("http://cdn.dsmcdn.com/x.jpg")[0] === "https://cdn.dsmcdn.com/x.jpg",
+  "http image upgraded to https",
+);
 assert(parseWatchTag("red") === "red", "parseWatchTag red");
 assert(shouldNotifyForWatchTag("red", "title_changed") === true, "red tag notifies immediately");
 assert(

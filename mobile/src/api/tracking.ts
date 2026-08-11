@@ -54,17 +54,33 @@ export type ScrapedProduct = {
   id: number;
   title: string;
   brand?: string | null;
+  description?: string | null;
+  category?: string | null;
   marketplace?: string;
   sourcePlatform?: string | null;
   currentPrice?: string | number | null;
+  originalPrice?: string | number | null;
   image?: string | null;
-  images?: string[] | null;
+  images?: unknown;
+  colorOptions?: string[] | null;
+  sizeOptions?: string[] | null;
+  features?: Record<string, unknown> | null;
   shopifyStatus?: string;
   shopifyProductId?: string | null;
+  shopifyUrl?: string | null;
+  shopifyStoreUrl?: string | null;
+  trendyolProductId?: string | null;
+  uniqueTrackingId?: string | null;
   scrapedAt?: string;
   createdAt?: string;
+  lastChecked?: string | null;
+  lastSyncAt?: string | null;
+  syncStatus?: string | null;
   trendyolUrl?: string | null;
+  sourceUrl?: string | null;
   stockStatus?: string | null;
+  isActive?: boolean | null;
+  profitMargin?: string | number | null;
   watchTag?: string | null;
   variantCount?: number;
   variants?: ProductVariantRow[];
@@ -97,6 +113,7 @@ export type ProductVariantRow = {
   color?: string | null;
   size?: string | null;
   sku?: string | null;
+  barcode?: string | null;
   sourceSku?: string | null;
   price?: string | number | null;
   trendyolPrice?: string | number | null;
@@ -107,6 +124,7 @@ export type ProductVariantRow = {
   inventoryQuantity?: number | null;
   currentSourceStock?: number | null;
   inStock?: boolean | null;
+  shopifyVariantId?: string | null;
 };
 
 export type MemoryProduct = {
@@ -116,17 +134,28 @@ export type MemoryProduct = {
   vendor?: string | null;
   productType?: string | null;
   status?: string | null;
+  tags?: string[] | null;
   price?: string | number | null;
   compareAtPrice?: string | number | null;
   inventoryQuantity?: number | null;
+  inventoryPolicy?: string | null;
   sku?: string | null;
+  barcode?: string | null;
+  weight?: string | number | null;
+  weightUnit?: string | null;
   image?: string | null;
   images?: unknown;
+  options?: unknown;
+  metafields?: unknown;
   variants?: ProductVariantRow[] | unknown;
   variantCount?: number;
   sourceUrl?: string | null;
   shopifyProductId?: string | null;
+  shopifyVariantId?: string | null;
+  uniqueTrackingId?: string | null;
   lastSyncAt?: string | null;
+  shopifyCreatedAt?: string | null;
+  shopifyUpdatedAt?: string | null;
   isTracking?: boolean | null;
   tracking?: TrackedProduct | null;
 };
@@ -455,5 +484,38 @@ export async function registerPushDevice(body: {
   return apiFetch("/api/mobile/push/register", {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+export type NotificationSetting = {
+  id: number;
+  notificationType: string;
+  enabled: boolean;
+  description?: string | null;
+};
+
+export async function fetchNotificationSettings() {
+  return apiFetch<{ success: boolean; settings: NotificationSetting[] }>(
+    "/api/telegram/settings",
+  );
+}
+
+export async function updateNotificationSetting(type: string, enabled: boolean) {
+  return apiFetch(`/api/telegram/settings/${encodeURIComponent(type)}`, {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+export async function toggleAllNotificationSettings(enabled: boolean) {
+  return apiFetch("/api/telegram/settings/toggle-all", {
+    method: "POST",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+export async function sendMobileNotificationTest() {
+  return apiFetch<{ success: boolean; message?: string }>("/api/notifications/test", {
+    method: "POST",
   });
 }

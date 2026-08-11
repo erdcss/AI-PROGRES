@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
@@ -11,6 +11,7 @@ import { useAllMobileRealtime } from "../src/hooks/useRealtime";
 import { useLocalChangeAlerts } from "../src/hooks/useLocalChangeAlerts";
 import { parseDeepLink } from "../src/lib/format";
 import { NotificationDrawerProvider } from "../src/components/NotificationDrawer";
+import { NotificationPermissionGate } from "../src/components/NotificationPermissionGate";
 import { BootSplash } from "../src/components/BootSplash";
 
 const queryClient = new QueryClient({
@@ -68,10 +69,13 @@ function DeepLinkHandler() {
 }
 
 export default function RootLayout() {
+  const [splashDone, setSplashDone] = useState(false);
+
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <StatusBar style="light" backgroundColor={colors.bg} />
+        <NotificationPermissionGate ready={splashDone}>
         <NotificationDrawerProvider>
         <DeepLinkHandler />
         <Stack
@@ -89,8 +93,9 @@ export default function RootLayout() {
           <Stack.Screen name="product/[id]" options={{ title: "Ürün Detayı" }} />
           <Stack.Screen name="change/[id]" options={{ title: "Değişiklik" }} />
         </Stack>
-        <BootSplash onDone={() => undefined} />
+        <BootSplash onDone={() => setSplashDone(true)} />
         </NotificationDrawerProvider>
+        </NotificationPermissionGate>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

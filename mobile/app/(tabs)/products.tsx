@@ -22,7 +22,7 @@ import {
   domainFromUrl,
   formatMoney,
   marketplaceLabel,
-  mediaUrl,
+  uniqueImageUrls,
 } from "../../src/lib/format";
 import {
   EmptyState,
@@ -148,7 +148,7 @@ export default function ProductsScreen() {
             marketplaceLabel(p.marketplace || p.sourcePlatform).toLowerCase()) +
           variantHint,
         price: formatMoney(p.currentPrice),
-        imageUrl: p.image || mediaUrl(Array.isArray(p.images) ? p.images[0] : p.images),
+        imageUrl: uniqueImageUrls(p.image, p.images)[0],
         tracked: false,
         shopify: Boolean(p.shopifyProductId),
         watchTag: p.watchTag || null,
@@ -173,7 +173,7 @@ export default function ProductsScreen() {
         title: m.title,
         subtitle: `Shopify${variantHint}`,
         price: formatMoney(m.price),
-        imageUrl: m.image || mediaUrl(Array.isArray(m.images) ? m.images[0] : m.images),
+        imageUrl: uniqueImageUrls(m.image, m.images)[0],
         tracked: Boolean(m.isTracking),
         shopify: true,
         watchTag: null,

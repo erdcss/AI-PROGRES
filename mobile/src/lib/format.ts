@@ -156,12 +156,29 @@ export function changeStatusLabel(status?: string | null): string {
 export function mediaUrl(raw: unknown): string | null {
   if (!raw) return null;
   if (typeof raw === "string") {
-    const u = raw.trim();
-    return /^https?:\/\//i.test(u) ? u : null;
+    let u = raw.trim();
+    if (!u) return null;
+    if (u.startsWith("[") || u.startsWith("{")) {
+      try {
+        return mediaUrl(JSON.parse(u));
+      } catch {
+        /* düz URL değil */
+      }
+    }
+    if (u.startsWith("//")) u = `https:${u}`;
+    if (u.startsWith("http://")) u = `https://${u.slice(7)}`;
+    return /^https:\/\//i.test(u) ? u : null;
+  }
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const found = mediaUrl(item);
+      if (found) return found;
+    }
+    return null;
   }
   if (typeof raw === "object") {
     const o = raw as Record<string, unknown>;
-    return mediaUrl(o.src || o.url || o.originalSrc);
+    return mediaUrl(o.src || o.url || o.originalSrc || o.original_src);
   }
   return null;
 }

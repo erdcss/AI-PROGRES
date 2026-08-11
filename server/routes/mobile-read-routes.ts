@@ -9,16 +9,38 @@ import {
 import { computeCatalogCounts } from "../services/mobile-dashboard.service";
 import { trackingService } from "../services/tracking.service";
 
-function firstMediaUrl(images: unknown): string | null {
-  if (!Array.isArray(images) || images.length === 0) return null;
-  const first = images[0] as unknown;
-  if (typeof first === "string" && /^https?:\/\//i.test(first)) return first;
-  if (first && typeof first === "object") {
-    const o = first as Record<string, unknown>;
-    const src = o.src || o.url || o.originalSrc;
-    if (typeof src === "string" && /^https?:\/\//i.test(src)) return src;
+function normalizeMediaUrl(raw: unknown): string | null {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    let u = raw.trim();
+    if (!u) return null;
+    if (u.startsWith("[") || u.startsWith("{")) {
+      try {
+        return normalizeMediaUrl(JSON.parse(u));
+      } catch {
+        /* düz URL */
+      }
+    }
+    if (u.startsWith("//")) u = `https:${u}`;
+    if (u.startsWith("http://")) u = `https://${u.slice(7)}`;
+    return /^https:\/\//i.test(u) ? u : null;
+  }
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const found = normalizeMediaUrl(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    return normalizeMediaUrl(o.src || o.url || o.originalSrc || o.original_src);
   }
   return null;
+}
+
+function firstMediaUrl(images: unknown): string | null {
+  return normalizeMediaUrl(images);
 }
 
 function asVariantList(raw: unknown): unknown[] {
