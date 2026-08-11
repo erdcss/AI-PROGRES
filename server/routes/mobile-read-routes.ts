@@ -85,12 +85,15 @@ export function registerMobileReadRoutes(app: Express): void {
         "../services/tracking-sync.service"
       );
       scheduleShopifyMemoryTrackingSync();
-      const [notifications, scheduler, changeCounts, catalog] =
+      const [notifications, scheduler, changeCounts, catalog, panelRecent] =
         await Promise.all([
           getTrackingNotifications(),
           getTrackingSchedulerStatus(),
           trackingService.countChangesForPanel(),
           computeCatalogCounts(),
+          trackingService
+            .listChangesWithProductForPanel({ status: "history", limit: 8 })
+            .catch(() => []),
         ]);
 
       return res.json({
@@ -119,7 +122,7 @@ export function registerMobileReadRoutes(app: Express): void {
           shopifyMemoryTotal: catalog.shopifyMemoryTotal,
           catalogTotal: catalog.catalogTotal,
         },
-        recentChanges: notifications.lastChanges || [],
+        recentChanges: (panelRecent.length ? panelRecent : notifications.lastChanges || []).slice(0, 8),
         changeCounts,
       });
     } catch (err) {

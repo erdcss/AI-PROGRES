@@ -141,20 +141,30 @@ export function StatCard({
   label,
   value,
   icon,
+  onPress,
 }: {
   label: string;
   value: string | number;
   icon?: string;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={styles.stat}>
+  const inner = (
+    <>
       <View style={styles.statTop}>
         <Text style={styles.statLabel}>{label}</Text>
         {icon ? <Text style={styles.statIcon}>{icon}</Text> : null}
       </View>
       <Text style={styles.statValue}>{value}</Text>
-    </View>
+    </>
   );
+  if (onPress) {
+    return (
+      <TouchableOpacity style={styles.stat} onPress={onPress} activeOpacity={0.75}>
+        {inner}
+      </TouchableOpacity>
+    );
+  }
+  return <View style={styles.stat}>{inner}</View>;
 }
 
 export function FilterTabs({

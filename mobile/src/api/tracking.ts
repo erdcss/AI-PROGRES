@@ -403,6 +403,22 @@ export async function fetchAllChanges(params?: { productId?: number }) {
   };
 }
 
+export async function fetchChangeCounts() {
+  return apiFetch<{
+    success: boolean;
+    counts: {
+      actionable: number;
+      pending: number;
+      manual_review: number;
+      failed: number;
+      ignored: number;
+      seen: number;
+      applied: number;
+      all: number;
+    };
+  }>("/api/tracking/change-counts");
+}
+
 export async function fetchNotifications() {
   return apiFetch<{
     success: boolean;

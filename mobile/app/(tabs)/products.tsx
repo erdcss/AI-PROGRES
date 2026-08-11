@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, memo } from "react";
+import React, { useMemo, useState, useCallback, memo, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors } from "../../src/theme/colors";
 import {
   fetchAllMemoryProducts,
@@ -76,8 +76,14 @@ export default function ProductsScreen() {
   const online = useOnline();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("Tümü");
+
+  useEffect(() => {
+    const next = String(params.filter || "").trim();
+    if (next && FILTERS.includes(next)) setFilter(next);
+  }, [params.filter]);
 
   const scraped = useQuery({
     queryKey: ["scraped-products", "all"],
@@ -174,33 +180,65 @@ export default function ProductsScreen() {
             null,
         });
       }
-    } else {
-      for (const t of trackedList) {
-        const scrapedMatch = scrapedByUrl.get(String(t.sourceUrl || "").toLowerCase());
-        unified.push({
-          key: `t-${t.id}`,
-          routeId: `tracked-${t.id}`,
-          title: t.sourceTitle,
-          subtitle:
-            domainFromUrl(t.sourceUrl) ||
-            `${marketplaceLabel(t.sourceSite).toLowerCase()}.com`,
-          price: formatMoney(
-            pickDisplayPrice(
-              t.currentSourcePrice,
-              scrapedMatch?.currentPrice,
-              scrapedMatch?.originalPrice,
-              ...(scrapedMatch?.variants || []).map((v) => variantPrice(v)),
-            ),
+    }
+
+    const seenRoute = new Set(unified.map((u) => u.routeId));
+    const seenShopify = new Set(
+      memoryList.map((m) => String(m.shopifyProductId || "")).filter(Boolean),
+    );
+
+    for (const t of trackedList) {
+      const routeId = `tracked-${t.id}`;
+      if (seenRoute.has(routeId)) continue;
+      if (t.shopifyProductId && seenShopify.has(String(t.shopifyProductId))) continue;
+      const scrapedMatch = scrapedByUrl.get(String(t.sourceUrl || "").toLowerCase());
+      seenRoute.add(routeId);
+      if (t.shopifyProductId) seenShopify.add(String(t.shopifyProductId));
+      unified.push({
+        key: `t-${t.id}`,
+        routeId,
+        title: t.sourceTitle,
+        subtitle:
+          domainFromUrl(t.sourceUrl) ||
+          `${marketplaceLabel(t.sourceSite).toLowerCase()}.com`,
+        price: formatMoney(
+          pickDisplayPrice(
+            t.currentSourcePrice,
+            scrapedMatch?.currentPrice,
+            scrapedMatch?.originalPrice,
+            ...(scrapedMatch?.variants || []).map((v) => variantPrice(v)),
           ),
-          imageUrl: t.productImageUrl || uniqueImageUrls(scrapedMatch?.image, scrapedMatch?.images)[0],
-          tracked: true,
-          shopify: Boolean(t.shopifyProductId),
-          watchTag:
-            t.watchTag ||
-            scrapedTagByUrl.get(String(t.sourceUrl || "").toLowerCase()) ||
-            null,
-        });
-      }
+        ),
+        imageUrl: t.productImageUrl || uniqueImageUrls(scrapedMatch?.image, scrapedMatch?.images)[0],
+        tracked: true,
+        shopify: Boolean(t.shopifyProductId),
+        watchTag:
+          t.watchTag ||
+          scrapedTagByUrl.get(String(t.sourceUrl || "").toLowerCase()) ||
+          null,
+      });
+    }
+
+    for (const s of scrapedList) {
+      const routeId = `scraped-${s.id}`;
+      if (seenRoute.has(routeId)) continue;
+      if (s.shopifyProductId && seenShopify.has(String(s.shopifyProductId))) continue;
+      if (s.shopifyProductId && seenRoute.has(`tracked-${s.id}`)) continue;
+      seenRoute.add(routeId);
+      if (s.shopifyProductId) seenShopify.add(String(s.shopifyProductId));
+      unified.push({
+        key: `s-${s.id}`,
+        routeId,
+        title: s.title,
+        subtitle: marketplaceLabel(s.marketplace || "trendyol"),
+        price: formatMoney(
+          pickDisplayPrice(s.currentPrice, s.originalPrice, ...(s.variants || []).map((v) => variantPrice(v))),
+        ),
+        imageUrl: uniqueImageUrls(s.image, s.images)[0],
+        tracked: Boolean(s.tracking?.id),
+        shopify: Boolean(s.shopifyProductId),
+        watchTag: s.watchTag || null,
+      });
     }
 
     let filtered = unified;

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, memo } from "react";
+import React, { useMemo, useState, useCallback, memo, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -9,9 +9,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors } from "../../src/theme/colors";
-import { fetchAllChanges, shopifySyncChange, type ChangeRow } from "../../src/api/tracking";
+import {
+  fetchAllChanges,
+  fetchChangeCounts,
+  fetchChanges,
+  shopifySyncChange,
+  type ChangeRow,
+} from "../../src/api/tracking";
 import { showShopifyFixButton } from "../../src/lib/shopify-fix";
 import {
   isPriceChangeType,
@@ -30,7 +36,14 @@ import {
 import { NotificationBell } from "../../src/components/NotificationDrawer";
 import { useOnline } from "../../src/hooks/useOnline";
 
-const FILTERS = ["Tümü", "Kırmızı", "Yeşil", "Fiyat", "Stok", "Varyant"];
+const STATUS_FILTERS = ["Düzeltilecekler", "Uygulanan", "Tümü"] as const;
+const KIND_FILTERS = ["Hepsi", "Kırmızı", "Yeşil", "Fiyat", "Stok", "Varyant"] as const;
+
+function statusToApi(label: string): string {
+  if (label === "Düzeltilecekler") return "actionable";
+  if (label === "Uygulanan") return "applied";
+  return "history";
+}
 
 const Row = memo(function Row({
   item,
@@ -59,12 +72,34 @@ export default function TrackingScreen() {
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const [fixingId, setFixingId] = useState<number | null>(null);
+  const params = useLocalSearchParams<{ status?: string; kind?: string }>();
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState("Tümü");
+  const [status, setStatus] = useState<string>("Tümü");
+  const [filter, setFilter] = useState("Hepsi");
+
+  useEffect(() => {
+    const nextStatus = String(params.status || "").trim();
+    if (nextStatus && (STATUS_FILTERS as readonly string[]).includes(nextStatus)) {
+      setStatus(nextStatus);
+    }
+    const nextKind = String(params.kind || "").trim();
+    if (nextKind && (KIND_FILTERS as readonly string[]).includes(nextKind)) {
+      setFilter(nextKind);
+    }
+  }, [params.status, params.kind]);
+
+  const counts = useQuery({
+    queryKey: ["tracking-change-counts"],
+    queryFn: fetchChangeCounts,
+    refetchInterval: false,
+  });
 
   const changes = useQuery({
-    queryKey: ["changes-all"],
-    queryFn: () => fetchAllChanges(),
+    queryKey: ["tracking-changes", status],
+    queryFn: async () => {
+      if (status === "Tümü") return fetchAllChanges();
+      return fetchChanges({ status: statusToApi(status) });
+    },
     refetchInterval: false,
   });
 
@@ -97,7 +132,9 @@ export default function TrackingScreen() {
     onMutate: (id) => setFixingId(id),
     onSettled: () => setFixingId(null),
     onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["tracking-changes"] });
       void qc.invalidateQueries({ queryKey: ["changes-all"] });
+      void qc.invalidateQueries({ queryKey: ["tracking-change-counts"] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
       Alert.alert("Shopify", data.shopify?.message || "Shopify'da düzeltildi.");
     },
@@ -122,7 +159,7 @@ export default function TrackingScreen() {
       <View style={styles.pad}>
         <ScreenHeader
           title="Takip"
-          subtitle={changes.data?.changes ? `${changes.data.changes.length} değişiklik` : undefined}
+          subtitle={`${counts.data?.counts?.all ?? changes.data?.changes?.length ?? 0} değişiklik`}
           right={<NotificationBell />}
         />
         <TextInput
@@ -132,7 +169,8 @@ export default function TrackingScreen() {
           onChangeText={setQ}
           style={styles.search}
         />
-        <FilterTabs options={FILTERS} value={filter} onChange={setFilter} />
+        <FilterTabs options={[...STATUS_FILTERS]} value={status} onChange={setStatus} />
+        <FilterTabs options={[...KIND_FILTERS]} value={filter} onChange={setFilter} />
       </View>
 
       {changes.isLoading ? (

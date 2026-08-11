@@ -228,6 +228,7 @@ export class TrackingService {
     status?: string;
     productId?: number;
     changeType?: string;
+    limit?: number;
   }) {
     const conditions = [];
     if (filters?.productId) {
@@ -259,9 +260,18 @@ export class TrackingService {
     if (filters?.productId) conditions.push(eq(detectedChanges.trackedProductId, filters.productId));
     if (filters?.changeType) conditions.push(eq(detectedChanges.changeType, filters.changeType));
 
-    const query = db.select().from(detectedChanges).orderBy(desc(detectedChanges.createdAt));
-    if (conditions.length === 0) return query;
-    return query.where(and(...conditions));
+    const ordered =
+      conditions.length > 0
+        ? db
+            .select()
+            .from(detectedChanges)
+            .where(and(...conditions))
+            .orderBy(desc(detectedChanges.createdAt))
+        : db.select().from(detectedChanges).orderBy(desc(detectedChanges.createdAt));
+    if (filters?.limit && filters.limit > 0) {
+      return ordered.limit(Math.min(5000, filters.limit));
+    }
+    return ordered;
   }
 
   /** Değişiklik sekmesi filtre sayıları */
@@ -303,6 +313,7 @@ export class TrackingService {
     status?: string;
     productId?: number;
     changeType?: string;
+    limit?: number;
   }) {
     const changes = await this.listChangesForPanel(filters);
     if (changes.length === 0) return [];
