@@ -15,6 +15,7 @@ import {
   fetchAllScrapedProducts,
   fetchTrackedProducts,
   type MemoryProduct,
+  type ProductVariantRow,
   type ScrapedProduct,
   type TrackedProduct,
 } from "../../src/api/tracking";
@@ -22,7 +23,9 @@ import {
   domainFromUrl,
   formatMoney,
   marketplaceLabel,
+  pickDisplayPrice,
   uniqueImageUrls,
+  variantPrice,
 } from "../../src/lib/format";
 import {
   EmptyState,
@@ -79,17 +82,17 @@ export default function ProductsScreen() {
   const scraped = useQuery({
     queryKey: ["scraped-products", "all"],
     queryFn: fetchAllScrapedProducts,
-    refetchInterval: 20_000,
+    refetchInterval: false,
   });
   const tracked = useQuery({
     queryKey: ["tracked-products"],
     queryFn: () => fetchTrackedProducts({ includeUnlinked: true }),
-    refetchInterval: 20_000,
+    refetchInterval: false,
   });
   const memory = useQuery({
     queryKey: ["memory-products", "all"],
     queryFn: fetchAllMemoryProducts,
-    refetchInterval: 30_000,
+    refetchInterval: false,
   });
 
   const items = useMemo(() => {
@@ -107,10 +110,17 @@ export default function ProductsScreen() {
         .filter((p) => p.trendyolUrl)
         .map((p) => [String(p.trendyolUrl).toLowerCase(), p.watchTag || null] as const),
     );
+    const scrapedByUrl = new Map(
+      scrapedList
+        .filter((p) => p.trendyolUrl)
+        .map((p) => [String(p.trendyolUrl).toLowerCase(), p] as const),
+    );
 
     const unified: UnifiedProduct[] = [];
 
     for (const t of trackedList) {
+      const scrapedMatch = scrapedByUrl.get(String(t.sourceUrl || "").toLowerCase());
+      const variantPrices = (scrapedMatch?.variants || []).map((v) => variantPrice(v));
       unified.push({
         key: `t-${t.id}`,
         routeId: `tracked-${t.id}`,
@@ -118,8 +128,10 @@ export default function ProductsScreen() {
         subtitle:
           domainFromUrl(t.sourceUrl) ||
           `${marketplaceLabel(t.sourceSite).toLowerCase()}.com`,
-        price: formatMoney(t.currentSourcePrice),
-        imageUrl: t.productImageUrl,
+        price: formatMoney(
+          pickDisplayPrice(t.currentSourcePrice, scrapedMatch?.currentPrice, scrapedMatch?.originalPrice, ...variantPrices),
+        ),
+        imageUrl: t.productImageUrl || uniqueImageUrls(scrapedMatch?.image, scrapedMatch?.images)[0],
         tracked: true,
         shopify: Boolean(t.shopifyProductId),
         watchTag:
@@ -147,7 +159,13 @@ export default function ProductsScreen() {
           (domainFromUrl(p.trendyolUrl) ||
             marketplaceLabel(p.marketplace || p.sourcePlatform).toLowerCase()) +
           variantHint,
-        price: formatMoney(p.currentPrice),
+        price: formatMoney(
+          pickDisplayPrice(
+            p.currentPrice,
+            p.originalPrice,
+            ...(p.variants || []).map((v) => variantPrice(v)),
+          ),
+        ),
         imageUrl: uniqueImageUrls(p.image, p.images)[0],
         tracked: false,
         shopify: Boolean(p.shopifyProductId),
@@ -172,7 +190,15 @@ export default function ProductsScreen() {
         routeId: `memory-${m.id}`,
         title: m.title,
         subtitle: `Shopify${variantHint}`,
-        price: formatMoney(m.price),
+        price: formatMoney(
+          pickDisplayPrice(
+            m.price,
+            m.compareAtPrice,
+            ...((Array.isArray(m.variants) ? m.variants : []) as ProductVariantRow[]).map((v) =>
+              variantPrice(v),
+            ),
+          ),
+        ),
         imageUrl: uniqueImageUrls(m.image, m.images)[0],
         tracked: Boolean(m.isTracking),
         shopify: true,

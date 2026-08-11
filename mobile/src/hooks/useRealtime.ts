@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { AppState, type AppStateStatus } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase, isMobileSupabaseConfigured } from "../lib/supabase";
 
@@ -37,17 +36,7 @@ function useRealtimeTable(
       return;
     }
 
-    const onAppState = (state: AppStateStatus) => {
-      if (state === "active") {
-        for (const key of invalidateKeys) {
-          void qc.invalidateQueries({ queryKey: key });
-        }
-      }
-    };
-    const sub = AppState.addEventListener("change", onAppState);
-
     return () => {
-      sub.remove();
       if (channel) {
         void supabase!.removeChannel(channel).catch((err) => {
           console.warn("[realtime] removeChannel", channelName, err);

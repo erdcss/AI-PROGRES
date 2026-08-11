@@ -386,6 +386,9 @@ async function defaultFcmSend(
   token: string,
   payload: MobilePushPayload,
 ): Promise<FcmSendResult> {
+  if (token.startsWith("local:")) {
+    return { ok: false, error: "local token — in-app only" };
+  }
   if (isExpoPushToken(token)) {
     return sendViaExpoPush(token, payload);
   }

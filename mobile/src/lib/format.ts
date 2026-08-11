@@ -1,6 +1,21 @@
+export function numericPrice(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+export function pickDisplayPrice(...values: unknown[]): number | null {
+  for (const value of values) {
+    const n = numericPrice(value);
+    if (n != null) return n;
+  }
+  return null;
+}
+
 export function formatMoney(value: unknown, currency = "TRY"): string {
-  const n = typeof value === "number" ? value : Number(String(value ?? "").replace(",", "."));
-  if (!Number.isFinite(n)) return "—";
+  const n = numericPrice(value);
+  if (n == null) return "—";
   try {
     return new Intl.NumberFormat("tr-TR", {
       style: "currency",

@@ -27,6 +27,7 @@ import {
   formatDateTime,
   formatMoney,
   marketplaceLabel,
+  pickDisplayPrice,
   uniqueImageUrls,
   variantPrice,
   variantStock,
@@ -281,7 +282,17 @@ export default function ProductDetailScreen() {
         >
           <View>
             <Text style={styles.priceBtnLabel}>Güncel fiyat</Text>
-            <Text style={styles.priceBtnValue}>{formatMoney(tracked.currentSourcePrice)}</Text>
+            <Text style={styles.priceBtnValue}>
+              {formatMoney(
+                pickDisplayPrice(
+                  tracked.currentSourcePrice,
+                  matchedScraped?.currentPrice,
+                  matchedScraped?.originalPrice,
+                  ...(variants.data?.variants || []).map((v) => variantPrice(v)),
+                  ...(matchedScraped?.variants || []).map((v) => variantPrice(v)),
+                ),
+              )}
+            </Text>
           </View>
           <Text style={styles.priceBtnHint}>Hareketler</Text>
         </TouchableOpacity>
@@ -404,7 +415,17 @@ export default function ProductDetailScreen() {
         >
           <View>
             <Text style={styles.priceBtnLabel}>Güncel fiyat</Text>
-            <Text style={styles.priceBtnValue}>{formatMoney(memoryProduct.price)}</Text>
+            <Text style={styles.priceBtnValue}>
+              {formatMoney(
+                pickDisplayPrice(
+                  memoryProduct.price,
+                  memoryProduct.compareAtPrice,
+                  ...((Array.isArray(memoryProduct.variants) ? memoryProduct.variants : []) as ProductVariantRow[]).map(
+                    (v) => variantPrice(v),
+                  ),
+                ),
+              )}
+            </Text>
           </View>
           <Text style={styles.priceBtnHint}>Hareketler</Text>
         </TouchableOpacity>
@@ -524,7 +545,15 @@ export default function ProductDetailScreen() {
       >
         <View>
           <Text style={styles.priceBtnLabel}>Güncel fiyat</Text>
-          <Text style={styles.priceBtnValue}>{formatMoney(scrapedProduct.currentPrice)}</Text>
+          <Text style={styles.priceBtnValue}>
+            {formatMoney(
+              pickDisplayPrice(
+                scrapedProduct.currentPrice,
+                scrapedProduct.originalPrice,
+                ...(scrapedProduct.variants || []).map((v) => variantPrice(v)),
+              ),
+            )}
+          </Text>
         </View>
         <Text style={styles.priceBtnHint}>Hareketler</Text>
       </TouchableOpacity>
@@ -541,7 +570,16 @@ export default function ProductDetailScreen() {
         <MetaLine label="Marka" value={scrapedProduct.brand || "—"} />
         <MetaLine label="Kategori" value={scrapedProduct.category || "—"} />
         <MetaLine label="Liste fiyatı" value={formatMoney(scrapedProduct.originalPrice)} />
-        <MetaLine label="Güncel fiyat" value={formatMoney(scrapedProduct.currentPrice)} />
+        <MetaLine
+          label="Güncel fiyat"
+          value={formatMoney(
+            pickDisplayPrice(
+              scrapedProduct.currentPrice,
+              scrapedProduct.originalPrice,
+              ...(scrapedProduct.variants || []).map((v) => variantPrice(v)),
+            ),
+          )}
+        />
         <MetaLine label="Stok" value={scrapedProduct.stockStatus || "—"} />
         <MetaLine label="Renkler" value={joinList(scrapedProduct.colorOptions) || "—"} />
         <MetaLine label="Bedenler" value={joinList(scrapedProduct.sizeOptions) || "—"} />

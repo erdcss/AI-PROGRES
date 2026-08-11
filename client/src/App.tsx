@@ -18,14 +18,13 @@ import PriceMovementTest from "@/pages/price-movement-test";
 // Removed bulk-csv page import
 import { useState, useEffect, useSyncExternalStore, Component, type ReactNode, type ErrorInfo } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ShieldCheck, AlertCircle, CheckCircle } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { AppOpenSplash } from "@/components/AppOpenSplash";
-import { AIBrandLogo } from "@/components/AILogo";
 import ProductDataAnalysisPage from "@/pages/product-data-analysis";
 import SchedulerPage from "@/pages/scheduler";
 import SystemStatusPage from "@/pages/system-status";
@@ -114,9 +113,6 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             alt="ORVIAN"
             className="mx-auto h-10 w-auto object-contain md:h-12"
           />
-          <CardTitle className="text-2xl md:text-3xl font-bold text-white">
-            ORVIAN
-          </CardTitle>
           <CardDescription className="text-white text-base md:text-lg font-bold">
             Güvenli sistem erişimi için kimlik doğrulama
           </CardDescription>
@@ -188,15 +184,6 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 <ShieldCheck className="mr-2 h-4 w-4 md:h-5 md:w-5" />
                 Giriş Yap
               </Button>
-              
-              <div className="flex justify-center">
-                <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 bg-blue-900 rounded-full border business-border">
-                  <div className="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
-                    <span className="text-white text-xs md:text-sm font-bold">AI</span>
-                  </div>
-                  <span className="text-xs md:text-sm text-white font-bold">Yapay Zeka Destekli</span>
-                </div>
-              </div>
             </CardFooter>
           </>
         )}

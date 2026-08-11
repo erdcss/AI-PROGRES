@@ -27,8 +27,8 @@ export function isRemotePushAvailable(): boolean {
 try {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldShowBanner: true,
+      shouldShowAlert: false,
+      shouldShowBanner: false,
       shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
@@ -76,18 +76,19 @@ export async function requestNotificationPermission(): Promise<boolean> {
   try {
     await ensureAndroidChannel();
 
-    if (Platform.OS === "android" && Number(Platform.Version) >= 33) {
+    if (Platform.OS === "android") {
       const perm = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
-      if (perm) {
+      if (perm && Number(Platform.Version) >= 33) {
         const androidResult = await PermissionsAndroid.request(perm);
-        if (androidResult !== PermissionsAndroid.RESULTS.GRANTED) {
-          return false;
+        if (androidResult === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+          await openNotificationSettings();
+        }
+        if (androidResult === PermissionsAndroid.RESULTS.GRANTED) {
+          const current = await Notifications.getPermissionsAsync().catch(() => null);
+          if (current?.status === "granted") return true;
         }
       }
     }
-
-    const current = await Notifications.getPermissionsAsync();
-    if (current.status === "granted") return true;
 
     const { status } = await Notifications.requestPermissionsAsync();
     return status === "granted";
@@ -131,8 +132,19 @@ export async function registerForPushAsync(): Promise<string | null> {
     return null;
   }
 
-  const tokenRes = await Notifications.getExpoPushTokenAsync({ projectId });
-  return tokenRes.data || null;
+  try {
+    const tokenRes = await Notifications.getExpoPushTokenAsync({ projectId });
+    if (tokenRes.data) return tokenRes.data;
+  } catch (err) {
+    console.warn("[push] expo token failed", err);
+  }
+  try {
+    const device = await Notifications.getDevicePushTokenAsync();
+    if (device?.data) return String(device.data);
+  } catch (err) {
+    console.warn("[push] device token failed", err);
+  }
+  return null;
 }
 
 export type RegisterPushResult = {
@@ -154,14 +166,17 @@ export async function registerPushIfAllowed(): Promise<RegisterPushResult> {
     if ((await getNotificationPermissionStatus()) !== "granted") {
       return { ok: false, error: "Önce sistem bildirim iznini verin." };
     }
-    const token = await registerForPushAsync();
-    if (!token) {
-      return { ok: false, error: "Push token alınamadı." };
+    const deviceId = stableDeviceId();
+    let token: string | null = null;
+    try {
+      token = await registerForPushAsync();
+    } catch (err) {
+      console.warn("[push] token fetch failed", err);
     }
     await registerPushDevice({
-      deviceId: stableDeviceId(),
+      deviceId,
       platform: "android",
-      pushToken: token,
+      pushToken: token || `local:${deviceId}`,
       appVersion: Constants.expoConfig?.version || "1.0.0",
     });
     return { ok: true };

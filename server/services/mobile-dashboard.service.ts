@@ -20,7 +20,7 @@ export async function computeCatalogCounts() {
   todayStart.setHours(0, 0, 0, 0);
   const visible = visibleTracked();
 
-  const [scrapedAll, scrapedToday, trackedAll, trackedActive, watchRed, watchGreen] =
+  const [scrapedAll, scrapedToday, trackedAll, trackedActive, watchRedTracked, watchGreenTracked, watchRedScraped, watchGreenScraped] =
     await Promise.all([
       db.select({ c: count() }).from(products),
       db
@@ -40,6 +40,8 @@ export async function computeCatalogCounts() {
         .select({ c: count() })
         .from(trackedProducts)
         .where(and(visible, eq(trackedProducts.watchTag, "green"))),
+      db.select({ c: count() }).from(products).where(eq(products.watchTag, "red")),
+      db.select({ c: count() }).from(products).where(eq(products.watchTag, "green")),
     ]);
 
   let shopifyMemoryTotal = 0;
@@ -78,8 +80,8 @@ export async function computeCatalogCounts() {
     scrapedToday: Number(scrapedToday[0]?.c ?? 0),
     trackedTotal,
     trackedActive: Number(trackedActive[0]?.c ?? 0),
-    watchRed: Number(watchRed[0]?.c ?? 0),
-    watchGreen: Number(watchGreen[0]?.c ?? 0),
+    watchRed: Number(watchRedTracked[0]?.c ?? 0) + Number(watchRedScraped[0]?.c ?? 0),
+    watchGreen: Number(watchGreenTracked[0]?.c ?? 0) + Number(watchGreenScraped[0]?.c ?? 0),
     shopifyMemoryTotal,
     catalogTotal,
   };

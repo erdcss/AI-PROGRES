@@ -33,6 +33,7 @@ import {
 } from "../../src/components/Ui";
 import { NotificationBell } from "../../src/components/NotificationDrawer";
 import { useNotificationPermission } from "../../src/components/NotificationPermissionGate";
+import { useInAppBanner } from "../../src/components/InAppBanner";
 import { useOnline } from "../../src/hooks/useOnline";
 
 type HealthResponse = {
@@ -63,6 +64,7 @@ async function fetchMobileHealth(): Promise<HealthResponse> {
 export default function SettingsScreen() {
   const online = useOnline();
   const permission = useNotificationPermission();
+  const { showBanner } = useInAppBanner();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [tab, setTab] = useState<SettingsTab>("bildirimler");
@@ -131,17 +133,17 @@ export default function SettingsScreen() {
     mutationFn: () => permission.registerDevice(),
     onSuccess: (result) => {
       if (!result.ok) {
-        Alert.alert("Cihaz kaydı", result.error || "Kayıt başarısız");
+        showBanner("Cihaz kaydı başarısız", result.error || "Kayıt başarısız");
         return;
       }
       setRegistered(true);
-      Alert.alert(
+      showBanner(
         "Cihaz kaydedildi",
-        "Bu cihaz program panelindeki Kayıtlı cihazlar listesine eklendi. Test bildirimi artık bu telefona gidebilir.",
+        "Program panelindeki Kayıtlı cihazlar listesine eklendi.",
       );
     },
     onError: (err: Error) => {
-      Alert.alert("Cihaz kaydı", err.message || "Kayıt başarısız");
+      showBanner("Cihaz kaydı", err.message || "Kayıt başarısız");
     },
   });
 
@@ -208,7 +210,17 @@ export default function SettingsScreen() {
               value={permission.status === "granted" ? "Verildi" : "Bekliyor"}
             />
             <Pressable
-              onPress={() => void permission.requestSystemPermission()}
+              onPress={() => {
+                void (async () => {
+                  const ok = await permission.requestSystemPermission();
+                  showBanner(
+                    ok ? "Sistem izni verildi" : "Sistem izni alınamadı",
+                    ok
+                      ? "Bildirim izni Android tarafından açık."
+                      : "Açılan sistem penceresinden izni onaylayın.",
+                  );
+                })();
+              }}
               style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
             >
               <Ionicons name="shield-checkmark-outline" size={16} color={colors.text} />

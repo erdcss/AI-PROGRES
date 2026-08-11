@@ -47,6 +47,18 @@ function asVariantList(raw: unknown): unknown[] {
   return Array.isArray(raw) ? raw : [];
 }
 
+function firstPositivePrice(...vals: unknown[]): number | null {
+  for (const v of vals) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
+function variantPrices(variants: Array<Record<string, unknown>>): unknown[] {
+  return variants.flatMap((v) => [v.trendyolPrice, v.shopifyPrice, v.price, v.currentSourcePrice]);
+}
+
 /**
  * Mobil için ince READ-ONLY özet / ürün listesi sarmalayıcı.
  * Yeni ürün veya tracking sistemi oluşturmaz — mevcut tabloları okur.
@@ -169,6 +181,9 @@ export function registerMobileReadRoutes(app: Express): void {
             marketplace: p.sourcePlatform || "unknown",
             scrapedAt: p.createdAt,
             shopifyStatus: p.shopifyProductId ? "linked" : "none",
+            currentPrice:
+              firstPositivePrice(p.currentPrice, p.originalPrice, ...variantPrices(variants as Array<Record<string, unknown>>)) ??
+              p.currentPrice,
             variantCount: variants.length,
             variants,
           };
@@ -223,6 +238,12 @@ export function registerMobileReadRoutes(app: Express): void {
           marketplace: product.sourcePlatform || "unknown",
           scrapedAt: product.createdAt,
           shopifyStatus: product.shopifyProductId ? "linked" : "none",
+          currentPrice:
+            firstPositivePrice(
+              product.currentPrice,
+              product.originalPrice,
+              ...variantPrices(variants as Array<Record<string, unknown>>),
+            ) ?? product.currentPrice,
           tracking: tracked[0] || null,
           variantCount: variants.length,
           variants,
@@ -330,6 +351,9 @@ export function registerMobileReadRoutes(app: Express): void {
             images: Array.isArray(p.images) ? p.images : [],
             variants,
             variantCount: variants.length,
+            price:
+              firstPositivePrice(p.price, p.compareAtPrice, ...variantPrices(variants as Array<Record<string, unknown>>)) ??
+              p.price,
           };
         }),
         pagination: { total, limit, offset, hasMore: offset + limit < total },
@@ -368,6 +392,9 @@ export function registerMobileReadRoutes(app: Express): void {
           images: Array.isArray(row.images) ? row.images : [],
           variants,
           variantCount: variants.length,
+          price:
+            firstPositivePrice(row.price, row.compareAtPrice, ...variantPrices(variants as Array<Record<string, unknown>>)) ??
+            row.price,
           tracking: tracked[0] || null,
         },
       });

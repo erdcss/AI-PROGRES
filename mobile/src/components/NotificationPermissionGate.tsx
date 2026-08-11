@@ -45,26 +45,18 @@ export function NotificationPermissionGate({
   const refresh = useCallback(async () => {
     const next = await getNotificationPermissionStatus();
     setStatus(next);
-    if (next === "granted") {
-      await registerPushIfAllowed();
-    }
   }, []);
 
   const requestSystemPermission = useCallback(async () => {
-    const current = await getNotificationPermissionStatus();
-    if (current === "granted") {
-      setStatus("granted");
-      return true;
-    }
-    if (current === "denied") {
+    const granted = await requestNotificationPermission();
+    const next = granted ? "granted" : await getNotificationPermissionStatus();
+    setStatus(next);
+    if (next === "denied") {
       await openNotificationSettings();
       const after = await getNotificationPermissionStatus();
       setStatus(after);
       return after === "granted";
     }
-    const granted = await requestNotificationPermission();
-    const next = granted ? "granted" : await getNotificationPermissionStatus();
-    setStatus(next);
     return next === "granted";
   }, []);
 

@@ -87,7 +87,7 @@ export default function NotificationsScreen() {
   const changes = useQuery({
     queryKey: ["changes-all"],
     queryFn: () => fetchAllChanges(),
-    refetchInterval: 20_000,
+    refetchInterval: false,
   });
 
   const settings = (settingsQ.data?.settings || []).filter((s) => s.notificationType !== "test");

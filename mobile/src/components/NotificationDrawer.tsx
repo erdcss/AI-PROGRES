@@ -62,12 +62,12 @@ export function NotificationDrawerProvider({ children }: { children: React.React
   const notif = useQuery({
     queryKey: ["notifications"],
     queryFn: fetchNotifications,
-    refetchInterval: 30_000,
+    refetchInterval: false,
   });
   const changes = useQuery({
     queryKey: ["changes-all"],
     queryFn: () => fetchAllChanges(),
-    refetchInterval: 30_000,
+    refetchInterval: false,
   });
 
   const unread = notif.data ? badgeCountFromNotifications(notif.data) : 0;

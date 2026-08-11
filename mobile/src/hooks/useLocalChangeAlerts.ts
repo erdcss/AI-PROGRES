@@ -9,6 +9,7 @@ import {
 } from "../lib/format";
 import { parseWatchTag, shouldNotifyForWatchTag, watchTagLabel } from "../lib/watch-tag";
 import { ensureAndroidChannel, getNotificationPermissionStatus } from "./usePush";
+import { useInAppBanner } from "../components/InAppBanner";
 
 async function presentLocal(change: ChangeRow): Promise<void> {
   try {
@@ -36,13 +37,14 @@ async function presentLocal(change: ChangeRow): Promise<void> {
 
 /** Yeni takip durumlarını her durumda cihaz bildirimi olarak gösterir (Expo Go dahil yerel). */
 export function useLocalChangeAlerts(): void {
+  const { showBanner } = useInAppBanner();
   const primed = useRef(false);
   const seen = useRef(new Set<number>());
   const lastNotify = useRef(new Map<string, number>());
   const q = useQuery({
     queryKey: ["changes-all"],
     queryFn: () => fetchAllChanges(),
-    refetchInterval: 25_000,
+    refetchInterval: 60_000,
   });
 
   useEffect(() => {
@@ -64,7 +66,11 @@ export function useLocalChangeAlerts(): void {
       const key = `${c.trackedProductId}:${c.changeType}`;
       if (!shouldNotifyForWatchTag(tag, c.changeType, lastNotify.current.get(key))) continue;
       lastNotify.current.set(key, Date.now());
+      const tagPrefix = watchTagLabel(tag);
+      const title = `${tagPrefix ? `${tagPrefix} · ` : ""}${changeTypeLabel(c.changeType)}`;
+      const body = `${c.productTitle || `Ürün #${c.trackedProductId}`}: ${formatChangeValue(c.oldValue)} → ${formatChangeValue(c.newValue)}`;
+      showBanner(title, body);
       void presentLocal(c);
     }
-  }, [q.isSuccess, q.data]);
+  }, [q.isSuccess, q.data, showBanner]);
 }

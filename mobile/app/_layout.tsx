@@ -12,13 +12,17 @@ import { useLocalChangeAlerts } from "../src/hooks/useLocalChangeAlerts";
 import { parseDeepLink } from "../src/lib/format";
 import { NotificationDrawerProvider } from "../src/components/NotificationDrawer";
 import { NotificationPermissionGate } from "../src/components/NotificationPermissionGate";
+import { InAppBannerProvider } from "../src/components/InAppBanner";
 import { BootSplash } from "../src/components/BootSplash";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      staleTime: 15_000,
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      placeholderData: (previousData: unknown) => previousData,
     },
   },
 });
@@ -76,6 +80,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <StatusBar style="light" backgroundColor={colors.bg} />
         <NotificationPermissionGate ready={splashDone}>
+        <InAppBannerProvider>
         <NotificationDrawerProvider>
         <DeepLinkHandler />
         <Stack
@@ -95,6 +100,7 @@ export default function RootLayout() {
         </Stack>
         <BootSplash onDone={() => setSplashDone(true)} />
         </NotificationDrawerProvider>
+        </InAppBannerProvider>
         </NotificationPermissionGate>
       </QueryClientProvider>
     </SafeAreaProvider>
