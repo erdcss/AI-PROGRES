@@ -2,7 +2,14 @@ import { AppState, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { fetchPushInbox, type PushInboxItem } from "../api/tracking";
-import { CHANNEL_ID, ensureAndroidChannel } from "../hooks/usePush";
+import {
+  CHANNEL_ID,
+  WATCHDOG_CHANNEL_ID,
+  WATCHDOG_NOTIFICATION_ID,
+  ensureAndroidChannel,
+} from "../hooks/usePush";
+
+const WATCHDOG_SECONDS = 90;
 
 const AFTER_ID_KEY = "orvian_inbox_after_id";
 
@@ -29,6 +36,7 @@ export async function presentSystemNotification(item: PushInboxItem): Promise<vo
   try {
     await ensureAndroidChannel();
     await Notifications.scheduleNotificationAsync({
+      identifier: `orvian-inbox-${item.id}`,
       content: {
         title: item.title,
         body: item.body,
@@ -46,6 +54,33 @@ export async function presentSystemNotification(item: PushInboxItem): Promise<vo
     });
   } catch (err) {
     console.warn("[push] system alert skipped", err);
+  }
+}
+
+/** Uygulama kapalıyken OS alarmı JS'i uyandırır; kanal MIN olduğu için kullanıcıya gösterilmez. */
+export async function ensureWatchdogScheduled(): Promise<void> {
+  try {
+    await ensureAndroidChannel();
+    await Notifications.cancelScheduledNotificationAsync(WATCHDOG_NOTIFICATION_ID).catch(() => undefined);
+    await Notifications.scheduleNotificationAsync({
+      identifier: WATCHDOG_NOTIFICATION_ID,
+      content: {
+        title: "ORVIAN",
+        body: " ",
+        sound: undefined,
+        channelId: WATCHDOG_CHANNEL_ID,
+        priority: Notifications.AndroidNotificationPriority.MIN,
+        data: { type: "HEARTBEAT" },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: WATCHDOG_SECONDS,
+        repeats: true,
+        channelId: WATCHDOG_CHANNEL_ID,
+      },
+    });
+  } catch (err) {
+    console.warn("[push] watchdog schedule skipped", err);
   }
 }
 

@@ -6,6 +6,8 @@ import Constants from "expo-constants";
 import { registerPushDevice } from "../api/tracking";
 
 export const CHANNEL_ID = "tracking_alerts";
+export const WATCHDOG_CHANNEL_ID = "tracking_watchdog";
+export const WATCHDOG_NOTIFICATION_ID = "orvian-watchdog";
 
 let remotePushReady = false;
 
@@ -34,15 +36,32 @@ export function isRemotePushAvailable(): boolean {
   return true;
 }
 
+function isWatchdogNotification(notification: Notifications.Notification): boolean {
+  const id = String(notification.request.identifier || "");
+  const type = String(notification.request.content.data?.type || "");
+  return id === WATCHDOG_NOTIFICATION_ID || type === "HEARTBEAT";
+}
+
 try {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
+    handleNotification: async (notification) => {
+      if (isWatchdogNotification(notification)) {
+        return {
+          shouldShowAlert: false,
+          shouldShowBanner: false,
+          shouldShowList: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        };
+      }
+      return {
+        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      };
+    },
   });
 } catch (err) {
   console.warn("[push] setNotificationHandler skipped", err);
@@ -62,6 +81,15 @@ export async function ensureAndroidChannel(): Promise<void> {
       enableLights: true,
       showBadge: true,
       bypassDnd: false,
+    });
+    await Notifications.setNotificationChannelAsync(WATCHDOG_CHANNEL_ID, {
+      name: "Arka plan kontrol",
+      description: "Uygulama kapalıyken bildirim kontrolü",
+      importance: Notifications.AndroidImportance.MIN,
+      enableVibrate: false,
+      enableLights: false,
+      showBadge: false,
+      sound: null,
     });
   } catch (err) {
     console.warn("[push] notification channel skipped", err);

@@ -52,7 +52,7 @@ function BannerCard({
       ]).start(({ finished }) => {
         if (finished) onDone(item.id);
       });
-    }, 4200);
+    }, 2400);
     return () => clearTimeout(hold);
   }, [item.id, onDone, opacity, x]);
 
@@ -68,7 +68,7 @@ function BannerCard({
           {item.title}
         </Text>
         {item.body ? (
-          <Text style={styles.body} numberOfLines={2}>
+          <Text style={styles.body} numberOfLines={1}>
             {item.body}
           </Text>
         ) : null}
@@ -83,7 +83,7 @@ export function InAppBannerProvider({ children }: { children: React.ReactNode })
 
   const showBanner = useCallback((title: string, body?: string) => {
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    setItems((prev) => [{ id, title, body }, ...prev].slice(0, 3));
+    setItems((prev) => [{ id, title, body }, ...prev].slice(0, 2));
   }, []);
 
   const onDone = useCallback((id: string) => {
@@ -98,7 +98,7 @@ export function InAppBannerProvider({ children }: { children: React.ReactNode })
       {children}
       <View pointerEvents="box-none" style={styles.host}>
         {items.map((item, i) => (
-          <BannerCard key={item.id} item={item} top={top + i * 72} onDone={onDone} />
+          <BannerCard key={item.id} item={item} top={top + i * 44} onDone={onDone} />
         ))}
       </View>
     </BannerCtx.Provider>
@@ -113,22 +113,18 @@ const styles = StyleSheet.create({
   },
   card: {
     position: "absolute",
-    right: 12,
-    width: "86%",
-    maxWidth: 360,
-    borderRadius: 10,
+    right: 10,
+    width: "62%",
+    maxWidth: 240,
+    borderRadius: 8,
     backgroundColor: "#111111",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#3F3F46",
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: -4, height: 4 },
   },
   inner: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
-  title: { color: "#FAFAFA", fontSize: 13, fontWeight: "700" },
-  body: { color: "#A1A1AA", fontSize: 12, marginTop: 3, lineHeight: 16 },
+  title: { color: "#FAFAFA", fontSize: 11, fontWeight: "700" },
+  body: { color: "#A1A1AA", fontSize: 10, marginTop: 1, lineHeight: 13 },
 });
