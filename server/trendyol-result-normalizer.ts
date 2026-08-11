@@ -381,19 +381,22 @@ export async function ensureTrendyolVariantsOnResult(
     );
   }
 
-  candidates.push(await fetchTrendyolVariantsFromApi(url, productTitle));
+  const hasLocalVariants = candidates.some((c) => hasRealTrendyolVariants(c));
+  if (!hasLocalVariants) {
+    candidates.push(await fetchTrendyolVariantsFromApi(url, productTitle));
 
-  const { extractTrendyolProductFromHtml } = await import("./trendyol-html-extractor");
-  const htmlProduct = await extractTrendyolProductFromHtml(url);
-  if (htmlProduct) {
-    if (hasRealTrendyolVariants(htmlProduct.variants)) {
-      candidates.push(htmlProduct.variants);
-    }
-    if (htmlProduct.features?.length && !result.features?.length) {
-      result.features = htmlProduct.features;
-    }
-    if (htmlProduct.stockAnalysis && !result.stockAnalysis) {
-      result.stockAnalysis = htmlProduct.stockAnalysis;
+    const { extractTrendyolProductFromHtml } = await import("./trendyol-html-extractor");
+    const htmlProduct = await extractTrendyolProductFromHtml(url);
+    if (htmlProduct) {
+      if (hasRealTrendyolVariants(htmlProduct.variants)) {
+        candidates.push(htmlProduct.variants);
+      }
+      if (htmlProduct.features?.length && !result.features?.length) {
+        result.features = htmlProduct.features;
+      }
+      if (htmlProduct.stockAnalysis && !result.stockAnalysis) {
+        result.stockAnalysis = htmlProduct.stockAnalysis;
+      }
     }
   }
 

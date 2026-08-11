@@ -2335,8 +2335,11 @@ setTimeout(check, 1000);
           priceType: typeof result?.price
         });
         
-        // ğŸš¨ EMERGENCY: Force manual price extraction for ANY null price (regardless of success)
+        // Canlı auto-fast: ek 20s HTML GET scrape'i şişiriyor; pipeline fiyatı zaten denedi.
+        const skipEmergencyPrice =
+          onlyExtractData && scrapePolicy.isCloud;
         if (
+          !skipEmergencyPrice &&
           result &&
           (result.price === null ||
             result.price === undefined ||
@@ -2437,7 +2440,10 @@ setTimeout(check, 1000);
           console.log(`Variants already extracted: ${result.variants.allVariants.length} variants, sizes=${sizeCount}`);
           console.log(`Colors: ${result.variants.colors?.length || 0}, Sizes: ${result.variants.sizes?.length || 0}`);
         } else if (result.success) {
-          if (sparseApparel || sizeCount <= 1) {
+          if (
+            (sparseApparel || sizeCount <= 1) &&
+            !(onlyExtractData && scrapePolicy.isCloud)
+          ) {
             console.log(`Sparse apparel variant detected (sizes=${sizeCount}) — full variant scrape retry`);
             await applyFullVariantScrapeToResult(url, result, {
               html: typeof result.htmlContent === 'string' ? result.htmlContent : null,
@@ -2537,29 +2543,23 @@ setTimeout(check, 1000);
           
           // âœ… TEK BÄ°LDÄ°RÄ°M: Sadece veri Ã§ekme modunda basit bildirim gÃ¶nder
           if (onlyExtractData) {
-            try {
-              const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
-              const variantInfo = result.variants?.allVariants || result.variants || [];
-              const variantCount = Array.isArray(variantInfo) ? variantInfo.length : (variantInfo.allVariants?.length || 0);
-              
-              const message = `
-ğŸ” <b>YENÄ° ÃœRÃœN VERÄ°SÄ° Ã‡EKÄ°LDÄ°</b>
+            const variantInfo = result.variants?.allVariants || result.variants || [];
+            const variantCount = Array.isArray(variantInfo) ? variantInfo.length : (variantInfo.allVariants?.length || 0);
+            const message = `
+<b>YENİ ÜRÜN VERİSİ ÇEKİLDİ</b>
 
-ğŸ“¦ <b>ÃœrÃ¼n:</b> ${result.title}
-ğŸ¢ <b>Marka:</b> ${result.brand || 'Bilinmeyen'}
-ğŸ’° <b>Fiyat:</b> ${result.price.original} TL
-ğŸ¨ <b>Varyant:</b> ${variantCount} adet
-ğŸ“¸ <b>GÃ¶rsel:</b> ${result.images?.length || 0} adet
-
-ğŸ”— <b>Kaynak:</b> ${url}
-â° <b>Zaman:</b> ${new Date().toLocaleString('tr-TR')}
-              `.trim();
-              
-              await sendFilteredTelegramNotification(message);
-              console.log('ğŸ“± ÃœrÃ¼n veri Ã§ekme bildirimi gÃ¶nderildi');
-            } catch (error) {
-              console.error('âš ï¸ Telegram bildirimi hatasÄ±:', error);
-            }
+<b>Ürün:</b> ${result.title}
+<b>Marka:</b> ${result.brand || 'Bilinmeyen'}
+<b>Fiyat:</b> ${result.price?.original || 0} TL
+<b>Varyant:</b> ${variantCount} adet
+<b>Görsel:</b> ${result.images?.length || 0} adet
+<b>Kaynak:</b> ${url}
+            `.trim();
+            void import('./telegram-integration')
+              .then(({ telegramIntegration }) =>
+                telegramIntegration.sendNotification(message, 'new_product', undefined, result.title, { url }),
+              )
+              .catch((error) => console.error('Telegram/mobil bildirim hatası:', error));
           }
           
           // âœ… Sadece Shopify transfer modunda Shopify tracking kaydÄ± oluÅŸtur

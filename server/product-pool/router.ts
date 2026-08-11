@@ -145,6 +145,17 @@ router.post("/scrape", async (req, res) => {
       return res.status(400).json({ success: false, error: "url zorunlu" });
     }
     const product = await scrapeProductPoolUrl(url);
+    void import("../telegram-integration")
+      .then(({ telegramIntegration }) =>
+        telegramIntegration.sendNotification(
+          `<b>Yeni ürün</b>\n${product.title}\nÜrün havuzu`,
+          "new_product",
+          undefined,
+          String(product.title || ""),
+          { url, source: "product-pool" },
+        ),
+      )
+      .catch((err) => console.warn("[ProductPool] mobil bildirim atlandı:", err));
     return res.json({ success: true, product });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

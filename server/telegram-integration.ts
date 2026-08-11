@@ -433,6 +433,17 @@ export class TelegramIntegration {
     } catch (error) {
       console.error('⚠️ Could not check user settings, sending anyway:', error);
     }
+
+    void import("./services/mobile-push.service")
+      .then(({ notifyMobileWebEvent }) =>
+        notifyMobileWebEvent({
+          notificationType,
+          title: productTitle,
+          message,
+          productId,
+        }),
+      )
+      .catch((err) => console.warn("⚠️ Mobil bildirim atlandı:", err));
     
     if (!this.bot || !this.chatId) {
       console.log('❌ Telegram not configured - Bot token:', !!this.bot, 'Chat ID:', !!this.chatId);

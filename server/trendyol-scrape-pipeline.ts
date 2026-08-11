@@ -336,10 +336,15 @@ async function finalizeTrendyolPipelineWithVariants(
   diagnostics: ScrapeDiagnostics,
   pipelineStart: number,
   forcedGlobalTimeout: boolean,
-  variantOpts?: { html?: string | null; rawProduct?: Record<string, unknown> | null },
+  variantOpts?: {
+    html?: string | null;
+    rawProduct?: Record<string, unknown> | null;
+    scrapeMode?: SelectedScrapeMode;
+  },
 ): Promise<PipelineOutcome> {
   const { applyFullVariantScrapeToResult } = await import("./trendyol-variant-probe");
   const policy = getScrapeEnvironmentPolicy();
+  const autoFast = (variantOpts?.scrapeMode || "auto-fast") === "auto-fast";
 
   await applyFullVariantScrapeToResult(url, result, {
     html: variantOpts?.html ?? result.htmlContent ?? null,
@@ -434,7 +439,7 @@ async function finalizeTrendyolPipelineWithVariants(
             ...new Set(okSoft.map((m) => m.color)),
           ].join(",")}`,
         );
-      } else {
+      } else if (!autoFast) {
         const { fetchColorFamilyMembersViaApi } = await import("./trendyol-color-family");
         const apiMembers = await fetchColorFamilyMembersViaApi(candidates, rootId);
         const okApi = apiMembers.filter((m) => m.ok);
@@ -1487,6 +1492,7 @@ export async function runTrendyolScrapePipeline(
         apiProduct?.rawProduct ??
         (result._browserWorkerRawProduct as Record<string, unknown> | undefined) ??
         null,
+      scrapeMode: modes.effective,
     },
   );
 }

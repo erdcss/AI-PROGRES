@@ -25,6 +25,8 @@ import { useOnline } from "../../src/hooks/useOnline";
 function typeLabel(type?: string) {
   const t = String(type || "").toUpperCase();
   if (t === "TEST") return "Test";
+  if (t === "NEW_PRODUCT") return "Yeni ürün";
+  if (t.includes("REMOVED")) return "Kaldırıldı";
   if (t.includes("TRANSFERRED")) return "Aktarım";
   if (t.includes("PRICE")) return "Fiyat";
   if (t.includes("STOCK")) return "Stok";

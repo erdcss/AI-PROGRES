@@ -26,6 +26,8 @@ export type MobilePushEventType =
   | "SHOPIFY_SYNC_ERROR"
   | "TITLE_CHANGED"
   | "PRODUCT_TRANSFERRED"
+  | "NEW_PRODUCT"
+  | "VARIANT_REMOVED"
   | "TEST";
 
 export type RegisterMobilePushInput = {
@@ -138,6 +140,8 @@ export function buildPushPayload(
     SHOPIFY_SYNC_ERROR: "Shopify senkron hatası",
     TITLE_CHANGED: "Başlık değişti",
     PRODUCT_TRANSFERRED: "Shopify'a aktarıldı",
+    NEW_PRODUCT: "Yeni ürün",
+    VARIANT_REMOVED: "Varyant kaldırıldı",
     TEST: "Test bildirimi",
   };
   const tagPrefix = watchTagLabel(watchTag);
@@ -199,6 +203,74 @@ async function deliverPayloadToAndroidDevices(payload: MobilePushPayload): Promi
   }
 }
 
+function stripNotifyText(raw?: string | null): string {
+  return String(raw || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+const WEB_TYPE_TO_PUSH: Record<string, { event: MobilePushEventType; title: string }> = {
+  new_product: { event: "NEW_PRODUCT", title: "Yeni ürün" },
+  variant_change: { event: "VARIANT_CHANGED", title: "Varyant değişti" },
+  variant_removed: { event: "VARIANT_REMOVED", title: "Varyant kaldırıldı" },
+  price_change: { event: "PRICE_CHANGED", title: "Fiyat değişti" },
+  stock_update: { event: "STOCK_CHANGED", title: "Stok değişti" },
+  shopify_upload: { event: "PRODUCT_TRANSFERRED", title: "Shopify'a aktarıldı" },
+  test: { event: "TEST", title: "Test bildirimi" },
+};
+
+export async function isWebNotificationEnabled(notificationType: string): Promise<boolean> {
+  try {
+    const { telegramNotificationSettings } = await import("@shared/schema");
+    const rows = await db
+      .select()
+      .from(telegramNotificationSettings)
+      .where(eq(telegramNotificationSettings.notificationType, notificationType));
+    if (!rows.length) return true;
+    return rows[0].enabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+/** Web Bildirimler sayfasındaki işlemleri mobil inbox + tepsiye anında yansıtır. */
+export async function notifyMobileWebEvent(input: {
+  notificationType: string;
+  title?: string | null;
+  message: string;
+  productId?: string | number | null;
+}): Promise<void> {
+  try {
+    const typeKey = String(input.notificationType || "test");
+    if (!(await isWebNotificationEnabled(typeKey))) return;
+    const mapped = WEB_TYPE_TO_PUSH[typeKey] || { event: "TEST" as const, title: "Bildirim" };
+    await ensureTable();
+    const name = String(input.title || "").trim();
+    const bodyText = stripNotifyText(input.message).split("\n").filter(Boolean).slice(0, 3).join("\n");
+    await deliverPayloadToAndroidDevices({
+      title: mapped.title,
+      body: name ? (bodyText && bodyText !== name ? `${name}\n${bodyText}` : name) : bodyText || mapped.title,
+      data: {
+        type: mapped.event,
+        productId: String(input.productId || ""),
+        changeId: "",
+      },
+    });
+  } catch (err) {
+    console.warn(
+      "[mobile-push] notifyMobileWebEvent:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
 export async function notifyMobileProductTransferred(input: {
   title: string;
   memoryProductId?: number | null;
@@ -206,6 +278,7 @@ export async function notifyMobileProductTransferred(input: {
   sourceLabel?: string;
 }): Promise<void> {
   try {
+    if (!(await isWebNotificationEnabled("shopify_upload"))) return;
     await ensureTable();
     const name = String(input.title || "Ürün").trim() || "Ürün";
     const source = String(input.sourceLabel || "Shopify").trim();
@@ -614,6 +687,23 @@ export async function dispatchChangePush(change: DetectedChange): Promise<void> 
     lastNotifyAt.set(notifyKey, Date.now());
 
     const payload = buildPushPayload(change, productTitle, watchTag);
+    const webType =
+      payload.data.type === "PRICE_CHANGED"
+        ? "price_change"
+        : payload.data.type === "STOCK_CHANGED" ||
+            payload.data.type === "OUT_OF_STOCK" ||
+            payload.data.type === "BACK_IN_STOCK"
+          ? "stock_update"
+          : payload.data.type === "PRODUCT_REMOVED" || payload.data.type === "VARIANT_REMOVED"
+            ? "variant_removed"
+            : payload.data.type === "VARIANT_CHANGED"
+              ? "variant_change"
+              : payload.data.type === "PRODUCT_TRANSFERRED"
+                ? "shopify_upload"
+                : payload.data.type === "NEW_PRODUCT"
+                  ? "new_product"
+                  : null;
+    if (webType && !(await isWebNotificationEnabled(webType))) return;
     await deliverPayloadToAndroidDevices(payload);
   } catch (err) {
     console.warn(
