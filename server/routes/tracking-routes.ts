@@ -4,6 +4,7 @@ import {
   updateTrackingSettings,
 } from "../services/tracking-settings.service";
 import { trackingService } from "../services/tracking.service";
+import { hydrateIncompleteCatalog } from "../services/catalog-hydrate.service";
 import {
   runManualProductCheck,
   getTrackingSchedulerStatus,
@@ -69,6 +70,7 @@ export function registerTrackingRoutes(app: Express): void {
 
   app.get("/api/tracking/products", async (req, res) => {
     try {
+      await hydrateIncompleteCatalog();
       const includeArchived = req.query.includeArchived === "true";
       const includeUnlinked = req.query.includeShopifyOnly === "true"
         ? false

@@ -464,14 +464,16 @@ export class TelegramNotificationGateway {
     // Resolve Trendyol URL
     const { trendyolUrl } = await this.resolveProductLinks(productId);
 
-    const variantLabel = [color, size].filter(Boolean).join(' / ');
+    const colorSafe = String(color || "").trim() || "—";
+    const sizeSafe = String(size || "").trim() || "—";
+    const variantLabel = [colorSafe, sizeSafe].filter((v) => v !== "—").join(" / ");
     const message =
       `${emoji} ${bgEmoji} <b>${title}</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `📦 <b>Ürün:</b> ${productTitle}\n\n` +
       (variantLabel ? `🏷️ <b>${variantLabel} → ${title}</b>\n\n` : '') +
-      `🎨 <b>Renk:</b> <code>${color}</code>\n` +
-      `📏 <b>Beden:</b> <code>${size}</code>\n\n` +
+      `🎨 <b>Renk:</b> <code>${colorSafe}</code>\n` +
+      `📏 <b>Beden:</b> <code>${sizeSafe}</code>\n\n` +
       `📍 <b>Durum:</b> ${statusText}\n` +
       `\n━━━━━━━━━━━━━━━━━━━━\n` +
       (metadata?.shopifyUpdated

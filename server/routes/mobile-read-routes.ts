@@ -8,6 +8,10 @@ import {
 } from "../services/tracking.scheduler";
 import { computeCatalogCounts } from "../services/mobile-dashboard.service";
 import { trackingService } from "../services/tracking.service";
+import {
+  hasDisplayablePrice,
+  hydrateIncompleteCatalog,
+} from "../services/catalog-hydrate.service";
 
 function normalizeMediaUrl(raw: unknown): string | null {
   if (!raw) return null;
@@ -66,6 +70,7 @@ function variantPrices(variants: Array<Record<string, unknown>>): unknown[] {
 export function registerMobileReadRoutes(app: Express): void {
   app.get("/api/mobile/dashboard", async (_req, res) => {
     try {
+      void hydrateIncompleteCatalog();
       const [notifications, scheduler, changeCounts, catalog] =
         await Promise.all([
           getTrackingNotifications(),
@@ -111,6 +116,7 @@ export function registerMobileReadRoutes(app: Express): void {
 
   app.get("/api/mobile/products", async (req, res) => {
     try {
+      await hydrateIncompleteCatalog();
       const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
       const offset = Math.max(0, Number(req.query.offset) || 0);
       const q = String(req.query.q || "").trim();
@@ -128,6 +134,7 @@ export function registerMobileReadRoutes(app: Express): void {
       if (marketplace && marketplace !== "all" && marketplace !== "tümü") {
         conditions.push(ilike(products.sourcePlatform, `%${marketplace}%`));
       }
+      conditions.push(eq(products.isActive, true));
 
       const where = and(...conditions);
       const rows = await db
@@ -171,23 +178,28 @@ export function registerMobileReadRoutes(app: Express): void {
         variantsByProduct.set(v.productId, list);
       }
 
+      const mapped = rows.map((p) => {
+        const variants = variantsByProduct.get(p.id) || [];
+        const currentPrice =
+          firstPositivePrice(p.currentPrice, p.originalPrice, ...variantPrices(variants as Array<Record<string, unknown>>)) ??
+          p.currentPrice;
+        return {
+          ...p,
+          image: firstMediaUrl(p.images),
+          marketplace: p.sourcePlatform || "unknown",
+          scrapedAt: p.createdAt,
+          shopifyStatus: p.shopifyProductId ? "linked" : "none",
+          currentPrice,
+          variantCount: variants.length,
+          variants,
+        };
+      }).filter((p) =>
+        hasDisplayablePrice(p.currentPrice, p.originalPrice) || p.variantCount > 0,
+      );
+
       return res.json({
         success: true,
-        products: rows.map((p) => {
-          const variants = variantsByProduct.get(p.id) || [];
-          return {
-            ...p,
-            image: firstMediaUrl(p.images),
-            marketplace: p.sourcePlatform || "unknown",
-            scrapedAt: p.createdAt,
-            shopifyStatus: p.shopifyProductId ? "linked" : "none",
-            currentPrice:
-              firstPositivePrice(p.currentPrice, p.originalPrice, ...variantPrices(variants as Array<Record<string, unknown>>)) ??
-              p.currentPrice,
-            variantCount: variants.length,
-            variants,
-          };
-        }),
+        products: mapped,
         pagination: {
           total,
           limit,
@@ -331,6 +343,7 @@ export function registerMobileReadRoutes(app: Express): void {
 
   app.get("/api/mobile/memory-products", async (req, res) => {
     try {
+      await hydrateIncompleteCatalog();
       const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
       const offset = Math.max(0, Number(req.query.offset) || 0);
       const rows = await db
@@ -343,19 +356,22 @@ export function registerMobileReadRoutes(app: Express): void {
       const total = Number(totalRow[0]?.c ?? 0);
       return res.json({
         success: true,
-        products: rows.map((p) => {
-          const variants = asVariantList(p.variants);
-          return {
-            ...p,
-            image: firstMediaUrl(p.images),
-            images: Array.isArray(p.images) ? p.images : [],
-            variants,
-            variantCount: variants.length,
-            price:
+        products: rows
+          .map((p) => {
+            const variants = asVariantList(p.variants);
+            const price =
               firstPositivePrice(p.price, p.compareAtPrice, ...variantPrices(variants as Array<Record<string, unknown>>)) ??
-              p.price,
-          };
-        }),
+              p.price;
+            return {
+              ...p,
+              image: firstMediaUrl(p.images),
+              images: Array.isArray(p.images) ? p.images : [],
+              variants,
+              variantCount: variants.length,
+              price,
+            };
+          })
+          .filter((p) => hasDisplayablePrice(p.price, p.compareAtPrice) || p.variantCount > 0),
         pagination: { total, limit, offset, hasMore: offset + limit < total },
       });
     } catch (err) {

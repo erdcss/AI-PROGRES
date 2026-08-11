@@ -475,6 +475,24 @@ export async function setWatchTag(body: {
   });
 }
 
+export type PushInboxItem = {
+  id: number;
+  title: string;
+  body: string;
+  data?: {
+    type?: string;
+    productId?: string;
+    changeId?: string;
+  };
+  createdAt?: string;
+};
+
+export async function fetchPushInbox(afterId = 0) {
+  return apiFetch<{ success: boolean; items: PushInboxItem[] }>(
+    `/api/mobile/push/inbox?afterId=${encodeURIComponent(String(afterId))}`,
+  );
+}
+
 export async function registerPushDevice(body: {
   deviceId: string;
   platform: string;

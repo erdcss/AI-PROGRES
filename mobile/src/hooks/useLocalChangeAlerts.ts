@@ -1,50 +1,42 @@
 import { useEffect, useRef } from "react";
 import * as Notifications from "expo-notifications";
 import { useQuery } from "@tanstack/react-query";
-import { fetchAllChanges, type ChangeRow } from "../api/tracking";
-import {
-  changeStatusLabel,
-  changeTypeLabel,
-  formatChangeValue,
-} from "../lib/format";
-import { parseWatchTag, shouldNotifyForWatchTag, watchTagLabel } from "../lib/watch-tag";
+import { fetchPushInbox, type PushInboxItem } from "../api/tracking";
 import { ensureAndroidChannel, getNotificationPermissionStatus } from "./usePush";
 import { useInAppBanner } from "../components/InAppBanner";
 
-async function presentLocal(change: ChangeRow): Promise<void> {
+async function presentInbox(item: PushInboxItem): Promise<void> {
   try {
     await ensureAndroidChannel();
-    const tag = parseWatchTag(change.watchTag);
-    const tagPrefix = watchTagLabel(tag);
-    const title = `${tagPrefix ? `${tagPrefix} · ` : ""}${changeTypeLabel(change.changeType)} · ${changeStatusLabel(change.status)}`;
-    const body = `${change.productTitle || `Ürün #${change.trackedProductId}`}: ${formatChangeValue(change.oldValue)} → ${formatChangeValue(change.newValue)}`;
     await Notifications.scheduleNotificationAsync({
       content: {
-        title,
-        body,
+        title: item.title,
+        body: item.body,
         sound: true,
         data: {
-          changeId: String(change.id),
-          productId: String(change.trackedProductId),
+          type: item.data?.type || "",
+          productId: item.data?.productId || "",
+          changeId: item.data?.changeId || "",
         },
       },
       trigger: null,
     });
   } catch (err) {
-    console.warn("[push] local alert skipped", err);
+    console.warn("[push] inbox local alert skipped", err);
   }
 }
 
-/** Yeni takip durumlarını her durumda cihaz bildirimi olarak gösterir (Expo Go dahil yerel). */
+/** Sunucu kuyruğundaki test + programlı bildirimleri cihazda gösterir (FCM olmasa da). */
 export function useLocalChangeAlerts(): void {
   const { showBanner } = useInAppBanner();
   const primed = useRef(false);
   const seen = useRef(new Set<number>());
-  const lastNotify = useRef(new Map<string, number>());
+  const afterId = useRef(0);
+
   const q = useQuery({
-    queryKey: ["changes-all"],
-    queryFn: () => fetchAllChanges(),
-    refetchInterval: 60_000,
+    queryKey: ["push-inbox"],
+    queryFn: () => fetchPushInbox(afterId.current),
+    refetchInterval: 12_000,
   });
 
   useEffect(() => {
@@ -53,24 +45,20 @@ export function useLocalChangeAlerts(): void {
 
   useEffect(() => {
     if (!q.isSuccess) return;
-    const list = q.data?.changes || [];
+    const list = q.data?.items || [];
     if (!primed.current) {
-      for (const c of list) seen.current.add(c.id);
+      for (const item of list) seen.current.add(item.id);
+      const maxId = list.reduce((m, item) => Math.max(m, item.id), afterId.current);
+      afterId.current = maxId;
       primed.current = true;
       return;
     }
-    for (const c of list) {
-      if (seen.current.has(c.id)) continue;
-      seen.current.add(c.id);
-      const tag = parseWatchTag(c.watchTag);
-      const key = `${c.trackedProductId}:${c.changeType}`;
-      if (!shouldNotifyForWatchTag(tag, c.changeType, lastNotify.current.get(key))) continue;
-      lastNotify.current.set(key, Date.now());
-      const tagPrefix = watchTagLabel(tag);
-      const title = `${tagPrefix ? `${tagPrefix} · ` : ""}${changeTypeLabel(c.changeType)}`;
-      const body = `${c.productTitle || `Ürün #${c.trackedProductId}`}: ${formatChangeValue(c.oldValue)} → ${formatChangeValue(c.newValue)}`;
-      showBanner(title, body);
-      void presentLocal(c);
+    for (const item of list) {
+      if (seen.current.has(item.id)) continue;
+      seen.current.add(item.id);
+      afterId.current = Math.max(afterId.current, item.id);
+      showBanner(item.title, item.body);
+      void presentInbox(item);
     }
   }, [q.isSuccess, q.data, showBanner]);
 }

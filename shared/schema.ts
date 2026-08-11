@@ -826,6 +826,14 @@ export const mobilePushDevices = pgTable('mobile_push_devices', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+export const mobilePushInbox = pgTable('mobile_push_inbox', {
+  id: serial('id').primaryKey(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  data: jsonb('data').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 export type ImportJob = typeof importJobs.$inferSelect;
 export type InsertImportJob = typeof importJobs.$inferInsert;
 export type ImportJobEvent = typeof importJobEvents.$inferSelect;

@@ -206,7 +206,7 @@ export default function ProductsScreen() {
       });
     }
 
-    let filtered = unified;
+    let filtered = unified.filter((u) => u.price !== "—" || u.subtitle.includes("varyant"));
     if (filter === "Kırmızı") filtered = unified.filter((u) => u.watchTag === "red");
     if (filter === "Yeşil") filtered = unified.filter((u) => u.watchTag === "green");
     if (filter === "Takipte") filtered = unified.filter((u) => u.tracked);

@@ -22,3 +22,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS mobile_push_devices_push_token_uidx
 CREATE INDEX IF NOT EXISTS mobile_push_devices_enabled_idx
   ON mobile_push_devices (enabled)
   WHERE enabled = TRUE;
+
+CREATE TABLE IF NOT EXISTS mobile_push_inbox (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS mobile_push_inbox_created_at_idx
+  ON mobile_push_inbox (created_at DESC);

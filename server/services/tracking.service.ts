@@ -179,6 +179,21 @@ export class TrackingService {
       .orderBy(desc(trackedProducts.updatedAt));
 
     const imageMap = await this.getLatestImageMap(products.map((p) => p.id));
+    const ids = products.map((p) => p.id);
+    const variantPriceRows =
+      ids.length > 0
+        ? await db
+            .select({
+              trackedProductId: trackedVariants.trackedProductId,
+              minPrice: sql<string>`min(${trackedVariants.currentSourcePrice}::numeric)`,
+            })
+            .from(trackedVariants)
+            .where(inArray(trackedVariants.trackedProductId, ids))
+            .groupBy(trackedVariants.trackedProductId)
+        : [];
+    const variantPriceById = new Map(
+      variantPriceRows.map((row) => [row.trackedProductId, row.minPrice]),
+    );
     const sourceUrls = [...new Set(products.map((p) => p.sourceUrl).filter(Boolean))];
     const transfers =
       sourceUrls.length > 0
@@ -192,11 +207,17 @@ export class TrackingService {
         : [];
     const transferByUrl = new Map(transfers.map((row) => [row.sourceUrl, row.transferredAt]));
 
-    return products.map((p) => ({
-      ...p,
-      productImageUrl: imageMap.get(p.id) ?? null,
-      shopifyTransferredAt: transferByUrl.get(p.sourceUrl) ?? null,
-    }));
+    return products.map((p) => {
+      const fallback = variantPriceById.get(p.id);
+      const current = Number(p.currentSourcePrice);
+      const hasPrice = Number.isFinite(current) && current > 0;
+      return {
+        ...p,
+        currentSourcePrice: hasPrice ? p.currentSourcePrice : fallback ?? p.currentSourcePrice,
+        productImageUrl: imageMap.get(p.id) ?? null,
+        shopifyTransferredAt: transferByUrl.get(p.sourceUrl) ?? null,
+      };
+    });
   }
 
   async listChangesForPanel(filters?: {

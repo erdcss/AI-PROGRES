@@ -2,9 +2,9 @@
  * ORVIAN Monitor — FCM push (izole).
  * Tracking / scrape / Shopify hatalarını ASLA yukarı fırlatmaz.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { db } from "../db";
-import { mobilePushDevices, trackedProducts, type DetectedChange } from "@shared/schema";
+import { mobilePushDevices, mobilePushInbox, trackedProducts, type DetectedChange } from "@shared/schema";
 import { runMobilePushMigration } from "../migrations/run-mobile-push-migration";
 import {
   parseWatchTag,
@@ -168,6 +168,37 @@ async function ensureTable(): Promise<void> {
   } catch {
     /* ignore */
   }
+}
+
+async function enqueueInbox(payload: MobilePushPayload): Promise<void> {
+  try {
+    await db.insert(mobilePushInbox).values({
+      title: payload.title,
+      body: payload.body,
+      data: payload.data,
+    });
+  } catch (err) {
+    console.warn("[mobile-push] inbox enqueue failed:", (err as Error).message);
+  }
+}
+
+export async function listMobilePushInbox(afterId = 0, limit = 30) {
+  await ensureTable();
+  const safeLimit = Math.min(50, Math.max(1, Number(limit) || 30));
+  const safeAfter = Math.max(0, Number(afterId) || 0);
+  if (safeAfter <= 0) {
+    return db
+      .select()
+      .from(mobilePushInbox)
+      .orderBy(desc(mobilePushInbox.id))
+      .limit(1);
+  }
+  return db
+    .select()
+    .from(mobilePushInbox)
+    .where(gt(mobilePushInbox.id, safeAfter))
+    .orderBy(asc(mobilePushInbox.id))
+    .limit(safeLimit);
 }
 
 function maskId(value: string): string {
@@ -387,7 +418,7 @@ async function defaultFcmSend(
   payload: MobilePushPayload,
 ): Promise<FcmSendResult> {
   if (token.startsWith("local:")) {
-    return { ok: false, error: "local token — in-app only" };
+    return { ok: true };
   }
   if (isExpoPushToken(token)) {
     return sendViaExpoPush(token, payload);
@@ -509,13 +540,14 @@ export async function dispatchChangePush(change: DetectedChange): Promise<void> 
     lastNotifyAt.set(notifyKey, Date.now());
 
     const payload = buildPushPayload(change, productTitle, watchTag);
+    await enqueueInbox(payload);
     const devices = await db
       .select()
       .from(mobilePushDevices)
       .where(and(eq(mobilePushDevices.enabled, true), eq(mobilePushDevices.platform, "android")));
 
     if (!devices.length) {
-      console.log("[mobile-push] no enabled devices — skip");
+      console.log("[mobile-push] inbox queued, no enabled devices for remote send");
       return;
     }
 
@@ -583,6 +615,7 @@ export async function sendTestMobilePush(): Promise<TestMobilePushResult> {
         changeId: "",
       },
     };
+    await enqueueInbox(payload);
 
     const send = fcmSender || defaultFcmSend;
     let sent = 0;

@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import {
   listMobilePushDevices,
+  listMobilePushInbox,
   registerMobilePushDevice,
   unregisterMobilePushDevice,
 } from "../services/mobile-push.service";
@@ -32,6 +33,17 @@ export function registerMobilePushRoutes(app: Express): void {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return res.status(400).json({ success: false, error: message });
+    }
+  });
+
+  app.get("/api/mobile/push/inbox", async (req, res) => {
+    try {
+      const afterId = Number(req.query.afterId || 0);
+      const items = await listMobilePushInbox(afterId);
+      return res.json({ success: true, items });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message, items: [] });
     }
   });
 

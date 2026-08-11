@@ -5,7 +5,7 @@ import { pool } from "../db";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const MOBILE_PUSH_TABLES = ["mobile_push_devices"] as const;
+export const MOBILE_PUSH_TABLES = ["mobile_push_devices", "mobile_push_inbox"] as const;
 
 function buildCandidatePaths(): string[] {
   const cwd = process.cwd();

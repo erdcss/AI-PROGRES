@@ -67,6 +67,20 @@ const STATUS_LABEL: Record<string, string> = {
   pending: "Bekliyor",
 };
 
+function stripNotifyText(raw?: string | null) {
+  return String(raw || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function formatWhen(iso?: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -212,7 +226,7 @@ export default function BildirimlerPage() {
     const telegram: HistoryRow[] = (historyQ.data || []).map((h) => ({
       id: `tg-${h.id}`,
       title: h.productTitle || LABELS[h.notificationType]?.title || h.notificationType,
-      detail: h.errorMessage || h.message,
+      detail: stripNotifyText(h.errorMessage || h.message),
       status: h.status,
       type: h.notificationType,
       at: h.sentAt || h.createdAt || null,

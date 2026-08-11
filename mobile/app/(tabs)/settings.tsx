@@ -47,10 +47,9 @@ type HealthResponse = {
   lastDashboardSync?: string | null;
 };
 
-type SettingsTab = "bildirimler" | "sistem" | "shopify" | "takip" | "uygulama";
+type SettingsTab = "sistem" | "shopify" | "takip" | "uygulama";
 
 const TABS: { id: SettingsTab; label: string }[] = [
-  { id: "bildirimler", label: "Bildirimler" },
   { id: "sistem", label: "Sistem" },
   { id: "shopify", label: "Shopify" },
   { id: "takip", label: "Takip" },
@@ -67,7 +66,7 @@ export default function SettingsScreen() {
   const { showBanner } = useInAppBanner();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<SettingsTab>("bildirimler");
+  const [tab, setTab] = useState<SettingsTab>("sistem");
   const [registered, setRegistered] = useState(false);
 
   const dash = useQuery({ queryKey: ["dashboard"], queryFn: fetchDashboard });
@@ -202,54 +201,6 @@ export default function SettingsScreen() {
           />
         }
       >
-        {tab === "bildirimler" ? (
-          <>
-            <SectionLabel>İZİN VE KAYIT</SectionLabel>
-            <SettingRow
-              label="Sistem izni"
-              value={permission.status === "granted" ? "Verildi" : "Bekliyor"}
-            />
-            <Pressable
-              onPress={() => {
-                void (async () => {
-                  const ok = await permission.requestSystemPermission();
-                  showBanner(
-                    ok ? "Sistem izni verildi" : "Sistem izni alınamadı",
-                    ok
-                      ? "Bildirim izni Android tarafından açık."
-                      : "Açılan sistem penceresinden izni onaylayın.",
-                  );
-                })();
-              }}
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
-            >
-              <Ionicons name="shield-checkmark-outline" size={16} color={colors.text} />
-              <Text style={styles.actionText}>SİSTEM BİLDİRİM İZNİNİ İSTE</Text>
-            </Pressable>
-            <Text style={styles.hint}>
-              İzin Android sistem penceresinden verilir. Uygulama içi onay yeterli değildir.
-            </Text>
-
-            <Pressable
-              onPress={() => registerMut.mutate()}
-              disabled={registerMut.isPending}
-              style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
-            >
-              <Ionicons name="phone-portrait-outline" size={16} color="#000" />
-              <Text style={styles.primaryText}>
-                {registerMut.isPending
-                  ? "KAYDEDİLİYOR…"
-                  : registered
-                    ? "CİHAZ KAYITLI — TEKRAR KAYDET"
-                    : "CİHAZI PANELE KAYDET"}
-              </Text>
-            </Pressable>
-            <Text style={styles.hint}>
-              Kayıt sonrası cihaz programdaki Bildirimler → Kayıtlı cihazlar listesinde görünür ve test bildirimi bu telefona gider.
-            </Text>
-          </>
-        ) : null}
-
         {tab === "sistem" ? (
           <>
             <SectionLabel>DURUM</SectionLabel>
@@ -273,6 +224,46 @@ export default function SettingsScreen() {
                 (isMobileSupabaseConfigured() ? "yapılandırıldı" : "yapılandırılmamış")
               }
             />
+
+            <SectionLabel>CİHAZ</SectionLabel>
+            <SettingRow
+              label="Sistem izni"
+              value={permission.status === "granted" ? "Verildi" : "Bekliyor"}
+            />
+            <Pressable
+              onPress={() => {
+                void (async () => {
+                  const ok = await permission.requestSystemPermission();
+                  showBanner(
+                    ok ? "Sistem izni verildi" : "Sistem izni alınamadı",
+                    ok
+                      ? "Bildirim izni Android tarafından açık."
+                      : "Açılan sistem penceresinden izni onaylayın.",
+                  );
+                })();
+              }}
+              style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+            >
+              <Ionicons name="shield-checkmark-outline" size={16} color={colors.text} />
+              <Text style={styles.actionText}>SİSTEM BİLDİRİM İZNİNİ İSTE</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => registerMut.mutate()}
+              disabled={registerMut.isPending}
+              style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+            >
+              <Ionicons name="phone-portrait-outline" size={16} color="#000" />
+              <Text style={styles.primaryText}>
+                {registerMut.isPending
+                  ? "KAYDEDİLİYOR…"
+                  : registered
+                    ? "CİHAZ KAYITLI — TEKRAR KAYDET"
+                    : "CİHAZI PANELE KAYDET"}
+              </Text>
+            </Pressable>
+            <Text style={styles.hint}>
+              Bildirim türleri yalnızca web panelinden yönetilir. Cihaz kaydı test ve programlı bildirimler için gereklidir.
+            </Text>
           </>
         ) : null}
 

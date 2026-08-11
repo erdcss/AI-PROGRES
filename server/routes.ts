@@ -7523,20 +7523,29 @@ setTimeout(check, 1000);
       const mobile = await sendTestMobilePush();
 
       let telegram: { ok: boolean; error?: string } = { ok: false };
-      try {
-        await telegramIntegration.sendNotification(
-          "Test bildirimi — ORVIAN bildirim bağlantısı çalışıyor.",
-          "test",
-          undefined,
-          undefined,
-          { source: "bildirimler_page" },
-        );
-        telegram = { ok: true };
-      } catch (tgErr) {
-        telegram = {
-          ok: false,
-          error: tgErr instanceof Error ? tgErr.message : String(tgErr),
-        };
+      const tgStatus = telegramIntegration.getStatus?.() as {
+        connected?: boolean;
+        botConfigured?: boolean;
+        chatId?: string | null;
+      } | undefined;
+      if (tgStatus?.connected && tgStatus?.botConfigured && tgStatus?.chatId) {
+        try {
+          await telegramIntegration.sendNotification(
+            "Test bildirimi — ORVIAN bildirim bağlantısı çalışıyor.",
+            "test",
+            undefined,
+            undefined,
+            { source: "bildirimler_page" },
+          );
+          telegram = { ok: true };
+        } catch (tgErr) {
+          telegram = {
+            ok: false,
+            error: tgErr instanceof Error ? tgErr.message : String(tgErr),
+          };
+        }
+      } else {
+        telegram = { ok: false, error: "skipped" };
       }
 
       if (mobile.sent > 0) {
