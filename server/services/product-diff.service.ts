@@ -537,55 +537,81 @@ export async function persistDetectedChanges(input: {
   diff: DiffResult;
 }) {
   const rows = [];
-  for (const c of input.diff.changes) {
-    const trackedVariantId = await resolveTrackedVariantId(input.trackedProductId, c);
-    if (
-      (c.changeType === "variant_stock_changed" ||
-        c.changeType === "variant_price_changed") &&
-      trackedVariantId == null
-    ) {
-      console.warn(
-        `⚠️ Eşleşmeyen ${c.changeType} atlandı (ürün #${input.trackedProductId}, key=${c.variantKey ?? "?"})`,
-      );
-      continue;
-    }
-    const sameTarget = [
-      eq(detectedChanges.trackedProductId, input.trackedProductId),
-      eq(detectedChanges.changeType, c.changeType),
-      eq(detectedChanges.fieldName, c.fieldName),
-      inArray(detectedChanges.status, ["pending", "manual_review", "approved", "failed"]),
-      trackedVariantId == null
-        ? isNull(detectedChanges.trackedVariantId)
-        : eq(detectedChanges.trackedVariantId, trackedVariantId),
-    ];
-    await db
-      .update(detectedChanges)
-      .set({
-        status: "superseded",
-        reason: "Daha yeni bir değişiklik kaydıyla güncellendi",
-        updatedAt: new Date(),
-      })
-      .where(and(...sameTarget));
+  try {
+    for (const c of input.diff.changes) {
+      const trackedVariantId = await resolveTrackedVariantId(input.trackedProductId, c);
+      if (
+        (c.changeType === "variant_stock_changed" ||
+          c.changeType === "variant_price_changed") &&
+        trackedVariantId == null
+      ) {
+        console.warn(
+          `⚠️ Eşleşmeyen ${c.changeType} atlandı (ürün #${input.trackedProductId}, key=${c.variantKey ?? "?"})`,
+        );
+        continue;
+      }
+      const sameTarget = [
+        eq(detectedChanges.trackedProductId, input.trackedProductId),
+        eq(detectedChanges.changeType, c.changeType),
+        eq(detectedChanges.fieldName, c.fieldName),
+        inArray(detectedChanges.status, ["pending", "manual_review", "approved", "failed"]),
+        trackedVariantId == null
+          ? isNull(detectedChanges.trackedVariantId)
+          : eq(detectedChanges.trackedVariantId, trackedVariantId),
+      ];
+      await db
+        .update(detectedChanges)
+        .set({
+          status: "superseded",
+          reason: "Daha yeni bir değişiklik kaydıyla güncellendi",
+          updatedAt: new Date(),
+        })
+        .where(and(...sameTarget));
 
-    const [row] = await db
-      .insert(detectedChanges)
-      .values({
-        trackedProductId: input.trackedProductId,
-        trackedVariantId,
-        changeType: c.changeType,
-        fieldName: c.fieldName,
-        oldValue: c.oldValue as never,
-        newValue: c.newValue as never,
-        confidence: String(c.confidence),
-        status: c.status,
-        reason: c.reason ?? null,
-        sourceSnapshotId: input.sourceSnapshotId,
-        targetSnapshotId: input.targetSnapshotId,
-      })
-      .returning();
-    rows.push(row);
+      const [row] = await db
+        .insert(detectedChanges)
+        .values({
+          trackedProductId: input.trackedProductId,
+          trackedVariantId,
+          changeType: c.changeType,
+          fieldName: c.fieldName,
+          oldValue: c.oldValue as never,
+          newValue: c.newValue as never,
+          confidence: String(c.confidence),
+          status: c.status,
+          reason: c.reason ?? null,
+          sourceSnapshotId: input.sourceSnapshotId,
+          targetSnapshotId: input.targetSnapshotId,
+        })
+        .returning();
+      rows.push(row);
+    }
+    return rows;
+  } finally {
+    // Fire-and-forget mobile mirror + FCM. Comparison/persist sonucunu değiştirmez.
+    if (rows.length > 0) {
+      void import("./mobile-sync.service")
+        .then(({ notifyMobileAfterPersistedChanges }) => {
+          notifyMobileAfterPersistedChanges(rows);
+        })
+        .catch((err) => {
+          console.warn(
+            "[mobile-sync] post-persist hook skipped:",
+            err instanceof Error ? err.message : String(err),
+          );
+        });
+      void import("./auto-shopify-sync.service")
+        .then(({ maybeAutoShopifySyncAfterPersist }) => {
+          maybeAutoShopifySyncAfterPersist(rows);
+        })
+        .catch((err) => {
+          console.warn(
+            "[auto-shopify] post-persist hook skipped:",
+            err instanceof Error ? err.message : String(err),
+          );
+        });
+    }
   }
-  return rows;
 }
 
 /**

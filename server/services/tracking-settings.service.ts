@@ -58,7 +58,10 @@ export async function updateTrackingSettings(
     .update(trackingSettings)
     .set({
       ...patch,
-      autoShopifySyncEnabled: false,
+      autoShopifySyncEnabled:
+        typeof patch.autoShopifySyncEnabled === "boolean"
+          ? patch.autoShopifySyncEnabled
+          : current.autoShopifySyncEnabled,
       updatedAt: new Date(),
     })
     .where(eq(trackingSettings.id, current.id))

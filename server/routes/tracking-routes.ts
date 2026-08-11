@@ -214,6 +214,41 @@ export function registerTrackingRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/tracking/watch-tag", async (req, res) => {
+    try {
+      const trackedProductIdRaw = req.body?.trackedProductId
+        ? Number(req.body.trackedProductId)
+        : undefined;
+      const scrapedProductIdRaw = req.body?.scrapedProductId
+        ? Number(req.body.scrapedProductId)
+        : undefined;
+      const trackedProductId =
+        trackedProductIdRaw !== undefined &&
+        Number.isInteger(trackedProductIdRaw) &&
+        trackedProductIdRaw > 0
+          ? trackedProductIdRaw
+          : undefined;
+      const scrapedProductId =
+        scrapedProductIdRaw !== undefined &&
+        Number.isInteger(scrapedProductIdRaw) &&
+        scrapedProductIdRaw > 0
+          ? scrapedProductIdRaw
+          : undefined;
+      const result = await trackingService.setWatchTag({
+        tag: req.body?.tag ?? null,
+        trackedProductId,
+        scrapedProductId,
+      });
+      return res.json({ success: true, ...result });
+    } catch (err) {
+      const msg = (err as Error).message || String(err);
+      if (msg.includes("Geçersiz") || msg.includes("gerekli") || msg.includes("bulunamadı")) {
+        return res.status(400).json({ success: false, error: msg });
+      }
+      return migrationErrorResponse(res, err);
+    }
+  });
+
   app.post("/api/tracking/products/:id/enable", async (req, res) => {
     try {
       const id = parsePositiveInt(req.params.id);

@@ -37,8 +37,8 @@ describe("direct Shopify correction policy", () => {
     assert.equal(isActionableTrackingChangeStatus("failed"), true);
     assert.equal(isDirectlyApplicableTrackingChange("price_changed", "price"), true);
     assert.equal(
-      isDirectlyApplicableTrackingChange("stock_changed", "available"),
-      false,
+      isDirectlyApplicableTrackingChange("stock_changed", "available", false),
+      true,
     );
     assert.equal(
       isDirectlyApplicableTrackingChange("variant_stock_changed", "inStock", false),
@@ -61,8 +61,9 @@ describe("direct Shopify correction policy", () => {
     assert.equal(isActionableTrackingChangeStatus("applied"), false);
     assert.equal(isActionableTrackingChangeStatus("superseded"), false);
     assert.equal(isDirectlyApplicableTrackingChange("stock_changed", "stock"), false);
-    assert.equal(isDirectlyApplicableTrackingChange("variant_added", "variant"), false);
-    assert.equal(isDirectlyApplicableTrackingChange("variant_removed", "variant"), false);
+    assert.equal(isDirectlyApplicableTrackingChange("variant_added", "variant"), true);
+    assert.equal(isDirectlyApplicableTrackingChange("variant_removed", "variant"), true);
+    assert.equal(isDirectlyApplicableTrackingChange("product_removed", "product"), true);
   });
 
   it("requires variant link for Shopify-syncable stock/price changes", () => {

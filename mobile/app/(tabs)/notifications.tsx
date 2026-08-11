@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { colors } from "../../src/theme/colors";
-import { fetchChanges, fetchNotifications, type ChangeRow } from "../../src/api/tracking";
+import { fetchAllChanges, fetchNotifications, type ChangeRow } from "../../src/api/tracking";
 import {
   changeTypeLabel,
   formatChangeValue,
@@ -20,9 +20,10 @@ import {
   ScreenHeader,
   SkeletonList,
 } from "../../src/components/Ui";
+import { NotificationBell } from "../../src/components/NotificationDrawer";
 import { useOnline } from "../../src/hooks/useOnline";
 
-const FILTERS = ["Tümü", "Okunmamış", "Önemli"];
+const FILTERS = ["Tümü", "Kırmızı", "Yeşil", "Okunmamış", "Önemli"];
 
 const Row = memo(function Row({
   item,
@@ -31,7 +32,9 @@ const Row = memo(function Row({
   item: ChangeRow;
   onPress: (id: number) => void;
 }) {
-  const title = `${changeTypeLabel(item.changeType)} değişikliği`;
+  const tag =
+    item.watchTag === "red" ? "Kırmızı · " : item.watchTag === "green" ? "Yeşil · " : "";
+  const title = `${tag}${changeTypeLabel(item.changeType)} değişikliği`;
   const name = item.productTitle || `Ürün #${item.trackedProductId}`;
   const body = `${name} ürününün değeri ${formatChangeValue(item.oldValue)} → ${formatChangeValue(item.newValue)}.`;
   return (
@@ -54,8 +57,9 @@ export default function NotificationsScreen() {
 
   const notif = useQuery({ queryKey: ["notifications"], queryFn: fetchNotifications });
   const changes = useQuery({
-    queryKey: ["changes-actionable"],
-    queryFn: () => fetchChanges(),
+    queryKey: ["changes-all"],
+    queryFn: () => fetchAllChanges(),
+    refetchInterval: 20_000,
   });
 
   const items = useMemo(() => {
@@ -63,6 +67,8 @@ export default function NotificationsScreen() {
       ? changes.data.changes
       : notif.data?.lastChanges || [];
 
+    if (filter === "Kırmızı") list = list.filter((c) => c.watchTag === "red");
+    if (filter === "Yeşil") list = list.filter((c) => c.watchTag === "green");
     if (filter === "Okunmamış") list = list.filter((c) => !c.seenAt);
     if (filter === "Önemli") list = list.filter((c) => isImportantChangeType(c.changeType));
     return list;
@@ -80,7 +86,7 @@ export default function NotificationsScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <OfflineBanner online={online} />
       <View style={styles.pad}>
-        <ScreenHeader title="Bildirimler" />
+        <ScreenHeader title="Bildirimler" right={<NotificationBell />} />
         <FilterTabs options={FILTERS} value={filter} onChange={setFilter} />
       </View>
 

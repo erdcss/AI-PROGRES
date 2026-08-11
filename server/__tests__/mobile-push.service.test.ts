@@ -7,6 +7,7 @@ import {
   mapChangeToPushEvent,
   setMobilePushFcmSender,
   dispatchChangePush,
+  scheduleChangePush,
   registerMobilePushDevice,
   unregisterMobilePushDevice,
 } from "../services/mobile-push.service";
@@ -108,6 +109,14 @@ try {
   threw = true;
 }
 assert(!threw, "dispatchChangePush does not throw when FCM fails");
+
+threw = false;
+try {
+  scheduleChangePush(fakeChange({ id: 997 }));
+} catch {
+  threw = true;
+}
+assert(!threw, "scheduleChangePush fire-and-forget does not throw");
 
 setMobilePushFcmSender(async () => ({ ok: false, invalidToken: true, error: "bad token" }));
 threw = false;

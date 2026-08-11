@@ -97,6 +97,45 @@ assert(realtimeHook.includes("invalidateQueries"), "Realtime reconnect invalidat
 assert(realtimeHook.includes('state === "active"'), "App foreground invalidate on reconnect/resume");
 assert(realtimeHook.includes("removeChannel"), "Realtime channel cleanup on unmount");
 
+const persistSrc = readFileSync(
+  join(__dirname, "../services/product-diff.service.ts"),
+  "utf8",
+);
+assert(
+  persistSrc.includes("notifyMobileAfterPersistedChanges"),
+  "persistDetectedChanges schedules mobile side-effects after insert",
+);
+assert(
+  persistSrc.includes("finally"),
+  "mobile hook runs in finally so persisted rows are notified even if a later insert throws",
+);
+const schedulerSrc = readFileSync(
+  join(__dirname, "../services/tracking.scheduler.ts"),
+  "utf8",
+);
+assert(
+  !schedulerSrc.includes("scheduleMobileEventAfterChange") &&
+    !schedulerSrc.includes("scheduleChangePush") &&
+    !schedulerSrc.includes("notifyMobileAfterPersistedChanges"),
+  "scheduler does not duplicate mobile/FCM hooks (single persist orchestrator)",
+);
+const orchestratorSrc = readFileSync(
+  join(__dirname, "../services/mobile-sync.service.ts"),
+  "utf8",
+);
+assert(
+  orchestratorSrc.includes("scheduleChangePush(change)"),
+  "FCM is scheduled from the single mobile orchestrator",
+);
+assert(
+  (orchestratorSrc.match(/scheduleChangePush/g) || []).length >= 1,
+  "orchestrator references scheduleChangePush",
+);
+assert(
+  !persistSrc.includes("scheduleChangePush"),
+  "persistDetectedChanges does not call FCM directly (no duplicate push)",
+);
+
 const configured = isSupabaseConfigured();
 assert(typeof configured === "boolean", "isSupabaseConfigured returns boolean");
 if (!configured) {
@@ -162,10 +201,63 @@ if (!configured) {
   assert(!threw, "Supabase unavailable does not break tracking sync callers");
   assert(!threw, "product upsert idempotency path does not throw");
   assert(!threw, "notification duplication guard path does not throw");
+
+  const {
+    notifyMobileAfterPersistedChanges,
+    scheduleMobileEventAfterChange,
+  } = await import("../services/mobile-sync.service");
+  const { scheduleChangePush } = await import("../services/mobile-push.service");
+  const fakeRow = {
+    id: 1,
+    trackedProductId: 1,
+    trackedVariantId: null,
+    changeType: "price_changed",
+    fieldName: "price",
+    oldValue: 1,
+    newValue: 2,
+    confidence: "1",
+    status: "pending",
+    reason: null,
+    sourceSnapshotId: null,
+    targetSnapshotId: null,
+    seenAt: null,
+    changeGroupId: null,
+    severity: "normal",
+    requiresApproval: true,
+    applyStatus: null,
+    approvedAt: null,
+    approvedBy: null,
+    rejectedAt: null,
+    rejectedBy: null,
+    appliedAt: null,
+    applyError: null,
+    retryCount: 0,
+    idempotencyKey: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  let hookThrew = false;
+  try {
+    notifyMobileAfterPersistedChanges([fakeRow as never, fakeRow as never]);
+    scheduleMobileEventAfterChange(fakeRow as never);
+    scheduleChangePush(fakeRow as never);
+  } catch {
+    hookThrew = true;
+  }
+  assert(!hookThrew, "post-persist mobile/FCM hooks do not throw when unconfigured");
+  assert(buildEventId(fakeRow.id) === "tracking:1", "duplicate persist uses same event_id");
 } else {
   assert(true, "Supabase configured — unavailable path skipped");
   assert(true, "product upsert idempotency (live) skipped");
   assert(true, "notification duplication (live) skipped");
+  const { notifyMobileAfterPersistedChanges } = await import("../services/mobile-sync.service");
+  let hookThrew = false;
+  try {
+    notifyMobileAfterPersistedChanges([]);
+  } catch {
+    hookThrew = true;
+  }
+  assert(!hookThrew, "empty persisted rows hook does not throw");
 }
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

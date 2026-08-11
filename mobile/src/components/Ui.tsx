@@ -6,6 +6,7 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  Switch,
 } from "react-native";
 import { colors } from "../theme/colors";
 import {
@@ -17,6 +18,7 @@ import {
   priceDeltaDirection,
 } from "../lib/format";
 import type { ChangeRow } from "../api/tracking";
+import { WatchTagBadge } from "./WatchTag";
 
 export function OfflineBanner({ online }: { online: boolean }) {
   if (online) return null;
@@ -199,10 +201,14 @@ export const ChangeRowItem = memo(function ChangeRowItem({
   item,
   onPress,
   compact,
+  onShopifyFix,
+  shopifyFixing,
 }: {
   item: ChangeRow;
   onPress?: () => void;
   compact?: boolean;
+  onShopifyFix?: () => void;
+  shopifyFixing?: boolean;
 }) {
   return (
     <TouchableOpacity
@@ -220,6 +226,7 @@ export const ChangeRowItem = memo(function ChangeRowItem({
           <Text style={styles.changeTitle} numberOfLines={1}>
             {item.productTitle || `Ürün #${item.trackedProductId}`}
           </Text>
+          <WatchTagBadge tag={item.watchTag} />
           <ChangeDeltaMark item={item} />
         </View>
         <Text style={styles.changeMeta}>{changeTypeLabel(item.changeType)}</Text>
@@ -227,6 +234,18 @@ export const ChangeRowItem = memo(function ChangeRowItem({
           {formatChangeValue(item.oldValue)} → {formatChangeValue(item.newValue)}
         </Text>
         <Text style={styles.changeTime}>{formatRelativeTime(item.createdAt)}</Text>
+        {onShopifyFix ? (
+          <TouchableOpacity
+            style={styles.fixBtn}
+            onPress={onShopifyFix}
+            disabled={shopifyFixing}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.fixBtnText}>
+              {shopifyFixing ? "Düzeltiliyor…" : "Shopify'da düzelt"}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -270,6 +289,7 @@ export function ProductRow({
   price,
   imageUrl,
   delta,
+  watchTag,
   onPress,
 }: {
   title: string;
@@ -277,6 +297,7 @@ export function ProductRow({
   price: string;
   imageUrl?: string | null;
   delta?: "up" | "down" | null;
+  watchTag?: string | null;
   onPress?: () => void;
 }) {
   return (
@@ -293,6 +314,11 @@ export function ProductRow({
         <Text style={styles.changeMeta} numberOfLines={1}>
           {subtitle}
         </Text>
+        {watchTag ? (
+          <View style={{ marginTop: 6 }}>
+            <WatchTagBadge tag={watchTag} />
+          </View>
+        ) : null}
       </View>
       <View style={styles.productRight}>
         <Text style={styles.productPrice}>{price}</Text>
@@ -319,6 +345,36 @@ export function MetaLine({ label, value }: { label: string; value: string }) {
     <View style={styles.metaLine}>
       <Text style={styles.metaLineLabel}>{label}</Text>
       <Text style={styles.metaLineValue}>{value}</Text>
+    </View>
+  );
+}
+
+export function SettingToggle({
+  label,
+  hint,
+  value,
+  onValueChange,
+  disabled,
+}: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <View style={styles.settingRow}>
+      <View style={{ flex: 1, paddingRight: 12 }}>
+        <Text style={styles.settingLabel}>{label}</Text>
+        {hint ? <Text style={styles.settingHint}>{hint}</Text> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        trackColor={{ false: colors.border, true: colors.textMuted }}
+        thumbColor={value ? colors.text : colors.textSecondary}
+      />
     </View>
   );
 }
@@ -412,7 +468,7 @@ const styles = StyleSheet.create({
   statLabel: { color: colors.textSecondary, fontSize: 11 },
   statIcon: { color: colors.textMuted, fontSize: 12 },
   statValue: { color: colors.text, fontSize: 24, fontWeight: "700", marginTop: 10 },
-  filterRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
   filterTab: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
@@ -438,6 +494,7 @@ const styles = StyleSheet.create({
   thumbEmpty: { backgroundColor: colors.skeletonHighlight },
   changeTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   changeTitle: { color: colors.text, fontWeight: "600", fontSize: 14, flex: 1 },
+  watchBadgeSlot: { marginTop: 6 },
   changeMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   changeValues: { color: colors.text, fontSize: 13, marginTop: 4 },
   changeTime: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
@@ -491,6 +548,18 @@ const styles = StyleSheet.create({
   },
   settingLabel: { color: colors.text, fontSize: 14 },
   settingValue: { color: colors.textSecondary, fontSize: 13 },
+  settingHint: { color: colors.textMuted, fontSize: 11, marginTop: 4, lineHeight: 15 },
+  fixBtn: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: colors.bg,
+  },
+  fixBtnText: { color: colors.text, fontSize: 12, fontWeight: "700" },
   sectionLabel: {
     color: colors.textMuted,
     fontSize: 11,

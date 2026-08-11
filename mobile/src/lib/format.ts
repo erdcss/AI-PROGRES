@@ -130,10 +130,45 @@ export function changeTypeLabel(changeType: string): string {
     variant_added: "Varyant eklendi",
     variant_removed: "Varyant silindi",
     product_removed: "Ürün kaldırıldı",
+    product_out_of_stock: "Stok bitti",
+    source_unavailable: "Satıştan kalktı",
     tracking_error: "Takip hatası",
     shopify_sync_error: "Shopify senkron",
   };
   return map[changeType] || changeType;
+}
+
+export function changeStatusLabel(status?: string | null): string {
+  const map: Record<string, string> = {
+    pending: "Beklemede",
+    manual_review: "Manuel inceleme",
+    failed: "Başarısız",
+    ignored: "Yok sayıldı",
+    approved: "Onaylandı",
+    applied: "Uygulandı",
+    rejected: "Reddedildi",
+    superseded: "Güncellendi",
+  };
+  const key = String(status || "").toLowerCase();
+  return map[key] || (status ? String(status) : "—");
+}
+
+export function uniqueImageUrls(
+  ...groups: Array<string | null | undefined | Array<string | null | undefined>>
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const g of groups) {
+    const arr = Array.isArray(g) ? g : [g];
+    for (const raw of arr) {
+      const u = String(raw || "").trim();
+      if (!u || !/^https?:\/\//i.test(u)) continue;
+      if (seen.has(u)) continue;
+      seen.add(u);
+      out.push(u);
+    }
+  }
+  return out;
 }
 
 export function marketplaceLabel(raw?: string | null): string {

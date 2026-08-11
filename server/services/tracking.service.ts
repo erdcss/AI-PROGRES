@@ -26,6 +26,11 @@ import {
   resolveProfitMarginPercent,
 } from "@shared/tracking-price-display";
 import { shopifyApiService } from "../shopify-api-service";
+import {
+  parseWatchTag,
+  WATCH_TAG_INTERVAL_MINUTES,
+  type WatchTag,
+} from "@shared/watch-tag";
 
 export type SyncLogMeta = Record<string, unknown>;
 
@@ -195,27 +200,33 @@ export class TrackingService {
     changeType?: string;
   }) {
     const conditions = [];
-    conditions.push(
-      inArray(
-        detectedChanges.trackedProductId,
-        db
-          .select({ id: trackedProducts.id })
-          .from(trackedProducts)
-          .where(
-            and(
-              ne(trackedProducts.currentStatus, "shopify_deleted"),
-              isNull(trackedProducts.archivedAt),
-              or(
-                isNotNull(trackedProducts.shopifyProductId),
-                isNotNull(trackedProducts.shopifyProductGid),
+    if (filters?.productId) {
+      conditions.push(eq(detectedChanges.trackedProductId, filters.productId));
+    } else {
+      conditions.push(
+        inArray(
+          detectedChanges.trackedProductId,
+          db
+            .select({ id: trackedProducts.id })
+            .from(trackedProducts)
+            .where(
+              and(
+                ne(trackedProducts.currentStatus, "shopify_deleted"),
+                isNull(trackedProducts.archivedAt),
+                or(
+                  isNotNull(trackedProducts.shopifyProductId),
+                  isNotNull(trackedProducts.shopifyProductGid),
+                ),
               ),
             ),
-          ),
-      ),
-    );
+        ),
+      );
+    }
     const openStatuses = ["pending", "manual_review", "failed"] as const;
 
-    if (filters?.status === "actionable" || !filters?.status) {
+    if (filters?.status === "all" || filters?.status === "history") {
+      // tüm durumlar — mobil bildirim / fiyat hareketi
+    } else if (filters?.status === "actionable" || !filters?.status) {
       conditions.push(inArray(detectedChanges.status, [...openStatuses]));
       conditions.push(isNull(detectedChanges.seenAt));
     } else if (filters.status === "ignored") {
@@ -309,6 +320,7 @@ export class TrackingService {
         lastCheckedAt: trackedProducts.lastCheckedAt,
         lastSuccessAt: trackedProducts.lastSuccessAt,
         lastShopifySyncAt: trackedProducts.lastShopifySyncAt,
+        watchTag: trackedProducts.watchTag,
       })
       .from(trackedProducts)
       .where(inArray(trackedProducts.id, productIds));
@@ -483,6 +495,7 @@ export class TrackingService {
         variantSku: variant?.sourceSku ?? null,
         shopifyVariantId: variant?.shopifyVariantId ?? null,
         variantAvailable: variant?.currentAvailable ?? null,
+        watchTag: parseWatchTag(product?.watchTag) ?? null,
       };
     });
   }
@@ -495,6 +508,15 @@ export class TrackingService {
       .orderBy(desc(productSnapshots.createdAt))
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  async listSnapshots(trackedProductId: number, limit = 80) {
+    return db
+      .select()
+      .from(productSnapshots)
+      .where(eq(productSnapshots.trackedProductId, trackedProductId))
+      .orderBy(desc(productSnapshots.createdAt))
+      .limit(Math.min(200, Math.max(1, limit)));
   }
 
   async saveSnapshot(input: {
@@ -829,6 +851,96 @@ export class TrackingService {
       products: disabledProducts,
       urlTrackingDisabled: legacyUrl.length,
       legacyProductsDisabled: legacyProducts.length,
+    };
+  }
+
+  async setWatchTag(input: {
+    tag: unknown;
+    trackedProductId?: number;
+    scrapedProductId?: number;
+  }): Promise<{
+    tag: WatchTag | null;
+    checkIntervalMinutes: number | null;
+    trackedProductId: number | null;
+    scrapedProductId: number | null;
+  }> {
+    const tag = input.tag == null || input.tag === "" ? null : parseWatchTag(input.tag);
+    if (input.tag != null && input.tag !== "" && tag == null) {
+      throw new Error("Geçersiz etiket — red veya green olmalı");
+    }
+    const now = new Date();
+    const interval = tag ? WATCH_TAG_INTERVAL_MINUTES[tag] : 1440;
+    let trackedId = input.trackedProductId ?? null;
+    let scrapedId = input.scrapedProductId ?? null;
+
+    if (scrapedId) {
+      const [scraped] = await db
+        .select()
+        .from(products)
+        .where(eq(products.id, scrapedId))
+        .limit(1);
+      if (!scraped) throw new Error("Ürün bulunamadı");
+      await db
+        .update(products)
+        .set({ watchTag: tag, updatedAt: now })
+        .where(eq(products.id, scrapedId));
+      const url = String(scraped.trendyolUrl || scraped.sourceUrl || "").trim();
+      if (url && !trackedId) {
+        const [linked] = await db
+          .select({ id: trackedProducts.id })
+          .from(trackedProducts)
+          .where(eq(trackedProducts.sourceUrl, url))
+          .limit(1);
+        if (linked) trackedId = linked.id;
+      }
+    }
+
+    if (trackedId) {
+      const [tracked] = await db
+        .select()
+        .from(trackedProducts)
+        .where(eq(trackedProducts.id, trackedId))
+        .limit(1);
+      if (!tracked) throw new Error("Takip ürünü bulunamadı");
+      const tight =
+        Boolean(tag) &&
+        tracked.currentStatus !== "shopify_deleted" &&
+        !tracked.archivedAt;
+      await db
+        .update(trackedProducts)
+        .set({
+          watchTag: tag,
+          checkIntervalMinutes: interval,
+          ...(tight ? { trackingEnabled: true, currentStatus: "active" as const } : {}),
+          updatedAt: now,
+        })
+        .where(eq(trackedProducts.id, trackedId));
+      const url = String(tracked.sourceUrl || "").trim();
+      if (url && !scrapedId) {
+        const [scraped] = await db
+          .select({ id: products.id })
+          .from(products)
+          .where(eq(products.trendyolUrl, url))
+          .limit(1);
+        if (scraped) {
+          scrapedId = scraped.id;
+          await db
+            .update(products)
+            .set({ watchTag: tag, updatedAt: now })
+            .where(eq(products.id, scraped.id));
+        }
+      }
+    }
+
+    if (!trackedId && !scrapedId) {
+      throw new Error("Ürün kimliği gerekli");
+    }
+
+    return {
+      tag,
+      checkIntervalMinutes: trackedId ? interval : null,
+      trackedProductId: trackedId,
+      scrapedProductId: scrapedId,
     };
   }
 }

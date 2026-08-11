@@ -60,16 +60,25 @@ ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_details J
 ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_success BOOLEAN;
 ALTER TABLE scrape_gateway_settings ADD COLUMN IF NOT EXISTS last_test_message TEXT;
 ALTER TABLE tracked_products ADD COLUMN IF NOT EXISTS tracking_uid TEXT;
+ALTER TABLE tracked_products ADD COLUMN IF NOT EXISTS watch_tag TEXT;
 ALTER TABLE tracked_variants ADD COLUMN IF NOT EXISTS variant_uid TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS watch_tag TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS tracked_products_tracking_uid_key ON tracked_products(tracking_uid) WHERE tracking_uid IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS tracked_variants_variant_uid_key ON tracked_variants(variant_uid) WHERE variant_uid IS NOT NULL;
 `;
 
 export const TRACKING_SCHEMA_PATCHES_SQL = `
 ALTER TABLE tracked_products ADD COLUMN IF NOT EXISTS tracking_uid TEXT;
+ALTER TABLE tracked_products ADD COLUMN IF NOT EXISTS watch_tag TEXT;
 ALTER TABLE tracked_variants ADD COLUMN IF NOT EXISTS variant_uid TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS watch_tag TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS tracked_products_tracking_uid_key ON tracked_products(tracking_uid) WHERE tracking_uid IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS tracked_variants_variant_uid_key ON tracked_variants(variant_uid) WHERE variant_uid IS NOT NULL;
+`;
+
+export const WATCH_TAG_PATCH_SQL = `
+ALTER TABLE tracked_products ADD COLUMN IF NOT EXISTS watch_tag TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS watch_tag TEXT;
 `;
 
 /** Bundled fallback — SQL dosyası deploy paketinde bulunamazsa veya eskiyse kullanılır */

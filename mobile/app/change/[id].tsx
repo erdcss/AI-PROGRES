@@ -1,9 +1,9 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Image } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Image, Alert, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../src/theme/colors";
-import { fetchChanges, markChangeSeen } from "../../src/api/tracking";
+import { fetchAllChanges, markChangeSeen, shopifySyncChange } from "../../src/api/tracking";
 import {
   changeTypeLabel,
   formatChangeValue,
@@ -12,6 +12,7 @@ import {
   priceDeltaDirection,
   isPriceChangeType,
 } from "../../src/lib/format";
+import { canOneTapShopifyFix } from "../../src/lib/shopify-fix";
 import { ErrorState, MetaLine, SkeletonList } from "../../src/components/Ui";
 
 export default function ChangeDetailScreen() {
@@ -21,25 +22,31 @@ export default function ChangeDetailScreen() {
   const qc = useQueryClient();
 
   const list = useQuery({
-    queryKey: ["changes-for-detail"],
-    queryFn: () => fetchChanges(),
-  });
-  const seenList = useQuery({
-    queryKey: ["changes-seen"],
-    queryFn: () => fetchChanges({ status: "seen" }),
+    queryKey: ["changes-all"],
+    queryFn: () => fetchAllChanges(),
   });
 
-  const item =
-    (list.data?.changes || []).find((c: { id: number }) => c.id === changeId) ||
-    (seenList.data?.changes || []).find((c: { id: number }) => c.id === changeId);
+  const item = (list.data?.changes || []).find((c: { id: number }) => c.id === changeId);
 
   const mark = useMutation({
     mutationFn: () => markChangeSeen(changeId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["notifications-badge"] });
-      qc.invalidateQueries({ queryKey: ["changes-actionable"] });
+      qc.invalidateQueries({ queryKey: ["changes-all"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+
+  const fix = useMutation({
+    mutationFn: () => shopifySyncChange(changeId),
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["changes-all"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+      Alert.alert("Shopify", data.shopify?.message || "Shopify'da düzeltildi.");
+    },
+    onError: (err: Error) => {
+      Alert.alert("Shopify", err.message || "Düzeltme başarısız");
     },
   });
 
@@ -50,7 +57,7 @@ export default function ChangeDetailScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id]);
 
-  if (list.isLoading && seenList.isLoading) {
+  if (list.isLoading) {
     return (
       <View style={styles.root}>
         <SkeletonList rows={4} />
@@ -63,10 +70,7 @@ export default function ChangeDetailScreen() {
       <View style={styles.root}>
         <ErrorState
           message={`Değişiklik #${changeId} bulunamadı`}
-          onRetry={() => {
-            list.refetch();
-            seenList.refetch();
-          }}
+          onRetry={() => list.refetch()}
         />
       </View>
     );
@@ -75,6 +79,7 @@ export default function ChangeDetailScreen() {
   const dir = isPriceChangeType(item.changeType)
     ? priceDeltaDirection(item.oldValue, item.newValue)
     : null;
+  const canFix = canOneTapShopifyFix(item);
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
@@ -96,6 +101,19 @@ export default function ChangeDetailScreen() {
         ) : null}
       </View>
       <Text style={styles.time}>{formatRelativeTime(item.createdAt)}</Text>
+
+      {canFix ? (
+        <TouchableOpacity
+          style={styles.fixBtn}
+          onPress={() => fix.mutate()}
+          disabled={fix.isPending}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.fixBtnText}>
+            {fix.isPending ? "Shopify düzeltiliyor…" : "Shopify'da düzelt"}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
 
       <View style={styles.panel}>
         <MetaLine label="Kaynak" value={marketplaceLabel(item.sourceSite)} />
@@ -130,6 +148,14 @@ const styles = StyleSheet.create({
   valuesRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
   values: { color: colors.text, fontSize: 16, fontWeight: "600" },
   time: { color: colors.textMuted, marginTop: 8, fontSize: 12 },
+  fixBtn: {
+    marginTop: 18,
+    backgroundColor: colors.text,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  fixBtnText: { color: colors.bg, fontSize: 15, fontWeight: "700" },
   panel: {
     marginTop: 18,
     backgroundColor: colors.surface,

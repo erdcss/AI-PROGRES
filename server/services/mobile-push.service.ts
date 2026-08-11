@@ -6,6 +6,14 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import { mobilePushDevices, trackedProducts, type DetectedChange } from "@shared/schema";
 import { runMobilePushMigration } from "../migrations/run-mobile-push-migration";
+import {
+  parseWatchTag,
+  shouldNotifyForWatchTag,
+  watchTagLabel,
+  type WatchTag,
+} from "@shared/watch-tag";
+
+const lastNotifyAt = new Map<string, number>();
 
 export type MobilePushEventType =
   | "PRICE_CHANGED"
@@ -114,6 +122,7 @@ export function mapChangeToPushEvent(
 export function buildPushPayload(
   change: DetectedChange,
   productTitle?: string | null,
+  watchTag?: WatchTag | null,
 ): MobilePushPayload {
   const type = mapChangeToPushEvent(change);
   const titleMap: Record<MobilePushEventType, string> = {
@@ -127,6 +136,9 @@ export function buildPushPayload(
     SHOPIFY_SYNC_ERROR: "Shopify senkron hatası",
     TITLE_CHANGED: "Başlık değişti",
   };
+  const tagPrefix = watchTagLabel(watchTag);
+  const baseTitle = titleMap[type];
+  const title = tagPrefix ? `${tagPrefix} · ${baseTitle}` : baseTitle;
   const name = (productTitle || "Ürün").trim() || "Ürün";
   const oldV = formatValue(change.oldValue);
   const newV = formatValue(change.newValue);
@@ -138,7 +150,7 @@ export function buildPushPayload(
   }
 
   return {
-    title: titleMap[type],
+    title,
     body,
     data: {
       type,
@@ -373,18 +385,29 @@ export async function dispatchChangePush(change: DetectedChange): Promise<void> 
     if (!change?.id || !change.trackedProductId) return;
 
     let productTitle: string | null = null;
+    let watchTag: WatchTag | null = null;
     try {
       const [p] = await db
-        .select({ sourceTitle: trackedProducts.sourceTitle })
+        .select({
+          sourceTitle: trackedProducts.sourceTitle,
+          watchTag: trackedProducts.watchTag,
+        })
         .from(trackedProducts)
         .where(eq(trackedProducts.id, change.trackedProductId))
         .limit(1);
       productTitle = p?.sourceTitle ?? null;
+      watchTag = parseWatchTag(p?.watchTag);
     } catch {
       /* title optional */
     }
 
-    const payload = buildPushPayload(change, productTitle);
+    const notifyKey = `${change.trackedProductId}:${change.changeType}`;
+    if (!shouldNotifyForWatchTag(watchTag, change.changeType, lastNotifyAt.get(notifyKey))) {
+      return;
+    }
+    lastNotifyAt.set(notifyKey, Date.now());
+
+    const payload = buildPushPayload(change, productTitle, watchTag);
     const devices = await db
       .select()
       .from(mobilePushDevices)

@@ -22,6 +22,7 @@ import {
   StatCard,
   StatusBadge,
 } from "../../src/components/Ui";
+import { NotificationBell } from "../../src/components/NotificationDrawer";
 import { useOnline } from "../../src/hooks/useOnline";
 
 export default function HomeScreen() {
@@ -54,7 +55,12 @@ export default function HomeScreen() {
           title="ORVIAN"
           subtitle="Genel Bakış"
           caption="Sistem durumu ve özet bilgiler"
-          right={<StatusBadge ok={systemOk} />}
+          right={
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <NotificationBell />
+              <StatusBadge ok={systemOk} />
+            </View>
+          }
         />
 
         {q.isLoading ? (
@@ -73,6 +79,8 @@ export default function HomeScreen() {
               <StatCard label="Fiyat Değişiklikleri" value={cards?.priceChanges ?? 0} icon="⇄" />
               <StatCard label="Stok Değişiklikleri" value={cards?.stockChanges ?? 0} icon="▢" />
               <StatCard label="Varyant Değişiklikleri" value={cards?.variantChanges ?? 0} icon="▦" />
+              <StatCard label="Kırmızı Etiket" value={cards?.watchRed ?? 0} icon="●" />
+              <StatCard label="Yeşil Etiket" value={cards?.watchGreen ?? 0} icon="●" />
             </View>
 
             <View style={styles.sectionHead}>

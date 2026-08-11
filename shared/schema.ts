@@ -31,7 +31,8 @@ export const products = pgTable('products', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   lastSyncAt: timestamp('last_sync_at'),
-  syncStatus: text('sync_status').notNull().default('pending') // pending, syncing, synced, error
+  syncStatus: text('sync_status').notNull().default('pending'), // pending, syncing, synced, error
+  watchTag: text('watch_tag'), // red | green | null — sıkı takip kategorisi
 });
 
 // Product variants table - Renk/beden kombinasyonları
@@ -562,6 +563,7 @@ export const trackedProducts = pgTable('tracked_products', {
   lastShopifySyncAt: timestamp('last_shopify_sync_at'),
   pausedReason: text('paused_reason'),
   archivedAt: timestamp('archived_at'),
+  watchTag: text('watch_tag'), // red | green | null — sıkı takip kategorisi
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });

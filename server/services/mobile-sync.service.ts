@@ -9,7 +9,11 @@ import {
   markMobileSyncTime,
 } from "../lib/supabase-admin";
 import type { DetectedChange } from "@shared/schema";
-import { buildPushPayload, mapChangeToPushEvent } from "./mobile-push.service";
+import {
+  buildPushPayload,
+  mapChangeToPushEvent,
+  scheduleChangePush,
+} from "./mobile-push.service";
 
 export type MobileProductUpsertInput = {
   sourceProductId: string;
@@ -247,10 +251,28 @@ export async function syncDashboardStats(stats: {
   });
 }
 
-/** Fire-and-forget after main DB success */
+/**
+ * Persist edilen DetectedChange satırları için tek side-effect orchestrator.
+ * Throw etmez; tracking persist'i bloklamaz.
+ */
+export function notifyMobileAfterPersistedChanges(rows: DetectedChange[]): void {
+  try {
+    for (const row of rows) {
+      if (!row?.id) continue;
+      scheduleMobileEventAfterChange(row);
+    }
+  } catch (err) {
+    console.warn(
+      "[mobile-sync] notifyMobileAfterPersistedChanges:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+/** Fire-and-forget after main DB success: Supabase mirror → FCM → dashboard stats */
 export function scheduleMobileEventAfterChange(
   change: DetectedChange,
-  opts?: { productTitle?: string | null },
+  opts?: { productTitle?: string | null; skipPush?: boolean },
 ): void {
   void (async () => {
     try {
@@ -296,20 +318,27 @@ export function scheduleMobileEventAfterChange(
           opts = { ...opts, productTitle: opts?.productTitle || p.sourceTitle };
         }
       } catch (enrichErr) {
-        console.warn(
-          "[mobile-sync] product enrich skipped:",
-          enrichErr instanceof Error ? enrichErr.message : String(enrichErr),
-        );
+        console.warn("[mobile-sync] product enrich skipped:", errMessage(enrichErr));
       }
 
       await syncTrackingChange(change, opts);
+
+      if (!opts?.skipPush) {
+        try {
+          scheduleChangePush(change);
+        } catch (pushErr) {
+          console.warn("[mobile-sync] FCM schedule skipped:", errMessage(pushErr));
+        }
+      }
+
       const { scheduleDashboardRefresh } = await import("./mobile-dashboard.service");
       scheduleDashboardRefresh();
     } catch (err) {
-      console.warn(
-        "[mobile-sync] scheduleMobileEventAfterChange:",
-        err instanceof Error ? err.message : String(err),
-      );
+      console.warn("[mobile-sync] scheduleMobileEventAfterChange:", errMessage(err));
     }
   })();
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

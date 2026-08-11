@@ -47,8 +47,8 @@ export function registerTrackingApprovalRoutes(app: Express): void {
     try {
       const id = parsePositiveInt(req.params.id);
       if (id === null) return res.status(400).json({ success: false, error: "Geçersiz ID" });
-      const snapshot = await trackingService.getLatestSnapshot(id);
-      return res.json({ success: true, snapshots: snapshot ? [snapshot] : [] });
+      const snapshots = await trackingService.listSnapshots(id, 80);
+      return res.json({ success: true, snapshots });
     } catch (err) {
       return migrationErrorResponse(res, err);
     }

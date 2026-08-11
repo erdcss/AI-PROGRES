@@ -6,14 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../src/theme/colors";
 import { fetchNotifications } from "../../src/api/tracking";
 import { badgeCountFromNotifications } from "../../src/lib/format";
-
-function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
-  return (
-    <Text style={{ color: focused ? colors.text : colors.textMuted, fontSize: 16, marginBottom: 2 }}>
-      {glyph}
-    </Text>
-  );
-}
+import { TabBarIcon } from "../../src/components/TabIcons";
 
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
   return (
@@ -59,7 +52,9 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Ana Sayfa",
-          tabBarIcon: ({ focused }) => <TabIcon glyph="⌂" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon name={focused ? "home" : "home-outline"} focused={focused} />
+          ),
           tabBarLabel: ({ focused }) => <TabLabel label="Ana Sayfa" focused={focused} />,
         }}
       />
@@ -67,7 +62,9 @@ export default function TabsLayout() {
         name="products"
         options={{
           title: "Ürünler",
-          tabBarIcon: ({ focused }) => <TabIcon glyph="▣" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon name={focused ? "cube" : "cube-outline"} focused={focused} />
+          ),
           tabBarLabel: ({ focused }) => <TabLabel label="Ürünler" focused={focused} />,
         }}
       />
@@ -75,7 +72,9 @@ export default function TabsLayout() {
         name="tracking"
         options={{
           title: "Takip",
-          tabBarIcon: ({ focused }) => <TabIcon glyph="◎" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon name={focused ? "radio-button-on" : "radio-button-off"} focused={focused} />
+          ),
           tabBarLabel: ({ focused }) => <TabLabel label="Takip" focused={focused} />,
         }}
       />
@@ -91,7 +90,9 @@ export default function TabsLayout() {
             borderWidth: StyleSheet.hairlineWidth,
             borderColor: colors.border,
           },
-          tabBarIcon: ({ focused }) => <TabIcon glyph="◉" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon name={focused ? "notifications" : "notifications-outline"} focused={focused} />
+          ),
           tabBarLabel: ({ focused }) => <TabLabel label="Bildirimler" focused={focused} />,
         }}
       />
@@ -99,7 +100,9 @@ export default function TabsLayout() {
         name="settings"
         options={{
           title: "Ayarlar",
-          tabBarIcon: ({ focused }) => <TabIcon glyph="⚙" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon name={focused ? "settings" : "settings-outline"} focused={focused} />
+          ),
           tabBarLabel: ({ focused }) => <TabLabel label="Ayarlar" focused={focused} />,
         }}
       />

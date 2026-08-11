@@ -8,7 +8,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { colors } from "../src/theme/colors";
 import { usePushRegistration } from "../src/hooks/usePush";
 import { useAllMobileRealtime } from "../src/hooks/useRealtime";
+import { useLocalChangeAlerts } from "../src/hooks/useLocalChangeAlerts";
 import { parseDeepLink } from "../src/lib/format";
+import { NotificationDrawerProvider } from "../src/components/NotificationDrawer";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +25,7 @@ function DeepLinkHandler() {
   const router = useRouter();
   usePushRegistration();
   useAllMobileRealtime();
+  useLocalChangeAlerts();
 
   useEffect(() => {
     const open = (url: string | null) => {
@@ -33,21 +36,28 @@ function DeepLinkHandler() {
       if (parsed.kind === "change") router.push(`/change/${parsed.id}`);
     };
 
-    Linking.getInitialURL().then(open);
+    Linking.getInitialURL().then(open).catch((err) => {
+      console.warn("[deeplink] getInitialURL failed", err);
+    });
     const sub = Linking.addEventListener("url", (e) => open(e.url));
 
-    const notifSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as {
-        productId?: string;
-        changeId?: string;
-      };
-      if (data?.changeId) router.push(`/change/${data.changeId}`);
-      else if (data?.productId) router.push(`/product/tracked-${data.productId}`);
-    });
+    let notifSub: { remove: () => void } | null = null;
+    try {
+      notifSub = Notifications.addNotificationResponseReceivedListener((response) => {
+        const data = response.notification.request.content.data as {
+          productId?: string;
+          changeId?: string;
+        };
+        if (data?.changeId) router.push(`/change/${data.changeId}`);
+        else if (data?.productId) router.push(`/product/tracked-${data.productId}`);
+      });
+    } catch (err) {
+      console.warn("[push] notification response listener skipped", err);
+    }
 
     return () => {
       sub.remove();
-      notifSub.remove();
+      notifSub?.remove();
     };
   }, [router]);
 
@@ -59,6 +69,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <StatusBar style="light" backgroundColor={colors.bg} />
+        <NotificationDrawerProvider>
         <DeepLinkHandler />
         <Stack
           screenOptions={{
@@ -73,6 +84,7 @@ export default function RootLayout() {
           <Stack.Screen name="product/[id]" options={{ title: "Ürün Detayı" }} />
           <Stack.Screen name="change/[id]" options={{ title: "Değişiklik" }} />
         </Stack>
+        </NotificationDrawerProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

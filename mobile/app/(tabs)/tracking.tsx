@@ -5,12 +5,14 @@ import {
   FlatList,
   TextInput,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { colors } from "../../src/theme/colors";
-import { fetchChanges, type ChangeRow } from "../../src/api/tracking";
+import { fetchAllChanges, shopifySyncChange, type ChangeRow } from "../../src/api/tracking";
+import { canOneTapShopifyFix } from "../../src/lib/shopify-fix";
 import {
   isPriceChangeType,
   isStockChangeType,
@@ -25,34 +27,51 @@ import {
   ScreenHeader,
   SkeletonList,
 } from "../../src/components/Ui";
+import { NotificationBell } from "../../src/components/NotificationDrawer";
 import { useOnline } from "../../src/hooks/useOnline";
 
-const FILTERS = ["Tümü", "Fiyat", "Stok", "Varyant"];
+const FILTERS = ["Tümü", "Kırmızı", "Yeşil", "Fiyat", "Stok", "Varyant"];
 
 const Row = memo(function Row({
   item,
   onPress,
+  onShopifyFix,
+  shopifyFixing,
 }: {
   item: ChangeRow;
   onPress: (id: number) => void;
+  onShopifyFix: (id: number) => void;
+  shopifyFixing: boolean;
 }) {
-  return <ChangeRowItem item={item} onPress={() => onPress(item.id)} />;
+  return (
+    <ChangeRowItem
+      item={item}
+      onPress={() => onPress(item.id)}
+      onShopifyFix={canOneTapShopifyFix(item) ? () => onShopifyFix(item.id) : undefined}
+      shopifyFixing={shopifyFixing}
+    />
+  );
 });
 
 export default function TrackingScreen() {
   const online = useOnline();
   const router = useRouter();
+  const qc = useQueryClient();
   const insets = useSafeAreaInsets();
+  const [fixingId, setFixingId] = useState<number | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("Tümü");
 
   const changes = useQuery({
-    queryKey: ["changes-actionable"],
-    queryFn: () => fetchChanges(),
+    queryKey: ["changes-all"],
+    queryFn: () => fetchAllChanges(),
+    refetchInterval: 20_000,
   });
 
   const items = useMemo(() => {
     let list: ChangeRow[] = changes.data?.changes || [];
+    if (filter === "Kırmızı") list = list.filter((c: ChangeRow) => c.watchTag === "red");
+    if (filter === "Yeşil") list = list.filter((c: ChangeRow) => c.watchTag === "green");
     if (filter === "Fiyat") list = list.filter((c: ChangeRow) => isPriceChangeType(c.changeType));
     if (filter === "Stok") list = list.filter((c: ChangeRow) => isStockChangeType(c.changeType));
     if (filter === "Varyant") list = list.filter((c: ChangeRow) => isVariantChangeType(c.changeType));
@@ -73,11 +92,30 @@ export default function TrackingScreen() {
     [router],
   );
 
+  const fixMut = useMutation({
+    mutationFn: (id: number) => shopifySyncChange(id),
+    onMutate: (id) => setFixingId(id),
+    onSettled: () => setFixingId(null),
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["changes-all"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+      Alert.alert("Shopify", data.shopify?.message || "Shopify'da düzeltildi.");
+    },
+    onError: (err: Error) => {
+      Alert.alert("Shopify", err.message || "Düzeltme başarısız");
+    },
+  });
+
+  const onShopifyFix = useCallback(
+    (id: number) => fixMut.mutate(id),
+    [fixMut],
+  );
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <OfflineBanner online={online} />
       <View style={styles.pad}>
-        <ScreenHeader title="Takip" />
+        <ScreenHeader title="Takip" right={<NotificationBell />} />
         <TextInput
           placeholder="Ürün ara..."
           placeholderTextColor={colors.textMuted}
@@ -112,7 +150,14 @@ export default function TrackingScreen() {
               tintColor={colors.text}
             />
           }
-          renderItem={({ item }) => <Row item={item} onPress={onPress} />}
+          renderItem={({ item }) => (
+            <Row
+              item={item}
+              onPress={onPress}
+              onShopifyFix={onShopifyFix}
+              shopifyFixing={fixingId === item.id}
+            />
+          )}
           ListEmptyComponent={<EmptyState message="Henüz takip değişikliği yok." />}
         />
       )}

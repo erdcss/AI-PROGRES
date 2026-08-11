@@ -7,6 +7,7 @@ import {
   PRODUCT_TRACKING_SETTINGS_SQL,
   PRODUCT_TRACKING_TABLES,
   TRACKING_SCHEMA_PATCHES_SQL,
+  WATCH_TAG_PATCH_SQL,
   augmentMigrationSql,
   migrationSqlIncludesSettingsTables,
 } from "./product-tracking-sql";
@@ -139,13 +140,13 @@ async function trackingUidColumnsReady(): Promise<boolean> {
 export async function applyTrackingSchemaPatches(): Promise<boolean> {
   if (!pool) return false;
   try {
-    if (await trackingUidColumnsReady()) {
-      return true;
+    if (!(await trackingUidColumnsReady())) {
+      await pool.query(TRACKING_SCHEMA_PATCHES_SQL);
     }
-    await pool.query(TRACKING_SCHEMA_PATCHES_SQL);
+    await pool.query(WATCH_TAG_PATCH_SQL);
     const ready = await trackingUidColumnsReady();
     if (ready) {
-      console.log("✅ Tracking schema patch uygulandı (tracking_uid, variant_uid)");
+      console.log("✅ Tracking schema patch uygulandı (uid + watch_tag)");
     } else {
       console.error("❌ Tracking schema patch sonrası sütunlar hâlâ eksik");
     }

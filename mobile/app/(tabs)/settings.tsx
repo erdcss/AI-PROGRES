@@ -1,9 +1,13 @@
 import React from "react";
-import { View, StyleSheet, ScrollView, RefreshControl, Text } from "react-native";
+import { View, StyleSheet, ScrollView, RefreshControl, Text, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../src/theme/colors";
-import { fetchDashboard } from "../../src/api/tracking";
+import {
+  fetchDashboard,
+  fetchTrackingSettings,
+  updateTrackingSettings,
+} from "../../src/api/tracking";
 import { apiFetch, getApiBaseUrl } from "../../src/api/client";
 import { formatDateTime } from "../../src/lib/format";
 import { isMobileSupabaseConfigured } from "../../src/lib/supabase";
@@ -12,8 +16,10 @@ import {
   ScreenHeader,
   SectionLabel,
   SettingRow,
+  SettingToggle,
   StatusBadge,
 } from "../../src/components/Ui";
+import { NotificationBell } from "../../src/components/NotificationDrawer";
 import { useOnline } from "../../src/hooks/useOnline";
 
 type HealthResponse = {
@@ -34,7 +40,29 @@ async function fetchMobileHealth(): Promise<HealthResponse> {
 export default function SettingsScreen() {
   const online = useOnline();
   const insets = useSafeAreaInsets();
+  const qc = useQueryClient();
   const dash = useQuery({ queryKey: ["dashboard"], queryFn: fetchDashboard });
+  const trackingSettings = useQuery({
+    queryKey: ["tracking-settings"],
+    queryFn: fetchTrackingSettings,
+  });
+  const autoFix = useMutation({
+    mutationFn: (enabled: boolean) =>
+      updateTrackingSettings({ autoShopifySyncEnabled: enabled }),
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["tracking-settings"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+      Alert.alert(
+        "Otomatik Shopify",
+        data.settings.autoShopifySyncEnabled
+          ? "Açık — uygun fiyat/stok/renk/kaldırma değişiklikleri Shopify'a uygulanır."
+          : "Kapalı — düzeltmeler yalnızca tek tuşla yapılır.",
+      );
+    },
+    onError: (err: Error) => {
+      Alert.alert("Ayar", err.message || "Kaydedilemedi");
+    },
+  });
   const health = useQuery({
     queryKey: ["mobile-health"],
     queryFn: fetchMobileHealth,
@@ -62,13 +90,14 @@ export default function SettingsScreen() {
             onRefresh={() => {
               health.refetch();
               dash.refetch();
+              trackingSettings.refetch();
             }}
             tintColor={colors.text}
           />
         }
       >
         <View style={styles.head}>
-          <ScreenHeader title="Ayarlar" />
+          <ScreenHeader title="Ayarlar" right={<NotificationBell />} />
           <StatusBadge ok={systemOk} />
         </View>
 
@@ -108,13 +137,23 @@ export default function SettingsScreen() {
                 : "Pasif"
           }
         />
+        <SettingToggle
+          label="Otomatik Shopify düzeltmesi"
+          hint="Fiyat, stok bitti, renk/varyant ve satıştan kalkma kayıtlarını onay beklemeden Shopify'a uygular."
+          value={Boolean(
+            trackingSettings.data?.settings.autoShopifySyncEnabled ??
+              dash.data?.system?.autoShopifySyncEnabled,
+          )}
+          disabled={autoFix.isPending || trackingSettings.isLoading}
+          onValueChange={(v) => autoFix.mutate(v)}
+        />
 
         <SectionLabel>UYGULAMA</SectionLabel>
         <SettingRow label="Hakkında" value="ORVIAN · Ürün Veri Takip Paneli" />
         <SettingRow label="API" value={getApiBaseUrl() || "—"} />
 
         <Text style={styles.note}>
-          Bu sürümde hesap girişi yoktur. Ayarlar yalnızca sistem durumunu gösterir.
+          Bu sürümde hesap girişi yoktur. Otomatik Shopify düzeltmesi kapalıyken değişiklikler tek tuşla uygulanır.
         </Text>
       </ScrollView>
     </View>

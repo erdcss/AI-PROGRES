@@ -39,6 +39,8 @@ export function registerMobileReadRoutes(app: Express): void {
 
       const tracked = trackedRows || [];
       const activeTracked = tracked.filter((p) => p.trackingEnabled && !p.archivedAt);
+      const watchRed = tracked.filter((p) => p.watchTag === "red").length;
+      const watchGreen = tracked.filter((p) => p.watchTag === "green").length;
 
       return res.json({
         success: true,
@@ -49,6 +51,7 @@ export function registerMobileReadRoutes(app: Express): void {
           safeSchedulerRunning: scheduler.safeSchedulerRunning,
           lastRunAt: scheduler.lastRunAt,
           lastRunStatus: scheduler.lastRunStatus,
+          autoShopifySyncEnabled: Boolean(scheduler.autoShopifySyncEnabled),
           healthOk: Boolean(scheduler.migration?.allTablesReady),
         },
         cards: {
@@ -60,6 +63,8 @@ export function registerMobileReadRoutes(app: Express): void {
           priceChanges: notifications.priceChangeCount ?? 0,
           stockChanges: notifications.stockChangeCount ?? 0,
           variantChanges: notifications.variantChangeCount ?? 0,
+          watchRed,
+          watchGreen,
         },
         recentChanges: notifications.lastChanges || [],
         changeCounts,
@@ -107,6 +112,7 @@ export function registerMobileReadRoutes(app: Express): void {
           createdAt: products.createdAt,
           lastChecked: products.lastChecked,
           images: products.images,
+          watchTag: products.watchTag,
         })
         .from(products)
         .where(where)

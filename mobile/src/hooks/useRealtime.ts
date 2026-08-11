@@ -14,18 +14,28 @@ function useRealtimeTable(
   useEffect(() => {
     if (!isMobileSupabaseConfigured() || !supabase) return;
 
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        { event, schema: "public", table },
-        () => {
-          for (const key of invalidateKeys) {
-            void qc.invalidateQueries({ queryKey: key });
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(channelName)
+        .on(
+          "postgres_changes",
+          { event, schema: "public", table },
+          () => {
+            for (const key of invalidateKeys) {
+              void qc.invalidateQueries({ queryKey: key });
+            }
+          },
+        )
+        .subscribe((status, err) => {
+          if (err || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.warn("[realtime] subscribe", channelName, status, err);
           }
-        },
-      )
-      .subscribe();
+        });
+    } catch (err) {
+      console.warn("[realtime] init failed", channelName, err);
+      return;
+    }
 
     const onAppState = (state: AppStateStatus) => {
       if (state === "active") {
@@ -38,7 +48,11 @@ function useRealtimeTable(
 
     return () => {
       sub.remove();
-      void supabase!.removeChannel(channel);
+      if (channel) {
+        void supabase!.removeChannel(channel).catch((err) => {
+          console.warn("[realtime] removeChannel", channelName, err);
+        });
+      }
     };
   }, [channelName, table, event, qc, JSON.stringify(invalidateKeys)]);
 }
@@ -47,7 +61,7 @@ export function useRealtimeTracking() {
   useRealtimeTable(
     "rt-tracking-changes",
     "mobile_tracking_changes",
-    [["changes-actionable"], ["notifications"], ["notifications-badge"], ["dashboard"]],
+    [["changes-actionable"], ["changes-all"], ["notifications"], ["notifications-badge"], ["dashboard"]],
     "INSERT",
   );
 }

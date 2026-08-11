@@ -745,6 +745,52 @@ export async function applyDetectedChangeToShopify(changeId: number): Promise<Sh
       };
     }
 
+    case "product_removed":
+    case "product_out_of_stock":
+    case "source_unavailable": {
+      await shopifyApiService.updateProductStatus(shopifyProductId, "draft");
+      return {
+        success: true,
+        changeId,
+        trackingUid,
+        shopifyProductId,
+        action: change.changeType,
+        message: `Ürün Shopify'da taslağa alındı (UID: ${trackingUid})`,
+      };
+    }
+
+    case "variant_removed": {
+      await ensureMappedShopifyVariants(product, liveVariants);
+      let variant = await resolveTrackedVariant(product, change);
+      if (!variant?.shopifyVariantId && liveVariants.length === 1) {
+        variant = {
+          id: -1,
+          shopifyVariantId: liveVariants[0].id,
+          trackedProductId: product.id,
+        } as TrackedVariant;
+      }
+      if (!variant?.shopifyVariantId) {
+        throw new Error(`Kaldırılan varyant eşleşmesi yok — UID: ${trackingUid}`);
+      }
+      await shopifyApiService.updateInventory(variant.shopifyVariantId, 0);
+      if (variant.id > 0) {
+        await db
+          .update(trackedVariants)
+          .set({ currentAvailable: false, updatedAt: new Date() })
+          .where(eq(trackedVariants.id, variant.id));
+      }
+      return {
+        success: true,
+        changeId,
+        trackingUid,
+        variantUid: variant.variantUid,
+        shopifyProductId,
+        shopifyVariantId: variant.shopifyVariantId,
+        action: change.changeType,
+        message: `Varyant stok kapandı (renk/beden kalktı, UID: ${trackingUid})`,
+      };
+    }
+
     case "title_changed": {
       const title = String(change.newValue ?? "").trim();
       if (!title) throw new Error("Geçersiz başlık");

@@ -379,6 +379,9 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
       return elapsed >= intervalMin * 60_000;
     });
 
+    const rank = (tag: string | null | undefined) =>
+      tag === "red" ? 0 : tag === "green" ? 1 : 2;
+    due.sort((a, b) => rank(a.watchTag) - rank(b.watchTag));
     const batch = due.slice(0, settings.batchSize);
     for (const p of batch) {
       try {
@@ -538,7 +541,7 @@ export async function getTrackingSchedulerStatus() {
     trackingEnabled: settings.trackingEnabled,
     schedulerEnabled: settings.schedulerEnabled,
     safeSchedulerRunning: isTrackingSchedulerRunning(),
-    autoShopifySyncEnabled: false,
+    autoShopifySyncEnabled: Boolean(settings.autoShopifySyncEnabled),
     nextRunAt: schedulerState.nextRunAt,
     lastRunAt: schedulerState.lastRunAt,
     lastRunStatus: schedulerState.lastRunStatus,

@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { colors } from "../../src/theme/colors";
 import {
-  fetchScrapedProducts,
+  fetchAllScrapedProducts,
   fetchTrackedProducts,
   type ScrapedProduct,
   type TrackedProduct,
@@ -30,6 +30,7 @@ import {
   ScreenHeader,
   SkeletonList,
 } from "../../src/components/Ui";
+import { NotificationBell } from "../../src/components/NotificationDrawer";
 import { useOnline } from "../../src/hooks/useOnline";
 
 type UnifiedProduct = {
@@ -40,9 +41,10 @@ type UnifiedProduct = {
   price: string;
   imageUrl?: string | null;
   tracked: boolean;
+  watchTag?: string | null;
 };
 
-const FILTERS = ["Tümü", "Takipte", "Takipte Değil"];
+const FILTERS = ["Tümü", "Kırmızı", "Yeşil", "Takipte", "Takipte Değil"];
 
 const Row = memo(function Row({
   item,
@@ -57,6 +59,7 @@ const Row = memo(function Row({
       subtitle={item.subtitle}
       price={item.price}
       imageUrl={item.imageUrl}
+      watchTag={item.watchTag}
       onPress={() => onPress(item.routeId)}
     />
   );
@@ -71,11 +74,13 @@ export default function ProductsScreen() {
 
   const scraped = useQuery({
     queryKey: ["scraped-products", "all"],
-    queryFn: () => fetchScrapedProducts({ limit: 100, offset: 0 }),
+    queryFn: fetchAllScrapedProducts,
+    refetchInterval: 20_000,
   });
   const tracked = useQuery({
     queryKey: ["tracked-products"],
-    queryFn: fetchTrackedProducts,
+    queryFn: () => fetchTrackedProducts(),
+    refetchInterval: 20_000,
   });
 
   const items = useMemo(() => {
@@ -83,6 +88,11 @@ export default function ProductsScreen() {
     const scrapedList: ScrapedProduct[] = scraped.data?.products || [];
     const trackedByUrl = new Set(
       trackedList.map((t) => String(t.sourceUrl || "").toLowerCase()).filter(Boolean),
+    );
+    const scrapedTagByUrl = new Map(
+      scrapedList
+        .filter((p) => p.trendyolUrl)
+        .map((p) => [String(p.trendyolUrl).toLowerCase(), p.watchTag || null] as const),
     );
 
     const unified: UnifiedProduct[] = [];
@@ -98,6 +108,10 @@ export default function ProductsScreen() {
         price: formatMoney(t.currentSourcePrice),
         imageUrl: t.productImageUrl,
         tracked: true,
+        watchTag:
+          t.watchTag ||
+          scrapedTagByUrl.get(String(t.sourceUrl || "").toLowerCase()) ||
+          null,
       });
     }
 
@@ -118,10 +132,13 @@ export default function ProductsScreen() {
         price: formatMoney(p.currentPrice),
         imageUrl: p.image || (Array.isArray(p.images) ? p.images[0] : null),
         tracked: false,
+        watchTag: p.watchTag || null,
       });
     }
 
     let filtered = unified;
+    if (filter === "Kırmızı") filtered = unified.filter((u) => u.watchTag === "red");
+    if (filter === "Yeşil") filtered = unified.filter((u) => u.watchTag === "green");
     if (filter === "Takipte") filtered = unified.filter((u) => u.tracked);
     if (filter === "Takipte Değil") filtered = unified.filter((u) => !u.tracked);
 
@@ -148,7 +165,11 @@ export default function ProductsScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <OfflineBanner online={online} />
       <View style={styles.pad}>
-        <ScreenHeader title="Ürünler" />
+        <ScreenHeader
+          title="Ürünler"
+          caption={`${items.length} ürün`}
+          right={<NotificationBell />}
+        />
         <TextInput
           placeholder="Ürün ara..."
           placeholderTextColor={colors.textMuted}

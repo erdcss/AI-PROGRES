@@ -1,8 +1,11 @@
 {
   "expo": {
     "name": "ORVIAN Monitor",
-    "slug": "orvian-monitor",
+    "slug": "orvian-project",
     "version": "1.0.0",
+    "platforms": [
+      "android"
+    ],
     "orientation": "portrait",
     "scheme": "orvianmonitor",
     "userInterfaceStyle": "dark",
@@ -15,7 +18,7 @@
     },
     "android": {
       "package": "com.orvian.productmonitor",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
@@ -41,7 +44,10 @@
               "pathPrefix": "/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -54,12 +60,14 @@
           "color": "#FFFFFF",
           "defaultChannel": "tracking_alerts"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "eas": {
-        "projectId": "replace-with-eas-project-id"
+        "projectId": "9a520739-6ae0-447d-86b4-fb7c5425123e"
       }
-    }
+    },
+    "owner": "erdcls"
   }
 }

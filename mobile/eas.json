@@ -9,7 +9,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://YOUR_BACKEND_HOST"
+        "EXPO_PUBLIC_API_URL": "https://progres.turmarkt.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://nartdqufysbokzsmpljx.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_oKJ0v5u3lRaYNVy0D4e66A_aUwBnVS-"
       }
     },
     "development": {

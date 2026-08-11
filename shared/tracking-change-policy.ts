@@ -3,6 +3,23 @@ const DIRECTLY_APPLICABLE_CHANGE_TYPES = new Set([
   "variant_price_changed",
   "variant_stock_changed",
   "title_changed",
+  "variant_added",
+  "variant_removed",
+  "product_removed",
+  "product_out_of_stock",
+  "source_unavailable",
+]);
+
+const AUTO_SHOPIFY_CHANGE_TYPES = new Set([
+  "price_changed",
+  "variant_price_changed",
+  "stock_changed",
+  "variant_stock_changed",
+  "variant_added",
+  "variant_removed",
+  "product_removed",
+  "product_out_of_stock",
+  "source_unavailable",
 ]);
 
 const ACTIONABLE_STATUSES = new Set([
@@ -40,14 +57,20 @@ export function requiresShopifyVariantLink(changeType: string): boolean {
 
 export function isDirectlyApplicableTrackingChange(
   changeType: string,
-  _fieldName?: string | null,
+  fieldName?: string | null,
   newValue?: unknown,
 ): boolean {
-  if (changeType === "stock_changed") return false;
+  if (changeType === "stock_changed") {
+    return fieldName === "available" || extractVariantStockAvailability(newValue) === false;
+  }
   if (changeType === "variant_stock_changed") {
     return extractVariantStockAvailability(newValue) === false;
   }
   return DIRECTLY_APPLICABLE_CHANGE_TYPES.has(String(changeType ?? ""));
+}
+
+export function isAutoShopifyFixChangeType(changeType: string): boolean {
+  return AUTO_SHOPIFY_CHANGE_TYPES.has(String(changeType ?? ""));
 }
 
 /** UI / toplu Shopify senkronu: uygulanabilir + ürün/varyant bağlantısı hazır */
