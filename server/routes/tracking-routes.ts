@@ -94,10 +94,16 @@ export function registerTrackingRoutes(app: Express): void {
           ? productIdRaw
           : undefined;
       const changeType = typeof req.query.changeType === "string" ? req.query.changeType : undefined;
+      const limitRaw = req.query.limit ? Number(req.query.limit) : undefined;
+      const limit =
+        limitRaw !== undefined && Number.isInteger(limitRaw) && limitRaw > 0
+          ? Math.min(2000, limitRaw)
+          : 400;
       const changes = await trackingService.listChangesWithProductForPanel({
         status,
         productId,
         changeType,
+        limit,
       });
       return res.json({ success: true, changes });
     } catch (err) {

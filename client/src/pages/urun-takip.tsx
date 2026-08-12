@@ -278,7 +278,7 @@ async function runBulkTrackingAction(
 export default function UrunTakipPage({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string>("history");
+  const [statusFilter, setStatusFilter] = useState<string>("actionable");
   const [kindFilter, setKindFilter] = useState<ChangeKindFilter | null>(null);
   const [settingsForm, setSettingsForm] = useState<Partial<TrackingSettings>>({});
 
@@ -325,15 +325,21 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
 
   const changesQuery = useQuery({
     queryKey: ["tracking-changes", statusFilter],
-    queryFn: async () => {
-      const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : "";
-      const res = await fetch(`/api/tracking/changes${qs}`, { cache: "no-store" });
+    queryFn: async ({ signal }) => {
+      const qs = new URLSearchParams();
+      if (statusFilter) qs.set("status", statusFilter);
+      qs.set("limit", "400");
+      const res = await fetch(`/api/tracking/changes?${qs.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Değişiklikler alınamadı");
       return (data.changes || []) as DetectedChange[];
     },
-    refetchInterval: 15_000,
-    retry: 2,
+    refetchInterval: 30_000,
+    retry: 1,
+    staleTime: 10_000,
   });
 
   const changeCountsQuery = useQuery({
@@ -952,7 +958,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                         active ? "opacity-90" : "text-muted-foreground"
                       }`}
                     >
-                      ({count})
+                      ({changesQuery.isLoading ? "…" : count})
                     </span>
                   </Button>
                 );
@@ -963,6 +969,13 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           {changesQuery.isLoading && (
             <p className="text-muted-foreground text-sm">Değişiklikler yükleniyor…</p>
           )}
+          {!changesQuery.isLoading &&
+            (changesQuery.data?.length ?? 0) >= 400 &&
+            (changeCountsQuery.data?.all ?? 0) > 400 && (
+              <p className="text-xs text-muted-foreground">
+                Son 400 kayıt gösteriliyor. Filtreleyerek daraltın.
+              </p>
+            )}
           {changesQuery.error && (
             <Card className="border-destructive/50">
               <CardContent className="py-4 text-destructive text-sm">

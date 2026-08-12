@@ -21,11 +21,9 @@ import {
 } from "@shared/trendyol-variant-utils";
 import {
   buildPricePairDisplay,
-  pickRepresentativeShopifyPrice,
   resolveMarginPercentPreferringLive,
   resolveProfitMarginPercent,
 } from "@shared/tracking-price-display";
-import { shopifyApiService } from "../shopify-api-service";
 import {
   parseWatchTag,
   WATCH_TAG_INTERVAL_MINUTES,
@@ -77,19 +75,16 @@ export class TrackingService {
     if (productIds.length === 0) return map;
 
     const rows = await db
-      .select({
+      .selectDistinctOn([productSnapshots.trackedProductId], {
         trackedProductId: productSnapshots.trackedProductId,
         images: productSnapshots.images,
-        createdAt: productSnapshots.createdAt,
       })
       .from(productSnapshots)
       .where(inArray(productSnapshots.trackedProductId, productIds))
-      .orderBy(desc(productSnapshots.createdAt));
+      .orderBy(productSnapshots.trackedProductId, desc(productSnapshots.createdAt));
 
     for (const row of rows) {
-      if (!map.has(row.trackedProductId)) {
-        map.set(row.trackedProductId, pickFirstImageUrl(row.images));
-      }
+      map.set(row.trackedProductId, pickFirstImageUrl(row.images));
     }
 
     for (const id of productIds) {
@@ -268,10 +263,9 @@ export class TrackingService {
             .where(and(...conditions))
             .orderBy(desc(detectedChanges.createdAt))
         : db.select().from(detectedChanges).orderBy(desc(detectedChanges.createdAt));
-    if (filters?.limit && filters.limit > 0) {
-      return ordered.limit(Math.min(5000, filters.limit));
-    }
-    return ordered;
+    const limit =
+      filters?.limit && filters.limit > 0 ? Math.min(2000, filters.limit) : 400;
+    return ordered.limit(limit);
   }
 
   /** Değişiklik sekmesi filtre sayıları */
@@ -381,66 +375,6 @@ export class TrackingService {
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const imageMap = await this.getLatestImageMap(productIds);
 
-    // Fiyat değişiklikleri için canlı Shopify satış fiyatını çek (alış×marj tahmini yerine)
-    const liveSaleByProductId = new Map<number, number>();
-    const priceChangeProductIds = [
-      ...new Set(
-        changes
-          .filter(
-            (c) =>
-              c.changeType === "price_changed" || c.changeType === "variant_price_changed",
-          )
-          .map((c) => c.trackedProductId),
-      ),
-    ];
-    const shopifyIdsToFetch = priceChangeProductIds
-      .map((id) => {
-        const p = byId.get(id);
-        return p?.shopifyProductId ? { productId: id, shopifyId: String(p.shopifyProductId) } : null;
-      })
-      .filter((x): x is { productId: number; shopifyId: string } => x != null);
-
-    const uniqueShopify = [...new Map(shopifyIdsToFetch.map((x) => [x.shopifyId, x])).values()];
-    const concurrency = 4;
-    for (let i = 0; i < uniqueShopify.length; i += concurrency) {
-      const batch = uniqueShopify.slice(i, i + concurrency);
-      await Promise.all(
-        batch.map(async ({ productId, shopifyId }) => {
-          try {
-            const result = await shopifyApiService.getDirectProductData(shopifyId);
-            if (!result.success || !result.product) return;
-            const prices = (result.product.variants ?? []).map(
-              (v: { price?: string | number }) => Number(v.price) || 0,
-            );
-            const live = pickRepresentativeShopifyPrice(prices);
-            if (live != null) {
-              for (const row of shopifyIdsToFetch) {
-                if (row.shopifyId === shopifyId) liveSaleByProductId.set(row.productId, live);
-              }
-              const product = byId.get(productId);
-              if (product?.sourceUrl) {
-                try {
-                  await db
-                    .update(shopifyTransferredProducts)
-                    .set({
-                      shopifyPrice: String(live),
-                      updatedAt: new Date(),
-                    })
-                    .where(eq(shopifyTransferredProducts.sourceUrl, product.sourceUrl));
-                } catch {
-                  /* ignore cache update errors */
-                }
-              }
-            }
-          } catch (err) {
-            console.warn(
-              `⚠️ Canlı Shopify fiyatı alınamadı (#${productId}): ${(err as Error).message}`,
-            );
-          }
-        }),
-      );
-    }
-
     return changes.map((c) => {
       const product = byId.get(c.trackedProductId);
       const variant = c.trackedVariantId ? variantById.get(c.trackedVariantId) : undefined;
@@ -458,8 +392,9 @@ export class TrackingService {
       const isPriceChange =
         c.changeType === "price_changed" || c.changeType === "variant_price_changed";
       const liveSalePrice = isPriceChange
-        ? liveSaleByProductId.get(c.trackedProductId) ??
-          (Number(transfer?.shopifyPrice) > 0 ? Number(transfer!.shopifyPrice) : null)
+        ? Number(transfer?.shopifyPrice) > 0
+          ? Number(transfer!.shopifyPrice)
+          : null
         : null;
       const baselineCost = Number(c.oldValue);
       const marginPercent = isPriceChange
