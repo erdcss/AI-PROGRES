@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -16,14 +16,32 @@ import { colors } from "../theme/colors";
 /** Shopify marka yeşili — aktarım vurgusu */
 export const SHOPIFY_BRAND = "#95BF47";
 
-export const SHOPIFY_LOGO_URI =
-  "https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1/assets/shopify-logo.png";
+export const SHOPIFY_LOGO_URIS = [
+  "https://cdn.shopify.com/shopify-marketing_assets/static/shopify-favicon.png",
+  "https://logo.clearbit.com/shopify.com",
+];
+
+function ShopifyLogo({ size }: { size: number }) {
+  const [idx, setIdx] = useState(0);
+  const uri = SHOPIFY_LOGO_URIS[idx] || SHOPIFY_LOGO_URIS[0];
+  return (
+    <Image
+      source={{ uri }}
+      style={{ width: size, height: size, borderRadius: 3, backgroundColor: SHOPIFY_BRAND }}
+      resizeMode="contain"
+      onError={() => {
+        if (idx < SHOPIFY_LOGO_URIS.length - 1) setIdx(idx + 1);
+      }}
+    />
+  );
+}
 
 type ShopifyTransferButtonProps = {
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
   compact?: boolean;
+  boxed?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -32,30 +50,33 @@ export function ShopifyTransferButton({
   disabled,
   loading,
   compact,
+  boxed,
   style,
 }: ShopifyTransferButtonProps) {
   return (
-    <TouchableOpacity
-      style={[
-        compact ? styles.btnCompact : styles.btnFull,
-        disabled && styles.btnDisabled,
-        style,
-      ]}
-      disabled={disabled || loading}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      {loading ? (
-        <ActivityIndicator color={colors.text} size="small" />
-      ) : (
-        <View style={styles.btnInner}>
-          <Image source={{ uri: SHOPIFY_LOGO_URI }} style={styles.logo} resizeMode="contain" />
-          <Text style={compact ? styles.labelCompact : styles.labelFull} numberOfLines={1}>
-            Shopify'a aktar
-          </Text>
-        </View>
-      )}
-    </TouchableOpacity>
+    <View style={[boxed ? styles.boxWrap : null, style]}>
+      <TouchableOpacity
+        style={[
+          compact ? styles.btnCompact : styles.btnFull,
+          boxed && styles.btnBoxed,
+          disabled && styles.btnDisabled,
+        ]}
+        disabled={disabled || loading}
+        onPress={onPress}
+        activeOpacity={0.8}
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.text} size="small" />
+        ) : (
+          <View style={styles.btnInner}>
+            <ShopifyLogo size={compact ? 18 : 20} />
+            <Text style={compact ? styles.labelCompact : styles.labelFull} numberOfLines={1}>
+              Shopify'a aktar
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -85,7 +106,7 @@ export function ThemedConfirmModal({
       <Pressable style={styles.overlay} onPress={onCancel}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.sheetHeader}>
-            <Image source={{ uri: SHOPIFY_LOGO_URI }} style={styles.sheetLogo} resizeMode="contain" />
+            <ShopifyLogo size={28} />
             <Text style={styles.sheetTitle}>{title}</Text>
           </View>
           <Text style={styles.sheetMessage}>{message}</Text>
@@ -118,17 +139,28 @@ export function ThemedConfirmModal({
 }
 
 const styles = StyleSheet.create({
-  btnCompact: {
+  boxWrap: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.surfaceElevated,
+    borderRadius: 10,
+    padding: 6,
+    alignSelf: "stretch",
+    minWidth: 124,
+    maxWidth: 136,
+  },
+  btnCompact: {
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    minWidth: 118,
-    maxWidth: 130,
+    paddingHorizontal: 6,
+    paddingVertical: 8,
     alignItems: "center",
     justifyContent: "center",
+    minWidth: 110,
+  },
+  btnBoxed: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SHOPIFY_BRAND,
   },
   btnFull: {
     marginTop: 8,
@@ -147,12 +179,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-  },
-  logo: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
-    backgroundColor: SHOPIFY_BRAND,
   },
   labelCompact: {
     color: colors.text,
@@ -183,12 +209,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-  },
-  sheetLogo: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: SHOPIFY_BRAND,
   },
   sheetTitle: {
     flex: 1,

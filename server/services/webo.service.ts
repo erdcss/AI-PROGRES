@@ -423,9 +423,12 @@ export async function upsertWeboProduct(
     const salePrice = num(input.salePrice) ?? num(input.price);
     const price = num(input.price) ?? salePrice;
     const images = Array.isArray(input.images)
-      ? input.images.filter((u) => typeof u === "string" && u.startsWith("http")).slice(0, 8)
+      ? input.images
+          .map((u) => normalizeMediaUrl(u, sourceUrl))
+          .filter((u): u is string => Boolean(u))
+          .slice(0, 8)
       : [];
-    const imageUrl = String(input.imageUrl || "").trim() || images[0] || null;
+    const imageUrl = normalizeMediaUrl(input.imageUrl, sourceUrl) || images[0] || null;
     const source = String(input.source || site?.source || "discovery");
 
     const result = await pool!.query(
@@ -446,7 +449,11 @@ export async function upsertWeboProduct(
         sale_price = COALESCE(EXCLUDED.sale_price, webo_products.sale_price),
         currency = EXCLUDED.currency,
         image_url = COALESCE(EXCLUDED.image_url, webo_products.image_url),
-        images = EXCLUDED.images,
+        images = CASE
+          WHEN EXCLUDED.images IS NOT NULL AND jsonb_array_length(EXCLUDED.images) > 0
+          THEN EXCLUDED.images
+          ELSE webo_products.images
+        END,
         brand = COALESCE(EXCLUDED.brand, webo_products.brand),
         sku = COALESCE(EXCLUDED.sku, webo_products.sku),
         source = EXCLUDED.source,
@@ -593,6 +600,117 @@ export async function getWeboSiteCatalog() {
     source: s.source,
     pendingCount: byId.get(s.id) ?? byId.get(s.name) ?? 0,
   }));
+}
+
+export async function repairIncompleteWeboProducts(limit = 30): Promise<number> {
+  await ensureWeboTable();
+  const safe = Math.min(60, Math.max(1, Number(limit) || 30));
+  const rows = await pool!.query(
+    `
+    SELECT id, source_url, title, site_id, site_name, site_logo_url
+    FROM webo_products
+    WHERE shopify_product_id IS NULL
+      AND (
+        image_url IS NULL OR trim(image_url) = ''
+        OR sale_price IS NULL OR sale_price <= 0
+      )
+    ORDER BY updated_at ASC
+    LIMIT $1
+    `,
+    [safe],
+  );
+
+  let repaired = 0;
+  for (const row of rows.rows) {
+    const sourceUrl = String(row.source_url);
+    const candidate = {
+      sourceUrl,
+      title: String(row.title),
+      price: null,
+      salePrice: null,
+      imageUrl: null,
+    };
+    try {
+      const enriched = await (async () => {
+        const host = new URL(sourceUrl).hostname.toLowerCase();
+        if (host.includes("trendyol.com")) {
+          const { scrapeWithEnhancedMethod } = await import("../enhanced-trendyol-scraper");
+          const scraped = await scrapeWithEnhancedMethod(sourceUrl);
+          if (scraped) {
+            const images = (scraped.images || []).filter((u) => u?.startsWith("http"));
+            const salePrice = Number(scraped.price) > 0 ? Number(scraped.price) : null;
+            return {
+              sourceUrl,
+              title: scraped.title || candidate.title,
+              price: salePrice,
+              salePrice,
+              imageUrl: normalizeMediaUrl(images[0], sourceUrl),
+              images,
+              brand: scraped.brand || null,
+            };
+          }
+        }
+        const { scrapeProductPoolUrl } = await import("../product-pool/scrape");
+        const scraped = await scrapeProductPoolUrl(sourceUrl);
+        const images = Array.isArray(scraped.images) ? scraped.images : [];
+        return {
+          sourceUrl: scraped.sourceUrl || sourceUrl,
+          title: scraped.title || candidate.title,
+          price: scraped.price ?? scraped.salePrice,
+          salePrice: scraped.salePrice ?? scraped.price,
+          imageUrl: normalizeMediaUrl(images[0], sourceUrl),
+          images,
+          brand: scraped.brand ?? null,
+          sku: scraped.sku ?? undefined,
+        };
+      })();
+
+      const hasPrice = Number(enriched.salePrice || enriched.price || 0) > 0;
+      const hasImage = Boolean(enriched.imageUrl || enriched.images?.length);
+      if (!hasPrice && !hasImage) continue;
+
+      const site = matchWebHookSite(sourceUrl);
+      await pool!.query(
+        `
+        UPDATE webo_products SET
+          title = COALESCE($2, title),
+          price = COALESCE($3, price),
+          sale_price = COALESCE($4, sale_price),
+          image_url = COALESCE($5, image_url),
+          images = CASE
+            WHEN $6::jsonb IS NOT NULL AND jsonb_array_length($6::jsonb) > 0 THEN $6::jsonb
+            ELSE images
+          END,
+          brand = COALESCE($7, brand),
+          sku = COALESCE($8, sku),
+          site_id = COALESCE(site_id, $9),
+          site_name = COALESCE(site_name, $10),
+          updated_at = NOW()
+        WHERE id = $1
+        `,
+        [
+          row.id,
+          enriched.title,
+          enriched.price,
+          enriched.salePrice,
+          enriched.imageUrl,
+          JSON.stringify(
+            (enriched.images || [])
+              .map((u) => normalizeMediaUrl(u, sourceUrl))
+              .filter((u): u is string => Boolean(u)),
+          ),
+          enriched.brand || null,
+          enriched.sku || null,
+          site?.id || row.site_id,
+          site?.name || row.site_name,
+        ],
+      );
+      repaired += 1;
+    } catch {
+      /* skip */
+    }
+  }
+  return repaired;
 }
 
 export async function addWeboTagsToProducts(ids: number[], tagsToAdd: string[]): Promise<number> {

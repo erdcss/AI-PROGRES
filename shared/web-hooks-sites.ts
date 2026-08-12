@@ -9,6 +9,8 @@ export type WebHookSite = {
   source: "product-pool" | "trendyol";
   /** Periyodik keşif için liste/arama sayfası */
   discoverUrl?: string;
+  /** Ek keşif sayfaları (sırayla denenir) */
+  discoverUrls?: string[];
 };
 
 export const WEB_HOOK_SITES: WebHookSite[] = [
@@ -20,6 +22,10 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     logoUrl: "https://cdn.dsmcdn.com/web/production/favicon.ico",
     source: "trendyol",
     discoverUrl: "https://www.trendyol.com/sr?wg=1&wc=82",
+    discoverUrls: [
+      "https://www.trendyol.com/sr?q=yeni",
+      "https://www.trendyol.com/sr?st=new",
+    ],
   },
   {
     id: "hepegitim",
@@ -29,6 +35,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     logoUrl: "https://www.hepegitim.com/skins/shared/images/logo.png",
     source: "product-pool",
     discoverUrl: "https://www.hepegitim.com",
+    discoverUrls: ["https://www.hepegitim.com/arama?q=populer"],
   },
   {
     id: "idefix",
@@ -38,6 +45,10 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     logoUrl: "https://www.idefix.com/images/app-icons/logo.svg",
     source: "product-pool",
     discoverUrl: "https://www.idefix.com",
+    discoverUrls: [
+      "https://www.idefix.com/arama?q=cok+satanlar",
+      "https://www.idefix.com/kategori/kitap",
+    ],
   },
   {
     id: "pazarama",
@@ -47,6 +58,10 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     logoUrl: "https://img.pzrmcdn.com/mnresize/128/128/asset/icons/pwa.png",
     source: "product-pool",
     discoverUrl: "https://www.pazarama.com",
+    discoverUrls: [
+      "https://www.pazarama.com/arama?q=yeni",
+      "https://www.pazarama.com/kategori/elektronik",
+    ],
   },
   {
     id: "beymen",
@@ -56,6 +71,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     logoUrl: "https://cdn.beymen.com/assets/images/favicon.ico",
     source: "product-pool",
     discoverUrl: "https://www.beymen.com/kadin",
+    discoverUrls: ["https://www.beymen.com/erkek", "https://www.beymen.com/cocuk"],
   },
   {
     id: "pttavm",
@@ -65,6 +81,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     logoUrl: "https://www.pttavm.com/favicon.ico",
     source: "product-pool",
     discoverUrl: "https://www.pttavm.com",
+    discoverUrls: ["https://www.pttavm.com/arama?q=yeni"],
   },
   {
     id: "n11",
@@ -74,6 +91,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     logoUrl: "https://www.n11.com/favicon.ico",
     source: "product-pool",
     discoverUrl: "https://www.n11.com/arama?q=yeni",
+    discoverUrls: ["https://www.n11.com/arama?q=populer", "https://www.n11.com/arama?q=indirim"],
   },
   {
     id: "amazon",
@@ -83,6 +101,10 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     logoUrl: "https://www.amazon.com.tr/favicon.ico",
     source: "product-pool",
     discoverUrl: "https://www.amazon.com.tr/gp/new-releases/",
+    discoverUrls: [
+      "https://www.amazon.com.tr/s?k=yeni+urunler",
+      "https://www.amazon.com.tr/gp/bestsellers/",
+    ],
   },
 ];
 

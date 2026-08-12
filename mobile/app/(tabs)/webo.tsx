@@ -39,9 +39,36 @@ function normalizeImageUri(url?: string | null, images?: string[]): string | und
     const s = String(raw || "").trim();
     if (!s) continue;
     if (s.startsWith("//")) return `https:${s}`;
-    if (s.startsWith("http")) return s;
+    if (s.startsWith("http://")) return `https:${s.slice(7)}`;
+    if (s.startsWith("https://")) return s;
   }
   return undefined;
+}
+
+function WeboThumb({ item }: { item: WeboProduct }) {
+  const candidates = useMemo(() => {
+    const list = [item.imageUrl, ...(item.images || [])];
+    return list
+      .map((u) => normalizeImageUri(u))
+      .filter((u): u is string => Boolean(u));
+  }, [item.imageUrl, item.images]);
+  const [idx, setIdx] = useState(0);
+  const uri = candidates[idx];
+
+  if (!uri) {
+    return <View style={[styles.thumb, styles.thumbEmpty]} />;
+  }
+
+  return (
+    <Image
+      source={{ uri }}
+      style={styles.thumb}
+      resizeMode="cover"
+      onError={() => {
+        if (idx < candidates.length - 1) setIdx(idx + 1);
+      }}
+    />
+  );
 }
 
 function groupBySite(items: WeboProduct[]) {
@@ -76,7 +103,6 @@ function WeboRow({
   onToggleSelect: (id: number) => void;
 }) {
   const price = item.salePrice ?? item.price;
-  const imageUri = normalizeImageUri(item.imageUrl, item.images);
 
   return (
     <View style={styles.card}>
@@ -94,11 +120,7 @@ function WeboRow({
         onPress={() => onOpen(item.id)}
         activeOpacity={0.85}
       >
-        {imageUri ? (
-          <Image source={{ uri: imageUri }} style={styles.thumb} resizeMode="cover" />
-        ) : (
-          <View style={[styles.thumb, styles.thumbEmpty]} />
-        )}
+        <WeboThumb item={item} />
         <View style={styles.mid}>
           <Text style={styles.title} numberOfLines={2}>
             {item.title}
@@ -124,11 +146,14 @@ function WeboRow({
               ))}
             </View>
           ) : null}
-          <Text style={styles.price}>{formatMoney(price, item.currency)}</Text>
+          <Text style={styles.price}>
+            {price && price > 0 ? formatMoney(price, item.currency) : "Fiyat bekleniyor"}
+          </Text>
         </View>
       </TouchableOpacity>
       <ShopifyTransferButton
         compact
+        boxed
         loading={transferring}
         onPress={() => onTransfer(item.id, item.title)}
       />

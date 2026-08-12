@@ -10,7 +10,7 @@ import React, {
 import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { SHOPIFY_BRAND, SHOPIFY_LOGO_URI } from "./ShopifyTransfer";
+import { SHOPIFY_BRAND, SHOPIFY_LOGO_URIS } from "./ShopifyTransfer";
 
 export type InAppBannerVariant = "default" | "shopify" | "error";
 
@@ -73,7 +73,7 @@ function BannerCard({
       <Pressable onPress={() => onDone(item.id)} style={styles.inner}>
         <View style={styles.row}>
           {item.variant === "shopify" ? (
-            <Image source={{ uri: SHOPIFY_LOGO_URI }} style={styles.icon} resizeMode="contain" />
+            <Image source={{ uri: SHOPIFY_LOGO_URIS[0] }} style={styles.icon} resizeMode="contain" />
           ) : null}
           <View style={styles.textCol}>
             <Text style={styles.title} numberOfLines={1}>

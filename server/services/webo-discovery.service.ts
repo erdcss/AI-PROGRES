@@ -8,6 +8,7 @@ import {
   appendWeboEvent,
   normalizeMediaUrl,
   purgeWeboAlreadyOnShopify,
+  repairIncompleteWeboProducts,
   upsertWeboProduct,
 } from "./webo.service";
 
@@ -174,9 +175,72 @@ async function discoverTrendyolApi(): Promise<DiscoveryCandidate[]> {
   return out;
 }
 
-async function discoverFromListingHtml(site: WebHookSite): Promise<DiscoveryCandidate[]> {
-  const pageUrl = site.discoverUrl || site.url;
-  const html = await fetchHtml(pageUrl);
+function getSiteDiscoverUrls(site: WebHookSite): string[] {
+  const urls = new Set<string>();
+  if (site.discoverUrl) urls.add(site.discoverUrl);
+  if (site.url) urls.add(site.url);
+  for (const u of site.discoverUrls || []) {
+    if (u) urls.add(u);
+  }
+  return [...urls];
+}
+
+function pickImgFromEl(
+  $: cheerio.CheerioAPI,
+  el: cheerio.Element,
+  pageUrl: string,
+): string | null {
+  const node = $(el);
+  const attrs = ["src", "data-src", "data-lazy-src", "data-original", "data-zoom-image", "data-image"];
+  for (const attr of attrs) {
+    const v = node.attr(attr);
+    if (v) {
+      const n = normalizeMediaUrl(v, pageUrl);
+      if (n) return n;
+    }
+  }
+  const srcset = node.attr("srcset") || node.attr("data-srcset");
+  if (srcset) {
+    const first = srcset.split(",")[0]?.trim().split(/\s+/)[0];
+    const n = normalizeMediaUrl(first, pageUrl);
+    if (n) return n;
+  }
+  return null;
+}
+
+const SITE_URL_REGEX: Record<string, RegExp> = {
+  trendyol: /https?:\/\/(?:www\.)?trendyol\.com\/[a-z0-9ğüşıöç\-]+-p-\d+/gi,
+  amazon: /https?:\/\/(?:www\.)?amazon\.com\.tr\/(?:gp\/product|dp)\/[A-Z0-9]{10}/gi,
+  n11: /https?:\/\/(?:www\.)?n11\.com\/urun\/[a-z0-9\-]+-P\d+/gi,
+  beymen: /https?:\/\/(?:www\.)?beymen\.com\/[a-z0-9\-]+-\d+(?:\.html)?/gi,
+  pazarama: /https?:\/\/(?:www\.)?pazarama\.com\/[a-z0-9\-]+\/urun\/[^\s"'<>]+/gi,
+  pttavm: /https?:\/\/(?:www\.)?pttavm\.com\/urun\/[^\s"'<>]+/gi,
+  idefix: /https?:\/\/(?:www\.)?idefix\.com\/[a-z0-9\-]+\/urun\/[^\s"'<>]+/gi,
+  hepegitim: /https?:\/\/(?:www\.)?hepegitim\.com\/[^\s"'<>]*(?:urun|product)[^\s"'<>]*/gi,
+};
+
+function discoverFromRegex(html: string, site: WebHookSite): DiscoveryCandidate[] {
+  const re = SITE_URL_REGEX[site.id];
+  if (!re) return [];
+  const map = new Map<string, DiscoveryCandidate>();
+  const matches = html.match(re) || [];
+  for (const raw of matches) {
+    const sourceUrl = raw.split("?")[0].replace(/["'<>]/g, "");
+    if (!looksLikeProductUrl(sourceUrl, site) || map.has(sourceUrl)) continue;
+    const slug = sourceUrl.split("/").pop()?.replace(/[-_]/g, " ") || "Ürün";
+    map.set(sourceUrl, {
+      sourceUrl,
+      title: slug.slice(0, 200),
+      price: null,
+      salePrice: null,
+      imageUrl: null,
+    });
+    if (map.size >= 35) break;
+  }
+  return [...map.values()];
+}
+
+function parseListingHtml(site: WebHookSite, html: string, pageUrl: string): DiscoveryCandidate[] {
   const $ = cheerio.load(html);
   const map = new Map<string, DiscoveryCandidate>();
 
@@ -206,47 +270,111 @@ async function discoverFromListingHtml(site: WebHookSite): Promise<DiscoveryCand
       "[class*='product'],[class*='Product'],[data-testid*='product'],li,article,div",
     );
     const img =
-      $(el).find("img").attr("src") ||
-      $(el).find("img").attr("data-src") ||
-      card.find("img").attr("src") ||
-      card.find("img").attr("data-src") ||
-      null;
+      pickImgFromEl($, $(el).find("img").get(0) || el, pageUrl) ||
+      pickImgFromEl($, card.find("img").get(0) || el, pageUrl);
     const priceText = card
       .find("[class*='price'],[class*='Price'],[data-testid*='price']")
       .first()
       .text();
     const price = parsePrice(priceText);
-    const imageUrl = normalizeMediaUrl(img, pageUrl);
 
     map.set(sourceUrl, {
       sourceUrl,
       title: title.slice(0, 200),
       price,
       salePrice: price,
-      imageUrl,
+      imageUrl: img,
     });
   });
 
-  return [...map.values()].slice(0, 30);
+  for (const c of discoverFromRegex(html, site)) {
+    if (!map.has(c.sourceUrl)) map.set(c.sourceUrl, c);
+  }
+
+  return [...map.values()].slice(0, 35);
+}
+
+async function discoverFromListingHtml(site: WebHookSite, pageUrl: string): Promise<DiscoveryCandidate[]> {
+  const html = await fetchHtml(pageUrl);
+  return parseListingHtml(site, html, pageUrl);
 }
 
 async function discoverSite(site: WebHookSite): Promise<{
   candidates: DiscoveryCandidate[];
   error?: string;
 }> {
-  try {
-    if (site.id === "trendyol") {
+  const map = new Map<string, DiscoveryCandidate>();
+  const errors: string[] = [];
+
+  if (site.id === "trendyol") {
+    try {
       const api = await discoverTrendyolApi();
-      if (api.length > 0) return { candidates: api };
+      for (const c of api) map.set(c.sourceUrl, c);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
     }
-    const html = await discoverFromListingHtml(site);
-    return { candidates: html };
-  } catch (err) {
-    return { candidates: [], error: err instanceof Error ? err.message : String(err) };
+  }
+
+  for (const pageUrl of getSiteDiscoverUrls(site)) {
+    try {
+      const found = await discoverFromListingHtml(site, pageUrl);
+      for (const c of found) {
+        if (!map.has(c.sourceUrl)) map.set(c.sourceUrl, c);
+      }
+    } catch (err) {
+      errors.push(`${pageUrl}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const candidates = [...map.values()].slice(0, 40);
+  if (!candidates.length && errors.length) {
+    return { candidates: [], error: errors[0] };
+  }
+  return { candidates };
+}
+
+function needsEnrich(candidate: DiscoveryCandidate): boolean {
+  const hasPrice = Number(candidate.salePrice || candidate.price || 0) > 0;
+  const hasImage = Boolean(candidate.imageUrl || candidate.images?.length);
+  return !hasPrice || !hasImage;
+}
+
+async function enrichTrendyol(candidate: DiscoveryCandidate): Promise<DiscoveryCandidate | null> {
+  try {
+    const { scrapeWithEnhancedMethod } = await import("../enhanced-trendyol-scraper");
+    const scraped = await scrapeWithEnhancedMethod(candidate.sourceUrl);
+    if (!scraped) return null;
+    const images = (scraped.images || []).filter((u) => u?.startsWith("http"));
+    const imageUrl = normalizeMediaUrl(images[0], candidate.sourceUrl) || candidate.imageUrl;
+    const salePrice = Number(scraped.price) > 0 ? Number(scraped.price) : null;
+    return {
+      sourceUrl: candidate.sourceUrl,
+      title: scraped.title || candidate.title,
+      price: salePrice,
+      salePrice,
+      imageUrl,
+      images,
+      brand: scraped.brand || candidate.brand,
+    };
+  } catch {
+    return null;
   }
 }
 
 async function enrichCandidate(candidate: DiscoveryCandidate): Promise<DiscoveryCandidate> {
+  const host = (() => {
+    try {
+      return new URL(candidate.sourceUrl).hostname.toLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+
+  if (host.includes("trendyol.com")) {
+    const trendyol = await enrichTrendyol(candidate);
+    if (trendyol && (trendyol.imageUrl || trendyol.salePrice)) return trendyol;
+  }
+
   try {
     const { scrapeProductPoolUrl } = await import("../product-pool/scrape");
     const scraped = await scrapeProductPoolUrl(candidate.sourceUrl);
@@ -276,12 +404,15 @@ async function ingestCandidates(
 ): Promise<{ ingested: number; skippedShopify: number }> {
   let ingested = 0;
   let skippedShopify = 0;
-  const concurrency = enrich ? 2 : 1;
+  const concurrency = enrich ? 3 : 2;
 
   for (let i = 0; i < candidates.length; i += concurrency) {
     const batch = candidates.slice(i, i + concurrency);
     const prepared = await Promise.all(
-      batch.map(async (c) => (enrich ? enrichCandidate(c) : c)),
+      batch.map(async (c) => {
+        if (enrich || needsEnrich(c)) return enrichCandidate(c);
+        return c;
+      }),
     );
     for (const candidate of prepared) {
       const row = await upsertWeboProduct({
@@ -323,7 +454,9 @@ async function scanOneSite(
   error?: string;
 }> {
   const { candidates, error } = await discoverSite(site);
-  if (error) return { found: 0, ingested: 0, skippedShopify: 0, error };
+  if (!candidates.length) {
+    return { found: 0, ingested: 0, skippedShopify: 0, error };
+  }
   const { ingested, skippedShopify } = await ingestCandidates(site, candidates, enrich);
   return { found: candidates.length, ingested, skippedShopify };
 }
@@ -361,16 +494,11 @@ export async function runWeboDiscoveryCycle(
     await purgeWeboAlreadyOnShopify();
 
     const enrich = Boolean(options?.enrich);
-    const siteResults = await Promise.all(
-      WEB_HOOK_SITES.map((site) => scanOneSite(site, enrich)),
-    );
-
-    for (let i = 0; i < WEB_HOOK_SITES.length; i++) {
-      const site = WEB_HOOK_SITES[i];
-      const result = siteResults[i];
+    for (const site of WEB_HOOK_SITES) {
+      const result = await scanOneSite(site, enrich);
       summary.sitesScanned += 1;
 
-      if (result.error) {
+      if (result.error && result.found === 0) {
         summary.errors += 1;
         await appendWeboEvent({
           level: "warn",
@@ -395,6 +523,15 @@ export async function runWeboDiscoveryCycle(
           ingested: result.ingested,
           skippedShopify: result.skippedShopify,
         },
+      });
+    }
+
+    const repaired = await repairIncompleteWeboProducts(40).catch(() => 0);
+    if (repaired > 0) {
+      await appendWeboEvent({
+        level: "info",
+        message: `${repaired} eksik görsel/fiyat ürün onarıldı`,
+        meta: { repaired },
       });
     }
 

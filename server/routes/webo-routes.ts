@@ -12,6 +12,7 @@ import {
   markWeboTransferred,
   purgeWeboAlreadyOnShopify,
   normalizeWeboTags,
+  repairIncompleteWeboProducts,
   upsertWeboProduct,
 } from "../services/webo.service";
 import {
@@ -106,6 +107,7 @@ export function registerWeboRoutes(app: Express): void {
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 80));
       const siteId = String(req.query.siteId || "").trim() || null;
       const products = await listPendingWeboProducts(limit, siteId);
+      void repairIncompleteWeboProducts(12).catch(() => 0);
       return res.json({
         success: true,
         products,
