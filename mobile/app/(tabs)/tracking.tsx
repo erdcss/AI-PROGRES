@@ -13,8 +13,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors } from "../../src/theme/colors";
 import {
   fetchAllChanges,
+  fetchAllMemoryProducts,
+  fetchAllScrapedProducts,
   fetchChangeCounts,
   fetchChanges,
+  fetchTrackedProducts,
   shopifySyncChange,
   type ChangeRow,
 } from "../../src/api/tracking";
@@ -24,12 +27,14 @@ import {
   isStockChangeType,
   isVariantChangeType,
 } from "../../src/lib/format";
+import { buildUnifiedProducts } from "../../src/lib/unified-catalog";
 import {
   ChangeRowItem,
   EmptyState,
   ErrorState,
   FilterTabs,
   OfflineBanner,
+  ProductRow,
   ScreenHeader,
   SkeletonList,
 } from "../../src/components/Ui";
@@ -38,6 +43,7 @@ import { useOnline } from "../../src/hooks/useOnline";
 
 const STATUS_FILTERS = ["Düzeltilecekler", "Uygulanan", "Tümü"] as const;
 const KIND_FILTERS = ["Hepsi", "Kırmızı", "Yeşil", "Fiyat", "Stok", "Varyant"] as const;
+const VIEW_MODES = ["Takip edilen", "Değişiklikler"] as const;
 
 function statusToApi(label: string): string {
   if (label === "Düzeltilecekler") return "actionable";
@@ -45,7 +51,7 @@ function statusToApi(label: string): string {
   return "history";
 }
 
-const Row = memo(function Row({
+const ChangeRowMemo = memo(function ChangeRowMemo({
   item,
   onPress,
   onShopifyFix,
@@ -66,32 +72,74 @@ const Row = memo(function Row({
   );
 });
 
+const TrackedRow = memo(function TrackedRow({
+  item,
+  onPress,
+}: {
+  item: ReturnType<typeof buildUnifiedProducts>[number];
+  onPress: (routeId: string) => void;
+}) {
+  return (
+    <ProductRow
+      title={item.title}
+      subtitle={item.subtitle}
+      price={item.price}
+      imageUrl={item.imageUrl}
+      watchTag={item.watchTag}
+      onPress={() => onPress(item.routeId)}
+    />
+  );
+});
+
 export default function TrackingScreen() {
   const online = useOnline();
   const router = useRouter();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const [fixingId, setFixingId] = useState<number | null>(null);
-  const params = useLocalSearchParams<{ status?: string; kind?: string }>();
+  const params = useLocalSearchParams<{ status?: string; kind?: string; view?: string }>();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("Tümü");
   const [filter, setFilter] = useState("Hepsi");
+  const [viewMode, setViewMode] = useState<string>("Takip edilen");
 
   useEffect(() => {
     const nextStatus = String(params.status || "").trim();
     if (nextStatus && (STATUS_FILTERS as readonly string[]).includes(nextStatus)) {
       setStatus(nextStatus);
+      setViewMode("Değişiklikler");
     }
     const nextKind = String(params.kind || "").trim();
     if (nextKind && (KIND_FILTERS as readonly string[]).includes(nextKind)) {
       setFilter(nextKind);
+      setViewMode("Değişiklikler");
     }
-  }, [params.status, params.kind]);
+    if (String(params.view || "").trim() === "tracked") {
+      setViewMode("Takip edilen");
+    }
+  }, [params.status, params.kind, params.view]);
+
+  const tracked = useQuery({
+    queryKey: ["tracked-products"],
+    queryFn: () => fetchTrackedProducts({ includeUnlinked: true }),
+    refetchInterval: false,
+  });
+  const scraped = useQuery({
+    queryKey: ["scraped-products", "all"],
+    queryFn: fetchAllScrapedProducts,
+    refetchInterval: false,
+  });
+  const memory = useQuery({
+    queryKey: ["memory-products", "all"],
+    queryFn: fetchAllMemoryProducts,
+    refetchInterval: false,
+  });
 
   const counts = useQuery({
     queryKey: ["tracking-change-counts"],
     queryFn: fetchChangeCounts,
     refetchInterval: false,
+    enabled: viewMode === "Değişiklikler",
   });
 
   const changes = useQuery({
@@ -101,9 +149,28 @@ export default function TrackingScreen() {
       return fetchChanges({ status: statusToApi(status) });
     },
     refetchInterval: false,
+    enabled: viewMode === "Değişiklikler",
   });
 
-  const items = useMemo(() => {
+  const trackedItems = useMemo(() => {
+    const unified = buildUnifiedProducts(
+      memory.data?.products || [],
+      tracked.data?.products || [],
+      scraped.data?.products || [],
+    );
+    let list = unified.filter((u) => u.tracked);
+    const needle = q.trim().toLowerCase();
+    if (needle) {
+      list = list.filter(
+        (u) =>
+          u.title.toLowerCase().includes(needle) ||
+          u.subtitle.toLowerCase().includes(needle),
+      );
+    }
+    return list;
+  }, [memory.data, tracked.data, scraped.data, q]);
+
+  const changeItems = useMemo(() => {
     let list: ChangeRow[] = changes.data?.changes || [];
     if (filter === "Kırmızı") list = list.filter((c: ChangeRow) => c.watchTag === "red");
     if (filter === "Yeşil") list = list.filter((c: ChangeRow) => c.watchTag === "green");
@@ -122,8 +189,13 @@ export default function TrackingScreen() {
     return list;
   }, [changes.data, filter, q]);
 
-  const onPress = useCallback(
+  const onPressChange = useCallback(
     (id: number) => router.push(`/change/${id}`),
+    [router],
+  );
+
+  const onPressProduct = useCallback(
+    (routeId: string) => router.push(`/product/${routeId}`),
     [router],
   );
 
@@ -153,15 +225,50 @@ export default function TrackingScreen() {
     [fixMut],
   );
 
+  const loadingTracked =
+    viewMode === "Takip edilen" &&
+    memory.isLoading &&
+    tracked.isLoading &&
+    !memory.data &&
+    !tracked.data;
+  const loadingChanges = viewMode === "Değişiklikler" && changes.isLoading;
+  const errorTracked =
+    viewMode === "Takip edilen" && tracked.isError && memory.isError && scraped.isError;
+  const errorChanges = viewMode === "Değişiklikler" && changes.isError;
+
+  const subtitle =
+    viewMode === "Takip edilen"
+      ? `${trackedItems.length} takip edilen ürün`
+      : `${counts.data?.counts?.all ?? changes.data?.changes?.length ?? 0} değişiklik`;
+
+  const refreshing =
+    viewMode === "Takip edilen"
+      ? (tracked.isFetching && !tracked.isLoading) ||
+        (memory.isFetching && !memory.isLoading) ||
+        (scraped.isFetching && !scraped.isLoading)
+      : changes.isFetching && !changes.isLoading;
+
+  const onRefresh = () => {
+    if (viewMode === "Takip edilen") {
+      void tracked.refetch();
+      void memory.refetch();
+      void scraped.refetch();
+    } else {
+      void changes.refetch();
+      void counts.refetch();
+    }
+  };
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <OfflineBanner online={online} />
       <View style={styles.pad}>
         <ScreenHeader
           title="Takip"
-          subtitle={`${counts.data?.counts?.all ?? changes.data?.changes?.length ?? 0} değişiklik`}
+          subtitle={subtitle}
           right={<NotificationBell />}
         />
+        <FilterTabs options={[...VIEW_MODES]} value={viewMode} onChange={setViewMode} />
         <TextInput
           placeholder="Ürün ara..."
           placeholderTextColor={colors.textMuted}
@@ -169,38 +276,49 @@ export default function TrackingScreen() {
           onChangeText={setQ}
           style={styles.search}
         />
-        <FilterTabs options={[...STATUS_FILTERS]} value={status} onChange={setStatus} />
-        <FilterTabs options={[...KIND_FILTERS]} value={filter} onChange={setFilter} />
+        {viewMode === "Değişiklikler" ? (
+          <>
+            <FilterTabs options={[...STATUS_FILTERS]} value={status} onChange={setStatus} />
+            <FilterTabs options={[...KIND_FILTERS]} value={filter} onChange={setFilter} />
+          </>
+        ) : null}
       </View>
 
-      {changes.isLoading ? (
+      {loadingTracked || loadingChanges ? (
         <View style={styles.pad}>
           <SkeletonList rows={8} />
         </View>
-      ) : changes.isError ? (
-        <ErrorState
-          message="Veriler alınamadı"
-          onRetry={() => changes.refetch()}
+      ) : errorTracked || errorChanges ? (
+        <ErrorState message="Veriler alınamadı" onRetry={onRefresh} />
+      ) : viewMode === "Takip edilen" ? (
+        <FlatList
+          data={trackedItems}
+          keyExtractor={(item) => item.key}
+          contentContainerStyle={styles.list}
+          initialNumToRender={16}
+          windowSize={9}
+          removeClippedSubviews
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />
+          }
+          renderItem={({ item }) => <TrackedRow item={item} onPress={onPressProduct} />}
+          ListEmptyComponent={<EmptyState message="Takip edilen ürün yok." />}
         />
       ) : (
         <FlatList
-          data={items}
+          data={changeItems}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
           initialNumToRender={16}
           windowSize={9}
           removeClippedSubviews
           refreshControl={
-            <RefreshControl
-              refreshing={changes.isFetching && !changes.isLoading}
-              onRefresh={() => changes.refetch()}
-              tintColor={colors.text}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />
           }
           renderItem={({ item }) => (
-            <Row
+            <ChangeRowMemo
               item={item}
-              onPress={onPress}
+              onPress={onPressChange}
               onShopifyFix={onShopifyFix}
               shopifyFixing={fixingId === item.id}
             />

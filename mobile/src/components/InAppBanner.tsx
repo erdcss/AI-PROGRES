@@ -7,17 +7,22 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors } from "../theme/colors";
+import { SHOPIFY_BRAND, SHOPIFY_LOGO_URI } from "./ShopifyTransfer";
+
+export type InAppBannerVariant = "default" | "shopify" | "error";
 
 export type InAppBannerItem = {
   id: string;
   title: string;
   body?: string;
+  variant?: InAppBannerVariant;
 };
 
 type Ctx = {
-  showBanner: (title: string, body?: string) => void;
+  showBanner: (title: string, body?: string, variant?: InAppBannerVariant) => void;
 };
 
 const BannerCtx = createContext<Ctx | null>(null);
@@ -60,18 +65,27 @@ function BannerCard({
     <Animated.View
       style={[
         styles.card,
+        item.variant === "shopify" && styles.cardShopify,
+        item.variant === "error" && styles.cardError,
         { top, opacity, transform: [{ translateX: x }] },
       ]}
     >
       <Pressable onPress={() => onDone(item.id)} style={styles.inner}>
-        <Text style={styles.title} numberOfLines={1}>
-          {item.title}
-        </Text>
-        {item.body ? (
-          <Text style={styles.body} numberOfLines={1}>
-            {item.body}
-          </Text>
-        ) : null}
+        <View style={styles.row}>
+          {item.variant === "shopify" ? (
+            <Image source={{ uri: SHOPIFY_LOGO_URI }} style={styles.icon} resizeMode="contain" />
+          ) : null}
+          <View style={styles.textCol}>
+            <Text style={styles.title} numberOfLines={1}>
+              {item.title}
+            </Text>
+            {item.body ? (
+              <Text style={styles.body} numberOfLines={2}>
+                {item.body}
+              </Text>
+            ) : null}
+          </View>
+        </View>
       </Pressable>
     </Animated.View>
   );
@@ -81,14 +95,19 @@ export function InAppBannerProvider({ children }: { children: React.ReactNode })
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<InAppBannerItem[]>([]);
 
-  const showBanner = useCallback((title: string, body?: string) => {
-    const fingerprint = `${title}\n${body || ""}`;
-    setItems((prev) => {
-      if (prev.some((x) => `${x.title}\n${x.body || ""}` === fingerprint)) return prev;
-      const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      return [{ id, title, body }, ...prev].slice(0, 2);
-    });
-  }, []);
+  const showBanner = useCallback(
+    (title: string, body?: string, variant: InAppBannerVariant = "default") => {
+      const fingerprint = `${variant}\n${title}\n${body || ""}`;
+      setItems((prev) => {
+        if (prev.some((x) => `${x.variant || "default"}\n${x.title}\n${x.body || ""}` === fingerprint)) {
+          return prev;
+        }
+        const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        return [{ id, title, body, variant }, ...prev].slice(0, 2);
+      });
+    },
+    [],
+  );
 
   const onDone = useCallback((id: string) => {
     setItems((prev) => prev.filter((x) => x.id !== id));
@@ -118,17 +137,32 @@ const styles = StyleSheet.create({
   card: {
     position: "absolute",
     right: 10,
-    width: "62%",
-    maxWidth: 240,
-    borderRadius: 8,
-    backgroundColor: "#111111",
+    width: "72%",
+    maxWidth: 280,
+    borderRadius: 10,
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#3F3F46",
+    borderColor: colors.border,
+  },
+  cardShopify: {
+    borderColor: SHOPIFY_BRAND,
+    backgroundColor: colors.surfaceElevated,
+  },
+  cardError: {
+    borderColor: colors.negative,
   },
   inner: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
-  title: { color: "#FAFAFA", fontSize: 11, fontWeight: "700" },
-  body: { color: "#A1A1AA", fontSize: 10, marginTop: 1, lineHeight: 13 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10 },
+  icon: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    backgroundColor: SHOPIFY_BRAND,
+  },
+  textCol: { flex: 1, minWidth: 0 },
+  title: { color: colors.text, fontSize: 12, fontWeight: "700" },
+  body: { color: colors.textSecondary, fontSize: 11, marginTop: 2, lineHeight: 15 },
 });

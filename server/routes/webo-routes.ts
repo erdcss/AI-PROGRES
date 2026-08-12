@@ -1,13 +1,17 @@
 import type { Express } from "express";
 import { WEB_HOOK_SITES } from "@shared/web-hooks-sites";
 import {
+  addWeboTagsToProducts,
+  buildWeboShopifyTags,
   ensureWeboTable,
   getWebHooksSchema,
   getWeboProductById,
+  getWeboSiteCatalog,
   listPendingWeboProducts,
   listWeboEvents,
   markWeboTransferred,
   purgeWeboAlreadyOnShopify,
+  normalizeWeboTags,
   upsertWeboProduct,
 } from "../services/webo.service";
 import {
@@ -46,9 +50,10 @@ export function registerWeboRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/web-hooks/discovery/run", async (_req, res) => {
+  app.post("/api/web-hooks/discovery/run", async (req, res) => {
     try {
-      const summary = await runWeboDiscoveryCycle("manual");
+      const enrich = Boolean(req.body?.enrich);
+      const summary = await runWeboDiscoveryCycle("manual", { enrich });
       return res.json({
         success: true,
         summary,
@@ -84,16 +89,83 @@ export function registerWeboRoutes(app: Express): void {
     }
   });
 
+  app.get("/api/mobile/webo/sites", async (_req, res) => {
+    try {
+      const sites = await getWeboSiteCatalog();
+      return res.json({ success: true, sites });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
   app.get("/api/mobile/webo/products", async (req, res) => {
     try {
       await ensureWeboTable();
-      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 60));
-      const products = await listPendingWeboProducts(limit);
+      await purgeWeboAlreadyOnShopify().catch(() => 0);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 80));
+      const siteId = String(req.query.siteId || "").trim() || null;
+      const products = await listPendingWeboProducts(limit, siteId);
       return res.json({
         success: true,
         products,
         total: products.length,
         note: "Yalnızca Shopify mağazasında olmayan keşif ürünleri",
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.post("/api/mobile/webo/tags", async (req, res) => {
+    try {
+      const tags = normalizeWeboTags(req.body?.tags);
+      if (!tags.length) {
+        return res.status(400).json({ success: false, error: "etiket zorunlu" });
+      }
+      const rawIds = Array.isArray(req.body?.productIds) ? req.body.productIds : [];
+      const ids = rawIds
+        .map((v: unknown) => Number(v))
+        .filter((n: number) => Number.isFinite(n) && n > 0);
+      if (!ids.length) {
+        return res.status(400).json({ success: false, error: "ürün seçimi zorunlu" });
+      }
+      const updated = await addWeboTagsToProducts(ids, tags);
+      return res.json({ success: true, updated });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.get("/api/mobile/webo/products/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ success: false, error: "geçersiz id" });
+      }
+      const product = await getWeboProductById(id);
+      if (!product) {
+        return res.status(404).json({ success: false, error: "ürün bulunamadı" });
+      }
+      if (product.shopifyProductId) {
+        return res.status(409).json({ success: false, error: "ürün zaten Shopify'da" });
+      }
+      return res.json({ success: true, product });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.post("/api/mobile/webo/discovery/run", async (_req, res) => {
+    try {
+      const summary = await runWeboDiscoveryCycle("mobile", { enrich: true });
+      return res.json({
+        success: true,
+        summary,
+        discovery: getWeboDiscoveryStatus(),
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -151,7 +223,7 @@ export function registerWeboRoutes(app: Express): void {
           body_html: bodyHtml,
           vendor: product.brand || product.siteName || "Webo",
           product_type: "Webo",
-          tags: ["webo", product.siteName, product.source].filter(Boolean).join(", "),
+          tags: buildWeboShopifyTags(product),
           status: "active",
           published: true,
           variants: [{ price, inventory_management: null, sku: product.sku || undefined }],

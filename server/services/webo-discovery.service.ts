@@ -6,6 +6,7 @@ import * as cheerio from "cheerio";
 import { WEB_HOOK_SITES, type WebHookSite } from "@shared/web-hooks-sites";
 import {
   appendWeboEvent,
+  normalizeMediaUrl,
   purgeWeboAlreadyOnShopify,
   upsertWeboProduct,
 } from "./webo.service";
@@ -16,7 +17,9 @@ export type DiscoveryCandidate = {
   price?: number | null;
   salePrice?: number | null;
   imageUrl?: string | null;
+  images?: string[];
   brand?: string | null;
+  sku?: string | null;
 };
 
 type DiscoveryState = {
@@ -153,12 +156,14 @@ async function discoverTrendyolApi(): Promise<DiscoveryCandidate[]> {
         if (!title) continue;
         const sale = Number(p.price?.sellingPrice) || null;
         const original = Number(p.price?.originalPrice) || sale;
+        const rawImg = p.imageUrl || p.images?.[0] || null;
+        const imageUrl = normalizeMediaUrl(rawImg) || null;
         out.push({
           sourceUrl,
           title,
           price: original,
           salePrice: sale,
-          imageUrl: p.imageUrl || p.images?.[0] || null,
+          imageUrl,
           brand: p.brand?.name || null,
         });
       }
@@ -211,13 +216,14 @@ async function discoverFromListingHtml(site: WebHookSite): Promise<DiscoveryCand
       .first()
       .text();
     const price = parsePrice(priceText);
+    const imageUrl = normalizeMediaUrl(img, pageUrl);
 
     map.set(sourceUrl, {
       sourceUrl,
       title: title.slice(0, 200),
       price,
       salePrice: price,
-      imageUrl: img && String(img).startsWith("http") ? String(img) : null,
+      imageUrl,
     });
   });
 
@@ -240,7 +246,92 @@ async function discoverSite(site: WebHookSite): Promise<{
   }
 }
 
-export async function runWeboDiscoveryCycle(reason = "scheduled"): Promise<DiscoveryState["lastSummary"]> {
+async function enrichCandidate(candidate: DiscoveryCandidate): Promise<DiscoveryCandidate> {
+  try {
+    const { scrapeProductPoolUrl } = await import("../product-pool/scrape");
+    const scraped = await scrapeProductPoolUrl(candidate.sourceUrl);
+    const images = Array.isArray(scraped.images) ? scraped.images : [];
+    const imageUrl =
+      normalizeMediaUrl(images[0], candidate.sourceUrl) ||
+      normalizeMediaUrl(candidate.imageUrl, candidate.sourceUrl);
+    return {
+      sourceUrl: scraped.sourceUrl || candidate.sourceUrl,
+      title: scraped.title || candidate.title,
+      price: scraped.price ?? candidate.price,
+      salePrice: scraped.salePrice ?? scraped.price ?? candidate.salePrice,
+      imageUrl,
+      brand: scraped.brand ?? candidate.brand,
+      sku: scraped.sku ?? undefined,
+      images,
+    };
+  } catch {
+    return candidate;
+  }
+}
+
+async function ingestCandidates(
+  site: WebHookSite,
+  candidates: DiscoveryCandidate[],
+  enrich: boolean,
+): Promise<{ ingested: number; skippedShopify: number }> {
+  let ingested = 0;
+  let skippedShopify = 0;
+  const concurrency = enrich ? 2 : 1;
+
+  for (let i = 0; i < candidates.length; i += concurrency) {
+    const batch = candidates.slice(i, i + concurrency);
+    const prepared = await Promise.all(
+      batch.map(async (c) => (enrich ? enrichCandidate(c) : c)),
+    );
+    for (const candidate of prepared) {
+      const row = await upsertWeboProduct({
+        sourceUrl: candidate.sourceUrl,
+        title: candidate.title,
+        siteId: site.id,
+        siteName: site.name,
+        siteLogoUrl: site.logoUrl,
+        price: candidate.price,
+        salePrice: candidate.salePrice ?? candidate.price,
+        imageUrl: candidate.imageUrl,
+        images:
+          candidate.images?.length
+            ? candidate.images
+            : candidate.imageUrl
+              ? [candidate.imageUrl]
+              : [],
+        brand: candidate.brand,
+        sku: candidate.sku,
+        source: "discovery",
+      });
+      if (row?.skipped === "shopify") {
+        skippedShopify += 1;
+      } else if (row?.id) {
+        ingested += 1;
+      }
+    }
+  }
+  return { ingested, skippedShopify };
+}
+
+async function scanOneSite(
+  site: WebHookSite,
+  enrich: boolean,
+): Promise<{
+  found: number;
+  ingested: number;
+  skippedShopify: number;
+  error?: string;
+}> {
+  const { candidates, error } = await discoverSite(site);
+  if (error) return { found: 0, ingested: 0, skippedShopify: 0, error };
+  const { ingested, skippedShopify } = await ingestCandidates(site, candidates, enrich);
+  return { found: candidates.length, ingested, skippedShopify };
+}
+
+export async function runWeboDiscoveryCycle(
+  reason = "scheduled",
+  options?: { enrich?: boolean },
+): Promise<DiscoveryState["lastSummary"]> {
   if (state.running) {
     await appendWeboEvent({
       level: "warn",
@@ -269,52 +360,41 @@ export async function runWeboDiscoveryCycle(reason = "scheduled"): Promise<Disco
   try {
     await purgeWeboAlreadyOnShopify();
 
-    for (const site of WEB_HOOK_SITES) {
+    const enrich = Boolean(options?.enrich);
+    const siteResults = await Promise.all(
+      WEB_HOOK_SITES.map((site) => scanOneSite(site, enrich)),
+    );
+
+    for (let i = 0; i < WEB_HOOK_SITES.length; i++) {
+      const site = WEB_HOOK_SITES[i];
+      const result = siteResults[i];
       summary.sitesScanned += 1;
-      const { candidates, error } = await discoverSite(site);
-      if (error) {
+
+      if (result.error) {
         summary.errors += 1;
         await appendWeboEvent({
           level: "warn",
           siteId: site.id,
           siteName: site.name,
-          message: `Tarama hatası: ${error}`,
+          message: `Tarama hatası: ${result.error}`,
         });
         continue;
       }
 
-      summary.found += candidates.length;
-      let siteIngested = 0;
-      let siteSkipped = 0;
-
-      for (const c of candidates) {
-        const row = await upsertWeboProduct({
-          sourceUrl: c.sourceUrl,
-          title: c.title,
-          siteName: site.name,
-          siteLogoUrl: site.logoUrl,
-          price: c.price,
-          salePrice: c.salePrice ?? c.price,
-          imageUrl: c.imageUrl,
-          images: c.imageUrl ? [c.imageUrl] : [],
-          brand: c.brand,
-          source: "discovery",
-        });
-        if (row?.skipped === "shopify") {
-          siteSkipped += 1;
-          summary.skippedShopify += 1;
-        } else if (row?.id) {
-          siteIngested += 1;
-          summary.ingested += 1;
-        }
-      }
+      summary.found += result.found;
+      summary.ingested += result.ingested;
+      summary.skippedShopify += result.skippedShopify;
 
       await appendWeboEvent({
         level: "ok",
         siteId: site.id,
         siteName: site.name,
-        message: `${candidates.length} aday · ${siteIngested} yeni · ${siteSkipped} Shopify’da atlandı`,
-        meta: { found: candidates.length, ingested: siteIngested, skippedShopify: siteSkipped },
+        message: `${result.found} aday · ${result.ingested} yeni · ${result.skippedShopify} Shopify’da atlandı`,
+        meta: {
+          found: result.found,
+          ingested: result.ingested,
+          skippedShopify: result.skippedShopify,
+        },
       });
     }
 

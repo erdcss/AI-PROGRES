@@ -109,6 +109,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="product/[id]" options={{ title: "Ürün Detayı" }} />
           <Stack.Screen name="change/[id]" options={{ title: "Değişiklik" }} />
+          <Stack.Screen name="webo/[id]" options={{ title: "Webo Ürün" }} />
         </Stack>
         <BootSplash onDone={() => setSplashDone(true)} />
         </NotificationDrawerProvider>

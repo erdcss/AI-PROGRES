@@ -104,7 +104,11 @@ export default function WebHooksPage() {
 
   const runDiscovery = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/web-hooks/discovery/run", { method: "POST" });
+      const res = await fetch("/api/web-hooks/discovery/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enrich: true }),
+      });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Keşif başarısız");
       return data;

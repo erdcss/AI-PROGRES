@@ -13,6 +13,7 @@ import {
 export type WeboProductInput = {
   sourceUrl: string;
   title: string;
+  siteId?: string;
   siteName?: string;
   siteLogoUrl?: string;
   price?: number | null;
@@ -23,6 +24,7 @@ export type WeboProductInput = {
   brand?: string | null;
   sku?: string | null;
   source?: "product-pool" | "trendyol" | "discovery" | string;
+  tags?: string[];
 };
 
 export type WeboEventInput = {
@@ -73,12 +75,116 @@ export async function ensureWeboTable(): Promise<void> {
     CREATE INDEX IF NOT EXISTS webo_events_created_idx
       ON webo_events (created_at DESC);
   `);
+  await pool.query(`
+    ALTER TABLE webo_products ADD COLUMN IF NOT EXISTS site_id TEXT;
+    ALTER TABLE webo_products ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb;
+  `);
   tableReady = true;
 }
 
 function num(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Ürün görseli URL'sini normalize et (//cdn, relative path). */
+export function normalizeMediaUrl(raw: unknown, baseUrl?: string): string | null {
+  const s = String(raw || "").trim();
+  if (!s || s === "null" || s === "undefined") return null;
+  if (s.startsWith("//")) return `https:${s}`;
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (baseUrl && (s.startsWith("/") || !s.includes(" "))) {
+    try {
+      const abs = new URL(s, baseUrl).toString();
+      if (abs.startsWith("http")) return abs;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+export function pickWeboImage(
+  imageUrl: unknown,
+  images: unknown,
+  sourceUrl?: string,
+  siteLogoUrl?: string,
+): string | null {
+  const base = sourceUrl || undefined;
+  const list = Array.isArray(images) ? images : [];
+  const logo = String(siteLogoUrl || "").trim();
+  const candidates = [imageUrl, ...list];
+  for (const c of candidates) {
+    const u = normalizeMediaUrl(c, base);
+    if (!u) continue;
+    if (logo && u === logo) continue;
+    if (/favicon|logo\.(png|svg|ico)/i.test(u)) continue;
+    return u;
+  }
+  return null;
+}
+
+function normalizeWeboImages(images: unknown, sourceUrl?: string): string[] {
+  const list = Array.isArray(images) ? images : [];
+  const out: string[] = [];
+  for (const item of list) {
+    const u = normalizeMediaUrl(item, sourceUrl);
+    if (u && !out.includes(u)) out.push(u);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+export function normalizeWeboTags(tags: unknown): string[] {
+  if (!Array.isArray(tags)) return [];
+  return tags
+    .map((t) => String(t || "").trim())
+    .filter((t) => t.length > 0 && t.length <= 40)
+    .slice(0, 20);
+}
+
+export function mergeWeboTags(existing: string[], add: string[]): string[] {
+  const out = [...normalizeWeboTags(existing)];
+  for (const t of normalizeWeboTags(add)) {
+    if (!out.includes(t)) out.push(t);
+  }
+  return out.slice(0, 20);
+}
+
+export function buildWeboShopifyTags(product: {
+  tags?: string[];
+  siteName?: string;
+  source?: string;
+}): string {
+  const base = ["webo", product.siteName, product.source].filter(Boolean) as string[];
+  return mergeWeboTags(base, product.tags || []).join(", ");
+}
+
+function mapWeboRow(r: Record<string, unknown>) {
+  const sourceUrl = String(r.source_url);
+  const siteLogoUrl = String(r.site_logo_url || "");
+  const images = normalizeWeboImages(r.images, sourceUrl);
+  const imageUrl =
+    pickWeboImage(r.image_url, images, sourceUrl, siteLogoUrl) || images[0] || null;
+  return {
+    id: Number(r.id),
+    sourceUrl,
+    title: String(r.title),
+    siteId: r.site_id ? String(r.site_id) : null,
+    siteName: String(r.site_name || ""),
+    siteLogoUrl,
+    price: r.price != null ? Number(r.price) : null,
+    salePrice: r.sale_price != null ? Number(r.sale_price) : null,
+    currency: String(r.currency || "TRY"),
+    imageUrl,
+    images,
+    brand: r.brand ? String(r.brand) : null,
+    sku: r.sku ? String(r.sku) : null,
+    source: String(r.source || "discovery"),
+    tags: normalizeWeboTags(r.tags),
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
 }
 
 /** Kaynak URL veya başlık Shopify mağazasında / transfer kaydında var mı? */
@@ -155,6 +261,28 @@ export async function isAlreadyOnShopify(input: {
       );
       if (byTitle.rows[0]?.id) {
         return { found: true, shopifyProductId: String(byTitle.rows[0].id), via: "memory_title" };
+      }
+    }
+
+    if (url) {
+      const byProducts = await pool.query(
+        `
+        SELECT shopify_product_id::text AS id FROM products
+        WHERE trendyol_url IS NOT NULL
+          AND (
+            trendyol_url = $1
+            OR regexp_replace(trendyol_url, '/$', '') = $1
+            OR (source_url IS NOT NULL AND (
+              source_url = $1
+              OR regexp_replace(source_url, '/$', '') = $1
+            ))
+          )
+        LIMIT 1
+        `,
+        [url],
+      );
+      if (byProducts.rows[0]?.id) {
+        return { found: true, shopifyProductId: String(byProducts.rows[0].id), via: "products_url" };
       }
     }
   } catch (err) {
@@ -289,6 +417,7 @@ export async function upsertWeboProduct(
     }
 
     const site = matchWebHookSite(sourceUrl);
+    const siteId = String(input.siteId || site?.id || "").trim() || null;
     const siteName = String(input.siteName || site?.name || "").trim() || "Kaynak";
     const siteLogoUrl = String(input.siteLogoUrl || site?.logoUrl || "").trim();
     const salePrice = num(input.salePrice) ?? num(input.price);
@@ -302,14 +431,15 @@ export async function upsertWeboProduct(
     const result = await pool!.query(
       `
       INSERT INTO webo_products (
-        source_url, title, site_name, site_logo_url, price, sale_price, currency,
-        image_url, images, brand, sku, source, updated_at
+        source_url, title, site_id, site_name, site_logo_url, price, sale_price, currency,
+        image_url, images, brand, sku, source, tags, updated_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7,
-        $8, $9::jsonb, $10, $11, $12, NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10::jsonb, $11, $12, $13, $14::jsonb, NOW()
       )
       ON CONFLICT (source_url) DO UPDATE SET
         title = EXCLUDED.title,
+        site_id = COALESCE(EXCLUDED.site_id, webo_products.site_id),
         site_name = EXCLUDED.site_name,
         site_logo_url = EXCLUDED.site_logo_url,
         price = COALESCE(EXCLUDED.price, webo_products.price),
@@ -320,6 +450,11 @@ export async function upsertWeboProduct(
         brand = COALESCE(EXCLUDED.brand, webo_products.brand),
         sku = COALESCE(EXCLUDED.sku, webo_products.sku),
         source = EXCLUDED.source,
+        tags = CASE
+          WHEN EXCLUDED.tags IS NOT NULL AND EXCLUDED.tags::text != '[]'
+          THEN EXCLUDED.tags
+          ELSE webo_products.tags
+        END,
         updated_at = NOW()
       WHERE webo_products.shopify_product_id IS NULL
       RETURNING id
@@ -327,6 +462,7 @@ export async function upsertWeboProduct(
       [
         sourceUrl,
         title,
+        siteId,
         siteName,
         siteLogoUrl,
         price,
@@ -337,6 +473,7 @@ export async function upsertWeboProduct(
         input.brand ? String(input.brand) : null,
         input.sku ? String(input.sku) : null,
         source,
+        JSON.stringify(normalizeWeboTags(input.tags)),
       ],
     );
     const id = Number(result.rows[0]?.id);
@@ -378,17 +515,19 @@ export async function markWeboTransferred(input: {
   }
 }
 
-export async function listPendingWeboProducts(limit = 60) {
+export async function listPendingWeboProducts(limit = 60, siteId?: string | null) {
   await ensureWeboTable();
-  const safe = Math.min(100, Math.max(1, Number(limit) || 60));
+  await purgeWeboAlreadyOnShopify().catch(() => 0);
+  const safe = Math.min(200, Math.max(1, Number(limit) || 60));
+  const siteFilter = String(siteId || "").trim() || null;
 
-  // Shopify mağazasında olanları (URL / başlık) pending listeden çıkar
   const result = await pool!.query(
     `
-    SELECT w.id, w.source_url, w.title, w.site_name, w.site_logo_url, w.price, w.sale_price, w.currency,
-           w.image_url, w.images, w.brand, w.sku, w.source, w.created_at, w.updated_at
+    SELECT w.id, w.source_url, w.title, w.site_id, w.site_name, w.site_logo_url, w.price, w.sale_price, w.currency,
+           w.image_url, w.images, w.brand, w.sku, w.source, w.tags, w.created_at, w.updated_at
     FROM webo_products w
     WHERE w.shopify_product_id IS NULL
+      AND ($2::text IS NULL OR w.site_id = $2 OR w.site_name = $2)
       AND NOT EXISTS (
         SELECT 1 FROM shopify_memory_products m
         WHERE m.source_url IS NOT NULL
@@ -406,33 +545,74 @@ export async function listPendingWeboProducts(limit = 60) {
           )
       )
       AND NOT EXISTS (
+        SELECT 1 FROM products p
+        WHERE p.trendyol_url IS NOT NULL
+          AND (
+            p.trendyol_url = w.source_url
+            OR regexp_replace(p.trendyol_url, '/$', '') = regexp_replace(w.source_url, '/$', '')
+            OR (p.source_url IS NOT NULL AND (
+              p.source_url = w.source_url
+              OR regexp_replace(p.source_url, '/$', '') = regexp_replace(w.source_url, '/$', '')
+            ))
+          )
+      )
+      AND NOT EXISTS (
         SELECT 1 FROM shopify_memory_products m2
         WHERE length(trim(w.title)) >= 8
           AND lower(regexp_replace(regexp_replace(w.title, '[^\\w\\sÇĞİÖŞÜçğıöşü]', '', 'g'), '\\s+', ' ', 'g'))
             = lower(regexp_replace(regexp_replace(m2.title, '[^\\w\\sÇĞİÖŞÜçğıöşü]', '', 'g'), '\\s+', ' ', 'g'))
       )
-    ORDER BY w.created_at DESC
+    ORDER BY w.site_name ASC, w.created_at DESC
     LIMIT $1
     `,
-    [safe],
+    [safe, siteFilter],
   );
-  return result.rows.map((r) => ({
-    id: Number(r.id),
-    sourceUrl: String(r.source_url),
-    title: String(r.title),
-    siteName: String(r.site_name || ""),
-    siteLogoUrl: String(r.site_logo_url || ""),
-    price: r.price != null ? Number(r.price) : null,
-    salePrice: r.sale_price != null ? Number(r.sale_price) : null,
-    currency: String(r.currency || "TRY"),
-    imageUrl: r.image_url ? String(r.image_url) : null,
-    images: Array.isArray(r.images) ? r.images : [],
-    brand: r.brand ? String(r.brand) : null,
-    sku: r.sku ? String(r.sku) : null,
-    source: String(r.source || "discovery"),
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
+  return result.rows.map((r) => mapWeboRow(r));
+}
+
+export async function getWeboSiteCatalog() {
+  await ensureWeboTable();
+  const counts = await pool!.query(
+    `
+    SELECT site_id, site_name, site_logo_url, COUNT(*)::int AS pending
+    FROM webo_products
+    WHERE shopify_product_id IS NULL
+    GROUP BY site_id, site_name, site_logo_url
+    `,
+  );
+  const byId = new Map<string, number>();
+  for (const row of counts.rows) {
+    const id = String(row.site_id || row.site_name || "");
+    if (id) byId.set(id, Number(row.pending) || 0);
+  }
+  return WEB_HOOK_SITES.map((s) => ({
+    id: s.id,
+    name: s.name,
+    domain: s.domain,
+    logoUrl: s.logoUrl,
+    source: s.source,
+    pendingCount: byId.get(s.id) ?? byId.get(s.name) ?? 0,
   }));
+}
+
+export async function addWeboTagsToProducts(ids: number[], tagsToAdd: string[]): Promise<number> {
+  await ensureWeboTable();
+  const cleanIds = ids.filter((id) => Number.isFinite(id) && id > 0);
+  const cleanTags = normalizeWeboTags(tagsToAdd);
+  if (!cleanIds.length || !cleanTags.length) return 0;
+
+  let updated = 0;
+  for (const id of cleanIds) {
+    const cur = await pool!.query(`SELECT tags FROM webo_products WHERE id = $1 LIMIT 1`, [id]);
+    if (!cur.rows[0]) continue;
+    const merged = mergeWeboTags(cur.rows[0].tags, cleanTags);
+    await pool!.query(
+      `UPDATE webo_products SET tags = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(merged), id],
+    );
+    updated += 1;
+  }
+  return updated;
 }
 
 export async function getWeboProductById(id: number) {
@@ -443,20 +623,9 @@ export async function getWeboProductById(id: number) {
   );
   const r = result.rows[0];
   if (!r) return null;
+  const mapped = mapWeboRow(r);
   return {
-    id: Number(r.id),
-    sourceUrl: String(r.source_url),
-    title: String(r.title),
-    siteName: String(r.site_name || ""),
-    siteLogoUrl: String(r.site_logo_url || ""),
-    price: r.price != null ? Number(r.price) : null,
-    salePrice: r.sale_price != null ? Number(r.sale_price) : null,
-    currency: String(r.currency || "TRY"),
-    imageUrl: r.image_url ? String(r.image_url) : null,
-    images: Array.isArray(r.images) ? r.images : [],
-    brand: r.brand ? String(r.brand) : null,
-    sku: r.sku ? String(r.sku) : null,
-    source: String(r.source || "discovery"),
+    ...mapped,
     shopifyProductId: r.shopify_product_id ? String(r.shopify_product_id) : null,
   };
 }
@@ -471,10 +640,10 @@ export async function getWebHooksSchema(discoveryStatus?: Record<string, unknown
        WHERE transferred_at IS NOT NULL AND transferred_at >= date_trunc('day', NOW())`,
     ),
     pool!.query(
-      `SELECT site_name, COUNT(*)::int AS pending
+      `SELECT site_id, site_name, COUNT(*)::int AS pending
        FROM webo_products
        WHERE shopify_product_id IS NULL
-       GROUP BY site_name
+       GROUP BY site_id, site_name
        ORDER BY pending DESC`,
     ),
     listWeboEvents(25),
@@ -485,12 +654,13 @@ export async function getWebHooksSchema(discoveryStatus?: Record<string, unknown
 
   const pendingBySite = new Map<string, number>();
   for (const row of lastRows.rows) {
-    pendingBySite.set(String(row.site_name || ""), Number(row.pending) || 0);
+    const id = String(row.site_id || row.site_name || "");
+    if (id) pendingBySite.set(id, Number(row.pending) || 0);
   }
 
   const sites = WEB_HOOK_SITES.map((s) => ({
     ...s,
-    pendingCount: pendingBySite.get(s.name) || 0,
+    pendingCount: pendingBySite.get(s.id) ?? pendingBySite.get(s.name) ?? 0,
     status: "watching" as const,
   }));
 

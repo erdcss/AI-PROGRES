@@ -316,7 +316,10 @@ export default function HomeScreen() {
                 label="Aktif Takip"
                 value={trackedCount}
                 icon="◎"
-                onPress={() => goProducts("Takipte", trackedCount)}
+                onPress={() => {
+                  if (trackedCount <= 0) return;
+                  router.push({ pathname: "/(tabs)/tracking", params: { view: "tracked" } });
+                }}
               />
               <StatCard
                 label="Tespit Edilen Değişiklik"
@@ -406,7 +409,10 @@ export default function HomeScreen() {
 
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>Son Değişiklikler</Text>
-              <TouchableOpacity onPress={() => router.push("/(tabs)/tracking")} activeOpacity={0.7}>
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: "/(tabs)/tracking", params: { status: "Tümü" } })}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.sectionLink}>Tümü</Text>
               </TouchableOpacity>
             </View>
