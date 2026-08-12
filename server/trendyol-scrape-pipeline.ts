@@ -719,7 +719,7 @@ export async function runTrendyolScrapePipeline(
       const bwBudgetMs = Math.min(
         includeColorFamily
           ? Math.max(policy.browserWorkerTimeoutMs, 100_000)
-          : Math.min(policy.browserWorkerTimeoutMs || 45_000, 40_000),
+          : Math.max(35_000, Math.min(policy.browserWorkerTimeoutMs || 45_000, 55_000)),
         remainingMs(),
       );
       console.log("⚡ [1] Browser Worker (primary)...", {
@@ -760,8 +760,37 @@ export async function runTrendyolScrapePipeline(
               ? { ...apiProduct, rawProduct: bw.rawProductJson }
               : ({ rawProduct: bw.rawProductJson } as typeof apiProduct);
           }
+          // BW HTML'i hemen parse et — aksi halde needsCoreData yanlışlıkla API'yi atlıyordu
+          // ve parse başarısız olunca "Kaynak veri doğrulanamadı" oluşuyordu.
+          if (directHtml && directHtml.length >= 500 && !isCompleteScrapeData(evaluateFields(result, url))) {
+            try {
+              const { parseTrendyolProductFromHtmlContent } = await import(
+                "./trendyol-html-extractor"
+              );
+              const htmlProduct = await withStageTimeout(
+                () =>
+                  parseTrendyolProductFromHtmlContent(
+                    directHtml!,
+                    url,
+                    "browser-worker",
+                  ),
+                Math.min(STAGE_TIMEOUT.htmlParse, remainingMs()),
+                "html-parse-timeout",
+              );
+              if (htmlProduct) {
+                applyHtmlProduct(htmlProduct);
+                diagnostics.htmlParseSuccess = true;
+                diagnostics.htmlParseStarted = true;
+              }
+            } catch (err) {
+              console.warn(
+                "⚠️ BW HTML erken parse soft-fail:",
+                err instanceof Error ? err.message : err,
+              );
+            }
+          }
           console.log(
-            `✅ Browser Worker (${bw.durationMs}ms): HTML ${bw.html?.length ?? 0} bytes raw=${usableRaw} colorFamily=${bw.colorFamilyMembers?.length ?? 0}`,
+            `✅ Browser Worker (${bw.durationMs}ms): HTML ${bw.html?.length ?? 0} bytes raw=${usableRaw} colorFamily=${bw.colorFamilyMembers?.length ?? 0} fields=${JSON.stringify(evaluateFields(result, url))}`,
             { correlationId },
           );
         } else {
@@ -806,13 +835,9 @@ export async function runTrendyolScrapePipeline(
       }
     }
 
-    const needsCoreData = () => {
-      if (isCompleteScrapeData(evaluateFields(result, url))) return false;
-      // BW HTML/raw zaten var — API+Direct HTML tekrarını atla, parse aşamasına geç.
-      if (result._browserWorkerRawProduct) return false;
-      if (directHtml && directHtml.length > 5000 && !confirmedBlock) return false;
-      return true;
-    };
+    // Yalnızca gerçekten title+price+images doluysa API/HTML'i atla.
+    // Ham BW HTML/raw var diye atlamak canlıda extraction-failed üretiyordu.
+    const needsCoreData = () => !isCompleteScrapeData(evaluateFields(result, url));
 
     if (needsCoreData() && !isPastDeadline()) {
       diagnostics.apiStarted = true;

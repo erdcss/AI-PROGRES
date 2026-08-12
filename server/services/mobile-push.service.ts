@@ -177,7 +177,8 @@ async function ensureTable(): Promise<void> {
 }
 
 async function deliverPayloadToAndroidDevices(payload: MobilePushPayload): Promise<void> {
-  await enqueueInbox(payload);
+  const inserted = await enqueueInbox(payload);
+  if (!inserted) return;
   const devices = await db
     .select()
     .from(mobilePushDevices)
@@ -301,15 +302,60 @@ export async function notifyMobileProductTransferred(input: {
   }
 }
 
-async function enqueueInbox(payload: MobilePushPayload): Promise<void> {
+async function enqueueInbox(payload: MobilePushPayload): Promise<boolean> {
   try {
+    const type = String(payload.data?.type || "");
+    const productId = String(payload.data?.productId || "");
+    const changeId = String(payload.data?.changeId || "");
+    const title = String(payload.title || "");
+    const body = String(payload.body || "");
+
+    // Aynı olay 15 dk içinde tekrar inbox'a yazılmasın (TEST her zaman yazılır)
+    if (type !== "TEST") {
+      const recent = await db
+        .select()
+        .from(mobilePushInbox)
+        .orderBy(desc(mobilePushInbox.id))
+        .limit(40);
+      const cutoff = Date.now() - 15 * 60 * 1000;
+      const dup = recent.find((row) => {
+        const created = row.createdAt ? new Date(row.createdAt).getTime() : 0;
+        if (created && created < cutoff) return false;
+        const data = (row.data || {}) as Record<string, unknown>;
+        if (changeId && String(data.changeId || "") === changeId) return true;
+        if (
+          String(data.type || "") === type &&
+          String(data.productId || "") === productId &&
+          String(row.title || "") === title &&
+          String(row.body || "") === body
+        ) {
+          return true;
+        }
+        if (
+          type === "PRODUCT_TRANSFERRED" &&
+          String(data.type || "") === "PRODUCT_TRANSFERRED" &&
+          productId &&
+          String(data.productId || "") === productId
+        ) {
+          return true;
+        }
+        return false;
+      });
+      if (dup) {
+        console.log("[mobile-push] inbox dedupe skip", type, productId || changeId || title);
+        return false;
+      }
+    }
+
     await db.insert(mobilePushInbox).values({
       title: payload.title,
       body: payload.body,
       data: payload.data,
     });
+    return true;
   } catch (err) {
     console.warn("[mobile-push] inbox enqueue failed:", (err as Error).message);
+    return false;
   }
 }
 

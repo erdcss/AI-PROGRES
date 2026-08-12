@@ -6,6 +6,7 @@ import ScraperPage from "@/pages/scraper";
 import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
 import UrunHavuzuPage from "@/pages/urun-havuzu";
+import WebHooksPage from "@/pages/web-hooks";
 import MainDashboard from "@/pages/main-dashboard";
 import ComingSoon from "@/pages/coming-soon";
 import { TelegramPage } from "@/pages/telegram";
@@ -273,6 +274,16 @@ function Router() {
       <Route path="/urun-havuzu">
         <PageTransition>
           <UrunHavuzuPage />
+        </PageTransition>
+      </Route>
+      <Route path="/web-hooks">
+        <PageTransition>
+          <WebHooksPage />
+        </PageTransition>
+      </Route>
+      <Route path="/web-sitesi-kancalari">
+        <PageTransition>
+          <WebHooksPage />
         </PageTransition>
       </Route>
       <Route path="/trendyol">

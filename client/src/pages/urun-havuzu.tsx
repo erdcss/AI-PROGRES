@@ -67,6 +67,19 @@ const SUPPORTED_SITES = [
 
 type PoolFeature = { name: string; value: string };
 
+type PoolVariantOption = { name: string; values: string[] };
+
+type PoolVariant = {
+  title: string;
+  sku?: string;
+  asin?: string;
+  option1?: string;
+  option2?: string;
+  option3?: string;
+  price?: number | null;
+  inStock?: boolean;
+};
+
 type PoolProduct = {
   poolId: string;
   title: string;
@@ -82,6 +95,8 @@ type PoolProduct = {
   salePrice: number;
   images: string[];
   features?: PoolFeature[];
+  variantOptions?: PoolVariantOption[];
+  variants?: PoolVariant[];
   inStock: boolean;
   scrapedAt: string;
 };
@@ -1605,13 +1620,47 @@ export default function UrunHavuzuPage() {
                   onClick={sendToShopify}
                 />
 
+                {(product.variantOptions?.length ?? 0) > 0 ? (
+                  <div className="space-y-2 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+                      Varyant seçenekleri
+                      {(product.variants?.length ?? 0) > 0
+                        ? ` · ${product.variants!.length} kombinasyon`
+                        : ""}
+                    </p>
+                    {product.variantOptions!.map((opt) => (
+                      <div key={opt.name} className="space-y-1.5">
+                        <div className="text-xs text-neutral-300">{opt.name}</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(opt.values || []).slice(0, 24).map((v) => (
+                            <span
+                              key={`${opt.name}-${v}`}
+                              className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-[11px] text-neutral-200"
+                            >
+                              {v}
+                            </span>
+                          ))}
+                          {(opt.values || []).length > 24 ? (
+                            <span className="text-[11px] text-neutral-500">
+                              +{(opt.values || []).length - 24}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
                 {(product.features?.length ?? 0) > 0 || tags.length > 0 ? (
                   <p className="text-[11px] text-neutral-500">
                     {(product.features?.length ?? 0) > 0
                       ? `${product.features!.length} özellik Shopify açıklamasına eklenecek`
                       : null}
+                    {(product.variants?.length ?? 0) > 1
+                      ? `${(product.features?.length ?? 0) > 0 ? " · " : ""}${product.variants!.length} varyant Shopify'a gidecek`
+                      : ""}
                     {tags.length > 0
-                      ? `${(product.features?.length ?? 0) > 0 ? " · " : ""}${tags.length} etiket Shopify tags alanına gidecek`
+                      ? `${(product.features?.length ?? 0) > 0 || (product.variants?.length ?? 0) > 1 ? " · " : ""}${tags.length} etiket Shopify tags alanına gidecek`
                       : ""}
                   </p>
                 ) : null}

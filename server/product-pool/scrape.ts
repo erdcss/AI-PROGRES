@@ -1,6 +1,11 @@
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
-import type { ProductPoolFeature, ProductPoolProduct } from "./types";
+import type {
+  ProductPoolFeature,
+  ProductPoolProduct,
+  ProductPoolVariant,
+  ProductPoolVariantOption,
+} from "./types";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
@@ -1402,6 +1407,340 @@ function preferAmazonProductImages(urls: string[]): string[] {
     .slice(0, 12);
 }
 
+function amazonOptionLabel(key: string): string {
+  const k = String(key || "").toLowerCase();
+  if (/size|beden|numara|shoe/i.test(k)) return "Beden";
+  if (/color|renk|colour/i.test(k)) return "Renk";
+  if (/style|stil/i.test(k)) return "Stil";
+  if (/pattern|desen/i.test(k)) return "Desen";
+  if (/material|materyal|kumaş|kumas/i.test(k)) return "Materyal";
+  if (/fit|kalıp|kalip/i.test(k)) return "Kalıp";
+  const pretty = String(key || "")
+    .replace(/_name$/i, "")
+    .replace(/_/g, " ")
+    .trim();
+  return pretty ? pretty.charAt(0).toUpperCase() + pretty.slice(1) : "Seçenek";
+}
+
+function extractJsonObjectAfterKey(html: string, key: string): unknown | null {
+  const re = new RegExp(`"${key}"\\s*:\\s*\\{`);
+  const m = html.match(re);
+  if (!m || m.index == null) return null;
+  const start = html.indexOf("{", m.index + m[0].length - 1);
+  if (start < 0) return null;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < html.length && i < start + 400_000; i++) {
+    const ch = html[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = true;
+      continue;
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(html.slice(start, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+type AmazonVariantExtract = {
+  variantOptions: ProductPoolVariantOption[];
+  variants: ProductPoolVariant[];
+};
+
+function extractAmazonVariants(
+  html: string,
+  $: CheerioAPI,
+  opts: { currentAsin: string; salePrice: number; compareAt: number | null },
+): AmazonVariantExtract {
+  const labelsRaw =
+    (extractJsonObjectAfterKey(html, "variationDisplayLabels") as Record<string, string> | null) ||
+    {};
+  const dimValues =
+    (extractJsonObjectAfterKey(html, "dimensionValuesDisplayData") as Record<
+      string,
+      string[]
+    > | null) || {};
+  const asinVariationValues =
+    (extractJsonObjectAfterKey(html, "asinVariationValues") as Record<
+      string,
+      Record<string, string>
+    > | null) || {};
+  const dimensionToAsinMap =
+    (extractJsonObjectAfterKey(html, "dimensionToAsinMap") as Record<string, string> | null) ||
+    {};
+
+  // Amazon'da değer sırası `dimensions` dizisine göredir (labels key sırasına değil).
+  let dimensionsOrder: string[] = [];
+  const dimsArrMatch = html.match(/"dimensions"\s*:\s*\[([^\]]{0,400})\]/);
+  if (dimsArrMatch?.[1]) {
+    dimensionsOrder = [...dimsArrMatch[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  }
+
+  let dimKeys: string[] =
+    dimensionsOrder.length > 0 ? dimensionsOrder : Object.keys(labelsRaw);
+  const sampleAsin = Object.keys(dimValues)[0];
+  const sampleDims = sampleAsin ? dimValues[sampleAsin] : null;
+
+  if (!dimKeys.length) {
+    const firstVar = Object.values(asinVariationValues)[0];
+    if (firstVar && typeof firstVar === "object") {
+      dimKeys = Object.keys(firstVar).filter((k) => !/^(asin|ASIN)$/i.test(k));
+    }
+  }
+
+  const domAxes: Array<{ name: string; values: string[]; asins: Map<string, string> }> = [];
+  const pushDomAxis = (name: string, values: string[], asins: Map<string, string>) => {
+    const cleanVals = [...new Set(values.map((v) => cleanText(v)).filter(Boolean))];
+    if (!cleanVals.length) return;
+    if (domAxes.some((a) => a.name.toLowerCase() === name.toLowerCase())) return;
+    domAxes.push({ name, values: cleanVals, asins });
+  };
+
+  const twisterBlocks = [
+    { sel: "#variation_size_name, #inline-twister-row-size_name", label: "Beden" },
+    { sel: "#variation_color_name, #inline-twister-row-color_name", label: "Renk" },
+    { sel: "#variation_style_name, #inline-twister-row-style_name", label: "Stil" },
+  ];
+  for (const block of twisterBlocks) {
+    const root = $(block.sel).first();
+    if (!root.length) continue;
+    const values: string[] = [];
+    const asins = new Map<string, string>();
+    root.find("li").each((_, el) => {
+      const $el = $(el);
+      const asin = String($el.attr("data-defaultasin") || $el.attr("data-asin") || "").trim();
+      let label =
+        cleanText($el.attr("title") || "") ||
+        cleanText($el.find("img").attr("alt") || "") ||
+        cleanText($el.find(".swatch-title-text-display, .a-size-base").first().text()) ||
+        cleanText($el.text());
+      label = label
+        .replace(/tıkla.*$/i, "")
+        .replace(/click to.*$/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!label || label.length > 60) return;
+      if (/seçildi|selected|unavailable|mevcut değil/i.test(label) && label.length < 12) return;
+      values.push(label);
+      if (asin) asins.set(label, asin);
+    });
+    pushDomAxis(block.label, values, asins);
+  }
+
+  const optionNames: string[] = [];
+  const optionValues: string[][] = [];
+
+  if (dimKeys.length && sampleDims && Array.isArray(sampleDims)) {
+    for (let i = 0; i < Math.min(3, sampleDims.length); i++) {
+      const key = dimKeys[i] || `option_${i + 1}`;
+      const name = amazonOptionLabel(labelsRaw[key] || key);
+      const values = new Set<string>();
+      for (const dims of Object.values(dimValues)) {
+        if (Array.isArray(dims) && dims[i]) values.add(cleanText(String(dims[i])));
+      }
+      const list = [...values].filter(Boolean);
+      if (!list.length) continue;
+      optionNames.push(name);
+      optionValues.push(list);
+    }
+  } else if (Object.keys(asinVariationValues).length) {
+    for (const key of dimKeys.slice(0, 3)) {
+      const name = amazonOptionLabel(labelsRaw[key] || key);
+      const values = new Set<string>();
+      for (const row of Object.values(asinVariationValues)) {
+        const v = row?.[key];
+        if (v) values.add(cleanText(String(v)));
+      }
+      const list = [...values].filter(Boolean);
+      if (!list.length) continue;
+      optionNames.push(name);
+      optionValues.push(list);
+    }
+  }
+
+  if (!optionNames.length && domAxes.length) {
+    for (const axis of domAxes.slice(0, 3)) {
+      optionNames.push(axis.name);
+      optionValues.push(axis.values);
+    }
+  } else if (optionNames.length && domAxes.length) {
+    // DOM'dan yalnızca aynı isimli eksene değer ekle; yanlış etiket karışmasını önle
+    for (const axis of domAxes) {
+      const idx = optionNames.findIndex((n) => n.toLowerCase() === axis.name.toLowerCase());
+      if (idx < 0) continue;
+      const looksLikeNav = (v: string) =>
+        /^(←|→|‹|›|\d+|next|prev|önceki|sonraki)$/i.test(v.trim());
+      optionValues[idx] = [
+        ...new Set([...optionValues[idx], ...axis.values.filter((v) => !looksLikeNav(v))]),
+      ];
+    }
+  }
+
+  if (!optionNames.length) {
+    return { variantOptions: [], variants: [] };
+  }
+
+  const variantOptions: ProductPoolVariantOption[] = optionNames.map((name, i) => ({
+    name,
+    values: optionValues[i] || [],
+  }));
+
+  const variants: ProductPoolVariant[] = [];
+  const seen = new Set<string>();
+  const pushVariant = (v: ProductPoolVariant) => {
+    const optKey = `${v.option1 || ""}|${v.option2 || ""}|${v.option3 || ""}`;
+    const asinKey = v.asin ? `asin:${v.asin}` : "";
+    if (seen.has(optKey) || (asinKey && seen.has(asinKey))) {
+      // Aynı seçenek varsa ASIN'i olanı tercih et
+      if (v.asin) {
+        const idx = variants.findIndex(
+          (x) =>
+            `${x.option1 || ""}|${x.option2 || ""}|${x.option3 || ""}` === optKey && !x.asin,
+        );
+        if (idx >= 0) {
+          variants[idx] = { ...variants[idx], ...v };
+          seen.add(asinKey);
+        }
+      }
+      return;
+    }
+    seen.add(optKey);
+    if (asinKey) seen.add(asinKey);
+    variants.push(v);
+  };
+
+  for (const [asin, dims] of Object.entries(dimValues)) {
+    if (!Array.isArray(dims) || !dims.length) continue;
+    const option1 = cleanText(String(dims[0] || ""));
+    const option2 = cleanText(String(dims[1] || ""));
+    const option3 = cleanText(String(dims[2] || ""));
+    if (!option1 && !option2) continue;
+    const titleParts = [option1, option2, option3].filter(Boolean);
+    pushVariant({
+      title: titleParts.join(" / ") || asin,
+      asin,
+      sku: asin,
+      option1: option1 || undefined,
+      option2: option2 || undefined,
+      option3: option3 || undefined,
+      price: opts.salePrice,
+      compareAtPrice: opts.compareAt,
+      inStock: true,
+    });
+  }
+
+  if (!variants.length) {
+    for (const [asin, row] of Object.entries(asinVariationValues)) {
+      if (!row || typeof row !== "object") continue;
+      const vals = dimKeys.slice(0, 3).map((k) => cleanText(String(row[k] || "")));
+      if (!vals.some(Boolean)) continue;
+      pushVariant({
+        title: vals.filter(Boolean).join(" / ") || asin,
+        asin,
+        sku: asin,
+        option1: vals[0] || undefined,
+        option2: vals[1] || undefined,
+        option3: vals[2] || undefined,
+        price: opts.salePrice,
+        compareAtPrice: opts.compareAt,
+        inStock: true,
+      });
+    }
+  }
+
+  if (!variants.length && Object.keys(dimensionToAsinMap).length && optionValues.length) {
+    for (const [combo, asin] of Object.entries(dimensionToAsinMap)) {
+      const idxs = String(combo).split("_").map((x) => Number(x));
+      const vals = idxs.map((i, axis) => optionValues[axis]?.[i] || "").filter(Boolean);
+      if (!vals.length) continue;
+      pushVariant({
+        title: vals.join(" / "),
+        asin: String(asin),
+        sku: String(asin),
+        option1: vals[0],
+        option2: vals[1],
+        option3: vals[2],
+        price: opts.salePrice,
+        compareAtPrice: opts.compareAt,
+        inStock: true,
+      });
+    }
+  }
+
+  if (!variants.length && domAxes.length === 1) {
+    const axis = domAxes[0];
+    for (const val of axis.values) {
+      const asin = axis.asins.get(val) || (val === axis.values[0] ? opts.currentAsin : undefined);
+      pushVariant({
+        title: val,
+        asin,
+        sku: asin,
+        option1: val,
+        price: opts.salePrice,
+        compareAtPrice: opts.compareAt,
+        inStock: true,
+      });
+    }
+  } else if (!variants.length && optionValues.length === 1) {
+    for (const val of optionValues[0]) {
+      pushVariant({
+        title: val,
+        option1: val,
+        sku: opts.currentAsin,
+        asin: opts.currentAsin,
+        price: opts.salePrice,
+        compareAtPrice: opts.compareAt,
+        inStock: true,
+      });
+    }
+  }
+
+  // JSON yalnızca mevcut ASIN kombinasyonlarını verir; eksik seçenekleri eksenlerden tamamla
+  if (optionValues.length >= 1 && variants.length > 0) {
+    const expected = optionValues.reduce((n, vals) => n * Math.max(1, vals.length), 1);
+    if (expected <= 40 && variants.length < expected) {
+      const combos: string[][] = [[]];
+      for (const vals of optionValues.slice(0, 3)) {
+        const next: string[][] = [];
+        for (const prefix of combos) {
+          for (const v of vals) next.push([...prefix, v]);
+        }
+        combos.length = 0;
+        combos.push(...next);
+      }
+      for (const parts of combos) {
+        pushVariant({
+          title: parts.join(" / "),
+          option1: parts[0],
+          option2: parts[1],
+          option3: parts[2],
+          price: opts.salePrice,
+          compareAtPrice: opts.compareAt,
+          inStock: true,
+        });
+      }
+    }
+  }
+
+  return { variantOptions, variants: variants.slice(0, 100) };
+}
+
 function scrapeAmazon(html: string, sourceUrl: string): ProductPoolProduct {
   const { asin, cleanUrl } = normalizeAmazonProductUrl(sourceUrl);
   const $ = cheerio.load(html);
@@ -1541,6 +1880,11 @@ function scrapeAmazon(html: string, sourceUrl: string): ProductPoolProduct {
   );
 
   const compareAt = listPrice > salePrice ? listPrice : null;
+  const { variantOptions, variants } = extractAmazonVariants(html, $, {
+    currentAsin: asin,
+    salePrice,
+    compareAt,
+  });
 
   return {
     title: title || `Amazon ${asin}`,
@@ -1556,6 +1900,8 @@ function scrapeAmazon(html: string, sourceUrl: string): ProductPoolProduct {
     salePrice,
     images,
     features: features.slice(0, 24),
+    variantOptions: variantOptions.length ? variantOptions : undefined,
+    variants: variants.length ? variants : undefined,
     inStock,
     scrapedAt: new Date().toISOString(),
   };

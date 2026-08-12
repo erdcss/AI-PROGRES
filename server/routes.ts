@@ -93,6 +93,7 @@ import { registerSourceAccessRoutes } from './routes/source-access-routes';
 import { registerShopifyCategoryRoutes } from './routes/shopify-category-routes';
 import { registerMobilePushRoutes } from './routes/mobile-push-routes';
 import { registerMobileReadRoutes } from './routes/mobile-read-routes';
+import { registerWeboRoutes } from './routes/webo-routes';
 import { getRequestId } from './request-context';
 import { shopifyCredentials } from '@shared/schema';
 
@@ -1267,6 +1268,7 @@ export function registerRoutes(app: Express): Server {
   registerShopifyCategoryRoutes(app);
   registerMobilePushRoutes(app);
   registerMobileReadRoutes(app);
+  registerWeboRoutes(app);
 
   // Initialize Canva OAuth on startup
   initCanvaOAuth();
@@ -2335,9 +2337,11 @@ setTimeout(check, 1000);
           priceType: typeof result?.price
         });
         
-        // Canlı auto-fast: ek 20s HTML GET scrape'i şişiriyor; pipeline fiyatı zaten denedi.
+        // Fiyat hâlâ yoksa kısa acil kurtarma (20s yerine 8s) — canlıda tamamen kapatmak extraction-failed yapıyordu.
         const skipEmergencyPrice =
-          onlyExtractData && scrapePolicy.isCloud;
+          onlyExtractData &&
+          scrapePolicy.isCloud &&
+          Boolean(result?.price?.original && result.price.original > 0);
         if (
           !skipEmergencyPrice &&
           result &&
@@ -2356,7 +2360,7 @@ setTimeout(check, 1000);
             const { ultimatePriceExtract } = await import('./ultimate-price-extractor');
             
             const manualResponse = await axios.default.get(url, {
-              timeout: 20000,
+              timeout: scrapePolicy.isCloud ? 8_000 : 20_000,
               headers: {
                 'User-Agent':
                   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36',
@@ -2543,6 +2547,27 @@ setTimeout(check, 1000);
           
           // âœ… TEK BÄ°LDÄ°RÄ°M: Sadece veri Ã§ekme modunda basit bildirim gÃ¶nder
           if (onlyExtractData) {
+            void import('./services/webo.service')
+              .then(({ upsertWeboProduct }) =>
+                upsertWeboProduct({
+                  sourceUrl: url,
+                  title: String(result.title || ''),
+                  siteName: 'Trendyol',
+                  siteLogoUrl: 'https://cdn.dsmcdn.com/web/production/favicon.ico',
+                  price: Number(result.price?.original) || null,
+                  salePrice: Number(result.price?.original) || null,
+                  currency: 'TRY',
+                  imageUrl: Array.isArray(result.images) ? result.images[0] : null,
+                  images: Array.isArray(result.images)
+                    ? result.images.map((img: unknown) =>
+                        typeof img === 'string' ? img : (img as { url?: string })?.url || '',
+                      ).filter(Boolean)
+                    : [],
+                  brand: result.brand,
+                  source: 'trendyol',
+                }),
+              )
+              .catch((err) => console.warn('[webo] trendyol ingest atlandı:', err));
             const variantInfo = result.variants?.allVariants || result.variants || [];
             const variantCount = Array.isArray(variantInfo) ? variantInfo.length : (variantInfo.allVariants?.length || 0);
             const message = `

@@ -12,6 +12,7 @@ import {
   Star,
   FolderTree,
   Package,
+  Link2,
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 import { OrvianHeroBrand } from "@/components/OrvianHeroBrand";
@@ -188,6 +189,13 @@ const MarketplaceSelection = () => {
       description: "Ürün fiyat izleme ve Shopify senkronizasyonu (legacy)",
       path: "/memory-tracking",
       icon: Activity,
+    },
+    {
+      name: "Web sitesi kancaları",
+      description: "Ürün havuzu + Trendyol siteleri · canlı şema (ürünler mobilde)",
+      path: "/web-hooks",
+      icon: Link2,
+      testId: "card-system-web-hooks",
     },
     {
       name: "Bildirimler",

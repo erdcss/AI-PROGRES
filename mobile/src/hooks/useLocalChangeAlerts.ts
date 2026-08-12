@@ -11,7 +11,9 @@ import { useInAppBanner } from "../components/InAppBanner";
 import { isAppInForeground, pollInboxAndPresent } from "../lib/inbox-alerts";
 import { registerInboxBackgroundTask } from "../background/inbox-task";
 
-/** Test + programlı bildirimler cihaz tepsisine gider; uygulama açıkken kart da gösterilir. */
+const bannerShownIds = new Set<number>();
+
+/** Inbox → tek kanal: ön planda banner, arka planda OS. Yinelenmez. */
 export function useLocalChangeAlerts(): void {
   const { showBanner } = useInAppBanner();
   const qc = useQueryClient();
@@ -33,9 +35,13 @@ export function useLocalChangeAlerts(): void {
       try {
         const fresh = await pollInboxAndPresent();
         if (!fresh.length) return;
-        const alreadyOpen = isAppInForeground() && activeSince > 0 && Date.now() - activeSince > 2000;
+
+        const alreadyOpen =
+          isAppInForeground() && activeSince > 0 && Date.now() - activeSince > 1500;
         if (alreadyOpen) {
           for (const item of fresh.slice(0, 2)) {
+            if (bannerShownIds.has(item.id)) continue;
+            bannerShownIds.add(item.id);
             showBannerRef.current(item.title, item.body);
           }
         }
@@ -49,7 +55,7 @@ export function useLocalChangeAlerts(): void {
     void tick();
     const timer = setInterval(() => {
       void tick();
-    }, 4000);
+    }, 5000);
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         activeSince = Date.now();
@@ -64,7 +70,11 @@ export function useLocalChangeAlerts(): void {
       const type = String(notification.request.content.data?.type || "");
       if (id === WATCHDOG_NOTIFICATION_ID || type === "HEARTBEAT") {
         void tick();
+        return;
       }
+      // Uzaktan FCM geldiyse aynı inbox satırı için banner tekrarlama
+      const inboxId = Number(notification.request.content.data?.inboxId || 0);
+      if (inboxId > 0) bannerShownIds.add(inboxId);
     });
 
     return () => {

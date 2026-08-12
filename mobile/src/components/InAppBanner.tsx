@@ -82,8 +82,12 @@ export function InAppBannerProvider({ children }: { children: React.ReactNode })
   const [items, setItems] = useState<InAppBannerItem[]>([]);
 
   const showBanner = useCallback((title: string, body?: string) => {
-    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    setItems((prev) => [{ id, title, body }, ...prev].slice(0, 2));
+    const fingerprint = `${title}\n${body || ""}`;
+    setItems((prev) => {
+      if (prev.some((x) => `${x.title}\n${x.body || ""}` === fingerprint)) return prev;
+      const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      return [{ id, title, body }, ...prev].slice(0, 2);
+    });
   }, []);
 
   const onDone = useCallback((id: string) => {

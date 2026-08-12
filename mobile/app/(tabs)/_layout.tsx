@@ -68,6 +68,16 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="webo"
+        options={{
+          title: "Webo",
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon name={focused ? "globe" : "globe-outline"} focused={focused} />
+          ),
+          tabBarLabel: ({ focused }) => <TabLabel label="Webo" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="tracking"
         options={{
           title: "Takip",

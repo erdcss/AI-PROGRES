@@ -64,6 +64,62 @@ async function uploadOneProduct(product: Record<string, unknown>) {
     ...userTags,
   ]).join(", ");
 
+  const poolVariants = Array.isArray(product.variants) ? product.variants : [];
+  const poolOptions = Array.isArray(product.variantOptions) ? product.variantOptions : [];
+
+  const shopifyOptions =
+    poolOptions.length > 0
+      ? poolOptions.slice(0, 3).map((o: { name?: string; values?: string[] }, i: number) => ({
+          name: String(o.name || `Seçenek ${i + 1}`),
+          values: Array.isArray(o.values) ? o.values.map(String).filter(Boolean) : [],
+        }))
+      : poolVariants.length > 0
+        ? [
+            {
+              name: "Seçenek",
+              values: [
+                ...new Set(
+                  poolVariants
+                    .map((v: { option1?: string; title?: string }) =>
+                      String(v.option1 || v.title || "").trim(),
+                    )
+                    .filter(Boolean),
+                ),
+              ],
+            },
+          ]
+        : undefined;
+
+  const shopifyVariants =
+    poolVariants.length > 0
+      ? poolVariants.slice(0, 100).map((v: Record<string, unknown>) => {
+          const vPrice = Number(v.price);
+          const unit = Number.isFinite(vPrice) && vPrice > 0 ? vPrice : cost;
+          const vShopify = Math.round(unit * (1 + PROFIT_MARGIN) * 100) / 100;
+          const vCompareRaw = Number(v.compareAtPrice);
+          const vCompare =
+            Number.isFinite(vCompareRaw) && vCompareRaw > unit
+              ? (Math.round(vCompareRaw * (1 + PROFIT_MARGIN) * 100) / 100).toFixed(2)
+              : compareAt;
+          return {
+            option1: String(v.option1 || v.title || "Default").slice(0, 100),
+            ...(v.option2 ? { option2: String(v.option2).slice(0, 100) } : {}),
+            ...(v.option3 ? { option3: String(v.option3).slice(0, 100) } : {}),
+            price: vShopify.toFixed(2),
+            ...(vCompare ? { compare_at_price: vCompare } : {}),
+            sku: String(v.sku || v.asin || product.sku || "").slice(0, 100) || undefined,
+            inventory_management: null,
+          };
+        })
+      : [
+          {
+            price,
+            ...(compareAt ? { compare_at_price: compareAt } : {}),
+            sku: product.sku || undefined,
+            inventory_management: null,
+          },
+        ];
+
   const payload = {
     product: {
       title: String(product.title),
@@ -73,14 +129,12 @@ async function uploadOneProduct(product: Record<string, unknown>) {
       tags,
       status: "active",
       published: true,
-      variants: [
-        {
-          price,
-          ...(compareAt ? { compare_at_price: compareAt } : {}),
-          sku: product.sku || undefined,
-          inventory_management: null,
-        },
-      ],
+      ...(shopifyOptions?.length
+        ? {
+            options: shopifyOptions.filter((o: { values: string[] }) => o.values.length > 0),
+          }
+        : {}),
+      variants: shopifyVariants,
       images,
     },
   };
@@ -118,12 +172,23 @@ async function uploadOneProduct(product: Record<string, unknown>) {
       status: "active",
       price: shopifyPrice,
       images: safeImages,
+      variants: Array.isArray(product.variants) ? product.variants : undefined,
       sourceUrl: String(product.sourceUrl || ""),
       sourceLabel: "Ürün havuzu",
       shopifyProduct: (body.product as Record<string, unknown>) || null,
     });
   } catch (err) {
     console.warn("[ProductPool] mobil yayın atlandı:", err);
+  }
+
+  try {
+    const { markWeboTransferred } = await import("../services/webo.service");
+    await markWeboTransferred({
+      sourceUrl: String(product.sourceUrl || ""),
+      shopifyProductId: String(body.product.id),
+    });
+  } catch (err) {
+    console.warn("[ProductPool] webo mark atlandı:", err);
   }
 
   return {
@@ -145,6 +210,24 @@ router.post("/scrape", async (req, res) => {
       return res.status(400).json({ success: false, error: "url zorunlu" });
     }
     const product = await scrapeProductPoolUrl(url);
+    void import("../services/webo.service")
+      .then(({ upsertWeboProduct }) =>
+        upsertWeboProduct({
+          sourceUrl: product.sourceUrl,
+          title: product.title,
+          siteName: product.siteName,
+          siteLogoUrl: product.siteLogoUrl,
+          price: product.price,
+          salePrice: product.salePrice,
+          currency: product.currency,
+          imageUrl: product.images?.[0],
+          images: product.images,
+          brand: product.brand,
+          sku: product.sku,
+          source: "product-pool",
+        }),
+      )
+      .catch((err) => console.warn("[ProductPool] webo ingest atlandı:", err));
     void import("../telegram-integration")
       .then(({ telegramIntegration }) =>
         telegramIntegration.sendNotification(

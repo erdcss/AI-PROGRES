@@ -21,7 +21,7 @@ export async function computeCatalogCounts() {
   todayStart.setHours(0, 0, 0, 0);
   const visible = visibleTracked();
 
-  const [scrapedAll, scrapedToday, trackedAll, trackedActive, watchRedTracked, watchGreenTracked, watchRedScraped, watchGreenScraped] =
+  const [scrapedAll, scrapedToday, trackedAll, trackedActive, watchRedTracked, watchGreenTracked] =
     await Promise.all([
       db.select({ c: count() }).from(products),
       db
@@ -41,8 +41,6 @@ export async function computeCatalogCounts() {
         .select({ c: count() })
         .from(trackedProducts)
         .where(and(visible, eq(trackedProducts.watchTag, "green"))),
-      db.select({ c: count() }).from(products).where(eq(products.watchTag, "red")),
-      db.select({ c: count() }).from(products).where(eq(products.watchTag, "green")),
     ]);
 
   let shopifyMemoryTotal = 0;
@@ -76,13 +74,78 @@ export async function computeCatalogCounts() {
   const trackedTotal = Number(trackedAll[0]?.c ?? 0);
   const catalogTotal = shopifyMemoryTotal || trackedTotal + memoryOnly || scrapedTotal;
 
+  // Tracked etiketleri + yalnızca takipte olmayan scraped etiketleri (çift sayım yok)
+  const redTracked = Number(watchRedTracked[0]?.c ?? 0);
+  const greenTracked = Number(watchGreenTracked[0]?.c ?? 0);
+  let redScrapedExtra = 0;
+  let greenScrapedExtra = 0;
+  try {
+    const [redExtra] = await db
+      .select({ c: count() })
+      .from(products)
+      .where(
+        and(
+          eq(products.watchTag, "red"),
+          notExists(
+            db
+              .select({ id: trackedProducts.id })
+              .from(trackedProducts)
+              .where(
+                and(
+                  visibleTracked(),
+                  sql`(
+                    lower(${trackedProducts.sourceUrl}) = lower(${products.trendyolUrl})
+                    or (
+                      ${trackedProducts.shopifyProductId} is not null
+                      and ${products.shopifyProductId} is not null
+                      and ${trackedProducts.shopifyProductId} = ${products.shopifyProductId}
+                    )
+                  )`,
+                ),
+              ),
+          ),
+        ),
+      );
+    const [greenExtra] = await db
+      .select({ c: count() })
+      .from(products)
+      .where(
+        and(
+          eq(products.watchTag, "green"),
+          notExists(
+            db
+              .select({ id: trackedProducts.id })
+              .from(trackedProducts)
+              .where(
+                and(
+                  visibleTracked(),
+                  sql`(
+                    lower(${trackedProducts.sourceUrl}) = lower(${products.trendyolUrl})
+                    or (
+                      ${trackedProducts.shopifyProductId} is not null
+                      and ${products.shopifyProductId} is not null
+                      and ${trackedProducts.shopifyProductId} = ${products.shopifyProductId}
+                    )
+                  )`,
+                ),
+              ),
+          ),
+        ),
+      );
+    redScrapedExtra = Number(redExtra?.c ?? 0);
+    greenScrapedExtra = Number(greenExtra?.c ?? 0);
+  } catch {
+    redScrapedExtra = 0;
+    greenScrapedExtra = 0;
+  }
+
   return {
     scrapedTotal,
     scrapedToday: Number(scrapedToday[0]?.c ?? 0),
     trackedTotal,
     trackedActive: Number(trackedActive[0]?.c ?? 0),
-    watchRed: Number(watchRedTracked[0]?.c ?? 0) + Number(watchRedScraped[0]?.c ?? 0),
-    watchGreen: Number(watchGreenTracked[0]?.c ?? 0) + Number(watchGreenScraped[0]?.c ?? 0),
+    watchRed: redTracked + redScrapedExtra,
+    watchGreen: greenTracked + greenScrapedExtra,
     shopifyMemoryTotal,
     catalogTotal,
   };
