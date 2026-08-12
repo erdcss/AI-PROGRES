@@ -211,12 +211,192 @@ function buildPoolVariants(
   return { variantOptions, variants };
 }
 
+function parseEmbeddedJsonField<T>(val: unknown): T | null {
+  if (val == null) return null;
+  if (typeof val === "string") {
+    try {
+      return JSON.parse(val) as T;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof val === "object") return val as T;
+  return null;
+}
+
+function parseN11WindowModel(html: string): Record<string, unknown> | null {
+  const start = html.indexOf("window.model = ");
+  if (start < 0) return null;
+
+  // Safer: `</script>` yerine, JSON objesini `{...}` parantez derinliğiyle yakala.
+  // Bazı HTML’lerde ilk `</script>` görünümü JSON içinde/öncesinde hatalı kesilebilir.
+  const jsonStart = html.indexOf("{", start);
+  if (jsonStart < 0) return null;
+
+  let depth = 0;
+  let inString: '"' | "'" | null = null;
+  let escaped = false;
+  for (let i = jsonStart; i < html.length; i++) {
+    const ch = html[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === inString) {
+        inString = null;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      inString = ch;
+      continue;
+    }
+    if (ch === "{") depth++;
+    if (ch === "}") depth--;
+    if (depth === 0) {
+      const json = html.slice(jsonStart, i + 1);
+      try {
+        return JSON.parse(json) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  // Fallback (eski yöntem): `</script>` ile kes.
+  const end = html.indexOf("</script>", start);
+  if (end < 0) return null;
+  let json = html.slice(start + 15, end).trim();
+  if (json.endsWith(";")) json = json.slice(0, -1);
+  try {
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+type N11SkuAttribute = {
+  name?: string;
+  seoName?: string;
+  skuDefinition?: { id?: number; name?: string; seoName?: string };
+};
+
+type N11Sku = {
+  id?: number;
+  gtin?: string;
+  stock?: number | null;
+  currentStock?: number | null;
+  outOfStock?: boolean;
+  displayPriceNumber?: number | null;
+  price?: string | null;
+  skuAttributes?: N11SkuAttribute[];
+};
+
+type N11AttributeGroup = {
+  groupAttributeName?: string;
+  products?: Array<{
+    groupAttributeValue?: string;
+    outOfStock?: boolean;
+  }>;
+};
+
+function extractN11VariantsFromModel(
+  model: Record<string, unknown>,
+  salePrice: number,
+): { variantOptions: ProductPoolVariantOption[]; variants: ProductPoolVariant[] } {
+  const skus = parseEmbeddedJsonField<N11Sku[]>(model.skus) || [];
+  const skuDefs =
+    parseEmbeddedJsonField<Array<{ id?: number; name?: string; seoName?: string }>>(
+      model.skuDefinitions,
+    ) || [];
+
+  const axisNames = skuDefs.map((d) => cleanText(d.name || "")).filter(Boolean);
+  const axisValues: Record<string, string[]> = {};
+  const variants: ProductPoolVariant[] = [];
+
+  for (const sku of skus) {
+    const attrs = sku.skuAttributes || [];
+    const optsByAxis: Record<string, string> = {};
+    for (const attr of attrs) {
+      const axisName = cleanText(attr.skuDefinition?.name || "Seçenek");
+      const val = cleanText(attr.name || "");
+      if (!axisName || !val) continue;
+      if (!axisNames.includes(axisName)) axisNames.push(axisName);
+      if (!axisValues[axisName]) axisValues[axisName] = [];
+      if (!axisValues[axisName].includes(val)) axisValues[axisName].push(val);
+      optsByAxis[axisName] = val;
+    }
+
+    const optionValues = axisNames.map((n) => optsByAxis[n]).filter(Boolean);
+    const title = optionValues.length ? optionValues.join(" / ") : "Varsayılan";
+    const skuPrice =
+      typeof sku.displayPriceNumber === "number" && sku.displayPriceNumber > 0
+        ? sku.displayPriceNumber
+        : parseTrPrice(String(sku.price || "")) || salePrice;
+
+    variants.push({
+      title,
+      sku: sku.gtin || (sku.id ? String(sku.id) : undefined),
+      option1: axisNames[0] ? optsByAxis[axisNames[0]] : undefined,
+      option2: axisNames[1] ? optsByAxis[axisNames[1]] : undefined,
+      option3: axisNames[2] ? optsByAxis[axisNames[2]] : undefined,
+      price: skuPrice,
+      inStock: !sku.outOfStock,
+    });
+  }
+
+  const pag =
+    parseEmbeddedJsonField<N11AttributeGroup>(model.productAttributeGroup) ||
+    parseEmbeddedJsonField<N11AttributeGroup>(
+      (model.response as Record<string, unknown> | undefined)?.productAttributeGroup,
+    );
+  if (pag?.groupAttributeName && pag.products?.length) {
+    const colorAxis = cleanText(pag.groupAttributeName);
+    const colors = [
+      ...new Set(
+        pag.products.map((p) => cleanText(p.groupAttributeValue || "")).filter(Boolean),
+      ),
+    ];
+    if (colorAxis && colors.length) {
+      if (!axisNames.includes(colorAxis)) axisNames.push(colorAxis);
+      axisValues[colorAxis] = colors;
+    }
+  }
+
+  const variantOptions: ProductPoolVariantOption[] = axisNames
+    .slice(0, 3)
+    .map((name) => ({
+      name,
+      values: axisValues[name] || [],
+    }))
+    .filter((o) => o.values.length > 0);
+
+  if (variantOptions.length || variants.length) {
+    return { variantOptions, variants };
+  }
+  return { variantOptions: [], variants: [] };
+}
+
 function extractN11Variants(
   html: string,
   $: CheerioAPI,
   sourceUrl: string,
   salePrice: number,
 ): { variantOptions: ProductPoolVariantOption[]; variants: ProductPoolVariant[] } {
+  const model = parseN11WindowModel(html);
+  if (model) {
+    const fromModel = extractN11VariantsFromModel(model, salePrice);
+    if (fromModel.variantOptions.length || fromModel.variants.length) {
+      return fromModel;
+    }
+  }
+
   const axes: Array<{ name: string; values: string[] }> = [];
   const pushAxis = (name: string, values: string[]) => {
     const cleanName = cleanText(name);
@@ -1006,6 +1186,135 @@ function scrapeHepegitim(html: string, sourceUrl: string): ProductPoolProduct {
   };
 }
 
+async function fetchTrendyolHtml(url: string): Promise<string> {
+  return fetchProtectedMarketplaceHtml(
+    url,
+    "trendyol",
+    "Trendyol sayfası alınamadı (bot koruması). Canlıda BROWSER_WORKER_URL yapılandırın veya daha sonra tekrar deneyin.",
+  );
+}
+
+function scrapeTrendyolPool(html: string, sourceUrl: string): ProductPoolProduct {
+  const $ = cheerio.load(html);
+
+  let title = "";
+  let brand = "";
+  let sku = "";
+  let salePrice = 0;
+  let listPrice = 0;
+  let inStock = true;
+  const images: string[] = [];
+  const features: ProductPoolFeature[] = [];
+  const axes: Array<{ name: string; values: string[] }> = [];
+
+  // JSON-LD Product
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const raw = JSON.parse($(el).html() || "");
+      const nodes = Array.isArray(raw) ? raw : Array.isArray(raw["@graph"]) ? raw["@graph"] : [raw];
+      for (const node of nodes) {
+        if (String(node?.["@type"] || "") !== "Product") continue;
+        if (!title) title = cleanText(String(node.name || ""));
+        const b = node.brand;
+        if (!brand) brand = typeof b === "string" ? b : cleanText(String((b as { name?: string })?.name || ""));
+        if (!sku) sku = String(node.sku || node.mpn || "");
+        const img = node.image;
+        const imgs = Array.isArray(img) ? img : img ? [img] : [];
+        for (const i of imgs) {
+          if (typeof i === "string" && i.startsWith("http") && !images.includes(i)) images.push(i);
+        }
+        const offer = node.offers as Record<string, unknown> | undefined;
+        if (offer) {
+          const p = parseTrPrice(String(offer.price ?? "")) || parseTrPrice(String(offer.lowPrice ?? ""));
+          if (p && p > 0) salePrice = p;
+          if (/OutOfStock|SoldOut/i.test(String(offer.availability || ""))) inStock = false;
+        }
+        const color = cleanText(String(node.color || ""));
+        if (color) features.push({ name: "Renk", value: color });
+        for (const p of Array.isArray(node.additionalProperty) ? node.additionalProperty : []) {
+          const n = cleanText(String(p?.name || ""));
+          const v = cleanText(String(p?.value || ""));
+          if (n && v) features.push({ name: n, value: v });
+        }
+      }
+    } catch { /* ignore */ }
+  });
+
+  // window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ veya benzeri gömülü JSON
+  for (const m of html.matchAll(/window\.__(?:PRODUCT_DETAIL_APP_INITIAL_STATE|state|INITIAL_STATE)__\s*=\s*(\{[\s\S]{20,}?\});\s*(?:window|var|let|const|<\/script>)/gi)) {
+    try {
+      const data = JSON.parse(m[1]) as Record<string, unknown>;
+      const pd = (data.product || data.productDetail || data) as Record<string, unknown> | null;
+      if (!pd) continue;
+      if (!title && pd.name) title = cleanText(String(pd.name));
+      if (!brand && pd.brand) brand = cleanText(String(typeof pd.brand === "object" ? (pd.brand as Record<string, unknown>).name ?? "" : pd.brand));
+      if (!sku && pd.id) sku = String(pd.id);
+      const price = Number(pd.price ?? (pd as Record<string, unknown>).priceInfo);
+      if (!salePrice && price > 0) salePrice = price;
+
+      // Varyant eksenleri
+      const allVariants = (pd.allVariants || pd.variants || []) as Array<Record<string, unknown>>;
+      for (const v of allVariants) {
+        const attribs = (v.attributes || v.attributeList || []) as Array<Record<string, unknown>>;
+        for (const att of attribs) {
+          const axisName = cleanText(String(att.name || att.attributeName || ""));
+          const val = cleanText(String(att.value || att.attributeValue || ""));
+          if (!axisName || !val) continue;
+          const idx = axes.findIndex((a) => a.name.toLowerCase() === axisName.toLowerCase());
+          if (idx >= 0) { if (!axes[idx].values.includes(val)) axes[idx].values.push(val); }
+          else axes.push({ name: axisName, values: [val] });
+        }
+      }
+      break;
+    } catch { /* ignore */ }
+  }
+
+  // og: meta fallback
+  if (!title) title = cleanText($('meta[property="og:title"]').attr("content") || $("h1").first().text() || "Ürün");
+  if (!salePrice) {
+    salePrice =
+      parseTrPrice($('meta[property="product:price:amount"]').attr("content") || "") ||
+      parseTrPrice($("[data-price]").attr("data-price") || "") ||
+      parseTrPrice($(".product-price-container, .pr-bx-pr-dsc, .prc-dsc").first().text()) || 0;
+  }
+  if (!images.length) {
+    const ogImg = $('meta[property="og:image"]').attr("content");
+    if (ogImg) images.push(ogImg);
+    $("img[src*='trendyol-mbu']").each((_, el) => {
+      const src = $(el).attr("src") || "";
+      if (src.startsWith("http") && !images.includes(src)) images.push(src);
+    });
+  }
+  const inStockMeta = $('meta[property="product:availability"]').attr("content");
+  if (inStockMeta && /out.of.stock/i.test(inStockMeta)) inStock = false;
+
+  const compareAt = listPrice > salePrice ? listPrice : null;
+  const { variantOptions, variants } = buildPoolVariants(axes, salePrice);
+
+  if (brand && !features.some((f) => /marka/i.test(f.name))) features.unshift({ name: "Marka", value: brand });
+  if (sku && !features.some((f) => /sku|model/i.test(f.name))) features.push({ name: "Model Kodu", value: sku });
+
+  return {
+    title: title || "Trendyol Ürün",
+    sourceUrl,
+    siteName: "trendyol",
+    siteLogoUrl: "https://www.trendyol.com/favicon.ico",
+    brand: brand || undefined,
+    sku: sku || undefined,
+    currency: "TRY",
+    price: compareAt || salePrice,
+    compareAtPrice: compareAt,
+    discountPercent: discountPercent(salePrice, compareAt),
+    salePrice,
+    images: images.slice(0, 12),
+    features: features.slice(0, 24),
+    inStock,
+    variantOptions: variantOptions.length ? variantOptions : undefined,
+    variants: variants.length ? variants : undefined,
+    scrapedAt: new Date().toISOString(),
+  };
+}
+
 function scrapeGeneric(html: string, sourceUrl: string): ProductPoolProduct {
   const $ = cheerio.load(html);
   const origin = new URL(sourceUrl).origin;
@@ -1503,6 +1812,13 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
     product = await scrapeN11(html, trimmed);
     if (!(product.salePrice > 0)) {
       throw new Error("n11 ürün fiyatı alınamadı");
+    }
+  } else if (host.includes("trendyol.com")) {
+    // Trendyol bot korumalı — Browser Worker → stealth Chromium fallback
+    const html = await fetchTrendyolHtml(trimmed);
+    product = scrapeTrendyolPool(html, trimmed);
+    if (!(product.salePrice > 0)) {
+      throw new Error("Trendyol ürün fiyatı alınamadı");
     }
   } else if (host.includes("amazon.")) {
     product = await scrapeAmazonPool(trimmed);

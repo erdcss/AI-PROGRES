@@ -302,6 +302,23 @@ export async function notifyMobileProductTransferred(input: {
   }
 }
 
+/**
+ * Dedup zaman pencereleri (ms):
+ *  - changeId bazlı: sınırsız (aynı DB satırı iki kez bildirim atmasın)
+ *  - fiyat değişimi:  60 dk
+ *  - stok değişimi:   60 dk
+ *  - PRODUCT_TRANSFERRED: 30 dk
+ *  - diğer: 30 dk
+ */
+const DEDUP_WINDOW_MS: Record<string, number> = {
+  PRICE_CHANGED: 60 * 60 * 1000,
+  STOCK_CHANGED: 60 * 60 * 1000,
+  OUT_OF_STOCK: 60 * 60 * 1000,
+  BACK_IN_STOCK: 60 * 60 * 1000,
+  PRODUCT_TRANSFERRED: 30 * 60 * 1000,
+  DEFAULT: 30 * 60 * 1000,
+};
+
 async function enqueueInbox(payload: MobilePushPayload): Promise<boolean> {
   try {
     const type = String(payload.data?.type || "");
@@ -310,19 +327,29 @@ async function enqueueInbox(payload: MobilePushPayload): Promise<boolean> {
     const title = String(payload.title || "");
     const body = String(payload.body || "");
 
-    // Aynı olay 15 dk içinde tekrar inbox'a yazılmasın (TEST her zaman yazılır)
+    // TEST her zaman inbox'a yazılır, dedup atlanır
     if (type !== "TEST") {
+      const windowMs = DEDUP_WINDOW_MS[type] ?? DEDUP_WINDOW_MS.DEFAULT;
+      const cutoff = Date.now() - windowMs;
+
+      // Son 100 inbox kaydına bak (eski kayıtlar pencere dışıysa zaten skip)
       const recent = await db
         .select()
         .from(mobilePushInbox)
         .orderBy(desc(mobilePushInbox.id))
-        .limit(40);
-      const cutoff = Date.now() - 15 * 60 * 1000;
+        .limit(100);
+
       const dup = recent.find((row) => {
         const created = row.createdAt ? new Date(row.createdAt).getTime() : 0;
-        if (created && created < cutoff) return false;
         const data = (row.data || {}) as Record<string, unknown>;
-        if (changeId && String(data.changeId || "") === changeId) return true;
+
+        // 1. Aynı changeId → kesinlikle duplicate (süre bağımsız)
+        if (changeId && changeId !== "" && String(data.changeId || "") === changeId) return true;
+
+        // Zaman penceresi dışındaki kayıtlar artık dedup'ı tetiklemez
+        if (created && created < cutoff) return false;
+
+        // 2. Aynı type + productId + title + body → duplicate
         if (
           String(data.type || "") === type &&
           String(data.productId || "") === productId &&
@@ -331,6 +358,8 @@ async function enqueueInbox(payload: MobilePushPayload): Promise<boolean> {
         ) {
           return true;
         }
+
+        // 3. PRODUCT_TRANSFERRED: aynı ürün 30 dk içinde tekrar bildirim atmasın
         if (
           type === "PRODUCT_TRANSFERRED" &&
           String(data.type || "") === "PRODUCT_TRANSFERRED" &&
@@ -339,8 +368,22 @@ async function enqueueInbox(payload: MobilePushPayload): Promise<boolean> {
         ) {
           return true;
         }
+
+        // 4. Fiyat/stok bildirimleri: aynı ürün+tip, değer aynıysa duplicate
+        const priceStockTypes = ["PRICE_CHANGED", "STOCK_CHANGED", "OUT_OF_STOCK", "BACK_IN_STOCK"];
+        if (
+          priceStockTypes.includes(type) &&
+          String(data.type || "") === type &&
+          productId &&
+          String(data.productId || "") === productId &&
+          String(row.body || "") === body
+        ) {
+          return true;
+        }
+
         return false;
       });
+
       if (dup) {
         console.log("[mobile-push] inbox dedupe skip", type, productId || changeId || title);
         return false;
@@ -726,11 +769,24 @@ export async function dispatchChangePush(change: DetectedChange): Promise<void> 
       /* title optional */
     }
 
-    const notifyKey = `${change.trackedProductId}:${change.changeType}`;
-    if (!shouldNotifyForWatchTag(watchTag, change.changeType, lastNotifyAt.get(notifyKey))) {
+    // In-memory dedup (aynı ürün+changeType+değer 60 dk içinde tekrar bildirim atmasın)
+    const newValStr = String(
+      typeof change.newValue === "object" && change.newValue !== null
+        ? JSON.stringify(change.newValue)
+        : change.newValue ?? "",
+    );
+    const notifyKey = `${change.trackedProductId}:${change.changeType}:${newValStr.slice(0, 64)}`;
+    const NOTIFY_COOLDOWN_MS = 60 * 60 * 1000; // 60 dk
+    const lastAt = lastNotifyAt.get(notifyKey);
+    const now = Date.now();
+    if (lastAt && now - lastAt < NOTIFY_COOLDOWN_MS) {
+      console.log("[mobile-push] in-memory dedup skip", change.changeType, change.trackedProductId);
       return;
     }
-    lastNotifyAt.set(notifyKey, Date.now());
+    if (!shouldNotifyForWatchTag(watchTag, change.changeType, lastAt)) {
+      return;
+    }
+    lastNotifyAt.set(notifyKey, now);
 
     const payload = buildPushPayload(change, productTitle, watchTag);
     const webType =
