@@ -11,7 +11,36 @@ export type WebHookSite = {
   discoverUrl?: string;
   /** Ek keşif sayfaları (sırayla denenir) */
   discoverUrls?: string[];
+  /** Ürün URL eşleşmesi — yeni siteler için zorunlu */
+  productUrlRegex?: string;
 };
+
+/** Kayıtlı veya yeni site için ürün URL kontrolü */
+export function isWebHookProductUrl(url: string, site: WebHookSite): boolean {
+  const u = String(url || "").toLowerCase();
+  if (!u.includes(site.domain)) return false;
+  if (site.productUrlRegex) {
+    try {
+      return new RegExp(site.productUrlRegex, "i").test(url);
+    } catch {
+      /* ignore bad pattern */
+    }
+  }
+  return /\/(urun|product|\/p\/|\/dp\/|gp\/product)/i.test(u);
+}
+
+export function buildWebHookProductUrlRegex(site: WebHookSite): RegExp | null {
+  if (!site.productUrlRegex) return null;
+  try {
+    const dom = site.domain.replace(/\./g, "\\.");
+    return new RegExp(
+      `https?:\\/\\/(?:www\\.)?${dom}[^\\s"'<>]*${site.productUrlRegex}`,
+      "gi",
+    );
+  } catch {
+    return null;
+  }
+}
 
 export const WEB_HOOK_SITES: WebHookSite[] = [
   {
@@ -26,6 +55,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
       "https://www.trendyol.com/sr?q=yeni",
       "https://www.trendyol.com/sr?st=new",
     ],
+    productUrlRegex: "-p-\\d+",
   },
   {
     id: "hepegitim",
@@ -36,6 +66,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     source: "product-pool",
     discoverUrl: "https://www.hepegitim.com",
     discoverUrls: ["https://www.hepegitim.com/arama?q=populer"],
+    productUrlRegex: "(?:/urun/|product)",
   },
   {
     id: "idefix",
@@ -49,6 +80,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
       "https://www.idefix.com/arama?q=cok+satanlar",
       "https://www.idefix.com/kategori/kitap",
     ],
+    productUrlRegex: "/urun/",
   },
   {
     id: "pazarama",
@@ -62,6 +94,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
       "https://www.pazarama.com/arama?q=yeni",
       "https://www.pazarama.com/kategori/elektronik",
     ],
+    productUrlRegex: "/urun/",
   },
   {
     id: "beymen",
@@ -72,6 +105,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     source: "product-pool",
     discoverUrl: "https://www.beymen.com/kadin",
     discoverUrls: ["https://www.beymen.com/erkek", "https://www.beymen.com/cocuk"],
+    productUrlRegex: "(?:/p-\\d+|-\\d+\\.html)",
   },
   {
     id: "pttavm",
@@ -82,6 +116,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     source: "product-pool",
     discoverUrl: "https://www.pttavm.com",
     discoverUrls: ["https://www.pttavm.com/arama?q=yeni"],
+    productUrlRegex: "/urun/",
   },
   {
     id: "n11",
@@ -92,6 +127,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     source: "product-pool",
     discoverUrl: "https://www.n11.com/arama?q=yeni",
     discoverUrls: ["https://www.n11.com/arama?q=populer", "https://www.n11.com/arama?q=indirim"],
+    productUrlRegex: "(?:/urun/|-P\\d+)",
   },
   {
     id: "amazon",
@@ -105,6 +141,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
       "https://www.amazon.com.tr/s?k=yeni+urunler",
       "https://www.amazon.com.tr/gp/bestsellers/",
     ],
+    productUrlRegex: "(?:/dp/|/gp/product/)[A-Z0-9]{10}",
   },
 ];
 

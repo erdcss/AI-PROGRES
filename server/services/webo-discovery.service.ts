@@ -3,7 +3,7 @@
  * Shopify'da olmayan yeni ürünleri webo kuyruğuna yazar.
  */
 import * as cheerio from "cheerio";
-import { WEB_HOOK_SITES, type WebHookSite } from "@shared/web-hooks-sites";
+import { WEB_HOOK_SITES, buildWebHookProductUrlRegex, isWebHookProductUrl, type WebHookSite } from "@shared/web-hooks-sites";
 import {
   appendWeboEvent,
   normalizeMediaUrl,
@@ -80,18 +80,9 @@ function parsePrice(raw: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": UA,
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(22_000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.text();
+async function fetchDiscoveryHtml(url: string, site: WebHookSite): Promise<string> {
+  const { fetchMarketplaceListingHtml } = await import("../product-pool/scrape");
+  return fetchMarketplaceListingHtml(url, site.id);
 }
 
 function absoluteUrl(base: string, href: string): string {
@@ -102,18 +93,146 @@ function absoluteUrl(base: string, href: string): string {
   }
 }
 
-function looksLikeProductUrl(url: string, site: WebHookSite): boolean {
-  const u = url.toLowerCase();
-  if (!u.includes(site.domain)) return false;
-  if (site.id === "trendyol") return /-\w*p-\d+/i.test(u) || /\/p-\d+/i.test(u);
-  if (site.id === "amazon") return /\/dp\/[a-z0-9]{8,}/i.test(u) || /\/gp\/product\//i.test(u);
-  if (site.id === "n11") return /\/urun\//i.test(u) || /-P\d+/i.test(u);
-  if (site.id === "beymen") return /\/p-\d+/i.test(u) || /\/[a-z0-9-]+-\d+\.html/i.test(u);
-  if (site.id === "pazarama") return /\/urun\//i.test(u) || /\/p\//i.test(u);
-  if (site.id === "pttavm") return /\/urun\//i.test(u);
-  if (site.id === "idefix") return /\/urun\//i.test(u) || /product/i.test(u);
-  if (site.id === "hepegitim") return /\/urun\//i.test(u) || /product/i.test(u);
-  return /\/(urun|product|p|dp)\//i.test(u);
+function slugTitleFromUrl(sourceUrl: string): string {
+  const slug = sourceUrl.split("/").pop()?.split("?")[0] || "";
+  return slug.replace(/[-_+.]/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+function pushCandidate(
+  map: Map<string, DiscoveryCandidate>,
+  site: WebHookSite,
+  rawUrl: string,
+  title?: string | null,
+  price?: number | null,
+  imageUrl?: string | null,
+): void {
+  const clean = String(rawUrl || "").trim().split("?")[0].replace(/["'<>]/g, "");
+  if (!clean || map.has(clean)) return;
+  if (!isWebHookProductUrl(clean, site)) return;
+  const t = String(title || "").trim() || slugTitleFromUrl(clean);
+  if (t.length < 3) return;
+  map.set(clean, {
+    sourceUrl: clean,
+    title: t.slice(0, 200),
+    price: price ?? null,
+    salePrice: price ?? null,
+    imageUrl: imageUrl ?? null,
+  });
+}
+
+function walkJsonForProducts(
+  obj: unknown,
+  site: WebHookSite,
+  map: Map<string, DiscoveryCandidate>,
+  depth = 0,
+): void {
+  if (!obj || depth > 12) return;
+  if (Array.isArray(obj)) {
+    for (const item of obj) walkJsonForProducts(item, site, map, depth + 1);
+    return;
+  }
+  if (typeof obj !== "object") return;
+  const rec = obj as Record<string, unknown>;
+
+  const urlKeys = ["url", "productUrl", "link", "href", "webUrl", "pdpUrl", "detailUrl"];
+  const titleKeys = ["name", "title", "productName", "displayName", "label"];
+  let foundUrl = "";
+  for (const k of urlKeys) {
+    const v = rec[k];
+    if (typeof v === "string" && v.length > 8) {
+      foundUrl = v;
+      break;
+    }
+  }
+  if (foundUrl) {
+    const abs = foundUrl.startsWith("http")
+      ? foundUrl
+      : absoluteUrl(`https://www.${site.domain}`, foundUrl);
+    let title = "";
+    for (const k of titleKeys) {
+      const v = rec[k];
+      if (typeof v === "string" && v.trim().length >= 3) {
+        title = v.trim();
+        break;
+      }
+    }
+    const priceRaw = rec.price ?? rec.salePrice ?? rec.listPrice;
+    let price: number | null = null;
+    if (typeof priceRaw === "number" && priceRaw > 0) price = priceRaw;
+    else if (typeof priceRaw === "object" && priceRaw) {
+      const p = priceRaw as Record<string, unknown>;
+      const n = Number(p.sellingPrice ?? p.value ?? p.amount);
+      if (n > 0) price = n;
+    }
+    const img =
+      rec.imageUrl ??
+      rec.image ??
+      (Array.isArray(rec.images) ? rec.images[0] : null);
+    pushCandidate(
+      map,
+      site,
+      abs,
+      title,
+      price,
+      typeof img === "string" ? normalizeMediaUrl(img, abs) : null,
+    );
+  }
+
+  for (const v of Object.values(rec)) {
+    walkJsonForProducts(v, site, map, depth + 1);
+  }
+}
+
+function discoverFromEmbeddedJson(
+  html: string,
+  site: WebHookSite,
+  pageUrl: string,
+): DiscoveryCandidate[] {
+  const map = new Map<string, DiscoveryCandidate>();
+
+  const nextMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (nextMatch?.[1]) {
+    try {
+      walkJsonForProducts(JSON.parse(nextMatch[1]), site, map);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const ldMatches = html.matchAll(
+    /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+  );
+  for (const m of ldMatches) {
+    try {
+      const data = JSON.parse(m[1]);
+      walkJsonForProducts(data, site, map);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const stateMatch = html.match(/window\.__PRELOADED_STATE__\s*=\s*(\{[\s\S]*?\});?\s*<\/script>/i);
+  if (stateMatch?.[1]) {
+    try {
+      walkJsonForProducts(JSON.parse(stateMatch[1]), site, map);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return [...map.values()].slice(0, 40);
+}
+
+function discoverFromRegex(html: string, site: WebHookSite): DiscoveryCandidate[] {
+  const map = new Map<string, DiscoveryCandidate>();
+  const re = buildWebHookProductUrlRegex(site);
+  if (!re) return [];
+  const matches = html.match(re) || [];
+  for (const raw of matches) {
+    pushCandidate(map, site, raw);
+    if (map.size >= 40) break;
+  }
+  return [...map.values()];
 }
 
 /** Trendyol infinite-scroll JSON (hafif) */
@@ -208,63 +327,34 @@ function pickImgFromEl(
   return null;
 }
 
-const SITE_URL_REGEX: Record<string, RegExp> = {
-  trendyol: /https?:\/\/(?:www\.)?trendyol\.com\/[a-z0-9ğüşıöç\-]+-p-\d+/gi,
-  amazon: /https?:\/\/(?:www\.)?amazon\.com\.tr\/(?:gp\/product|dp)\/[A-Z0-9]{10}/gi,
-  n11: /https?:\/\/(?:www\.)?n11\.com\/urun\/[a-z0-9\-]+-P\d+/gi,
-  beymen: /https?:\/\/(?:www\.)?beymen\.com\/[a-z0-9\-]+-\d+(?:\.html)?/gi,
-  pazarama: /https?:\/\/(?:www\.)?pazarama\.com\/[a-z0-9\-]+\/urun\/[^\s"'<>]+/gi,
-  pttavm: /https?:\/\/(?:www\.)?pttavm\.com\/urun\/[^\s"'<>]+/gi,
-  idefix: /https?:\/\/(?:www\.)?idefix\.com\/[a-z0-9\-]+\/urun\/[^\s"'<>]+/gi,
-  hepegitim: /https?:\/\/(?:www\.)?hepegitim\.com\/[^\s"'<>]*(?:urun|product)[^\s"'<>]*/gi,
-};
-
-function discoverFromRegex(html: string, site: WebHookSite): DiscoveryCandidate[] {
-  const re = SITE_URL_REGEX[site.id];
-  if (!re) return [];
-  const map = new Map<string, DiscoveryCandidate>();
-  const matches = html.match(re) || [];
-  for (const raw of matches) {
-    const sourceUrl = raw.split("?")[0].replace(/["'<>]/g, "");
-    if (!looksLikeProductUrl(sourceUrl, site) || map.has(sourceUrl)) continue;
-    const slug = sourceUrl.split("/").pop()?.replace(/[-_]/g, " ") || "Ürün";
-    map.set(sourceUrl, {
-      sourceUrl,
-      title: slug.slice(0, 200),
-      price: null,
-      salePrice: null,
-      imageUrl: null,
-    });
-    if (map.size >= 35) break;
-  }
-  return [...map.values()];
-}
-
 function parseListingHtml(site: WebHookSite, html: string, pageUrl: string): DiscoveryCandidate[] {
   const $ = cheerio.load(html);
   const map = new Map<string, DiscoveryCandidate>();
+
+  for (const c of discoverFromEmbeddedJson(html, site, pageUrl)) {
+    map.set(c.sourceUrl, c);
+  }
 
   $("a[href]").each((_, el) => {
     const href = String($(el).attr("href") || "").trim();
     if (!href || href.startsWith("#") || href.startsWith("javascript:")) return;
     const sourceUrl = absoluteUrl(pageUrl, href).split("?")[0];
-    if (!looksLikeProductUrl(sourceUrl, site)) return;
-    if (map.has(sourceUrl)) return;
+    if (!isWebHookProductUrl(sourceUrl, site) || map.has(sourceUrl)) return;
 
     let title =
       String($(el).attr("title") || "").trim() ||
       String($(el).find("img").attr("alt") || "").trim() ||
       $(el).text().replace(/\s+/g, " ").trim();
-    if (title.length < 6) {
+    if (title.length < 4) {
       const card = $(el).closest(
         "[class*='product'],[class*='Product'],[data-testid*='product'],li,article",
       );
       title =
         String(card.find("img").attr("alt") || "").trim() ||
         card.find("h2,h3,[class*='title'],[class*='name']").first().text().replace(/\s+/g, " ").trim() ||
-        title;
+        slugTitleFromUrl(sourceUrl);
     }
-    if (title.length < 6 || title.length > 220) return;
+    if (title.length < 3 || title.length > 220) return;
 
     const card = $(el).closest(
       "[class*='product'],[class*='Product'],[data-testid*='product'],li,article,div",
@@ -291,11 +381,11 @@ function parseListingHtml(site: WebHookSite, html: string, pageUrl: string): Dis
     if (!map.has(c.sourceUrl)) map.set(c.sourceUrl, c);
   }
 
-  return [...map.values()].slice(0, 35);
+  return [...map.values()].slice(0, 50);
 }
 
 async function discoverFromListingHtml(site: WebHookSite, pageUrl: string): Promise<DiscoveryCandidate[]> {
-  const html = await fetchHtml(pageUrl);
+  const html = await fetchDiscoveryHtml(pageUrl, site);
   return parseListingHtml(site, html, pageUrl);
 }
 
@@ -326,7 +416,7 @@ async function discoverSite(site: WebHookSite): Promise<{
     }
   }
 
-  const candidates = [...map.values()].slice(0, 40);
+  const candidates = [...map.values()].slice(0, 50);
   if (!candidates.length && errors.length) {
     return { candidates: [], error: errors[0] };
   }

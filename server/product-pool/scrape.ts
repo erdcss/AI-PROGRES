@@ -345,6 +345,28 @@ async function fetchAmazonHtml(url: string): Promise<string> {
   );
 }
 
+/** Webo keşif — liste/arama sayfaları (bot koruması bypass) */
+export async function fetchMarketplaceListingHtml(url: string, siteId?: string): Promise<string> {
+  const id = String(siteId || "").toLowerCase();
+  if (id === "n11") return fetchN11Html(url);
+  if (id === "amazon") return fetchAmazonHtml(url);
+  if (id === "pttavm") {
+    return fetchProtectedMarketplaceHtml(url, "pttavm-listing", "PTT AVM liste alınamadı");
+  }
+  if (id === "trendyol") {
+    try {
+      return await fetchHtml(url, { crawlerFallback: true });
+    } catch {
+      return fetchProtectedMarketplaceHtml(url, "trendyol-listing", "Trendyol liste alınamadı");
+    }
+  }
+  return fetchProtectedMarketplaceHtml(
+    url,
+    id || "listing",
+    `${id || "Site"} liste sayfası alınamadı`,
+  );
+}
+
 async function fetchHtmlWithStealthBrowser(url: string): Promise<string | null> {
   try {
     const { createRequire } = await import("module");
