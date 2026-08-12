@@ -5,19 +5,79 @@ import {
   getWebHooksSchema,
   getWeboProductById,
   listPendingWeboProducts,
+  listWeboEvents,
   markWeboTransferred,
+  purgeWeboAlreadyOnShopify,
   upsertWeboProduct,
 } from "../services/webo.service";
+import {
+  ensureWeboDiscoveryScheduler,
+  getWeboDiscoveryStatus,
+  runWeboDiscoveryCycle,
+  setWeboDiscoveryEnabled,
+} from "../services/webo-discovery.service";
 
 export function registerWeboRoutes(app: Express): void {
+  ensureWeboDiscoveryScheduler();
+
   app.get("/api/web-hooks/sites", (_req, res) => {
     res.json({ success: true, sites: WEB_HOOK_SITES });
   });
 
   app.get("/api/web-hooks/schema", async (_req, res) => {
     try {
-      const schema = await getWebHooksSchema();
+      await purgeWeboAlreadyOnShopify().catch(() => 0);
+      const schema = await getWebHooksSchema(getWeboDiscoveryStatus());
       return res.json({ success: true, schema });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.get("/api/web-hooks/events", async (req, res) => {
+    try {
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
+      const events = await listWeboEvents(limit);
+      return res.json({ success: true, events, discovery: getWeboDiscoveryStatus() });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.post("/api/web-hooks/discovery/run", async (_req, res) => {
+    try {
+      const summary = await runWeboDiscoveryCycle("manual");
+      return res.json({
+        success: true,
+        summary,
+        discovery: getWeboDiscoveryStatus(),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.post("/api/web-hooks/discovery/toggle", async (req, res) => {
+    try {
+      const enabled = req.body?.enabled;
+      if (typeof enabled !== "boolean") {
+        return res.status(400).json({ success: false, error: "enabled boolean zorunlu" });
+      }
+      setWeboDiscoveryEnabled(enabled);
+      return res.json({ success: true, discovery: getWeboDiscoveryStatus() });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ success: false, error: message });
+    }
+  });
+
+  app.post("/api/web-hooks/purge-shopify", async (_req, res) => {
+    try {
+      const marked = await purgeWeboAlreadyOnShopify();
+      return res.json({ success: true, marked });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return res.status(500).json({ success: false, error: message });
@@ -29,7 +89,12 @@ export function registerWeboRoutes(app: Express): void {
       await ensureWeboTable();
       const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 60));
       const products = await listPendingWeboProducts(limit);
-      return res.json({ success: true, products, total: products.length });
+      return res.json({
+        success: true,
+        products,
+        total: products.length,
+        note: "Yalnızca Shopify mağazasında olmayan keşif ürünleri",
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return res.status(500).json({ success: false, error: message });
@@ -55,7 +120,6 @@ export function registerWeboRoutes(app: Express): void {
         return res.status(400).json({ success: false, error: "geçerli fiyat yok" });
       }
 
-      // Shopify Admin API ile aktar
       const { shopifyAdminFetch, parseShopifyAdminResponse } = await import(
         "../shopify-token-manager"
       );
@@ -151,11 +215,20 @@ export function registerWeboRoutes(app: Express): void {
     }
   });
 
-  /** Manuel / test: ürün kuyruğa ekle */
+  /** Manuel / test: ürün kuyruğa ekle (Shopify'da varsa elenir) */
   app.post("/api/web-hooks/ingest", async (req, res) => {
     try {
       const row = await upsertWeboProduct(req.body || {});
-      if (!row) return res.status(400).json({ success: false, error: "geçersiz ürün" });
+      if (!row || row.skipped === "invalid") {
+        return res.status(400).json({ success: false, error: "geçersiz ürün" });
+      }
+      if (row.skipped === "shopify") {
+        return res.json({
+          success: true,
+          skipped: "shopify",
+          message: "Ürün zaten Shopify mağazasında — Webo kuyruğuna alınmadı",
+        });
+      }
       return res.json({ success: true, id: row.id });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

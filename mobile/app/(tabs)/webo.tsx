@@ -121,7 +121,7 @@ export default function WeboScreen() {
       <View style={styles.pad}>
         <ScreenHeader
           title="Webo"
-          caption={`${items.length} bekleyen ürün · Shopify’a aktarılmamış`}
+          caption="Shopify’da olmayan yeni keşifler · aktarmak istediklerinizi gönderin"
         />
       </View>
 
@@ -148,7 +148,9 @@ export default function WeboScreen() {
               tintColor={colors.text}
             />
           }
-          ListEmptyComponent={<EmptyState message="Henüz bekleyen Webo ürünü yok." />}
+          ListEmptyComponent={
+            <EmptyState message="Henüz yeni keşif yok. Desteklenen siteler taranınca Shopify’da olmayan ürünler burada listelenir." />
+          }
           renderItem={({ item }) => (
             <WeboRow
               item={item}
