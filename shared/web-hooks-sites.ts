@@ -120,7 +120,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     discoverUrls: ["https://www.pttavm.com/arama?q=yeni"],
     productUrlRegex: "(?:-p-\\d+|/urun/)",
     exampleProductUrl:
-      "https://www.pttavm.com/samsung-galaxy-tab-s10-fe-plus-sm-x620-gri-128-gb-131-tablet-p-1469512560",
+      "https://www.pttavm.com/yelekli-takim-elbise-erkek-slim-fit-p-1440144055",
   },
   {
     id: "n11",
@@ -133,7 +133,7 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     discoverUrls: ["https://www.n11.com/arama?q=populer", "https://www.n11.com/arama?q=indirim"],
     productUrlRegex: "(?:/urun/|-P\\d+|-\\d{6,})",
     exampleProductUrl:
-      "https://www.n11.com/urun/casio-pro-trek-prg-340t-7dr-erkek-kol-saati-33731520?magaza=menaithalat",
+      "https://www.n11.com/urun/jimmy-key-kobalt-100-keten-duz-yaka-aski-detayli-elbise-6sw067580165-saks-mavisi-133825972?beden=s&magaza=jimmykey",
   },
   {
     id: "amazon",

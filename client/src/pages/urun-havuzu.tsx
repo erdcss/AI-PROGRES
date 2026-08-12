@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { PRODUCT_POOL_SITES, isProductPoolUrl } from "@shared/web-hooks-sites";
+import { PRODUCT_POOL_SITES, isProductPoolUrl, matchWebHookSite } from "@shared/web-hooks-sites";
 
 /** Ürün Havuzu — @shared/web-hooks-sites ile senkron */
 const SUPPORTED_SITES = PRODUCT_POOL_SITES.map((s) => ({
@@ -163,6 +163,7 @@ type PoolNotification = {
 const TRACK_KEY = "product-pool-tracking-v2";
 const NOTIF_KEY = "product-pool-notifications-v1";
 const POLL_MS = 3 * 60 * 1000;
+const PROFIT_MARGIN_PERCENT = 10;
 
 /** Kaynak URL’den stabil benzersiz havuz ID */
 function makePoolId(url: string): string {
@@ -672,22 +673,31 @@ function extractUrlsFromText(text: string): string[] {
 function SiteLogoBesideTitle({
   logoUrl,
   siteName,
+  sourceUrl,
 }: {
   logoUrl?: string;
   siteName: string;
+  sourceUrl?: string;
 }) {
+  const site = sourceUrl ? matchWebHookSite(sourceUrl) : null;
+  const catalogLogo = PRODUCT_POOL_SITES.find((s) => s.id === site?.id)?.logoUrl;
+  const resolved = logoUrl || catalogLogo || site?.logoUrl || "";
   const [failed, setFailed] = useState(false);
+  const showText = failed || !resolved;
+
   return (
-    <span className="inline-flex items-center gap-1.5 shrink-0 rounded bg-white border border-neutral-300 px-2 py-1">
-      {logoUrl && !failed ? (
+    <span className="inline-flex items-center gap-1.5 shrink-0 rounded bg-white border border-neutral-300 px-2 py-1 min-h-[28px]">
+      {resolved && !failed ? (
         <img
-          src={logoUrl}
-          alt=""
-          className="h-5 w-auto max-w-[72px] object-contain"
+          src={resolved}
+          alt={siteName}
+          className="h-6 w-auto max-w-[88px] object-contain"
           onError={() => setFailed(true)}
         />
       ) : null}
-      <span className="text-xs font-semibold text-neutral-800 whitespace-nowrap">{siteName}</span>
+      {showText ? (
+        <span className="text-xs font-semibold text-neutral-800 whitespace-nowrap">{siteName}</span>
+      ) : null}
     </span>
   );
 }
@@ -750,7 +760,7 @@ export default function UrunHavuzuPage() {
     return tracking.filter((t) => (t.category || "diger") === trackCategoryFilter);
   }, [tracking, trackCategoryFilter]);
   const shopifyPreviewPrice = product
-    ? Math.round(product.salePrice * 1.1 * 100) / 100
+    ? Math.round(product.salePrice * (1 + PROFIT_MARGIN_PERCENT / 100) * 100) / 100
     : 0;
 
   const pushNotification = useCallback(
@@ -1109,8 +1119,7 @@ export default function UrunHavuzuPage() {
     }
   };
 
-  const discountLabel =
-    product && product.discountPercent > 0 ? `%${product.discountPercent}` : "%0";
+  const profitMarginLabel = `%${PROFIT_MARGIN_PERCENT}`;
 
   /** Takip listesine dokunmadan çalışma alanını sıfırla */
   const clearWorkspace = useCallback(() => {
@@ -1523,6 +1532,7 @@ export default function UrunHavuzuPage() {
                       <SiteLogoBesideTitle
                         logoUrl={product.siteLogoUrl}
                         siteName={product.siteName}
+                        sourceUrl={product.sourceUrl}
                       />
                     </div>
                     <p className="text-xs text-neutral-500 mt-1">
@@ -1568,13 +1578,13 @@ export default function UrunHavuzuPage() {
                   </div>
                   <div className="rounded-lg border border-neutral-800 bg-black px-2.5 py-2">
                     <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">
-                      İndirim
+                      Kar Oranı
                     </div>
-                    <div className="text-sm font-semibold text-neutral-300">{discountLabel}</div>
+                    <div className="text-sm font-semibold text-emerald-400">{profitMarginLabel}</div>
                   </div>
                   <div className="rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2">
                     <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">
-                      Shopify (+%10)
+                      Shopify (+{profitMarginLabel})
                     </div>
                     <div className="text-sm font-bold text-white">
                       {formatMoney(shopifyPreviewPrice, product.currency)}

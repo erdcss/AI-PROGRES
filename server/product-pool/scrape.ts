@@ -164,6 +164,177 @@ function cleanText(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
+function buildPoolVariants(
+  axes: Array<{ name: string; values: string[] }>,
+  salePrice: number,
+): { variantOptions: ProductPoolVariantOption[]; variants: ProductPoolVariant[] } {
+  const cleanAxes = axes
+    .map((a) => ({
+      name: cleanText(a.name),
+      values: [...new Set(a.values.map((v) => cleanText(v)).filter(Boolean))],
+    }))
+    .filter((a) => a.name && a.values.length > 0)
+    .slice(0, 3);
+  if (!cleanAxes.length) return { variantOptions: [], variants: [] };
+
+  const variantOptions: ProductPoolVariantOption[] = cleanAxes.map((a) => ({
+    name: a.name,
+    values: a.values,
+  }));
+
+  const combos: string[][] = [];
+  const walk = (depth: number, cur: string[]) => {
+    if (depth >= cleanAxes.length) {
+      combos.push([...cur]);
+      return;
+    }
+    for (const v of cleanAxes[depth].values) {
+      cur.push(v);
+      walk(depth + 1, cur);
+      cur.pop();
+    }
+  };
+  walk(0, []);
+
+  const variants: ProductPoolVariant[] = combos.slice(0, 100).map((opts) => {
+    const title = opts.join(" / ");
+    return {
+      title,
+      option1: opts[0] || undefined,
+      option2: opts[1] || undefined,
+      option3: opts[2] || undefined,
+      price: salePrice,
+      inStock: true,
+    };
+  });
+
+  return { variantOptions, variants };
+}
+
+function extractN11Variants(
+  html: string,
+  $: CheerioAPI,
+  sourceUrl: string,
+  salePrice: number,
+): { variantOptions: ProductPoolVariantOption[]; variants: ProductPoolVariant[] } {
+  const axes: Array<{ name: string; values: string[] }> = [];
+  const pushAxis = (name: string, values: string[]) => {
+    const cleanName = cleanText(name);
+    const cleanVals = [...new Set(values.map((v) => cleanText(v)).filter(Boolean))];
+    if (!cleanName || !cleanVals.length) return;
+    const idx = axes.findIndex((a) => a.name.toLowerCase() === cleanName.toLowerCase());
+    if (idx >= 0) {
+      for (const v of cleanVals) {
+        if (!axes[idx].values.includes(v)) axes[idx].values.push(v);
+      }
+    } else {
+      axes.push({ name: cleanName, values: cleanVals });
+    }
+  };
+
+  try {
+    const bedenParam = new URL(sourceUrl).searchParams.get("beden");
+    if (bedenParam) {
+      const label = bedenParam.length <= 3 ? bedenParam.toUpperCase() : cleanText(bedenParam);
+      pushAxis("Beden", [label]);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  $('[class*="variant"], [class*="Variant"], .chooseProVariant, [data-variant]').each((_, root) => {
+    const label =
+      cleanText($(root).find("label, .label, h4, h5, span.title").first().text()) ||
+      cleanText($(root).attr("data-label") || "");
+    const values: string[] = [];
+    $(root)
+      .find("a, button, li, option")
+      .each((_, el) => {
+        const t = cleanText($(el).attr("title") || $(el).text());
+        if (t && t.length < 30 && !/seç|sec|choose/i.test(t)) values.push(t);
+      });
+    if (label && values.length) pushAxis(label, values);
+  });
+
+  for (const m of html.matchAll(
+    /"name"\s*:\s*"(Beden|Renk|Size|Color)"[^}]*"values"\s*:\s*\[([^\]]+)\]/gi,
+  )) {
+    const vals = [...m[2].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+    pushAxis(m[1] === "Size" ? "Beden" : m[1] === "Color" ? "Renk" : m[1], vals);
+  }
+
+  for (const m of html.matchAll(/"attributeName"\s*:\s*"([^"]+)"\s*,\s*"attributeValue"\s*:\s*"([^"]+)"/gi)) {
+    pushAxis(m[1], [m[2]]);
+  }
+
+  const nextMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (nextMatch?.[1]) {
+    try {
+      const data = JSON.parse(nextMatch[1]);
+      const walk = (obj: unknown): void => {
+        if (!obj || typeof obj !== "object") return;
+        if (Array.isArray(obj)) {
+          obj.forEach(walk);
+          return;
+        }
+        const rec = obj as Record<string, unknown>;
+        if (Array.isArray(rec.attributes)) {
+          for (const attr of rec.attributes) {
+            if (!attr || typeof attr !== "object") continue;
+            const a = attr as Record<string, unknown>;
+            const name = String(a.name || a.attributeName || "");
+            const vals = Array.isArray(a.values)
+              ? a.values.map((v) => String(v))
+              : a.value
+                ? [String(a.value)]
+                : [];
+            if (name && vals.length) pushAxis(name, vals);
+          }
+        }
+        for (const v of Object.values(rec)) walk(v);
+      };
+      walk(data);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return buildPoolVariants(axes, salePrice);
+}
+
+function pttVariantsToPool(
+  raw: {
+    colors?: string[];
+    sizes?: string[];
+    allVariants?: Array<{ color?: string; size?: string; inStock?: boolean }>;
+  } | undefined,
+  salePrice: number,
+): { variantOptions: ProductPoolVariantOption[]; variants: ProductPoolVariant[] } {
+  const axes: Array<{ name: string; values: string[] }> = [];
+  const sizes =
+    raw?.sizes?.length
+      ? raw.sizes
+      : [...new Set((raw?.allVariants || []).map((v) => v.size).filter(Boolean) as string[])];
+  const colors =
+    raw?.colors?.length
+      ? raw.colors
+      : [...new Set((raw?.allVariants || []).map((v) => v.color).filter(Boolean) as string[])];
+  if (sizes.length) axes.push({ name: "Beden", values: sizes });
+  if (colors.length) axes.push({ name: "Renk", values: colors });
+  const built = buildPoolVariants(axes, salePrice);
+  if (raw?.allVariants?.length && built.variants.length) {
+    for (const v of built.variants) {
+      const match = raw.allVariants.find(
+        (av) =>
+          (av.size ? v.option1 === av.size || v.option2 === av.size : true) &&
+          (av.color ? v.option1 === av.color || v.option2 === av.color : true),
+      );
+      if (match && match.inStock === false) v.inStock = false;
+    }
+  }
+  return built;
+}
+
 function extractFeatures($: CheerioAPI): ProductPoolFeature[] {
   const features: ProductPoolFeature[] = [];
   const seen = new Set<string>();
@@ -698,9 +869,17 @@ async function scrapeN11(html: string, sourceUrl: string): Promise<ProductPoolPr
   }
 
   const magaza = new URL(sourceUrl).searchParams.get("magaza");
+  const bedenQ = new URL(sourceUrl).searchParams.get("beden");
   if (magaza) features.push({ name: "Mağaza", value: magaza });
+  if (bedenQ) features.push({ name: "Beden (URL)", value: bedenQ });
 
   const compareAt = listPrice > salePrice ? listPrice : null;
+
+  const { variantOptions, variants } = extractN11Variants(html, $, sourceUrl, salePrice);
+
+  const outUrl = new URL(cleanUrl);
+  if (magaza) outUrl.searchParams.set("magaza", magaza);
+  if (bedenQ) outUrl.searchParams.set("beden", bedenQ);
 
   // Site rozeti: SVG custom/upload tarayıcıda kırılabiliyor — sabit favicon
   const siteLogoUrl =
@@ -709,7 +888,7 @@ async function scrapeN11(html: string, sourceUrl: string): Promise<ProductPoolPr
 
   return {
     title,
-    sourceUrl: cleanUrl + (magaza ? `?magaza=${encodeURIComponent(magaza)}` : ""),
+    sourceUrl: outUrl.toString().replace(/\/$/, ""),
     siteName: "n11",
     siteLogoUrl,
     brand: brand ? cleanText(brand) : undefined,
@@ -722,6 +901,8 @@ async function scrapeN11(html: string, sourceUrl: string): Promise<ProductPoolPr
     images: uniqueImages,
     features: features.slice(0, 24),
     inStock,
+    variantOptions: variantOptions.length ? variantOptions : undefined,
+    variants: variants.length ? variants : undefined,
     scrapedAt: new Date().toISOString(),
   };
 }
@@ -1996,6 +2177,8 @@ async function scrapePttavmPool(sourceUrl: string): Promise<ProductPoolProduct> 
       ? result.variants.allVariants.some((v) => v.inStock)
       : true;
 
+  const { variantOptions, variants } = pttVariantsToPool(result.variants, salePrice);
+
   return {
     title: cleanText(result.title),
     sourceUrl: cleanUrl,
@@ -2010,6 +2193,8 @@ async function scrapePttavmPool(sourceUrl: string): Promise<ProductPoolProduct> 
     images: [...new Set(images)].slice(0, 12),
     features,
     inStock,
+    variantOptions: variantOptions.length ? variantOptions : undefined,
+    variants: variants.length ? variants : undefined,
     scrapedAt: new Date().toISOString(),
   };
 }

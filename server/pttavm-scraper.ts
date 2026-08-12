@@ -298,13 +298,64 @@ function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
     .filter(t => t && t !== 'Anasayfa' && t !== '>' && t !== '/');
   const category = crumbs.length > 0 ? crumbs[crumbs.length - 1] : 'Elektronik';
 
+  const sizes: string[] = [];
+  const colors: string[] = [];
+  const pushUnique = (list: string[], val: string) => {
+    const t = val.replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 40) return;
+    if (!list.includes(t)) list.push(t);
+  };
+  $('[class*="size"] button, [class*="beden"] button, [class*="variant"] button, [data-size]').each((_, el) => {
+    pushUnique(sizes, $(el).attr('data-size') || $(el).attr('title') || $(el).text());
+  });
+  $('select[name*="beden"] option, select[name*="size"] option').each((_, el) => {
+    const v = $(el).attr('value') || $(el).text();
+    if (v && !/seç|sec|choose/i.test(v)) pushUnique(sizes, v);
+  });
+  $('[class*="color"] button, [class*="renk"] button, [data-color]').each((_, el) => {
+    pushUnique(colors, $(el).attr('data-color') || $(el).attr('title') || $(el).text());
+  });
+  for (const m of html.matchAll(/"attributeName"\s*:\s*"([^"]+)"\s*,\s*"attributeValue"\s*:\s*"([^"]+)"/gi)) {
+    const name = m[1].trim();
+    const val = m[2].trim();
+    if (/beden|size/i.test(name)) pushUnique(sizes, val);
+    else if (/renk|color/i.test(name)) pushUnique(colors, val);
+  }
+  for (const m of html.matchAll(/"name"\s*:\s*"(Beden|Renk|Size|Color)"[^}]*"values"\s*:\s*\[([^\]]+)\]/gi)) {
+    const name = m[1];
+    const vals = [...m[2].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+    for (const v of vals) {
+      if (/beden|size/i.test(name)) pushUnique(sizes, v);
+      else pushUnique(colors, v);
+    }
+  }
+
+  const allVariants: Array<{ color: string; colorCode: string; size: string; inStock: boolean }> = [];
+  if (sizes.length && colors.length) {
+    for (const color of colors.slice(0, 20)) {
+      for (const size of sizes.slice(0, 20)) {
+        allVariants.push({ color, colorCode: color, size, inStock: true });
+      }
+    }
+  } else if (sizes.length) {
+    for (const size of sizes.slice(0, 40)) {
+      allVariants.push({ color: '', colorCode: '', size, inStock: true });
+    }
+  } else if (colors.length) {
+    for (const color of colors.slice(0, 40)) {
+      allVariants.push({ color, colorCode: color, size: '', inStock: true });
+    }
+  }
+
   return { title, brand, price: {
     original: priceRaw,
     withProfit: Math.round(priceRaw * 1.10),
     formatted: `${priceRaw.toFixed(2)} TL`,
     profitFormatted: `${Math.round(priceRaw * 1.10).toFixed(2)} TL`,
     currency: 'TL',
-  }, images, description, features, category };
+  }, images, description, features, category,
+    variants: { colors, sizes, allVariants },
+  };
 }
 
 // ── Strategy 1: Axios with stealth headers (fast path) ────────────────────────
@@ -763,7 +814,7 @@ export function parsePttAvmHtml(html: string, sourceUrl: string): PttAvmProduct 
     description: partial.description || '',
     features: partial.features || [],
     category,
-    variants: { colors: [], sizes: [], allVariants: [] },
+    variants: partial.variants || { colors: [], sizes: [], allVariants: [] },
     tags,
     sourceUrl,
     extractionMethod: 'html-parse-client',
@@ -834,7 +885,7 @@ export async function scrapePttAvm(url: string): Promise<PttAvmProduct> {
     description: partial.description || '',
     features: partial.features || [],
     category,
-    variants: { colors: [], sizes: [], allVariants: [] },
+    variants: partial.variants || { colors: [], sizes: [], allVariants: [] },
     tags,
     sourceUrl: cleanUrl,
     extractionMethod: 'pttavm-stealth',
