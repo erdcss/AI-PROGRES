@@ -8,13 +8,15 @@ export interface UrlQueueItem {
   error?: string;
 }
 
+import { isProductPoolUrl } from "@shared/web-hooks-sites";
+
 export function isSupportedProductUrl(raw: string): boolean {
   const url = raw.trim().toLowerCase();
   return (
     url.includes("trendyol.com") ||
     url.includes("ty.gl/") ||
     url.includes("arcelik.com.tr") ||
-    url.includes("pttavm.com")
+    isProductPoolUrl(url)
   );
 }
 

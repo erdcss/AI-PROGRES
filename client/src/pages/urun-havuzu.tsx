@@ -18,52 +18,16 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { PRODUCT_POOL_SITES, isProductPoolUrl } from "@shared/web-hooks-sites";
 
-/** Ürün Havuzu — özel adaptörü olan siteler */
-const SUPPORTED_SITES = [
-  {
-    name: "Hepegitim",
-    domain: "hepegitim.com",
-    url: "https://www.hepegitim.com",
-    logoUrl: "https://www.hepegitim.com/skins/shared/images/logo.png",
-  },
-  {
-    name: "idefix",
-    domain: "idefix.com",
-    url: "https://www.idefix.com",
-    logoUrl: "https://www.idefix.com/images/app-icons/logo.svg",
-  },
-  {
-    name: "Pazarama",
-    domain: "pazarama.com",
-    url: "https://www.pazarama.com",
-    logoUrl: "https://img.pzrmcdn.com/mnresize/128/128/asset/icons/pwa.png",
-  },
-  {
-    name: "Beymen",
-    domain: "beymen.com",
-    url: "https://www.beymen.com",
-    logoUrl: "https://cdn.beymen.com/assets/images/favicon.ico",
-  },
-  {
-    name: "PTT AVM",
-    domain: "pttavm.com",
-    url: "https://www.pttavm.com",
-    logoUrl: "https://www.pttavm.com/favicon.ico",
-  },
-  {
-    name: "n11",
-    domain: "n11.com",
-    url: "https://www.n11.com",
-    logoUrl: "https://www.n11.com/favicon.ico",
-  },
-  {
-    name: "Amazon",
-    domain: "amazon.com.tr",
-    url: "https://www.amazon.com.tr",
-    logoUrl: "https://www.amazon.com.tr/favicon.ico",
-  },
-] as const;
+/** Ürün Havuzu — @shared/web-hooks-sites ile senkron */
+const SUPPORTED_SITES = PRODUCT_POOL_SITES.map((s) => ({
+  name: s.name,
+  domain: s.domain,
+  url: s.url,
+  logoUrl: s.logoUrl,
+  exampleProductUrl: s.exampleProductUrl,
+}));
 
 type PoolFeature = { name: string; value: string };
 
@@ -841,17 +805,21 @@ export default function UrunHavuzuPage() {
   const addUrlsToList = useCallback(
     (rawText: string) => {
       const urls = extractUrlsFromText(rawText);
-      if (!urls.length) {
+      const poolUrls = urls.filter((u) => isProductPoolUrl(u));
+      if (!poolUrls.length) {
         toast({
           title: "URL bulunamadı",
-          description: "Geçerli bir ürün linki sürükleyin veya yapıştırın",
+          description:
+            urls.length
+              ? "Link desteklenen ürün havuzu sitelerinden değil (n11, PTT AVM, Amazon vb.)"
+              : "Geçerli bir ürün linki sürükleyin veya yapıştırın",
           variant: "destructive",
         });
         return;
       }
       setUrlList((prev) => {
         const merged = [...prev];
-        for (const u of urls) {
+        for (const u of poolUrls) {
           if (!merged.includes(u)) merged.push(u);
         }
         return merged;
@@ -1922,42 +1890,55 @@ export default function UrunHavuzuPage() {
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="grid grid-cols-2 gap-3">
                   {SUPPORTED_SITES.map((site) => (
-                    <a
+                    <div
                       key={site.domain}
-                      href={site.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="group rounded-xl border border-neutral-800 bg-black hover:border-neutral-600 hover:bg-neutral-900/80 transition-colors p-4 flex flex-col items-center gap-3 text-center"
+                      className="group rounded-xl border border-neutral-800 bg-black hover:border-neutral-600 hover:bg-neutral-900/80 transition-colors p-4 flex flex-col items-center gap-2 text-center"
                     >
-                      <span className="inline-flex h-16 w-full max-w-[9rem] items-center justify-center overflow-hidden rounded-lg bg-white border border-neutral-300 px-3">
-                        <img
-                          src={site.logoUrl}
-                          alt={site.name}
-                          title={site.name}
-                          className="max-h-10 max-w-full w-auto object-contain"
-                          onError={(e) => {
-                            const img = e.currentTarget;
-                            img.style.display = "none";
-                            const parent = img.parentElement;
-                            if (parent && !parent.querySelector("[data-fallback]")) {
-                              const span = document.createElement("span");
-                              span.dataset.fallback = "1";
-                              span.className = "text-xs font-bold text-neutral-800";
-                              span.textContent = site.name;
-                              parent.appendChild(span);
-                            }
-                          }}
-                        />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-neutral-100 group-hover:text-white">
-                          {site.name}
+                      <a
+                        href={site.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex flex-col items-center gap-3 w-full"
+                      >
+                        <span className="inline-flex h-16 w-full max-w-[9rem] items-center justify-center overflow-hidden rounded-lg bg-white border border-neutral-300 px-3">
+                          <img
+                            src={site.logoUrl}
+                            alt={site.name}
+                            title={site.name}
+                            className="max-h-10 max-w-full w-auto object-contain"
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              img.style.display = "none";
+                              const parent = img.parentElement;
+                              if (parent && !parent.querySelector("[data-fallback]")) {
+                                const span = document.createElement("span");
+                                span.dataset.fallback = "1";
+                                span.className = "text-xs font-bold text-neutral-800";
+                                span.textContent = site.name;
+                                parent.appendChild(span);
+                              }
+                            }}
+                          />
                         </span>
-                        <span className="block text-[11px] text-neutral-500 mt-0.5">
-                          {site.domain}
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-neutral-100 group-hover:text-white">
+                            {site.name}
+                          </span>
+                          <span className="block text-[11px] text-neutral-500 mt-0.5">
+                            {site.domain}
+                          </span>
                         </span>
-                      </span>
-                    </a>
+                      </a>
+                      {site.exampleProductUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => addUrlsToList(site.exampleProductUrl!)}
+                          className="text-[10px] font-semibold text-emerald-400 hover:text-emerald-300 border border-neutral-700 rounded-md px-2 py-1 w-full"
+                        >
+                          Örnek ürün ekle
+                        </button>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
                 <p className="mt-5 text-xs text-neutral-600 text-center leading-relaxed">

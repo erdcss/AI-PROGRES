@@ -13,6 +13,8 @@ export type WebHookSite = {
   discoverUrls?: string[];
   /** Ürün URL eşleşmesi — yeni siteler için zorunlu */
   productUrlRegex?: string;
+  /** Ürün havuzu UI — örnek çalışan ürün linki */
+  exampleProductUrl?: string;
 };
 
 /** Kayıtlı veya yeni site için ürün URL kontrolü */
@@ -26,7 +28,7 @@ export function isWebHookProductUrl(url: string, site: WebHookSite): boolean {
       /* ignore bad pattern */
     }
   }
-  return /\/(urun|product|\/p\/|\/dp\/|gp\/product)/i.test(u);
+  return /\/(urun|product|\/p\/|\/dp\/|gp\/product)|-p-\d+/i.test(u);
 }
 
 export function buildWebHookProductUrlRegex(site: WebHookSite): RegExp | null {
@@ -116,7 +118,9 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     source: "product-pool",
     discoverUrl: "https://www.pttavm.com",
     discoverUrls: ["https://www.pttavm.com/arama?q=yeni"],
-    productUrlRegex: "/urun/",
+    productUrlRegex: "(?:-p-\\d+|/urun/)",
+    exampleProductUrl:
+      "https://www.pttavm.com/samsung-galaxy-tab-s10-fe-plus-sm-x620-gri-128-gb-131-tablet-p-1469512560",
   },
   {
     id: "n11",
@@ -127,7 +131,9 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     source: "product-pool",
     discoverUrl: "https://www.n11.com/arama?q=yeni",
     discoverUrls: ["https://www.n11.com/arama?q=populer", "https://www.n11.com/arama?q=indirim"],
-    productUrlRegex: "(?:/urun/|-P\\d+)",
+    productUrlRegex: "(?:/urun/|-P\\d+|-\\d{6,})",
+    exampleProductUrl:
+      "https://www.n11.com/urun/casio-pro-trek-prg-340t-7dr-erkek-kol-saati-33731520?magaza=menaithalat",
   },
   {
     id: "amazon",
@@ -144,6 +150,28 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     productUrlRegex: "(?:/dp/|/gp/product/)[A-Z0-9]{10}",
   },
 ];
+
+/** Ürün havuzu — Trendyol hariç desteklenen siteler */
+export const PRODUCT_POOL_SITES: WebHookSite[] = WEB_HOOK_SITES.filter(
+  (s) => s.source === "product-pool",
+);
+
+/** Ürün havuzuna eklenebilir URL (domain + ürün deseni) */
+export function isProductPoolUrl(raw: string): boolean {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return false;
+  try {
+    const href = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+    const host = new URL(href).hostname.replace(/^www\./, "").toLowerCase();
+    const site = PRODUCT_POOL_SITES.find(
+      (s) => host === s.domain || host.endsWith(`.${s.domain}`),
+    );
+    if (!site) return false;
+    return isWebHookProductUrl(href, site);
+  } catch {
+    return false;
+  }
+}
 
 export function matchWebHookSite(sourceUrl: string): WebHookSite | null {
   try {
