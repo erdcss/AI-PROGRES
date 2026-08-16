@@ -94,6 +94,7 @@ import { registerShopifyCategoryRoutes } from './routes/shopify-category-routes'
 import { registerMobilePushRoutes } from './routes/mobile-push-routes';
 import { registerMobileReadRoutes } from './routes/mobile-read-routes';
 import { registerWeboRoutes } from './routes/webo-routes';
+import { registerConnectionAccessRoutes } from './routes/connection-access-routes';
 import { getRequestId } from './request-context';
 import { shopifyCredentials } from '@shared/schema';
 
@@ -1269,6 +1270,7 @@ export function registerRoutes(app: Express): Server {
   registerMobilePushRoutes(app);
   registerMobileReadRoutes(app);
   registerWeboRoutes(app);
+  registerConnectionAccessRoutes(app);
 
   // Initialize Canva OAuth on startup
   initCanvaOAuth();

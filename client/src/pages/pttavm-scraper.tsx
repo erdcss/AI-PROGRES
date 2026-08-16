@@ -13,6 +13,7 @@ import { CSVPreview } from "@/components/CSVPreview";
 import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
 import * as Collapsible from "@radix-ui/react-collapsible";
 
+import { useDestinationBrand } from "@/hooks/use-destination-brand";
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -74,6 +75,7 @@ interface Product {
 }
 
 function PttAvmScraperPage() {
+  const brand = useDestinationBrand();
   const [product, setProduct] = useState<Product | null>(null);
   const [, setLocation] = useLocation();
   const [scrapingMode, setScrapingMode] = useState<ScrapingMode>('single');
@@ -773,7 +775,7 @@ function PttAvmScraperPage() {
                 <Bell className="w-4 h-4 mr-2" />
                 Telegram Bildirimleri
               </Button>
-              <ShopifySettingsDialog />
+              {brand.shopifyEnabled ? <ShopifySettingsDialog /> : null}
               <Button
                 onClick={clearAllData}
                 variant="outline"
@@ -1002,6 +1004,7 @@ function PttAvmScraperPage() {
                             </Button>
                           </div>
                           
+                          {brand.shopifyEnabled ? (
                           <Button
                             type="button"
                             onClick={onShopifyTransfer}
@@ -1011,15 +1014,16 @@ function PttAvmScraperPage() {
                             {shopifyTransferMutation.isPending ? (
                               <div className="flex items-center gap-2">
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                <span>Shopify'a Aktarılıyor...</span>
+                                <span>{brand.transferLoadingLabel}</span>
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
                                 <ShoppingCart className="w-5 h-5" />
-                                <span>SHOPIFY'A AKTAR</span>
+                                <span className="uppercase">{brand.transferLabel}</span>
                               </div>
                             )}
                           </Button>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -1475,6 +1479,7 @@ function PttAvmScraperPage() {
                   CSV OLARAK DIŞA AKTAR ({csvPreviews.length})
                 </div>
               </Button>
+              {brand.shopifyEnabled ? (
               <Button
                 onClick={uploadAllCSVsToShopify}
                 disabled={bulkUploadMutation.isPending}
@@ -1483,9 +1488,10 @@ function PttAvmScraperPage() {
                 {bulkUploadMutation.isPending ? (
                   <div className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Yükleniyor...</div>
                 ) : (
-                  <div className="flex items-center gap-2"><ShoppingCart className="w-5 h-5" />TÜMÜNÜ SHOPIFY'A YÜKLE ({csvPreviews.length})</div>
+                  <div className="flex items-center gap-2"><ShoppingCart className="w-5 h-5" />{brand.bulkLabel.toUpperCase()} ({csvPreviews.length})</div>
                 )}
               </Button>
+              ) : null}
             </div>
           </div>
         )}

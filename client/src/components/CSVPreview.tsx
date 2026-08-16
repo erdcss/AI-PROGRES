@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Package, Eye, EyeOff, Loader2 } from "lucide-react";
 import { fetchShopifyCsvStatus } from "@/lib/shopify-csv-download";
+import { useDestinationBrand } from "@/hooks/use-destination-brand";
 
 interface CsvPreviewTable {
   headers: string[];
@@ -59,6 +60,7 @@ export function CSVPreview({
   onDownload,
   onShopifyUpload,
 }: CSVPreviewProps) {
+  const brand = useDestinationBrand();
   const [isExpanded, setIsExpanded] = useState(true);
   const [serverReady, setServerReady] = useState<boolean | null>(null);
 
@@ -141,7 +143,7 @@ export function CSVPreview({
                 <Download className="w-4 h-4 mr-1" />
                 İndir
               </Button>
-              {csvContent?.trim() && (
+              {csvContent?.trim() && brand.shopifyEnabled && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -149,7 +151,7 @@ export function CSVPreview({
                   className="border-blue-600/50 hover:bg-blue-800/50 text-blue-400 text-xs px-3 py-1"
                 >
                   <Package className="w-4 h-4 mr-1" />
-                  Shopify&apos;a Aktar
+                  {brand.transferLabel}
                 </Button>
               )}
             </div>
@@ -168,7 +170,7 @@ export function CSVPreview({
                 <div className="flex items-center gap-4 text-sm text-slate-400">
                   <span>{table.rows.length} satır gösteriliyor</span>
                   <span>{table.headers.length} sütun</span>
-                  <span>Shopify uyumlu format</span>
+                  {brand.shopifyEnabled ? <span>{brand.destinationName} uyumlu format</span> : null}
                 </div>
                 <div className="bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700/50">
                   <div className="overflow-x-auto max-h-64 overflow-y-auto">

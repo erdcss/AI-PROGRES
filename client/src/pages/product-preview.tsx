@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, Package, Download, Upload, CheckCircle, XCircle, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { downloadShopifyCsvFromServer } from "@/lib/shopify-csv-download";
+import { useDestinationBrand } from "@/hooks/use-destination-brand";
 
 interface Variant {
   color: string;
@@ -87,6 +88,7 @@ function transformBackendData(response: BackendResponse): ProductData {
 }
 
 export default function ProductPreview() {
+  const dest = useDestinationBrand();
   const [url, setUrl] = useState("");
   const [currentUrl, setCurrentUrl] = useState("");
   const { toast } = useToast();
@@ -361,6 +363,7 @@ export default function ProductPreview() {
 
               {/* Action Buttons */}
               <div className="flex gap-4">
+              {dest.shopifyEnabled ? (
                 <Button
                   data-testid="button-upload-shopify"
                   onClick={() => {
@@ -377,7 +380,7 @@ export default function ProductPreview() {
                     
                     toast({
                       title: "🚀 Ürün Yükleniyor",
-                      description: "Ürün arka planda Shopify'a ekleniyor...",
+                      description: `Ürün arka planda ${dest.destinationName}'a ekleniyor...`,
                     });
                     
                     setCurrentUrl('');
@@ -389,8 +392,9 @@ export default function ProductPreview() {
                   className="flex-1"
                 >
                   <Upload className="w-4 h-4 mr-2" />
-                  Shopify'a Ekle
+                  {dest.sendLabel}
                 </Button>
+              ) : null}
                 <Button
                   data-testid="button-download-csv"
                   onClick={() => downloadCSVMutation.mutate()}

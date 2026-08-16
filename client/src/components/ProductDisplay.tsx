@@ -9,6 +9,7 @@ import { VariantDisplay } from "@/components/VariantDisplay";
 import ProductVariants from "@/components/ProductVariants";
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
 import { PriceEditor } from '@/components/PriceEditor';
+import { useDestinationBrand } from "@/hooks/use-destination-brand";
 
 interface ProductDisplayProps {
   data: {
@@ -44,6 +45,7 @@ interface ProductDisplayProps {
 }
 
 export function ProductDisplay({ data }: ProductDisplayProps) {
+  const dest = useDestinationBrand();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [updatedPrice, setUpdatedPrice] = useState<any>(null);
   
@@ -235,15 +237,16 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             {/* Product Details & Variants Section - Right */}
             <div className="lg:col-span-1">
               <div className="space-y-4">
-                {/* Shopify Export Button */}
+                {dest.shopifyEnabled ? (
                 <Button
                   onClick={handleExportToShopify}
                   className="w-full bg-green-600 hover:bg-green-700 text-white"
                   size="lg"
                 >
                   <ShoppingCart className="w-5 h-5 mr-2" />
-                  SHOPIFY'A AKTAR
+                  {dest.transferLabel.toUpperCase()}
                 </Button>
+                ) : null}
                 
                 {/* Variant Display */}
                 {data?.variants?.allVariants && data.variants.allVariants.length > 0 ? (

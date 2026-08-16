@@ -4,6 +4,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useState } from 'react';
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
 import { PriceEditor } from '@/components/PriceEditor';
+import { useDestinationBrand } from "@/hooks/use-destination-brand";
 
 interface SimpleProductPreviewProps {
   product: {
@@ -42,6 +43,7 @@ interface SimpleProductPreviewProps {
 }
 
 export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPreviewProps) {
+  const dest = useDestinationBrand();
   const [transferLoading, setTransferLoading] = useState(false);
   const [updatedPrice, setUpdatedPrice] = useState<any>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -443,7 +445,8 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
         </div>
       )}
 
-      {/* Shopify Transfer Action Button */}
+      {/* Transfer Action Button */}
+      {dest.shopifyEnabled ? (
       <div className="bg-gradient-to-r from-green-600/20 to-blue-600/20 border border-green-500/30 rounded-lg p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -453,8 +456,8 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
               </svg>
             </div>
             <div>
-              <h3 className="text-white font-semibold">Shopify'a Aktar</h3>
-              <p className="text-sm text-gray-300">Bu ürünü Shopify mağazanıza ekleyin</p>
+              <h3 className="text-white font-semibold">{dest.transferLabel}</h3>
+              <p className="text-sm text-gray-300">Bu ürünü {dest.destinationName} mağazanıza ekleyin</p>
             </div>
           </div>
           <button
@@ -466,10 +469,11 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
                 : 'bg-green-600 hover:bg-green-700 hover:shadow-lg hover:shadow-green-500/25'
             } text-white`}
           >
-            {transferLoading ? 'Aktarılıyor...' : 'Şimdi Aktar'}
+            {transferLoading ? dest.transferLoadingLabel : 'Şimdi Aktar'}
           </button>
         </div>
       </div>
+      ) : null}
 
       {/* Simplified Product Specifications - Compact Grid */}
       {features.length > 0 && (
@@ -493,7 +497,7 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
           {features.length > 12 && (
             <div className="mt-3 text-center">
               <div className="text-sm text-gray-400 bg-slate-700/30 rounded-lg p-2">
-                +{features.length - 12} özellik daha - Shopify'a aktarılacak
+                +{features.length - 12} özellik daha{dest.shopifyEnabled ? ` — ${dest.destinationName}'a aktarılacak` : ""}
               </div>
             </div>
           )}

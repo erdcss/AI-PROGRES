@@ -13,10 +13,12 @@ import {
   FolderTree,
   Package,
   Link2,
+  KeyRound,
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 import { OrvianHeroBrand } from "@/components/OrvianHeroBrand";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { hasShopifyLabel, useDestinationBrand } from "@/hooks/use-destination-brand";
 
 type NavItem = {
   name: string;
@@ -27,20 +29,16 @@ type NavItem = {
   testId?: string;
 };
 
-function StatusPill({ available }: { available: boolean }) {
+function StatusDot({ available }: { available: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] tracking-[0.14em] uppercase ${
+      className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] tracking-[0.12em] uppercase ${
         available
           ? "border-zinc-700 bg-zinc-950 text-zinc-200"
           : "border-zinc-800 bg-black text-zinc-500"
       }`}
     >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          available ? "bg-zinc-300" : "bg-zinc-600"
-        }`}
-      />
+      <span className={`h-1 w-1 rounded-full ${available ? "bg-emerald-400" : "bg-zinc-600"}`} />
       {available ? "Aktif" : "Yakında"}
     </span>
   );
@@ -52,17 +50,17 @@ function ItemIcon({ kind }: { kind: NavItem["icon"] }) {
       <img
         src="/product-pool-shark-3d.png"
         alt=""
-        className="h-8 w-8 object-contain"
+        className="h-6 w-6 object-contain"
         style={{ transform: "perspective(400px) rotateY(-16deg)" }}
         draggable={false}
       />
     );
   }
   if (kind === "box") {
-    return <Package className="h-5 w-5 text-zinc-300" strokeWidth={1.25} />;
+    return <Package className="h-4 w-4 text-zinc-300" strokeWidth={1.25} />;
   }
   const Icon = kind;
-  return <Icon className="h-5 w-5 text-zinc-300" strokeWidth={1.25} />;
+  return <Icon className="h-4 w-4 text-zinc-300" strokeWidth={1.25} />;
 }
 
 function NavCard({
@@ -78,30 +76,28 @@ function NavCard({
   return (
     <motion.button
       type="button"
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.3, delay, ease: [0.16, 1, 0.3, 1] }}
       disabled={!available}
       onClick={() => available && onOpen()}
       data-testid={item.testId}
-      className={`group flex w-full items-center gap-3.5 rounded-xl border border-zinc-800/90 bg-black/70 px-3.5 py-3.5 text-left transition-all duration-300 hover:border-zinc-600 hover:bg-zinc-950 disabled:cursor-not-allowed disabled:opacity-45 active:scale-[0.99]`}
+      className="group flex w-full min-h-0 items-center gap-2.5 rounded-lg border border-zinc-800/90 bg-black/70 px-2.5 py-2 text-left transition-all duration-200 hover:border-zinc-600 hover:bg-zinc-950 disabled:cursor-not-allowed disabled:opacity-45 active:scale-[0.99]"
     >
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 transition-transform duration-300 group-hover:scale-105">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-800 bg-zinc-950">
         <ItemIcon kind={item.icon} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="home-title truncate text-[15px] tracking-wide">{item.name}</div>
-        <p className="home-muted mt-0.5 line-clamp-2 text-[12px] leading-relaxed">
-          {item.description}
-        </p>
-        <div className="mt-2.5 flex items-center justify-between gap-2">
-          <StatusPill available={available} />
-          <ArrowRight
-            className="h-4 w-4 shrink-0 text-zinc-500 transition-all duration-300 group-hover:translate-x-1 group-hover:text-zinc-200"
-            strokeWidth={1.25}
-          />
+        <div className="flex items-center gap-2">
+          <div className="home-title truncate text-[13px] tracking-wide">{item.name}</div>
+          <StatusDot available={available} />
         </div>
+        <p className="home-muted mt-0.5 truncate text-[11px] leading-snug">{item.description}</p>
       </div>
+      <ArrowRight
+        className="h-3.5 w-3.5 shrink-0 text-zinc-500 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-zinc-200"
+        strokeWidth={1.25}
+      />
     </motion.button>
   );
 }
@@ -110,7 +106,7 @@ function Section({
   title,
   subtitle,
   children,
-  delay = 0.9,
+  delay = 0.2,
   className = "",
 }: {
   title: string;
@@ -121,20 +117,16 @@ function Section({
 }) {
   return (
     <motion.section
-      initial={{ opacity: 0, y: 18 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.55, delay, ease: [0.16, 1, 0.3, 1] }}
-      className={`rounded-2xl border border-zinc-800/80 bg-[#070707] p-5 sm:p-6 ${className}`}
+      transition={{ duration: 0.4, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={`flex min-h-0 flex-col rounded-xl border border-zinc-800/80 bg-[#070707] p-3 sm:p-3.5 ${className}`}
     >
-      <header className="mb-5 border-b border-zinc-900 pb-4">
-        <h2 className="home-title text-[13px] uppercase tracking-[0.28em] sm:text-sm">
-          {title}
-        </h2>
-        <p className="home-muted mt-2 text-[12px] leading-relaxed sm:text-[13px]">
-          {subtitle}
-        </p>
+      <header className="mb-2.5 shrink-0 border-b border-zinc-900 pb-2">
+        <h2 className="home-title text-[11px] uppercase tracking-[0.24em] sm:text-xs">{title}</h2>
+        <p className="home-muted mt-0.5 text-[11px] leading-snug">{subtitle}</p>
       </header>
-      <div className="space-y-2.5">{children}</div>
+      <div className="min-h-0 flex-1">{children}</div>
     </motion.section>
   );
 }
@@ -142,11 +134,13 @@ function Section({
 const MarketplaceSelection = () => {
   const [, setLocation] = useLocation();
   const isMobile = useIsMobile();
+  const brand = useDestinationBrand();
+  const dest = brand.destinationName;
 
   const extraction: NavItem[] = [
     {
       name: "Trendyol",
-      description: "Ürün çıkarma ve Shopify aktarım",
+      description: `Ürün çıkarma ve ${dest} aktarım`,
       path: "/scraper/trendyol",
       icon: "box",
       testId: "card-platform-trendyol",
@@ -172,14 +166,14 @@ const MarketplaceSelection = () => {
   const system: NavItem[] = [
     {
       name: "Ürün Takip Sistemi",
-      description: "Kaynak vs Shopify değişiklik tespiti (manuel onay)",
+      description: `Kaynak vs ${dest} değişiklik tespiti (manuel onay)`,
       path: "/urun-takip",
       icon: Activity,
       testId: "card-system-ürün-takip-sistemi",
     },
     {
       name: "Kategoriler",
-      description: "Shopify etiketleri, ürün sayıları ve koleksiyonlar",
+      description: `${dest} etiketleri, ürün sayıları ve koleksiyonlar`,
       path: "/kategoriler",
       icon: FolderTree,
       testId: "card-system-kategoriler",
@@ -192,8 +186,15 @@ const MarketplaceSelection = () => {
       testId: "card-system-web-hooks",
     },
     {
+      name: "Bağlantı API Erişimi",
+      description: "Tüm bağlantılar, şemalar, durdur ve yeni API anahtarı",
+      path: "/baglanti-api",
+      icon: KeyRound,
+      testId: "card-system-baglanti-api",
+    },
+    {
       name: "Otomatik Takip Sistemi",
-      description: "Ürün fiyat izleme ve Shopify senkronizasyonu (legacy)",
+      description: `Ürün fiyat izleme ve ${dest} senkronizasyonu (legacy)`,
       path: "/memory-tracking",
       icon: Activity,
     },
@@ -205,7 +206,7 @@ const MarketplaceSelection = () => {
       testId: "card-system-bildirimler",
     },
     {
-      name: "Shopify Sistem Analizi",
+      name: `${dest} Sistem Analizi`,
       description: "Token yenileme, bağlantı durumu ve kaynak izleme",
       path: "/shopify-system",
       icon: Shield,
@@ -225,7 +226,7 @@ const MarketplaceSelection = () => {
     {
       path: "/shopify-products",
       icon: Database,
-      label: "Shopify Ürünleri",
+      label: `${dest} Ürünleri`,
       testId: "button-quick-shopify-products",
     },
     {
@@ -236,9 +237,20 @@ const MarketplaceSelection = () => {
     },
   ];
 
+  const hideShopifyNav = !brand.shopifyEnabled;
+  const visibleSystem = hideShopifyNav
+    ? system.filter((item) => !hasShopifyLabel(`${item.path} ${item.name} ${item.testId || ""}`))
+    : system;
+  const visibleQuick = hideShopifyNav
+    ? quick.filter((item) => !hasShopifyLabel(`${item.path} ${item.label} ${item.testId}`))
+    : quick;
+
   return (
-    <div className="home-orvian relative min-h-screen overflow-x-hidden bg-black">
-      {/* Kapalı ton doku — açık renk yok */}
+    <div
+      className={`home-orvian relative overflow-x-hidden bg-black ${
+        isMobile ? "min-h-screen" : "h-screen overflow-hidden"
+      }`}
+    >
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -256,127 +268,127 @@ const MarketplaceSelection = () => {
         }}
       />
 
-      {/* Sağ üst saat */}
-      <div className="absolute right-3 top-3 z-40 sm:right-6 sm:top-5">
+      <div className="absolute right-3 top-2 z-40 sm:right-5 sm:top-3">
         <motion.div
           initial={{ opacity: 0, x: 20, y: -6 }}
           animate={{ opacity: 1, x: 0, y: 0 }}
-          transition={{ duration: 0.65, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
           <RealTimeClock variant="pool" />
         </motion.div>
       </div>
 
-      {/* Hero */}
-      <header className="relative z-10 overflow-visible border-b border-zinc-900">
-        <div
-          className={`mx-auto flex flex-col items-center overflow-visible ${
-            isMobile ? "max-w-full px-4 pb-7 pt-14" : "max-w-6xl px-6 pb-9 pt-14"
-          }`}
-        >
-          <OrvianHeroBrand compact={isMobile} />
-        </div>
-      </header>
-
-      {/* İçerik — yeniden düzenlenmiş ızgara */}
-      <main
-        className={`relative z-10 mx-auto ${
-          isMobile ? "max-w-full px-4 py-6" : "max-w-6xl px-6 py-10"
+      <div
+        className={`relative z-10 mx-auto flex ${
+          isMobile ? "max-w-full flex-col px-4 py-4" : "h-full max-w-[1400px] flex-col px-5 py-3"
         }`}
       >
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5">
-          <Section
-            title="Ürün Çıkarma"
-            subtitle="Shopify’a aktarım için platformlar"
-            delay={0.95}
-            className="lg:col-span-4"
-          >
-            {extraction.map((item, i) => (
-              <NavCard
-                key={item.path}
-                item={item}
-                delay={1 + i * 0.06}
-                onOpen={() => setLocation(item.path)}
-              />
-            ))}
-          </Section>
+        <header className="relative shrink-0 overflow-visible border-b border-zinc-900 pb-2 pt-1">
+          <div className="flex flex-col items-center overflow-visible">
+            <OrvianHeroBrand compact />
+          </div>
+        </header>
 
-          <Section
-            title="Yorum Çıkarma"
-            subtitle="Yorumları çekip CSV dışa aktarın"
-            delay={1.02}
-            className="lg:col-span-4"
+        <main className="relative mt-3 flex min-h-0 flex-1 flex-col gap-3">
+          <div
+            className={`grid min-h-0 flex-1 gap-3 ${
+              isMobile ? "grid-cols-1" : "grid-cols-12 grid-rows-1"
+            }`}
           >
-            {reviews.map((item, i) => (
-              <NavCard
-                key={item.path}
-                item={item}
-                delay={1.08 + i * 0.06}
-                onOpen={() => setLocation(item.path)}
-              />
-            ))}
-          </Section>
-
-          <Section
-            title="Sistem Analizi"
-            subtitle="Takip, kategori ve bağlantı yönetimi"
-            delay={1.08}
-            className="lg:col-span-4 overflow-visible"
-          >
-            <div className="space-y-2.5 overflow-visible">
-              {system.map((item, i) => (
-                <NavCard
-                  key={item.path}
-                  item={item}
-                  delay={1.12 + i * 0.04}
-                  onOpen={() => setLocation(item.path)}
-                />
-              ))}
-            </div>
-          </Section>
-
-          {/* Hızlı erişim — tam genişlik şerit */}
-          <motion.section
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 1.25, ease: [0.16, 1, 0.3, 1] }}
-            className="rounded-2xl border border-zinc-800/80 bg-[#070707] p-5 sm:p-6 lg:col-span-12"
-          >
-            <header className="mb-4 flex flex-col gap-1 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="home-title text-[13px] uppercase tracking-[0.28em] sm:text-sm">
-                  Hızlı Erişim
-                </h2>
-                <p className="home-muted mt-2 text-[12px] sm:text-[13px]">
-                  Sık kullanılan sistem araçları
-                </p>
+            <Section
+              title="Ürün Çıkarma"
+              subtitle={
+                hideShopifyNav ? "Ürün çekme platformları" : `${dest}’a aktarım için platformlar`
+              }
+              delay={0.15}
+              className={isMobile ? "" : "col-span-3"}
+            >
+              <div className="flex flex-col gap-2">
+                {extraction.map((item, i) => (
+                  <NavCard
+                    key={item.path}
+                    item={item}
+                    delay={0.2 + i * 0.04}
+                    onOpen={() => setLocation(item.path)}
+                  />
+                ))}
               </div>
-            </header>
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
-              {quick.map((item, index) => (
+            </Section>
+
+            <Section
+              title="Yorum Çıkarma"
+              subtitle="Yorumları çekip CSV dışa aktarın"
+              delay={0.18}
+              className={isMobile ? "" : "col-span-3"}
+            >
+              <div className="flex flex-col gap-2">
+                {reviews.map((item, i) => (
+                  <NavCard
+                    key={item.path}
+                    item={item}
+                    delay={0.22 + i * 0.04}
+                    onOpen={() => setLocation(item.path)}
+                  />
+                ))}
+              </div>
+            </Section>
+
+            <Section
+              title="Sistem Analizi"
+              subtitle="Takip, kategori ve bağlantı yönetimi"
+              delay={0.22}
+              className={isMobile ? "" : "col-span-6"}
+            >
+              <div className={`grid gap-2 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+                {visibleSystem.map((item, i) => (
+                  <NavCard
+                    key={item.path}
+                    item={item}
+                    delay={0.24 + i * 0.03}
+                    onOpen={() => setLocation(item.path)}
+                  />
+                ))}
+              </div>
+            </Section>
+          </div>
+
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            className="shrink-0 rounded-xl border border-zinc-800/80 bg-[#070707] px-3 py-2.5 sm:px-3.5"
+          >
+            <div className="mb-2 flex items-baseline justify-between gap-3">
+              <h2 className="home-title text-[11px] uppercase tracking-[0.24em] sm:text-xs">
+                Hızlı Erişim
+              </h2>
+              <p className="home-muted hidden text-[11px] sm:block">Sık kullanılan sistem araçları</p>
+            </div>
+            <div className={`grid gap-2 ${isMobile ? "grid-cols-1" : "grid-cols-5"}`}>
+              {visibleQuick.map((item, index) => (
                 <motion.button
                   key={item.path}
                   type="button"
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 1.3 + index * 0.05 }}
+                  transition={{ duration: 0.25, delay: 0.35 + index * 0.03 }}
                   onClick={() => setLocation(item.path)}
                   data-testid={item.testId}
-                  className="group flex items-center gap-3 rounded-xl border border-zinc-800/90 bg-black/80 px-3.5 py-3.5 text-left transition-colors hover:border-zinc-600 hover:bg-zinc-950 active:scale-[0.99]"
+                  className="group flex items-center gap-2 rounded-lg border border-zinc-800/90 bg-black/80 px-2.5 py-2 text-left transition-colors hover:border-zinc-600 hover:bg-zinc-950 active:scale-[0.99]"
                 >
                   <item.icon
-                    className="h-4 w-4 shrink-0 text-zinc-400 transition-colors group-hover:text-zinc-200"
+                    className="h-3.5 w-3.5 shrink-0 text-zinc-400 transition-colors group-hover:text-zinc-200"
                     strokeWidth={1.25}
                   />
-                  <span className="home-title text-[12px] tracking-[0.06em] sm:text-[13px]">
+                  <span className="home-title truncate text-[11px] tracking-[0.06em] sm:text-[12px]">
                     {item.label}
                   </span>
                 </motion.button>
               ))}
             </div>
           </motion.section>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };

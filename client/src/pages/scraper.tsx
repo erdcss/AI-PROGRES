@@ -16,6 +16,7 @@ import * as Collapsible from "@radix-ui/react-collapsible";
 import { ScrapeSourceErrorAlert, type ScrapeErrorMeta } from "@/components/ScrapeSourceErrorAlert";
 import { LocalAgentWarningAlert, resolveScrapeSourceWarning } from "@/components/LocalAgentWarningAlert";
 import { ScrapeFetchError } from "@/lib/scrape-url-client";
+import { useDestinationBrand } from "@/hooks/use-destination-brand";
 import {
   resolveColorFamilyUiStatus,
   shouldBlockShopifyForColorFamily,
@@ -292,6 +293,7 @@ interface Product {
 }
 
 function ScraperPage() {
+  const brand = useDestinationBrand();
   const [product, setProduct] = useState<Product | null>(null);
   const [, setLocation] = useLocation();
   const [scrapingMode, setScrapingMode] = useState<ScrapingMode>('single');
@@ -2660,7 +2662,7 @@ function ScraperPage() {
                 <Bell className="w-4 h-4 mr-2" />
                 Telegram Bildirimleri
               </Button>
-              <ShopifySettingsDialog />
+              {brand.shopifyEnabled ? <ShopifySettingsDialog /> : null}
               <Button
                 type="button"
                 onClick={clearScraperWorkspace}
@@ -2949,6 +2951,7 @@ function ScraperPage() {
                           </Button>
                         </div>
 
+                        {brand.shopifyEnabled ? (
                         <Button
                           type="button"
                           onClick={onShopifyTransfer}
@@ -2964,18 +2967,19 @@ function ScraperPage() {
                           {shopifyTransferMutation.isPending ? (
                             <div className="flex items-center gap-2">
                               <Loader2 className="w-5 h-5 animate-spin" />
-                              <span>Shopify&apos;a Aktarılıyor...</span>
+                              <span>{brand.transferLoadingLabel}</span>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
                               <ShoppingCart className="w-5 h-5" />
-                              <span>SHOPIFY&apos;A AKTAR</span>
+                              <span className="uppercase">{brand.transferLabel}</span>
                             </div>
                           )}
                         </Button>
+                        ) : null}
                       </div>
 
-                      {(shopifyUploadBlockedReason || shopifyUploadWarning) && (
+                      {brand.shopifyEnabled && (shopifyUploadBlockedReason || shopifyUploadWarning) && (
                         <div
                           className={`rounded-lg border px-4 py-3 text-sm ${
                             shopifyUploadBlockedReason
@@ -3262,6 +3266,7 @@ function ScraperPage() {
                   CSV OLARAK DIŞA AKTAR ({csvPreviews.length})
                 </div>
               </Button>
+              {brand.shopifyEnabled ? (
               <Button
                 type="button"
                 onClick={uploadAllCSVsToShopify}
@@ -3281,13 +3286,14 @@ function ScraperPage() {
                 ) : (
                   <div className="flex items-center gap-2">
                     <ShoppingCart className="w-5 h-5" />
-                    TÜM ÜRÜNLERİ SHOPIFY'A YÜKLE ({csvPreviews.length})
+                    {brand.bulkLabel.toUpperCase()} ({csvPreviews.length})
                   </div>
                 )}
                         </Button>
+              ) : null}
                       </div>
 
-                      {(shopifyUploadBlockedReason || shopifyUploadWarning) && (
+                      {brand.shopifyEnabled && (shopifyUploadBlockedReason || shopifyUploadWarning) && (
                         <div
                           className={`rounded-lg border px-4 py-3 text-sm ${
                             shopifyUploadBlockedReason

@@ -274,6 +274,16 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  try {
+    const { applyConnectionAccessOnBoot } = await import("./services/connection-access.service");
+    applyConnectionAccessOnBoot();
+  } catch (err) {
+    console.warn(
+      "[connection-access] boot skipped:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
   const { ensureDatabaseSchema } = await import('./db-init');
   await ensureDatabaseSchema();
   const { runProductTrackingMigration } = await import('./migrations/run-product-tracking-migration');

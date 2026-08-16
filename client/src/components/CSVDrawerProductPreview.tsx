@@ -18,6 +18,7 @@ import {
   formatProfitPercentage,
 } from "@/utils/price-utils";
 import { isBlockedShopifyTag } from "@shared/shopify-tag-sanitizer";
+import { useDestinationBrand } from "@/hooks/use-destination-brand";
 import type { CsvStatusResponse } from "@/lib/shopify-csv-download";
 
 /** Features / başlıktan gerçek renk adı çıkarır — "Tek Renk" placeholder'ı yerine */
@@ -430,6 +431,7 @@ export const ProductPreview = memo(function ProductPreview({
   csvHeaders = [],
   csvRows = [],
 }: ProductPreviewProps) {
+    const brand = useDestinationBrand();
     const safeTitle =
       typeof preview.productTitle === "string" && preview.productTitle.trim()
         ? preview.productTitle.trim()
@@ -951,14 +953,14 @@ export const ProductPreview = memo(function ProductPreview({
                   <Download className="w-4 h-4" />
                 </Button>
               )}
-              {onShopifyUpload && (
+              {onShopifyUpload && brand.shopifyEnabled && (
                 <Button
                   type="button"
                   onClick={onShopifyUpload}
                   size="sm"
                   disabled={uploadDisabled || isUploading}
                   className="h-9 w-9 p-0 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50"
-                  title={uploadDisabledReason || "Shopify'a Aktar"}
+                  title={uploadDisabledReason || brand.transferLabel}
                 >
                   {isUploading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { useDestinationBrand } from "@/hooks/use-destination-brand";
 import { PRODUCT_POOL_SITES, isProductPoolUrl, matchWebHookSite } from "@shared/web-hooks-sites";
 
 /** Ürün Havuzu — @shared/web-hooks-sites ile senkron */
@@ -470,6 +471,7 @@ function ShopifySendButton({
   label?: "send" | "bulk";
   className?: string;
 }) {
+  const brand = useDestinationBrand();
   const reactId = useId().replace(/:/g, "");
   const bagGradId = `sbag-${reactId}`;
   const [fill, setFill] = useState(0);
@@ -512,6 +514,7 @@ function ShopifySendButton({
   const isBusy = Boolean(loading) || finishing || fill > 1;
   const filledEnough = fill >= 38;
   const blocked = Boolean(disabled) || Boolean(loading);
+  if (!brand.shopifyEnabled) return null;
 
   return (
     <button
@@ -565,13 +568,13 @@ function ShopifySendButton({
         >
           {loading
             ? label === "bulk"
-              ? "Toplu gönderiliyor…"
-              : "Shopify'a gidiyor…"
+              ? brand.sendLoadingLabel
+              : brand.sendLoadingLabel
             : finishing
               ? "Gönderildi"
               : label === "bulk"
-                ? "Toplu Gönder"
-                : "Shopify'a Gönder"}
+                ? brand.bulkLabel
+                : brand.sendLabel}
         </span>
       </span>
       <span
@@ -730,6 +733,7 @@ function SiteLogoBesideTitle({
 export default function UrunHavuzuPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const brand = useDestinationBrand();
   const [urlList, setUrlList] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1090,7 +1094,7 @@ export default function UrunHavuzuPage() {
     try {
       const data = await sendOne(product);
       toast({
-        title: "Shopify'a aktif gönderildi",
+        title: `${brand.destinationName}'a aktif gönderildi`,
         description: `${product.poolId} · ${formatMoney(product.salePrice)} → ${formatMoney(data.shopifyPrice)} (+%10)`,
       });
       setDrawerOpen(true);
@@ -1689,14 +1693,16 @@ export default function UrunHavuzuPage() {
                     </div>
                     <div className="text-sm font-semibold text-emerald-400">{profitMarginLabel}</div>
                   </div>
+                  {brand.shopifyEnabled ? (
                   <div className="rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2">
                     <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">
-                      Shopify (+{profitMarginLabel})
+                      {brand.destinationName} (+{profitMarginLabel})
                     </div>
                     <div className="text-sm font-bold text-white">
                       {formatMoney(shopifyPreviewPrice, product.currency)}
                     </div>
                   </div>
+                  ) : null}
                 </div>
 
                 <ShopifySendButton
@@ -1705,16 +1711,16 @@ export default function UrunHavuzuPage() {
                   onClick={sendToShopify}
                 />
 
-                {(product.features?.length ?? 0) > 0 || tags.length > 0 ? (
+                {brand.shopifyEnabled && ((product.features?.length ?? 0) > 0 || tags.length > 0) ? (
                   <p className="text-[11px] text-neutral-500">
                     {(product.features?.length ?? 0) > 0
-                      ? `${product.features!.length} özellik Shopify açıklamasına eklenecek`
+                      ? `${product.features!.length} özellik ${brand.destinationName} açıklamasına eklenecek`
                       : null}
                     {(product.variants?.length ?? 0) > 1
-                      ? `${(product.features?.length ?? 0) > 0 ? " · " : ""}${product.variants!.length} varyant Shopify'a gidecek`
+                      ? `${(product.features?.length ?? 0) > 0 ? " · " : ""}${product.variants!.length} varyant ${brand.destinationName}'a gidecek`
                       : ""}
                     {tags.length > 0
-                      ? `${(product.features?.length ?? 0) > 0 || (product.variants?.length ?? 0) > 1 ? " · " : ""}${tags.length} etiket Shopify tags alanına gidecek`
+                      ? `${(product.features?.length ?? 0) > 0 || (product.variants?.length ?? 0) > 1 ? " · " : ""}${tags.length} etiket ${brand.destinationName} tags alanına gidecek`
                       : ""}
                   </p>
                 ) : null}
@@ -1887,7 +1893,7 @@ export default function UrunHavuzuPage() {
                           <p className="text-xs text-neutral-400 mt-1">
                             Alış {formatMoney(item.salePrice)}
                             {item.shopifyPrice != null
-                              ? ` · Shopify ${formatMoney(item.shopifyPrice)}`
+                              ? ` · ${brand.destinationName} ${formatMoney(item.shopifyPrice)}`
                               : ""}
                           </p>
                         </div>

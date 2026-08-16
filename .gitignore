@@ -7,6 +7,7 @@ vite.config.ts.*
 .env
 .env.*
 !.env.example
+data/connection-access.json
 env
 env (*)
 .env.backup

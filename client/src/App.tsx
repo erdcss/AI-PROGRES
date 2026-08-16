@@ -48,6 +48,7 @@ import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import MemoryDashboard from "@/pages/memory-dashboard";
 import ShopifySystemPage from "@/pages/ShopifySystemPage";
+import BaglantiApiPage from "@/pages/baglanti-api";
 import ShopifyCategoriesPage from "@/pages/shopify-categories";
 import { MatrixBackground } from "@/components/MatrixBackground";
 import {
@@ -433,6 +434,11 @@ function Router() {
       </Route>
       <Route path="/shopify-system">
         <Redirect to="/control-center?tab=shopify" />
+      </Route>
+      <Route path="/baglanti-api">
+        <PageTransition>
+          <BaglantiApiPage />
+        </PageTransition>
       </Route>
       <Route path="/telegram-management">
         <PageTransition>
