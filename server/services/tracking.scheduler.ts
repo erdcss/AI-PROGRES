@@ -359,6 +359,13 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
       console.warn("Shopify tracking reconciliation skipped:", err);
     }
 
+    try {
+      const { triggerMarktGoCatalogReconcile } = await import("./marktgo/reconcile.service");
+      await triggerMarktGoCatalogReconcile(false);
+    } catch (err) {
+      console.warn("MARKT-GO katalog kontrolü atlandı:", err);
+    }
+
     const now = Date.now();
     const products = await db
       .select()

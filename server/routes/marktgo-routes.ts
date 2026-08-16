@@ -81,4 +81,28 @@ export function registerMarktGoRoutes(app: Express): void {
       return res.status(500).json({ success: false, error: userMessageForMarktGoError(err) });
     }
   });
+
+  app.get("/api/marktgo/catalog-reconcile", async (_req, res) => {
+    try {
+      const { getLastMarktGoCatalogReconcile } = await import("../services/marktgo/reconcile.service");
+      const last = getLastMarktGoCatalogReconcile();
+      return res.json({
+        success: true,
+        removedLocalProductIds: last?.removedLocalProductIds || [],
+        ...last,
+      });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: userMessageForMarktGoError(err) });
+    }
+  });
+
+  app.post("/api/marktgo/catalog-reconcile", async (_req, res) => {
+    try {
+      const { triggerMarktGoCatalogReconcile } = await import("../services/marktgo/reconcile.service");
+      const result = await triggerMarktGoCatalogReconcile(true);
+      return res.json({ success: true, ...result });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: userMessageForMarktGoError(err) });
+    }
+  });
 }

@@ -188,6 +188,7 @@ type PoolNotification = {
 };
 
 const TRACK_KEY = "product-pool-tracking-v2";
+const MARKTGO_SENT_KEY = "product-pool-marktgo-sent-v1";
 const NOTIF_KEY = "product-pool-notifications-v1";
 const POLL_MS = 3 * 60 * 1000;
 const PROFIT_MARGIN_PERCENT = 10;
@@ -658,6 +659,20 @@ function migrateTrackItem(raw: Record<string, unknown>): TrackItem | null {
   };
 }
 
+function loadMarktGoSent(): string[] {
+  try {
+    const raw = localStorage.getItem(MARKTGO_SENT_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMarktGoSent(ids: string[]) {
+  localStorage.setItem(MARKTGO_SENT_KEY, JSON.stringify([...new Set(ids)].slice(0, 500)));
+}
+
 function loadTracking(): TrackItem[] {
   try {
     let raw = localStorage.getItem(TRACK_KEY);
@@ -770,6 +785,47 @@ export default function UrunHavuzuPage() {
   useEffect(() => {
     trackingRef.current = tracking;
   }, [tracking]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const applyRemoved = (removed: string[]) => {
+      if (!removed.length) return;
+      const gone = new Set(removed);
+      setProducts((prev) => {
+        const next = prev.filter((p) => !gone.has(p.poolId));
+        return next.length === prev.length ? prev : next;
+      });
+      setTracking((prev) => {
+        const next = prev.filter((t) => !gone.has(t.id));
+        if (next.length !== prev.length) saveTracking(next);
+        return next.length === prev.length ? prev : next;
+      });
+      saveMarktGoSent(loadMarktGoSent().filter((id) => !gone.has(id)));
+      setActiveIndex((i) => (i > 0 ? 0 : i));
+    };
+    const poll = async (force = false) => {
+      try {
+        const res = await fetch(
+          "/api/marktgo/catalog-reconcile",
+          force ? { method: "POST" } : undefined,
+        );
+        const data = await res.json();
+        if (cancelled || !data) return;
+        const removed = Array.isArray(data.removedLocalProductIds)
+          ? data.removedLocalProductIds.map(String)
+          : [];
+        applyRemoved(removed);
+      } catch {
+        /* bağlantı yoksa sessiz */
+      }
+    };
+    void poll(true);
+    const timer = window.setInterval(() => void poll(true), 15 * 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const product = products[activeIndex] || null;
   const images = product?.images?.length ? product.images : [];
@@ -1135,6 +1191,7 @@ export default function UrunHavuzuPage() {
         );
       }
       const sentId = product.poolId;
+      saveMarktGoSent([...loadMarktGoSent(), sentId]);
       setProducts((prev) => {
         const idx = prev.findIndex((p) => p.poolId === sentId);
         if (idx <= 0) return prev;

@@ -176,6 +176,17 @@ export async function listVariantMappings(productMappingId: number) {
     .where(eq(integrationVariantMappings.productMappingId, productMappingId));
 }
 
+export async function listProductMappings(connectionId: number) {
+  return db
+    .select()
+    .from(integrationProductMappings)
+    .where(eq(integrationProductMappings.connectionId, connectionId));
+}
+
+export async function deleteProductMapping(id: number) {
+  await db.delete(integrationProductMappings).where(eq(integrationProductMappings.id, id));
+}
+
 export async function findMappingForTrackedProduct(trackedProductId: number) {
   const [row] = await db
     .select()

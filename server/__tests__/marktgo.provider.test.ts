@@ -19,6 +19,10 @@ import { idempotencyKeyForProduct, stableExternalId } from "../services/marktgo/
 import { mapPoolProductToMarktGoInput, poolLocalProductId } from "../services/marktgo/pool-map";
 import { sendButtonLabel } from "@shared/integration-provider";
 import { MarktGoClient } from "../services/marktgo/client";
+import {
+  pickMissingMappings,
+  shouldAbortCatalogWipe,
+} from "../services/marktgo/reconcile.service";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 let passed = 0;
@@ -123,6 +127,14 @@ assert(typeof MarktGoClient === "function", "central client class exists");
 
 const failedImagePartial = ["images"];
 assert(failedImagePartial.includes("images"), "failed image → partial sync marker");
+
+const goneMappings = pickMissingMappings(
+  [{ externalProductId: "1" }, { externalProductId: "2" }],
+  new Set(["1"]),
+);
+assert(goneMappings.length === 1 && goneMappings[0].externalProductId === "2", "missing mapping detected");
+assert(shouldAbortCatalogWipe(5, 0, 5), "wipe abort when all look missing");
+assert(!shouldAbortCatalogWipe(5, 2, 3), "wipe allowed when some still live");
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);

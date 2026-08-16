@@ -93,6 +93,11 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
       );
     }, isCloudRuntime() ? 10_000 : 3_000);
     triggerImmediateSchedulerCycle(isCloudRuntime() ? 15_000 : 5_000);
+    setTimeout(() => {
+      void import("./marktgo/reconcile.service")
+        .then(({ triggerMarktGoCatalogReconcile }) => triggerMarktGoCatalogReconcile(true))
+        .catch((err) => console.warn("⚠️ Açılış MARKT-GO katalog kontrolü atlandı:", err));
+    }, isCloudRuntime() ? 20_000 : 8_000);
 
     if (controlCenterOk) {
       void resumePendingImportJobs();
