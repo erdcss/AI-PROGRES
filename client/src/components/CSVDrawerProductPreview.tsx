@@ -19,6 +19,7 @@ import {
 } from "@/utils/price-utils";
 import { isBlockedShopifyTag } from "@shared/shopify-tag-sanitizer";
 import { useDestinationBrand } from "@/hooks/use-destination-brand";
+import ProductAttributes from "@/components/ProductAttributes";
 import type { CsvStatusResponse } from "@/lib/shopify-csv-download";
 
 /** Features / başlıktan gerçek renk adı çıkarır — "Tek Renk" placeholder'ı yerine */
@@ -953,7 +954,7 @@ export const ProductPreview = memo(function ProductPreview({
                   <Download className="w-4 h-4" />
                 </Button>
               )}
-              {onShopifyUpload && brand.shopifyEnabled && (
+              {onShopifyUpload && (
                 <Button
                   type="button"
                   onClick={onShopifyUpload}
@@ -1023,6 +1024,7 @@ export const ProductPreview = memo(function ProductPreview({
           {isExpanded && (
             <div className="border-t border-zinc-800/80 px-4 py-4 space-y-4 bg-zinc-950/50">
               <ColorFamilyStatusPanel preview={preview} />
+              <ProductAttributes features={safePreview.features || preview.features || []} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">

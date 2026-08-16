@@ -516,7 +516,6 @@ function ShopifySendButton({
   const isBusy = Boolean(loading) || finishing || fill > 1;
   const filledEnough = fill >= 38;
   const blocked = Boolean(disabled) || Boolean(loading);
-  if (!brand.shopifyEnabled) return null;
 
   return (
     <button
@@ -1130,7 +1129,7 @@ export default function UrunHavuzuPage() {
   }, [runTrackingPoll]);
 
   const sendOne = async (p: PoolProduct) => {
-    const res = await fetch("/api/product-pool/shopify-upload", {
+    const res = await fetch("/api/product-pool/marktgo-upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1140,56 +1139,31 @@ export default function UrunHavuzuPage() {
     const data = await res.json();
     if (!res.ok || !data.success) {
       throw new Error(
-        typeof data.error === "string" ? data.error : "Shopify gönderimi başarısız",
+        typeof data.error === "string" ? data.error : "MARKT-GO gönderimi başarısız",
       );
     }
-    trackFromProduct(p, { shopifyPrice: data.shopifyPrice, productId: data.productId });
-    return data as { shopifyPrice: number; productId: string };
+    const sellPrice = Number(data.shopifyPrice ?? data.price);
+    trackFromProduct(p, {
+      shopifyPrice: Number.isFinite(sellPrice) ? sellPrice : undefined,
+      productId: String(data.externalProductId || data.productId || ""),
+    });
+    if (Array.isArray(data.steps)) {
+      setMarktgoSteps(
+        data.steps.map((s: { label?: string; ok?: boolean }) => ({
+          label: String(s.label || ""),
+          ok: s.ok !== false,
+        })),
+      );
+    }
+    return data as { shopifyPrice?: number; productId?: string; externalProductId?: string; status?: string };
   };
 
-  const sendToShopify = async () => {
+  const sendToDestination = async () => {
     if (!product) return;
     setUploading(true);
-    try {
-      const data = await sendOne(product);
-      toast({
-        title: `${brand.destinationName}'a aktif gönderildi`,
-        description: `${product.poolId} · ${formatMoney(product.salePrice)} → ${formatMoney(data.shopifyPrice)} (+%10)`,
-      });
-      setDrawerOpen(true);
-    } catch (err) {
-      toast({
-        title: "Shopify hatası",
-        description: err instanceof Error ? err.message : String(err),
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const sendToMarktGo = async () => {
-    if (!product) return;
-    setMarktgoUploading(true);
     setMarktgoSteps([]);
     try {
-      const res = await fetch("/api/product-pool/marktgo-upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product: { ...product, tags } }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(typeof data.error === "string" ? data.error : "MARKT-GO gönderimi başarısız");
-      }
-      if (Array.isArray(data.steps)) {
-        setMarktgoSteps(
-          data.steps.map((s: { label?: string; ok?: boolean }) => ({
-            label: String(s.label || ""),
-            ok: s.ok !== false,
-          })),
-        );
-      }
+      const data = await sendOne(product);
       const sentId = product.poolId;
       saveMarktGoSent([...loadMarktGoSent(), sentId]);
       setProducts((prev) => {
@@ -1203,25 +1177,32 @@ export default function UrunHavuzuPage() {
       setActiveIndex(0);
       setImageIndex(0);
       toast({
-        title: data.status === "partial_sync" ? "MARKT-GO kısmi senkron" : "MARKT-GO'ya gönderildi",
-        description: `${product.poolId} · ID ${data.externalProductId || data.productId}`,
+        title:
+          data.status === "partial_sync"
+            ? `${brand.destinationName} kısmi senkron`
+            : `${brand.destinationName}'a gönderildi`,
+        description: `${product.poolId} · ID ${data.externalProductId || data.productId || "—"}`,
       });
+      setDrawerOpen(true);
     } catch (err) {
       toast({
-        title: "MARKT-GO hatası",
+        title: `${brand.destinationName} hatası`,
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
     } finally {
-      setMarktgoUploading(false);
+      setUploading(false);
     }
   };
+
+  const sendToMarktGo = sendToDestination;
 
   const sendBulk = async () => {
     if (products.length < 2) return;
     setBulkUploading(true);
+    setMarktgoSteps([]);
     try {
-      const res = await fetch("/api/product-pool/shopify-upload-bulk", {
+      const res = await fetch("/api/product-pool/marktgo-upload-bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1234,15 +1215,20 @@ export default function UrunHavuzuPage() {
         throw new Error(data.error || "Toplu gönderim başarısız");
       }
 
+      const sentIds: string[] = [];
       for (const r of data.results || []) {
         if (!r.success) continue;
         const p = products.find((x) => x.sourceUrl === r.sourceUrl);
-        if (p) trackFromProduct(p, { shopifyPrice: r.shopifyPrice, productId: r.productId });
+        if (p) {
+          sentIds.push(p.poolId);
+          trackFromProduct(p, { productId: r.productId });
+        }
       }
+      if (sentIds.length) saveMarktGoSent([...loadMarktGoSent(), ...sentIds]);
 
       toast({
-        title: "Toplu gönderim tamam",
-        description: `${data.ok} başarılı · ${data.fail} hata`,
+        title: `${brand.destinationName} toplu gönderim`,
+        description: `${data.ok || 0} başarılı · ${data.fail || 0} hata`,
       });
       setDrawerOpen(true);
     } catch (err) {
@@ -1802,7 +1788,7 @@ export default function UrunHavuzuPage() {
                     </div>
                     <div className="text-sm font-semibold text-emerald-400">{profitMarginLabel}</div>
                   </div>
-                  {brand.shopifyEnabled ? (
+                  {brand.marktgoEnabled || brand.shopifyEnabled ? (
                   <div className="rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2">
                     <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">
                       {brand.destinationName} (+{profitMarginLabel})
@@ -1815,25 +1801,10 @@ export default function UrunHavuzuPage() {
                 </div>
 
                 <ShopifySendButton
-                  loading={uploading}
-                  disabled={bulkUploading || marktgoUploading}
-                  onClick={sendToShopify}
+                  loading={uploading || marktgoUploading}
+                  disabled={bulkUploading}
+                  onClick={sendToDestination}
                 />
-                <button
-                  type="button"
-                  disabled={uploading || bulkUploading || marktgoUploading}
-                  onClick={() => void sendToMarktGo()}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-neutral-700 bg-neutral-950 px-5 py-3.5 text-[15px] font-bold text-white hover:border-neutral-500 disabled:opacity-50"
-                >
-                  {marktgoUploading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <span className="w-7 h-7 rounded-full border border-neutral-600 text-[10px] font-bold inline-flex items-center justify-center">
-                      MG
-                    </span>
-                  )}
-                  {marktgoUploading ? "MARKT-GO'ya gidiyor…" : "MARKT-GO'ya Gönder"}
-                </button>
                 {marktgoSteps.length > 0 ? (
                   <ul className="text-[11px] text-neutral-500 space-y-0.5 px-1">
                     {marktgoSteps.map((s, i) => (
@@ -1844,7 +1815,7 @@ export default function UrunHavuzuPage() {
                   </ul>
                 ) : null}
 
-                {brand.shopifyEnabled && ((product.features?.length ?? 0) > 0 || tags.length > 0) ? (
+                {(product.features?.length ?? 0) > 0 || tags.length > 0 ? (
                   <p className="text-[11px] text-neutral-500">
                     {(product.features?.length ?? 0) > 0
                       ? `${product.features!.length} özellik ${brand.destinationName} açıklamasına eklenecek`

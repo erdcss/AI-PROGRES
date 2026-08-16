@@ -204,16 +204,8 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     console.log(`✅ AI-destekli çıkarma tamamlandı: ${basicData.images?.length || 0} görsel, ${basicData.features?.length || 0} özellik`);
     console.log(`🖼️ Gönderilen görseller: ${basicData.images?.slice(0, 3).join(', ')}`);
     
-    // Use extracted features or fallback
-    const finalFeatures = Array.isArray(basicData.features) && basicData.features.length > 0 
-      ? basicData.features 
-      : [
-          { key: 'Kalıp', value: 'Regular' },
-          { key: 'Materyal', value: '%100 Pamuk' },
-          { key: 'Yaka Tipi', value: 'Polo Yaka' },
-          { key: 'Kumaş Tipi', value: 'Triko' },
-          { key: 'Kol Tipi', value: 'Kolsuz' }
-        ];
+    // Use extracted features only — never invent fallback attributes
+    const finalFeatures = Array.isArray(basicData.features) ? basicData.features : [];
 
     return {
       success: true,
@@ -1472,15 +1464,7 @@ function extractEnhancedFeatures(htmlContent: string, $: cheerio.CheerioAPI): Ar
       index === self.findIndex(f => f.key === feature.key && f.value === feature.value)
     );
   
-  // Add standard clothing features if none found
-  if (cleanedFeatures.length === 0) {
-    cleanedFeatures.push(
-      { key: 'Kategori', value: 'Tişört' },
-      { key: 'Kol Tipi', value: 'Kısa Kollu' },
-      { key: 'Kumaş Tipi', value: 'Pamuk Karışımı' },
-      { key: 'Yaka Tipi', value: 'Bisiklet Yaka' }
-    );
-  }
+  // No invented clothing defaults — empty means attributes were not found on source.
   
   console.log(`📋 Toplam ${cleanedFeatures.length} temizlenmiş özellik döndürüldü`);
   return cleanedFeatures;
@@ -1679,7 +1663,7 @@ function extractBasicFeatures(title: string): string[] {
   if (lower.includes('nefes alır')) features.push('Nefes Alır');
   if (lower.includes('antibakteriyel')) features.push('Antibakteriyel');
   
-  return features.length > 0 ? features : ['Kaliteli Malzeme'];
+  return features;
 }
 
 function generateKeywords(title: string, brand: string): string[] {

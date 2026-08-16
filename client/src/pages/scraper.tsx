@@ -17,6 +17,8 @@ import { ScrapeSourceErrorAlert, type ScrapeErrorMeta } from "@/components/Scrap
 import { LocalAgentWarningAlert, resolveScrapeSourceWarning } from "@/components/LocalAgentWarningAlert";
 import { ScrapeFetchError } from "@/lib/scrape-url-client";
 import { useDestinationBrand } from "@/hooks/use-destination-brand";
+import { mapScraperLikeToPoolProduct } from "@/lib/marktgo-pool-map";
+import ProductAttributes from "@/components/ProductAttributes";
 import {
   resolveColorFamilyUiStatus,
   shouldBlockShopifyForColorFamily,
@@ -1760,11 +1762,11 @@ function ScraperPage() {
 
   const canShopifyUpload = Boolean(product) && !shopifyUploadBlockedReason;
 
-  // Shopify transfer mutation
+  // MARKT-GO transfer mutation
   const shopifyTransferMutation = useMutation({
     mutationFn: async () => {
       if (shopifyUploadInFlightRef.current) {
-        throw new Error('Shopify aktarımı zaten devam ediyor');
+        throw new Error('Gönderim zaten devam ediyor');
       }
       shopifyUploadInFlightRef.current = true;
 
@@ -1774,37 +1776,31 @@ function ScraperPage() {
         throw new Error(shopifyUploadBlockedReason);
       }
 
-      setWorkflowStep('Shopify bağlantısı kontrol ediliyor...');
-      const connRes = await fetch('/api/shopify/connection-test', { method: 'POST' });
+      setWorkflowStep(`${brand.destinationName} bağlantısı kontrol ediliyor...`);
+      const connRes = await fetch('/api/marktgo/health');
       const connData = await connRes.json().catch(() => ({}));
-      if (!connRes.ok || !connData.connected) {
-        throw new Error(connData.message || 'Shopify bağlantısı kurulamadı');
+      if (!connRes.ok || !connData.success) {
+        throw new Error(connData.error || `${brand.destinationName} bağlantısı kurulamadı`);
       }
 
-      setWorkflowStep('Shopify\'a gönderiliyor...');
+      setWorkflowStep(`${brand.destinationName}'a gönderiliyor...`);
       const cleanVariants = sanitizeTrendyolVariants(product.variants, {
         productTitle: product.title,
       });
       const sourceUrl =
         product.sourceUrl || product.originalUrl || singleForm.getValues('url');
 
-      const response = await fetch('/api/shopify/products', {
+      const poolProduct = mapScraperLikeToPoolProduct({
+        ...product,
+        variants: cleanVariants,
+        sourceUrl,
+        title: product.title,
+      } as Record<string, unknown>);
+
+      const response = await fetch('/api/marktgo/products/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productData: {
-            ...product,
-            variants: cleanVariants,
-            sourceUrl,
-            scrapedTitle: scrapedOriginalTitle || product.title,
-          },
-          sourceUrl,
-          productTitle: product.title,
-          approvedForShopify: true,
-          titleEdited,
-          titleSource: product.titleSource,
-          scrapedTitle: scrapedOriginalTitle || product.title,
-        }),
+        body: JSON.stringify({ product: poolProduct }),
       });
 
       const result = await response.json().catch(() => ({}));
@@ -1825,26 +1821,18 @@ function ScraperPage() {
     onSuccess: (data) => {
       setLastShopifyResult({
         adminUrl: data.adminUrl,
-        shopifyId: data.shopifyId || data.shopifyProductId,
+        shopifyId: data.externalProductId || data.shopifyId || data.productId,
       });
-      setWorkflowStep(`Shopify'a yüklendi ✅ (${data.status || 'draft'})`);
+      setWorkflowStep(`${brand.destinationName}'a yüklendi ✅ (${data.status || 'synced'})`);
       toast({
         title: 'Başarılı!',
-        description: data.adminUrl
-          ? `Ürün draft olarak yüklendi. Admin panelinden açabilirsiniz.`
-          : `Ürün Shopify'a eklendi (ID: ${data.shopifyId || data.shopifyProductId})`,
+        description: `Ürün ${brand.destinationName}'a eklendi (ID: ${data.externalProductId || data.productId || '—'})`,
       });
     },
     onError: (error: any) => {
-      const status = error.httpStatus;
-      let description = error.message || 'Bilinmeyen hata';
-      if (status === 401) description = 'Shopify token hatası — ayarlardan token/OAuth kontrol edin';
-      if (status === 403) description = 'Shopify yetki/scope hatası — write_products iznini kontrol edin';
-      if (status === 422) description = error.message || 'Shopify payload doğrulama hatası';
-      if (status === 500) description = error.message || 'Sunucu hatası — logları kontrol edin';
-
+      const description = error.message || 'Bilinmeyen hata';
       setLastShopifyResult({ error: description });
-      setWorkflowStep('Shopify aktarım hatası');
+      setWorkflowStep(`${brand.destinationName} aktarım hatası`);
       toast({
         title: 'Hata',
         description,
@@ -1863,7 +1851,7 @@ function ScraperPage() {
     }
     if (shopifyUploadBlockedReason) {
       toast({
-        title: 'Shopify aktarımı engellendi',
+        title: 'Aktarım engellendi',
         description: shopifyUploadBlockedReason,
         variant: 'destructive',
       });
@@ -2088,19 +2076,19 @@ function ScraperPage() {
       failCount: 0,
       title: "",
       phase: "connecting",
-      detail: "Shopify bağlantısı kontrol ediliyor...",
+      detail: `${brand.destinationName} bağlantısı kontrol ediliyor...`,
       percent: 2,
       outcomes: [],
     });
     setFailedUploads([]);
 
     try {
-      const connRes = await fetch("/api/shopify/connection-test", { method: "POST" });
+      const connRes = await fetch("/api/marktgo/health");
       const connData = await connRes.json().catch(() => ({}));
-      if (!connRes.ok || !connData?.connected) {
+      if (!connRes.ok || !connData?.success) {
         toast({
-          title: "Shopify bağlantısı yok",
-          description: connData?.message || "Yükleme başlamadan önce Shopify bağlantısını doğrulayın",
+          title: `${brand.destinationName} bağlantısı yok`,
+          description: connData?.error || "Yükleme başlamadan önce MARKT-GO bağlantısını doğrulayın",
           variant: "destructive",
         });
         setUploadProgress(null);
@@ -2185,25 +2173,38 @@ function ScraperPage() {
               ? {
                   ...prev,
                   phase: "verifying",
-                  detail: "Ürün mağazada doğrulanıyor...",
+          detail: `${brand.destinationName}'a gönderiliyor...`,
                   percent: basePercent + Math.round(55 / total),
                 }
               : prev,
           );
 
-          const response = await fetch("/api/shopify/bulk-upload", {
+          const poolProduct = mapScraperLikeToPoolProduct({
+            ...(item.productData || {}),
+            title: preview.productTitle,
+            sourceUrl: preview.sourceUrl,
+            tags: item.individualTags || [],
+          } as Record<string, unknown>);
+
+          const response = await fetch("/api/marktgo/products/sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal: controller.signal,
-            body: JSON.stringify({ items: [item] }),
+            body: JSON.stringify({ product: poolProduct }),
           });
-          const bulkResult = await response.json();
-          if (!response.ok && !bulkResult?.results) {
+          const syncResult = await response.json();
+          if (!response.ok || !syncResult?.success) {
             throw new Error(
-              bulkResult?.error || bulkResult?.message || `HTTP ${response.status}`,
+              syncResult?.error || syncResult?.message || `HTTP ${response.status}`,
             );
           }
-          row = bulkResult.results?.[0];
+          row = {
+            success: true,
+            status: syncResult.status || "synced",
+            productId: syncResult.externalProductId || syncResult.productId,
+            verified: true,
+            mode: syncResult.created ? "created" : "updated",
+          };
         } catch (err: unknown) {
           let recovered: Awaited<ReturnType<typeof recoverShopifyUploadFromStore>> = null;
           if (isShopifyUploadNetworkError(err)) {
@@ -2476,80 +2477,44 @@ function ScraperPage() {
     }
   }, [csvPreviews, individualTags]);
 
-  // CSV Shopify upload fonksiyonu  
+  // CSV / preview → MARKT-GO upload
   const handleCSVShopifyUpload = useCallback(async (id: string, individualTags?: string[]) => {
     const preview = csvPreviews.find(p => p.id === id);
     if (!preview) return;
 
     setUploadingId(id);
     try {
-      const csvToUpload = applyTagsToCSV(
-        resolvePreviewCsvContent(preview),
-        individualTags || [],
-      );
-      const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 10 * 60 * 1000);
-      let response: Response;
-      try {
-        response = await fetch("/api/shopify/upload-csv-product", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify(
-            buildCsvShopifyUploadBody(preview, csvToUpload, individualTags || []),
-          ),
-        });
-      } catch (fetchErr: unknown) {
-        if (isShopifyUploadNetworkError(fetchErr)) {
-          const recovered = await recoverShopifyUploadFromStore({
-            sourceProductId: preview.canonicalProduct?.sourceProductId,
-            handle: preview.canonicalProduct?.handle,
-            sourceUrl: preview.sourceUrl,
-          });
-          if (recovered?.found) {
-            toast({
-              title: "Shopify'a Yüklendi ✅",
-              description: "Bağlantı koptu ancak ürün mağazada doğrulandı",
-            });
-            return;
-          }
-        }
-        throw fetchErr;
-      } finally { clearTimeout(tid); }
+      const poolProduct = mapScraperLikeToPoolProduct({
+        title: preview.productTitle,
+        brand: preview.brand,
+        price: preview.price,
+        images: preview.images,
+        variants: preview.variants,
+        features: preview.features,
+        sourceUrl: preview.sourceUrl,
+        category: preview.category,
+        tags: individualTags || [],
+      } as Record<string, unknown>);
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success || result.shopifyId || result.productId) {
-          toast({
-            title: "Shopify'a Yüklendi ✅",
-            description: `${preview.productTitle.substring(0, 40)}... başarıyla yüklendi`
-          });
-        } else if (result.error?.includes('yakın zamanda')) {
-          toast({ title: "Zaten Yüklendi", description: `${preview.productTitle.substring(0, 40)}... daha önce yüklendi` });
-        } else {
-          throw new Error(result.error || result.message || 'Sunucu başarısız yanıt döndü');
-        }
-      } else if (response.status === 409) {
-        toast({ title: "Zaten Yüklendi", description: `${preview.productTitle.substring(0, 40)}... daha önce yüklendi` });
-      } else {
-        const errData = await response.json().catch(() => ({} as any));
-        const errMsg = errData.error || errData.message || `HTTP ${response.status}`;
-        if (errMsg.includes('yakın zamanda') || errMsg.includes('already')) {
-          toast({ title: "Zaten Yüklendi", description: `${preview.productTitle.substring(0, 40)}... daha önce yüklendi` });
-        } else {
-          throw new Error(errMsg);
-        }
+      const response = await fetch("/api/marktgo/products/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product: poolProduct }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.message || `HTTP ${response.status}`);
       }
+      toast({
+        title: `${brand.destinationName}'a Yüklendi ✅`,
+        description: `${preview.productTitle.substring(0, 40)}... · ID ${result.externalProductId || result.productId || "—"}`,
+      });
     } catch (error: any) {
-      if (error?.name === 'AbortError') {
-        toast({ title: "Yükleme Devam Ediyor", description: `${preview.productTitle.substring(0, 30)}... Shopify panelini kontrol edin` });
-      } else {
-        toast({ title: "Yükleme Hatası", description: error.message, variant: "destructive" });
-      }
+      toast({ title: "Yükleme Hatası", description: error.message, variant: "destructive" });
     } finally {
       setUploadingId(null);
     }
-  }, [csvPreviews, applyTagsToCSV, product]);
+  }, [csvPreviews, brand.destinationName]);
 
   const uploadToShopify = async (csvContent: string, productTitle: string, preview?: { sourceUrl?: string; images?: string[]; price?: { original?: number; withProfit?: number }; brand?: string }) => {
     try {
@@ -2953,7 +2918,6 @@ function ScraperPage() {
                           </Button>
                         </div>
 
-                        {brand.shopifyEnabled ? (
                         <Button
                           type="button"
                           onClick={onShopifyTransfer}
@@ -2978,10 +2942,9 @@ function ScraperPage() {
                             </div>
                           )}
                         </Button>
-                        ) : null}
                       </div>
 
-                      {brand.shopifyEnabled && (shopifyUploadBlockedReason || shopifyUploadWarning) && (
+              {brand.shopifyEnabled && (shopifyUploadBlockedReason || shopifyUploadWarning) && (
                         <div
                           className={`rounded-lg border px-4 py-3 text-sm ${
                             shopifyUploadBlockedReason
@@ -3062,6 +3025,16 @@ function ScraperPage() {
             </Card>
           </div>
         )}
+
+        {product?.features && product.features.length > 0 ? (
+          <div className="mt-4">
+            <ProductAttributes features={product.features} />
+          </div>
+        ) : product && !singleScrapeMutation.isPending ? (
+          <div className="mt-4">
+            <ProductAttributes features={[]} />
+          </div>
+        ) : null}
 
         {singleScrapeMutation.isPending && (
           <div className="mt-8">
@@ -3268,7 +3241,7 @@ function ScraperPage() {
                   CSV OLARAK DIŞA AKTAR ({csvPreviews.length})
                 </div>
               </Button>
-              {brand.shopifyEnabled ? (
+              {true ? (
               <Button
                 type="button"
                 onClick={uploadAllCSVsToShopify}
@@ -3295,7 +3268,7 @@ function ScraperPage() {
               ) : null}
                       </div>
 
-                      {brand.shopifyEnabled && (shopifyUploadBlockedReason || shopifyUploadWarning) && (
+              {brand.shopifyEnabled && (shopifyUploadBlockedReason || shopifyUploadWarning) && (
                         <div
                           className={`rounded-lg border px-4 py-3 text-sm ${
                             shopifyUploadBlockedReason

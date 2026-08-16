@@ -120,13 +120,13 @@ function Section({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: [0.16, 1, 0.3, 1] }}
-      className={`flex min-h-0 flex-col rounded-xl border border-zinc-800/80 bg-[#070707] p-3 sm:p-3.5 ${className}`}
+      className={`flex h-fit flex-col rounded-xl border border-zinc-800/80 bg-[#070707] p-3 sm:p-3.5 ${className}`}
     >
       <header className="mb-2.5 shrink-0 border-b border-zinc-900 pb-2">
         <h2 className="home-title text-[11px] uppercase tracking-[0.24em] sm:text-xs">{title}</h2>
         <p className="home-muted mt-0.5 text-[11px] leading-snug">{subtitle}</p>
       </header>
-      <div className="min-h-0 flex-1">{children}</div>
+      <div>{children}</div>
     </motion.section>
   );
 }
@@ -246,11 +246,7 @@ const MarketplaceSelection = () => {
     : quick;
 
   return (
-    <div
-      className={`home-orvian relative overflow-x-hidden bg-black ${
-        isMobile ? "min-h-screen" : "h-screen overflow-hidden"
-      }`}
-    >
+    <div className="home-orvian relative min-h-screen overflow-x-hidden bg-black">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -279,8 +275,8 @@ const MarketplaceSelection = () => {
       </div>
 
       <div
-        className={`relative z-10 mx-auto flex ${
-          isMobile ? "max-w-full flex-col px-4 py-4" : "h-full max-w-[1400px] flex-col px-5 py-3"
+        className={`relative z-10 mx-auto flex w-full flex-col ${
+          isMobile ? "max-w-full px-4 py-4" : "max-w-[1400px] px-5 py-3"
         }`}
       >
         <header className="relative shrink-0 overflow-visible border-b border-zinc-900 pb-2 pt-1">
@@ -289,10 +285,10 @@ const MarketplaceSelection = () => {
           </div>
         </header>
 
-        <main className="relative mt-3 flex min-h-0 flex-1 flex-col gap-3">
+        <main className="relative mt-3 flex flex-col gap-3">
           <div
-            className={`grid min-h-0 flex-1 gap-3 ${
-              isMobile ? "grid-cols-1" : "grid-cols-12 grid-rows-1"
+            className={`grid items-start gap-3 ${
+              isMobile ? "grid-cols-1" : "grid-cols-12"
             }`}
           >
             <Section

@@ -47,7 +47,7 @@ export async function extractRealProductData(url: string, productId: string): Pr
     colors: variants.colors,
     sizes: variants.sizes,
     description: generateDescription(title, brand),
-    attributes: generateAttributes(productType),
+    attributes: {},
     stockMap
   };
 
@@ -153,26 +153,9 @@ function generateDescription(title: string, brand: string): string {
   return descriptions[Math.floor(Math.random() * descriptions.length)];
 }
 
-function generateAttributes(productType: string): Record<string, string> {
-  const baseAttributes = {
-    'Materyal': 'Pamuk Karışımı',
-    'Yıkama Talimatı': '30°C Makinede Yıkanabilir',
-    'Menşei': 'Türkiye'
-  };
-
-  const typeSpecific = {
-    dress: { 'Kesim': 'Rahat Kalıp', 'Kol': 'Kısa Kol' },
-    pants: { 'Kesim': 'Dar Kalıp', 'Bel': 'Yüksek Bel' },
-    shirt: { 'Yaka': 'V Yaka', 'Kesim': 'Regular Fit' },
-    shoes: { 'Topuk': 'Düz', 'Materyal': 'Suni Deri' },
-    bag: { 'Kapama': 'Fermuar', 'Askı': 'Ayarlanabilir' },
-    belt: { 'Genişlik': '3 cm', 'Materyal': 'Deri' }
-  };
-
-  return {
-    ...baseAttributes,
-    ...(typeSpecific[productType as keyof typeof typeSpecific] || {})
-  };
+/** @deprecated Fake attribute generation removed — always empty. */
+function generateAttributes(_productType: string): Record<string, string> {
+  return {};
 }
 
 function capitalizeFirst(str: string): string {

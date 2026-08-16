@@ -1268,6 +1268,102 @@ export async function runTrendyolScrapePipeline(
       console.info(`ℹ️ [${stageLabel}] Scenario atlandı (cloud): puppeteer-disabled-in-cloud`);
       return;
     }
+
+    // Local: eksik fiyat/görsel için Puppeteer'dan önce Browser Worker dene (daha stabil)
+    if (
+      !policy.isCloud &&
+      policy.browserWorkerConfigured &&
+      policy.browserWorkerHealthy &&
+      !diagnostics.browserWorkerSucceeded &&
+      !isCompleteScrapeData(fieldsBeforeScenario) &&
+      !isPastDeadline()
+    ) {
+      try {
+        const {
+          scrapeTrendyolWithBrowserWorker,
+        } = await import("./services/browser-worker-client.service");
+        const bwBudgetMs = Math.min(
+          Math.max(25_000, Math.min(policy.browserWorkerTimeoutMs || 45_000, 55_000)),
+          remainingMs(),
+        );
+        console.log(`⚡ [${stageLabel}] Local Browser Worker (pre-scenario)...`);
+        const bw = await withStageTimeout(
+          () =>
+            scrapeTrendyolWithBrowserWorker(url, {
+              includeColorFamily: false,
+              includeSiblingHtml: false,
+              clientTimeoutMs: Math.max(5_000, bwBudgetMs - 1_000),
+            }),
+          bwBudgetMs,
+          "browser-worker-timeout",
+        );
+        if (bw.success && (bw.html || bw.rawProductJson)) {
+          applyBrowserWorkerToResult(result, url, bw, diagnostics);
+          if (bw.html && bw.html.length >= 500) {
+            directHtml = bw.html;
+            diagnostics.directHtmlSuccess = true;
+            try {
+              const { parseTrendyolProductFromHtmlContent } = await import(
+                "./trendyol-html-extractor"
+              );
+              const htmlProduct = await parseTrendyolProductFromHtmlContent(
+                bw.html,
+                url,
+                "browser-worker",
+              );
+              if (htmlProduct) {
+                applyHtmlProduct(htmlProduct);
+                diagnostics.htmlParseSuccess = true;
+              }
+            } catch {
+              /* soft-fail */
+            }
+          }
+          if (bw.rawProductJson) {
+            try {
+              const { extractOriginalTrendyolPriceFromProduct, buildTrendyolPriceObject } =
+                await import("./trendyol-price-utils");
+              const priceVal = extractOriginalTrendyolPriceFromProduct(bw.rawProductJson);
+              if (priceVal > 0 && (!result.price?.original || result.price.original <= 0)) {
+                result.price = buildTrendyolPriceObject(priceVal);
+              }
+            } catch {
+              /* soft-fail */
+            }
+          }
+        } else {
+          diagnostics.browserWorkerSucceeded = false;
+        }
+      } catch (err) {
+        diagnostics.browserWorkerSucceeded = false;
+        console.warn(
+          `⚠️ [${stageLabel}] Local Browser Worker soft-fail:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+      const afterBw = evaluateFields(result, url);
+      if (isCompleteScrapeData(afterBw)) {
+        diagnostics.scenarioSkippedReason = "browser-worker-complete";
+        return;
+      }
+      if (
+        modes.effective === "auto-fast" &&
+        afterBw.hasTitle &&
+        afterBw.hasPrice &&
+        afterBw.hasImages
+      ) {
+        diagnostics.scenarioSkippedReason = "auto-fast-after-browser-worker";
+        return;
+      }
+    }
+
+    if (
+      modes.effective === "auto-fast" &&
+      isCompleteScrapeData(evaluateFields(result, url))
+    ) {
+      diagnostics.scenarioSkippedReason = "auto-fast-core-data-present";
+      return;
+    }
     if (
       modes.effective === "auto-fast" &&
       hasMinimumScrapeData(fieldsBeforeScenario) &&

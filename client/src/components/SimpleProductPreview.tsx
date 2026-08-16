@@ -1,9 +1,10 @@
 import { motion } from "framer-motion";
-import { Package, Image as ImageIcon, Tags, Palette, DollarSign, Info, ChevronLeft, ChevronRight } from "lucide-react";
+import { Package, Image as ImageIcon, Tags, Palette, DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
 import { apiRequest } from '@/lib/queryClient';
 import { useState } from 'react';
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
 import { PriceEditor } from '@/components/PriceEditor';
+import ProductAttributes from '@/components/ProductAttributes';
 import { useDestinationBrand } from "@/hooks/use-destination-brand";
 
 interface SimpleProductPreviewProps {
@@ -475,34 +476,7 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
       </div>
       ) : null}
 
-      {/* Simplified Product Specifications - Compact Grid */}
-      {features.length > 0 && (
-        <div className="bg-slate-800/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Info className="h-5 w-5 text-blue-400" />
-            <h3 className="text-lg font-semibold text-white">Ürün Özellikleri</h3>
-            <span className="text-sm text-blue-400 bg-blue-400/10 px-2 py-1 rounded">{features.length}</span>
-          </div>
-          
-          {/* Compact Grid - 3 columns on desktop, 2 on tablet, 1 on mobile */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {features.slice(0, 12).map((feature, index) => (
-              <div key={index} className="bg-slate-700/20 border border-slate-600 rounded-lg p-3 hover:border-blue-400/50 transition-all duration-200">
-                <div className="text-sm font-medium text-gray-300 mb-1 truncate">{feature.key}</div>
-                <div className="text-sm font-semibold text-white truncate">{feature.value}</div>
-              </div>
-            ))}
-          </div>
-          
-          {features.length > 12 && (
-            <div className="mt-3 text-center">
-              <div className="text-sm text-gray-400 bg-slate-700/30 rounded-lg p-2">
-                +{features.length - 12} özellik daha{dest.shopifyEnabled ? ` — ${dest.destinationName}'a aktarılacak` : ""}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      <ProductAttributes features={features} className="mt-2" />
     </motion.div>
   );
 }

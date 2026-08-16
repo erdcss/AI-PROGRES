@@ -172,31 +172,34 @@ export function extractTrendyolFeatures(html: string): TrendyolProductFeature[] 
 
 function isValidTrendyolFeature(key: string, value: string): boolean {
   if (!key || !value || key.length < 2 || value.length < 1) return false;
-  if (value.length > 200) return false;
-  
-  // Skip invalid patterns
+  if (value.length > 500) return false;
+
+  // Structural noise only — no product-key whitelist (unknown attributes must pass).
   const invalidPatterns = [
-    /^[a-z]$/, /unluk/, /asi-/, /x-c/, /x-g/, /-seti-/,
-    /görselleri/, /açıcı/, /kalemi/, /http/, /www\./,
-    /\.com/, /\.jpg/, /\.png/, /^["'}]+$/, /^u"$/, /^a"$/,
-    /^ler$/, /^"}$/, /^"$/, /^}$/
+    /^[a-z]$/,
+    /http/i,
+    /www\./i,
+    /\.com/i,
+    /\.jpg/i,
+    /\.png/i,
+    /^["'}]+$/,
+    /^u"$/,
+    /^a"$/,
+    /^ler$/,
+    /^"}$/,
+    /^"$/,
+    /^}$/,
   ];
-  
+
   for (const pattern of invalidPatterns) {
-    if (pattern.test(value)) return false;
+    if (pattern.test(value) || pattern.test(key)) return false;
   }
-  
-  // Only allow meaningful product attributes
-  const validKeyPatterns = [
-    /materyal/i, /kumaş/i, /renk/i, /kalıp/i, /kol/i, /yaka/i,
-    /desen/i, /kapama/i, /yıkama/i, /marka/i, /beden/i, /boy/i,
-    /astar/i, /koleksiyon/i, /cep/i, /ortam/i, /siluet/i,
-    /kalınlık/i, /dokuma/i, /persona/i, /kemer/i, /kuşak/i,
-    /sürdürülebilirlik/i, /detay/i, /tipi/i, /boyu/i, /durumu/i,
-    /ürün/i, /ek/i, /özellik/i, /bileşen/i, /talimat/i
-  ];
-  
-  return validKeyPatterns.some(pattern => pattern.test(key));
+
+  if (/vergi|ünvan|unvan|adres|semt|sokak|mahalle|cadde|iletişim|iletisim/i.test(key)) {
+    return false;
+  }
+
+  return true;
 }
 
 function cleanKey(key: string): string {

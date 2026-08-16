@@ -28,7 +28,9 @@ export function isWebHookProductUrl(url: string, site: WebHookSite): boolean {
       /* ignore bad pattern */
     }
   }
-  return /\/(urun|product|\/p\/|\/dp\/|gp\/product)|-p-\d+/i.test(u);
+  return /\/(urun|product|\/p\/|\/dp\/|gp\/product)|\/tr\/p_|-p-\d+|\/[a-z0-9-]+-\d{8,}(?:\?|$)/i.test(
+    u,
+  );
 }
 
 export function buildWebHookProductUrlRegex(site: WebHookSite): RegExp | null {
@@ -58,6 +60,8 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
       "https://www.trendyol.com/sr?st=new",
     ],
     productUrlRegex: "-p-\\d+",
+    exampleProductUrl:
+      "https://www.trendyol.com/aygoren-home/cok-amacli-multi-ince-temizlik-fircasi-derz-arasi-banyo-mutfak-lavabo-detay-temizleme-fircasi-1-adet-p-797591603",
   },
   {
     id: "hepegitim",
@@ -68,7 +72,9 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     source: "product-pool",
     discoverUrl: "https://www.hepegitim.com",
     discoverUrls: ["https://www.hepegitim.com/arama?q=populer"],
-    productUrlRegex: "(?:/urun/|product)",
+    productUrlRegex: "(?:/urun/|[a-z0-9-]+-\\d{8,})",
+    exampleProductUrl:
+      "https://www.hepegitim.com/kayip-anilar-ekspresi-9786050850123",
   },
   {
     id: "idefix",
@@ -80,9 +86,11 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     discoverUrl: "https://www.idefix.com",
     discoverUrls: [
       "https://www.idefix.com/arama?q=cok+satanlar",
-      "https://www.idefix.com/kategori/kitap",
+      "https://www.idefix.com/kitap-c-3307",
     ],
-    productUrlRegex: "/urun/",
+    productUrlRegex: "(?:/urun/|/[\\w-]+-p-\\d+)",
+    exampleProductUrl:
+      "https://www.idefix.com/miray-yayinlari-9-sinif-kimya-tematik-konu-ozetli-soru-bankasi-p-3694796",
   },
   {
     id: "pazarama",
@@ -96,7 +104,9 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
       "https://www.pazarama.com/arama?q=yeni",
       "https://www.pazarama.com/kategori/elektronik",
     ],
-    productUrlRegex: "/urun/",
+    productUrlRegex: "(?:/urun/|-p-\\d+)",
+    exampleProductUrl:
+      "https://www.pazarama.com/electrolux-exp34u339hwews01-mobil-klima-12000-btu-pencere-aparatli-p-7332543979592?magaza=mediamarkt",
   },
   {
     id: "beymen",
@@ -105,9 +115,14 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
     url: "https://www.beymen.com",
     logoUrl: "https://cdn.beymen.com/assets/images/favicon.ico",
     source: "product-pool",
-    discoverUrl: "https://www.beymen.com/kadin",
-    discoverUrls: ["https://www.beymen.com/erkek", "https://www.beymen.com/cocuk"],
-    productUrlRegex: "(?:/p-\\d+|-\\d+\\.html)",
+    discoverUrl: "https://www.beymen.com/tr/kadin",
+    discoverUrls: [
+      "https://www.beymen.com/tr/erkek",
+      "https://www.beymen.com/tr/kadin-giyim-elbise-10037",
+    ],
+    productUrlRegex: "(?:/tr/p_[\\w-]+_\\d+|/p-\\d+|-\\d+\\.html)",
+    exampleProductUrl:
+      "https://www.beymen.com/tr/p_beymen-club-siyah-midi-ipek-saten-elbise_1922586",
   },
   {
     id: "pttavm",
@@ -148,8 +163,10 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
       "https://www.amazon.com.tr/gp/bestsellers/",
     ],
     productUrlRegex: "(?:/dp/|/gp/product/)[A-Z0-9]{10}",
+    exampleProductUrl: "https://www.amazon.com.tr/dp/B0DFWW8JZN",
   },
 ];
+
 
 /** Ürün havuzu — Trendyol hariç desteklenen siteler */
 export const PRODUCT_POOL_SITES: WebHookSite[] = WEB_HOOK_SITES.filter(

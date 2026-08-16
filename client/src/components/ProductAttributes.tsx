@@ -1,145 +1,83 @@
-import React from 'react';
+import { useMemo, useState } from "react";
+import {
+  normalizeProductAttributes,
+  type ProductAttributesInput,
+} from "@shared/product-attributes";
+
+const INITIAL_VISIBLE_COUNT = 8;
 
 interface ProductAttributesProps {
-  attributes: Record<string, string>;
+  attributes?: ProductAttributesInput;
+  features?: ProductAttributesInput;
+  title?: string;
+  className?: string;
 }
 
 /**
- * Ürün özelliklerini tablo formatında düzenli sütunlarda göstermek için bileşen
- * Trendyol benzeri tasarımla
+ * Marketplace-style dynamic attribute chips.
+ * Renders whatever real attributes arrive — no hardcoded product values.
  */
-const ProductAttributes: React.FC<ProductAttributesProps> = ({ attributes }) => {
-  if (!attributes || Object.keys(attributes).length === 0) {
-    return <div className="text-gray-400 italic">Ürün özellikleri bulunamadı</div>;
+export default function ProductAttributes({
+  attributes,
+  features,
+  title = "Ürün Özellikleri",
+  className = "",
+}: ProductAttributesProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  const rows = useMemo(
+    () => normalizeProductAttributes(attributes ?? features ?? []),
+    [attributes, features],
+  );
+
+  if (rows.length === 0) {
+    return (
+      <div className={`rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 ${className}`}>
+        <h3 className="text-sm font-semibold tracking-wide text-zinc-200 uppercase">
+          {title}
+        </h3>
+        <p className="mt-2 text-sm italic text-zinc-500">Ürün özellikleri bulunamadı</p>
+      </div>
+    );
   }
 
-  // Ürün özellik değerlerini temizle
-  const cleanAttributes: Record<string, string> = {};
-  
-  // Filtrelenecek/kaldırılacak özellikler listesi
-  const filteredKeys = [
-    'İstanbul Vergi Kimlik Numarası', 'Semt', 'Sokak', 'Ücretsiz İade Hızlı TeslimatTrendyol Müşteri DesteğiSatıcı',
-    'Adres', 'Satıcı Ünvanı', 'Vergi Kimlik Numarası', 'İletişim', 'Şehir', 'Mahalle', 'Cadde'
-  ];
-  
-  // Özellik değerlerini temizle ve kısa hale getir
-  for (const [key, value] of Object.entries(attributes)) {
-    // Filtrelenen özellikleri atla
-    if (filteredKeys.includes(key)) continue;
-    
-    if (!value || typeof value !== 'string') continue;
-    
-    // Çok uzun değerleri temizle
-    if (value.length > 100) {
-      // Değer içinde anahtar adını bulup, sonrasını kısa değer olarak al
-      const keyInValue = value.indexOf(key);
-      if (keyInValue !== -1 && keyInValue < 100) {
-        // Key'den sonraki ilk 30 karakteri al
-        const afterKey = value.substring(keyInValue + key.length).trim();
-        const firstSentence = afterKey.split('.')[0];
-        
-        if (firstSentence && firstSentence.length < 50) {
-          cleanAttributes[key] = firstSentence;
-          continue;
-        }
-      }
-      
-      // Değer içinde özelliklerden sonra bir değer bul
-      const propertiesSection = value.indexOf('Ürün Özellikleri');
-      if (propertiesSection !== -1) {
-        const afterProperties = value.substring(propertiesSection);
-        const keyValueMatch = new RegExp(`${key}\\s+([\\wÇçĞğİıÖöŞşÜü\\s\\-\\(\\)\\d%]+)`).exec(afterProperties);
-        
-        if (keyValueMatch && keyValueMatch[1]) {
-          cleanAttributes[key] = keyValueMatch[1].trim();
-          continue;
-        }
-      }
-      
-      // Eğer hiçbir temizleme çalışmazsa, ilk 30 karakter al
-      cleanAttributes[key] = value.substring(0, 30) + '...';
-    } else {
-      // Değer zaten kısa, olduğu gibi kullan
-      cleanAttributes[key] = value;
-    }
-  }
-  
-  // Bilinen değerleri manuel olarak temizle
-  const manualCleanValues: Record<string, string> = {
-    'Materyal': 'Poliüretan',
-    'Renk': 'Beyaz',
-    'Bağlama Şekli': 'Bağcıklı',
-    'Taban Tipi': 'Kalın Taban',
-    'Dış Materyal': 'Suni Deri',
-    'Saya Materyali': 'Suni Deri',
-    'Astar Materyali': 'Tekstil',
-    'İç Taban Materyali': 'Tekstil',
-    'Taban Materyali': 'Poli',
-    'Topuk Boyu': 'Orta Topuklu (5-9 cm)',
-    'Ek Özellik': 'Ortopedik Taban',
-    'Topuk Tipi': 'Düz Topuklu',
-    'Ortam': 'Sportswear',
-    'Koleksiyon': 'Basic',
-    'Desen': 'Renk Bloklu',
-    'Kumaş Tipi': 'Dokuma',
-    'Ürün Detayı': 'Günlük',
-    'Kutu Durumu': 'Kutusuz'
-  };
-  
-  // Manuel değerleri ekle, eğer attributes'te varsa
-  for (const [key, value] of Object.entries(manualCleanValues)) {
-    if (attributes[key] && attributes[key].includes(value)) {
-      cleanAttributes[key] = value;
-    }
-  }
-
-  // Önemli ürün özelliklerini ön tarafa getir
-  const priorityKeys = [
-    'Materyal', 'Renk', 'Bağlama Şekli', 'Taban Tipi', 'Dış Materyal',
-    'Saya Materyali', 'Astar Materyali', 'İç Taban Materyali', 'Taban Materyali',
-    'Topuk Boyu', 'Persona', 'Ek Özellik', 'Sürdürülebilirlik Detayı', 'Topuk Tipi',
-    'Ortam', 'Koleksiyon', 'Desen', 'Kumaş Tipi', 'Ürün Detayı', 'Kutu Durumu',
-    'Cinsiyet', 'Üretim Yeri', 'Marka', 'Model', 'Mevsim', 'Kullanım Alanı'
-  ];
-
-  // Özellikleri sıralı şekilde göstermek için sortedEntries dizisi oluştur
-  const sortedEntries = Object.entries(cleanAttributes).sort((a, b) => {
-    const indexA = priorityKeys.indexOf(a[0]);
-    const indexB = priorityKeys.indexOf(b[0]);
-    
-    // Öncelikli listede varsa, sıralamalarına göre göster
-    if (indexA !== -1 && indexB !== -1) {
-      return indexA - indexB;
-    }
-    // Sadece a öncelikli listede varsa, a önce gelsin
-    if (indexA !== -1) {
-      return -1;
-    }
-    // Sadece b öncelikli listede varsa, b önce gelsin
-    if (indexB !== -1) {
-      return 1;
-    }
-    // İkisi de öncelikli listede yoksa, alfabetik sırala
-    return a[0].localeCompare(b[0]);
-  });
+  const visible = expanded ? rows : rows.slice(0, INITIAL_VISIBLE_COUNT);
+  const canToggle = rows.length > INITIAL_VISIBLE_COUNT;
 
   return (
-    <div className="mt-2 bg-gray-800 rounded-lg overflow-hidden">
-      <h3 className="text-lg font-semibold p-3 text-white border-b border-gray-700">Ürün Özellikleri</h3>
-      
-      <div className="w-full">
-        {sortedEntries.map(([key, value], index) => (
-          <div 
-            key={index} 
-            className={`flex items-stretch border-b border-gray-700 last:border-b-0 ${index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750'}`}
+    <div className={`rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 ${className}`}>
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold tracking-wide text-zinc-200 uppercase">
+          {title}
+        </h3>
+        <span className="text-[11px] text-zinc-500">{rows.length} özellik</span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {visible.map((attr) => (
+          <div
+            key={`${attr.position}-${attr.name}-${attr.value}`}
+            className="flex min-h-[52px] items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-black/50 px-3 py-2.5"
           >
-            <div className="w-2/5 p-3 font-medium text-gray-300 border-r border-gray-700">{key}</div>
-            <div className="w-3/5 p-3 text-white">{value}</div>
+            <span className="min-w-0 shrink text-[12px] leading-snug text-zinc-400 line-clamp-2">
+              {attr.name}
+            </span>
+            <strong className="min-w-0 max-w-[58%] text-right text-[13px] font-semibold leading-snug text-zinc-100 line-clamp-2">
+              {attr.value}
+            </strong>
           </div>
         ))}
       </div>
+
+      {canToggle ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-3 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-300 hover:border-zinc-500 hover:text-white"
+        >
+          {expanded ? "Daha az göster" : "Daha fazla göster"}
+        </button>
+      ) : null}
     </div>
   );
-};
-
-export default ProductAttributes;
+}

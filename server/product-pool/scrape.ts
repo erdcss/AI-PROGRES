@@ -1793,6 +1793,32 @@ function scrapeIdefix(html: string, sourceUrl: string): ProductPoolProduct {
   };
 }
 
+/** Ana sayfa / kategori / boş sonuçları ürün sayma — katı kurallar */
+function assertStrictPoolProduct(product: ProductPoolProduct, host: string): void {
+  const title = cleanText(product.title || "");
+  if (!title || title.length < 4) {
+    throw new Error("Ürün başlığı alınamadı");
+  }
+  const homepageLike =
+    /online al[ıi][şs]veri[şs]|ana sayfa|homepage|404|bulunamad[ıi]|sayfa bulunamad[ıi]/i.test(
+      title,
+    ) ||
+    new RegExp(`^${host.replace(/\./g, "\\.")}`, "i").test(title) ||
+    /^(hepegitim|idefix|pazarama|beymen|n11|ptt\s*avm|amazon|trendyol)(\.com)?$/i.test(
+      title,
+    );
+  if (homepageLike) {
+    throw new Error("Ürün sayfası değil (ana sayfa / geçersiz başlık)");
+  }
+  if (!(Number(product.salePrice) > 0)) {
+    throw new Error("Ürün fiyatı alınamadı");
+  }
+  const images = Array.isArray(product.images) ? product.images.filter(Boolean) : [];
+  if (images.length < 1) {
+    throw new Error("Ürün görseli alınamadı");
+  }
+}
+
 export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProduct> {
   const trimmed = String(url || "").trim();
   if (!/^https?:\/\//i.test(trimmed)) {
@@ -1810,41 +1836,55 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
     // n11 Cloudflare — crawler UA → Browser Worker → stealth Chromium
     const html = await fetchN11Html(trimmed);
     product = await scrapeN11(html, trimmed);
-    if (!(product.salePrice > 0)) {
-      throw new Error("n11 ürün fiyatı alınamadı");
-    }
   } else if (host.includes("trendyol.com")) {
     // Trendyol bot korumalı — Browser Worker → stealth Chromium fallback
     const html = await fetchTrendyolHtml(trimmed);
     product = scrapeTrendyolPool(html, trimmed);
-    if (!(product.salePrice > 0)) {
-      throw new Error("Trendyol ürün fiyatı alınamadı");
-    }
   } else if (host.includes("amazon.")) {
     product = await scrapeAmazonPool(trimmed);
+  } else if (host.includes("beymen.com")) {
+    const html = await fetchProtectedMarketplaceHtml(
+      trimmed,
+      "beymen",
+      "Beymen sayfası alınamadı",
+    );
+    product = scrapeBeymen(html, trimmed);
+  } else if (host.includes("pazarama.com")) {
+    const html = await fetchProtectedMarketplaceHtml(
+      trimmed,
+      "pazarama",
+      "Pazarama sayfası alınamadı",
+    );
+    product = scrapePazarama(html, trimmed);
+  } else if (host.includes("idefix.com")) {
+    const html = await fetchProtectedMarketplaceHtml(
+      trimmed,
+      "idefix",
+      "idefix sayfası alınamadı",
+    );
+    product = scrapeIdefix(html, trimmed);
+  } else if (host.includes("hepegitim.com")) {
+    let html: string;
+    try {
+      html = await fetchHtml(trimmed, { crawlerFallback: true });
+    } catch {
+      html = await fetchProtectedMarketplaceHtml(
+        trimmed,
+        "hepegitim",
+        "Hepegitim sayfası alınamadı",
+      );
+    }
+    product = scrapeHepegitim(html, trimmed);
   } else {
     const html = await fetchHtml(trimmed);
-
-  if (host.includes("hepegitim.com")) {
-      product = scrapeHepegitim(html, trimmed);
-    } else if (host.includes("idefix.com")) {
-      product = scrapeIdefix(html, trimmed);
-    } else if (host.includes("pazarama.com")) {
-      product = scrapePazarama(html, trimmed);
-    } else if (host.includes("beymen.com")) {
-      product = scrapeBeymen(html, trimmed);
-      if (!(product.salePrice > 0)) {
-        throw new Error("Beymen ürün fiyatı alınamadı");
-      }
-    } else {
-      product = scrapeGeneric(html, trimmed);
-    }
+    product = scrapeGeneric(html, trimmed);
   }
 
   const result = {
     ...product,
     images: filterProductImagesForShopify(product.images, product.siteLogoUrl),
   };
+  assertStrictPoolProduct(result, host);
 
   // Supabase mobile mirror — fire-and-forget; scrape sonucunu etkilemez
   void import("../services/mobile-sync.service")
