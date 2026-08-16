@@ -841,6 +841,80 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type MobilePushDevice = typeof mobilePushDevices.$inferSelect;
 export type InsertMobilePushDevice = typeof mobilePushDevices.$inferInsert;
 
+/** Destination providers — shopify | marktgo (not a scrape provider) */
+export const DESTINATION_PROVIDERS = ["shopify", "marktgo"] as const;
+export type DestinationProvider = (typeof DESTINATION_PROVIDERS)[number];
+
+/** Integration connections (MARKT-GO etc.) — Shopify credentials stay in shopify_credentials */
+export const integrationConnections = pgTable("integration_connections", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  provider: text("provider").notNull(), // marktgo | (future)
+  apiBaseUrl: text("api_base_url").notNull(),
+  accessTokenEncrypted: text("access_token_encrypted").notNull(),
+  tokenLast4: text("token_last4"),
+  environment: text("environment").notNull().default("production"),
+  status: text("status").notNull().default("disconnected"),
+  scopes: jsonb("scopes").notNull().default([]),
+  missingScopes: jsonb("missing_scopes").notNull().default([]),
+  lastError: text("last_error"),
+  lastHealthAt: timestamp("last_health_at"),
+  webhookUrl: text("webhook_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const integrationProductMappings = pgTable("integration_product_mappings", {
+  id: serial("id").primaryKey(),
+  connectionId: integer("connection_id")
+    .notNull()
+    .references(() => integrationConnections.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  localProductId: text("local_product_id").notNull(),
+  trackedProductId: integer("tracked_product_id"),
+  externalProductId: text("external_product_id").notNull(),
+  externalId: text("external_id").notNull(),
+  status: text("status").notNull().default("synced"),
+  lastSyncedAt: timestamp("last_synced_at"),
+  lastError: text("last_error"),
+  failedSteps: jsonb("failed_steps").notNull().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const integrationVariantMappings = pgTable("integration_variant_mappings", {
+  id: serial("id").primaryKey(),
+  productMappingId: integer("product_mapping_id")
+    .notNull()
+    .references(() => integrationProductMappings.id, { onDelete: "cascade" }),
+  localVariantId: text("local_variant_id").notNull(),
+  externalVariantId: text("external_variant_id").notNull(),
+  option1: text("option1"),
+  option2: text("option2"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const integrationCategoryMappings = pgTable("integration_category_mappings", {
+  id: serial("id").primaryKey(),
+  connectionId: integer("connection_id")
+    .notNull()
+    .references(() => integrationConnections.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull().default("marktgo"),
+  sourceCategory: text("source_category").notNull(),
+  externalCategoryId: text("external_category_id").notNull(),
+  externalCategoryName: text("external_category_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type IntegrationConnection = typeof integrationConnections.$inferSelect;
+export type InsertIntegrationConnection = typeof integrationConnections.$inferInsert;
+export type IntegrationProductMapping = typeof integrationProductMappings.$inferSelect;
+export type IntegrationVariantMapping = typeof integrationVariantMappings.$inferSelect;
+export type IntegrationCategoryMapping = typeof integrationCategoryMappings.$inferSelect;
+
 export type TrackedProduct = typeof trackedProducts.$inferSelect;
 export type InsertTrackedProduct = typeof trackedProducts.$inferInsert;
 export type TrackedVariant = typeof trackedVariants.$inferSelect;

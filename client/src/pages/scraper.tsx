@@ -25,6 +25,7 @@ import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
+import MarktGoSettingsDialog from "@/components/MarktGoSettingsDialog";
 import MiniBrowser from "@/components/MiniBrowser";
 import { UrlHistory } from "@/components/UrlHistory";
 import { addRecentUrl } from "@/lib/url-history-client";
@@ -2663,6 +2664,7 @@ function ScraperPage() {
                 Telegram Bildirimleri
               </Button>
               {brand.shopifyEnabled ? <ShopifySettingsDialog /> : null}
+              <MarktGoSettingsDialog />
               <Button
                 type="button"
                 onClick={clearScraperWorkspace}

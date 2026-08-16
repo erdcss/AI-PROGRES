@@ -317,4 +317,81 @@ router.post("/shopify-upload-bulk", async (req, res) => {
   }
 });
 
+router.post("/marktgo-upload", async (req, res) => {
+  try {
+    const product = req.body?.product;
+    if (!product?.title || product?.salePrice == null) {
+      return res.status(400).json({ success: false, error: "product.title ve salePrice zorunlu" });
+    }
+    const { mapPoolProductToMarktGoInput } = await import("../services/marktgo/pool-map");
+    const { syncProductToMarktGo } = await import("../services/marktgo/sync.service");
+    const input = mapPoolProductToMarktGoInput(product);
+    const result = await syncProductToMarktGo(input);
+    return res.json({
+      success: true,
+      provider: "marktgo",
+      productId: result.externalProductId,
+      shopifyPrice: input.discountPrice ?? input.price,
+      ...result,
+    });
+  } catch (err) {
+    const { userMessageForMarktGoError } = await import("../services/marktgo/errors");
+    const message = userMessageForMarktGoError(err);
+    console.warn("[ProductPool] marktgo upload failed:", message);
+    return res.status(500).json({ success: false, error: message });
+  }
+});
+
+router.post("/marktgo-upload-bulk", async (req, res) => {
+  try {
+    const products = Array.isArray(req.body?.products) ? req.body.products : [];
+    if (!products.length) {
+      return res.status(400).json({ success: false, error: "products zorunlu" });
+    }
+    const { mapPoolProductToMarktGoInput } = await import("../services/marktgo/pool-map");
+    const { syncProductToMarktGo } = await import("../services/marktgo/sync.service");
+    const { userMessageForMarktGoError } = await import("../services/marktgo/errors");
+
+    const results: Array<{
+      sourceUrl?: string;
+      title?: string;
+      success: boolean;
+      productId?: string;
+      error?: string;
+    }> = [];
+
+    for (const raw of products) {
+      try {
+        const input = mapPoolProductToMarktGoInput(raw);
+        const uploaded = await syncProductToMarktGo(input);
+        results.push({
+          sourceUrl: raw?.sourceUrl,
+          title: raw?.title,
+          success: true,
+          productId: uploaded.externalProductId,
+        });
+      } catch (err) {
+        results.push({
+          sourceUrl: raw?.sourceUrl,
+          title: raw?.title,
+          success: false,
+          error: userMessageForMarktGoError(err),
+        });
+      }
+    }
+
+    const ok = results.filter((r) => r.success).length;
+    return res.json({
+      success: ok > 0,
+      provider: "marktgo",
+      ok,
+      fail: results.length - ok,
+      results,
+    });
+  } catch (err) {
+    const { userMessageForMarktGoError } = await import("../services/marktgo/errors");
+    return res.status(500).json({ success: false, error: userMessageForMarktGoError(err) });
+  }
+});
+
 export default router;

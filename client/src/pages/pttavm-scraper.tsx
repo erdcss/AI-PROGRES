@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
+import MarktGoSettingsDialog from "@/components/MarktGoSettingsDialog";
 import MiniBrowser from "@/components/MiniBrowser";
 
 
@@ -776,6 +777,7 @@ function PttAvmScraperPage() {
                 Telegram Bildirimleri
               </Button>
               {brand.shopifyEnabled ? <ShopifySettingsDialog /> : null}
+              <MarktGoSettingsDialog />
               <Button
                 onClick={clearAllData}
                 variant="outline"

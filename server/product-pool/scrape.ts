@@ -839,14 +839,14 @@ async function filterRealN11Images(urls: string[]): Promise<string[]> {
   for (const url of urls) {
     if (out.length >= 12) break;
     try {
-      const res = await fetch(url, {
+  const res = await fetch(url, {
         method: "GET",
-        headers: {
-          "User-Agent": UA,
+    headers: {
+      "User-Agent": UA,
           Referer: "https://www.n11.com/",
           Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-        },
-        redirect: "follow",
+    },
+    redirect: "follow",
         signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) continue;
@@ -1825,7 +1825,7 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
   } else {
     const html = await fetchHtml(trimmed);
 
-    if (host.includes("hepegitim.com")) {
+  if (host.includes("hepegitim.com")) {
       product = scrapeHepegitim(html, trimmed);
     } else if (host.includes("idefix.com")) {
       product = scrapeIdefix(html, trimmed);

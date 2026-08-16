@@ -27,6 +27,7 @@ import { isCloudRuntime } from "@shared/deploy-runtime";
 import { trackingService } from "./tracking.service";
 import { runControlCenterMigration } from "../migrations/run-control-center-migration";
 import { runMobilePushMigration } from "../migrations/run-mobile-push-migration";
+import { runMarktGoMigration } from "../migrations/run-marktgo-migration";
 import { resumePendingImportJobs } from "./import-job-runner.service";
 
 /** Ürün Takip v2 — tek resmi başlatma noktası */
@@ -34,6 +35,7 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
   const migrationOk = await runProductTrackingMigration(true);
   const controlCenterOk = await runControlCenterMigration(true);
   await runMobilePushMigration(true);
+  await runMarktGoMigration(true);
   const status = await refreshProductTrackingTableStatus();
 
   if (!migrationOk || !status.allTablesReady) {

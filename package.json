@@ -26,6 +26,7 @@
     "test:tracking-v3": "tsx server/__tests__/tracking-v3.test.ts && tsx server/__tests__/shopify-tracking-reconciliation.test.ts",
     "test:mobile-push": "tsx server/__tests__/mobile-push.service.test.ts",
     "test:mobile-supabase": "tsx server/__tests__/mobile-supabase-sync.test.ts",
+    "test:marktgo": "tsx server/__tests__/marktgo.provider.test.ts",
     "mobile:supabase:backfill": "tsx scripts/backfill-mobile-supabase.ts",
     "test:shopify-dry-run": "tsx server/__tests__/import-e2e.test.ts",
     "test:shopify-apply": "tsx server/__tests__/change-approval-state.test.ts",
@@ -190,7 +191,7 @@
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
-    "tsx": "^4.22.4",
+    "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "vite": "^5.4.14"
   },

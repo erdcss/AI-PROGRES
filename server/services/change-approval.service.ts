@@ -334,7 +334,23 @@ export async function applyChange(changeId: number, actor = "user", dryRun = fal
   }
 
   try {
-    const shopifyResult = await applyDetectedChangeToShopify(changeId);
+    let shopifyResult: unknown = null;
+    let marktgoResult: unknown = null;
+    const { trackedProductHasMarktGoMapping, applyDetectedChangeToMarktGo } = await import(
+      "./marktgo/apply-change.service"
+    );
+    const hasMarktGo = await trackedProductHasMarktGoMapping(change.trackedProductId);
+    if (hasMarktGo) {
+      marktgoResult = await applyDetectedChangeToMarktGo(changeId);
+    }
+    const [trackedRow] = await db
+      .select({ shopifyProductId: trackedProducts.shopifyProductId })
+      .from(trackedProducts)
+      .where(eq(trackedProducts.id, change.trackedProductId))
+      .limit(1);
+    if (trackedRow?.shopifyProductId || !hasMarktGo) {
+      shopifyResult = await applyDetectedChangeToShopify(changeId);
+    }
 
     const [updated] = await db
       .update(detectedChanges)
@@ -356,10 +372,10 @@ export async function applyChange(changeId: number, actor = "user", dryRun = fal
       action: "change.apply",
       entityType: "detected_change",
       entityId: String(changeId),
-      newValue: { status: "applied", dryRun: dryRunResult, shopifyResult },
+      newValue: { status: "applied", dryRun: dryRunResult, shopifyResult, marktgoResult },
     });
 
-    return { change: updated, dryRun: dryRunResult, shopify: shopifyResult };
+    return { change: updated, dryRun: dryRunResult, shopify: shopifyResult, marktgo: marktgoResult };
   } catch (err) {
     const message = (err as Error).message;
     await db

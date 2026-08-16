@@ -20,6 +20,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useDestinationBrand } from "@/hooks/use-destination-brand";
 import { PRODUCT_POOL_SITES, isProductPoolUrl, matchWebHookSite } from "@shared/web-hooks-sites";
+import MarktGoSettingsDialog from "@/components/MarktGoSettingsDialog";
 
 /** Ürün Havuzu — @shared/web-hooks-sites ile senkron */
 const SUPPORTED_SITES = PRODUCT_POOL_SITES.map((s) => ({
@@ -739,6 +740,8 @@ export default function UrunHavuzuPage() {
   const [loading, setLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [marktgoUploading, setMarktgoUploading] = useState(false);
+  const [marktgoSteps, setMarktgoSteps] = useState<Array<{ label: string; ok: boolean }>>([]);
   const [bulkUploading, setBulkUploading] = useState(false);
   const [products, setProducts] = useState<PoolProduct[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -1109,6 +1112,54 @@ export default function UrunHavuzuPage() {
     }
   };
 
+  const sendToMarktGo = async () => {
+    if (!product) return;
+    setMarktgoUploading(true);
+    setMarktgoSteps([]);
+    try {
+      const res = await fetch("/api/product-pool/marktgo-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product: { ...product, tags } }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(typeof data.error === "string" ? data.error : "MARKT-GO gönderimi başarısız");
+      }
+      if (Array.isArray(data.steps)) {
+        setMarktgoSteps(
+          data.steps.map((s: { label?: string; ok?: boolean }) => ({
+            label: String(s.label || ""),
+            ok: s.ok !== false,
+          })),
+        );
+      }
+      const sentId = product.poolId;
+      setProducts((prev) => {
+        const idx = prev.findIndex((p) => p.poolId === sentId);
+        if (idx <= 0) return prev;
+        const next = [...prev];
+        const [item] = next.splice(idx, 1);
+        next.unshift(item);
+        return next;
+      });
+      setActiveIndex(0);
+      setImageIndex(0);
+      toast({
+        title: data.status === "partial_sync" ? "MARKT-GO kısmi senkron" : "MARKT-GO'ya gönderildi",
+        description: `${product.poolId} · ID ${data.externalProductId || data.productId}`,
+      });
+    } catch (err) {
+      toast({
+        title: "MARKT-GO hatası",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setMarktgoUploading(false);
+    }
+  };
+
   const sendBulk = async () => {
     if (products.length < 2) return;
     setBulkUploading(true);
@@ -1207,6 +1258,7 @@ export default function UrunHavuzuPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <MarktGoSettingsDialog />
             <div className="relative">
               <button
                 type="button"
@@ -1707,9 +1759,33 @@ export default function UrunHavuzuPage() {
 
                 <ShopifySendButton
                   loading={uploading}
-                  disabled={bulkUploading}
+                  disabled={bulkUploading || marktgoUploading}
                   onClick={sendToShopify}
                 />
+                <button
+                  type="button"
+                  disabled={uploading || bulkUploading || marktgoUploading}
+                  onClick={() => void sendToMarktGo()}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-neutral-700 bg-neutral-950 px-5 py-3.5 text-[15px] font-bold text-white hover:border-neutral-500 disabled:opacity-50"
+                >
+                  {marktgoUploading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <span className="w-7 h-7 rounded-full border border-neutral-600 text-[10px] font-bold inline-flex items-center justify-center">
+                      MG
+                    </span>
+                  )}
+                  {marktgoUploading ? "MARKT-GO'ya gidiyor…" : "MARKT-GO'ya Gönder"}
+                </button>
+                {marktgoSteps.length > 0 ? (
+                  <ul className="text-[11px] text-neutral-500 space-y-0.5 px-1">
+                    {marktgoSteps.map((s, i) => (
+                      <li key={`${s.label}-${i}`}>
+                        {s.ok ? "✓" : "!"} {s.label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
 
                 {brand.shopifyEnabled && ((product.features?.length ?? 0) > 0 || tags.length > 0) ? (
                   <p className="text-[11px] text-neutral-500">

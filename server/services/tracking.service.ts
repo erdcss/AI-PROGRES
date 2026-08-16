@@ -675,6 +675,30 @@ export class TrackingService {
       },
     });
 
+    // Supabase mobile mirror — fire-and-forget; tracking kaydını etkilemez
+    void import("./mobile-sync.service")
+      .then(({ upsertMobileProduct }) =>
+        upsertMobileProduct({
+          sourceProductId: String(productRow.sourceProductId || productRow.id),
+          source: productRow.sourceSite || "unknown",
+          title: productRow.sourceTitle,
+          sourceUrl: productRow.sourceUrl,
+          price:
+            productRow.currentSourcePrice != null
+              ? Number(productRow.currentSourcePrice)
+              : null,
+          trackingProductId: productRow.id,
+          trackingEnabled: true,
+          shopifyStatus: productRow.shopifyProductId ? "linked" : "none",
+        }),
+      )
+      .catch((err) =>
+        console.warn(
+          "[mobile-sync] tracking register upsert skipped:",
+          err instanceof Error ? err.message : String(err),
+        ),
+      );
+
     return productRow;
   }
 
@@ -689,6 +713,27 @@ export class TrackingService {
       })
       .where(eq(trackedProducts.id, id))
       .returning();
+
+    if (row) {
+      void import("./mobile-sync.service")
+        .then(({ upsertMobileProduct }) =>
+          upsertMobileProduct({
+            sourceProductId: String(row.sourceProductId || row.id),
+            source: row.sourceSite || "unknown",
+            title: row.sourceTitle,
+            sourceUrl: row.sourceUrl,
+            trackingProductId: row.id,
+            trackingEnabled: enabled,
+          }),
+        )
+        .catch((err) =>
+          console.warn(
+            "[mobile-sync] setTrackingEnabled upsert skipped:",
+            err instanceof Error ? err.message : String(err),
+          ),
+        );
+    }
+
     return row ?? null;
   }
 
