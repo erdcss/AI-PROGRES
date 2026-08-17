@@ -21,6 +21,15 @@ export function userMessageForMarktGoError(err: unknown): string {
 
 export function normalizeMarktGoHttpError(status: number, bodyText: string): MarktGoApiError {
   const safe = redactSecrets(bodyText || "").slice(0, 400);
+  let apiCode = "";
+  try {
+    const parsed = JSON.parse(bodyText || "{}") as { code?: string; error?: string };
+    if (typeof parsed.code === "string") apiCode = parsed.code;
+  } catch {
+    /* plain text body */
+  }
+  const lower = safe.toLowerCase();
+
   if (status === 401) {
     return new MarktGoApiError(
       "MARKT-GO API tokenı geçersiz veya süresi dolmuş.",
@@ -42,11 +51,23 @@ export function normalizeMarktGoHttpError(status: number, bodyText: string): Mar
   if (status === 404) {
     return new MarktGoApiError("MARKT-GO kaydı bulunamadı.", 404, "not_found", false);
   }
-  if (status === 409) {
+  if (
+    status === 409 ||
+    apiCode === "DUPLICATE_EXTERNAL_ID" ||
+    lower.includes("duplicate externalid")
+  ) {
     return new MarktGoApiError(
       "Bu ürün MARKT-GO'da daha önce oluşturulmuş.",
-      409,
+      status || 409,
       "duplicate",
+      false,
+    );
+  }
+  if (apiCode === "DUPLICATE_VARIANT_ID" || lower.includes("duplicate variant")) {
+    return new MarktGoApiError(
+      "Varyant kimlikleri çakışıyor — gönderim yeniden denenecek.",
+      status || 400,
+      "duplicate_variant",
       false,
     );
   }

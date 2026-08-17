@@ -11,6 +11,7 @@ import {
   stableExternalId,
   upsertProductMapping,
   upsertVariantMapping,
+  deleteProductMapping,
 } from "./mapping.service";
 import { extractId, normalizeMarktGoProduct } from "./normalize";
 import type { LocalProductInput, SyncProgress } from "./types";
@@ -53,6 +54,7 @@ function skusFromProductPayload(payload: unknown): Array<Record<string, unknown>
 function buildInlineVariants(input: LocalProductInput) {
   const rows = input.variants || [];
   if (!rows.length) return undefined;
+  const prefix = stableExternalId(String(input.localProductId)).slice(0, 48);
   const colors = [...new Set(rows.map((v) => String(v.option1 || "").trim()).filter(Boolean))];
   const sizes = [...new Set(rows.map((v) => String(v.option2 || "").trim()).filter(Boolean))];
   const options: Array<{ id: string; name: string; values: string[] }> = [];
@@ -65,14 +67,10 @@ function buildInlineVariants(input: LocalProductInput) {
       values: rows.map((v, i) => String(v.localVariantId || i + 1)),
     });
   }
-  const seen = new Set<string>();
   const skus = rows.map((v, i) => {
-    let id = String(v.localVariantId || `v${i + 1}`).slice(0, 80);
-    if (!id || seen.has(id)) id = `${id || "v"}-${i}`;
-    seen.add(id);
     const stock = intStock(v.stock, 0);
     return {
-      id,
+      id: `${prefix}-v${i + 1}`.slice(0, 80),
       option1: v.option1 || null,
       option2: v.option2 || null,
       option3: null,
@@ -82,6 +80,15 @@ function buildInlineVariants(input: LocalProductInput) {
     };
   });
   return { options, skus };
+}
+
+function isDuplicateProductError(err: unknown): boolean {
+  if (!(err instanceof MarktGoApiError)) return false;
+  return err.code === "duplicate" || err.status === 409;
+}
+
+function isDuplicateVariantError(err: unknown): boolean {
+  return err instanceof MarktGoApiError && err.code === "duplicate_variant";
 }
 
 async function lookupByExternalId(
@@ -112,7 +119,6 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   const localProductId = String(input.localProductId);
   const externalId = stableExternalId(localProductId);
   const images = (input.images || []).filter((u) => /^https?:\/\//i.test(u)).slice(0, 8);
-  const inlineVariants = buildInlineVariants(input);
   const brand = input.brand ? String(input.brand).trim() : "";
 
   let mapping = await findProductMapping({
@@ -125,51 +131,94 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   let externalProductId = mapping?.externalProductId || null;
   let createdPayload: unknown = null;
 
-  const productBody: Record<string, unknown> = {
-    name: input.title,
-    description: input.description || "",
-    ...(brand ? { brand } : {}),
-    price: money(input.price),
-    discountPrice: input.discountPrice != null ? money(input.discountPrice) : null,
-    stock: intStock(input.stock, 0),
-    images,
-    tags: input.tags || [],
-    status: "active" as const,
-    externalId,
-    ...(inlineVariants ? { variants: inlineVariants } : {}),
+  const buildProductBody = (withVariants: boolean): Record<string, unknown> => {
+    const inline = withVariants ? buildInlineVariants(input) : undefined;
+    return {
+      name: input.title,
+      description: input.description || "",
+      ...(brand ? { brand } : {}),
+      price: money(input.price),
+      discountPrice: input.discountPrice != null ? money(input.discountPrice) : null,
+      stock: intStock(input.stock, 0),
+      images,
+      tags: input.tags || [],
+      status: "active" as const,
+      externalId,
+      ...(inline ? { variants: inline } : {}),
+    };
   };
+
+  async function createRemote(withVariants: boolean) {
+    return client.post<unknown>(
+      "/products",
+      buildProductBody(withVariants),
+      idempotencyKeyForProduct(localProductId),
+    );
+  }
+
+  if (externalProductId) {
+    try {
+      await client.patch(`/products/${externalProductId}`, {
+        name: input.title,
+        description: input.description || "",
+        ...(brand ? { brand } : {}),
+        images,
+      });
+      steps.push({ step: "product_create", label: "Ürün güncelleniyor", ok: true });
+    } catch (err) {
+      if (err instanceof MarktGoApiError && err.status === 404 && mapping) {
+        await deleteProductMapping(mapping.id);
+        externalProductId = null;
+        mapping = null;
+      } else {
+        throw err;
+      }
+    }
+  }
 
   if (!externalProductId) {
     try {
-      createdPayload = await client.post<unknown>(
-        "/products",
-        productBody,
-        idempotencyKeyForProduct(localProductId),
-      );
+      createdPayload = await createRemote(true);
       externalProductId = extractId(createdPayload);
       steps.push({ step: "product_create", label: STEP_LABEL.product_create, ok: true });
     } catch (err) {
-      if (err instanceof MarktGoApiError && err.status === 409) {
+      if (isDuplicateVariantError(err)) {
+        try {
+          createdPayload = await createRemote(false);
+          externalProductId = extractId(createdPayload);
+          steps.push({
+            step: "product_create",
+            label: STEP_LABEL.product_create,
+            ok: true,
+            detail: "varyantlar atlanarak oluşturuldu",
+          });
+        } catch (retryErr) {
+          if (isDuplicateProductError(retryErr)) {
+            externalProductId = await lookupByExternalId(client, externalId);
+            steps.push({
+              step: "product_lookup",
+              label: STEP_LABEL.product_lookup,
+              ok: Boolean(externalProductId),
+              detail: "mevcut ürün yeniden bağlandı",
+            });
+            if (!externalProductId) throw retryErr;
+          } else {
+            throw retryErr;
+          }
+        }
+      } else if (isDuplicateProductError(err)) {
         externalProductId = await lookupByExternalId(client, externalId);
         steps.push({
           step: "product_lookup",
           label: STEP_LABEL.product_lookup,
           ok: Boolean(externalProductId),
-          detail: "409 duplicate — existing product reused",
+          detail: "mevcut ürün yeniden bağlandı",
         });
         if (!externalProductId) throw err;
       } else {
         throw err;
       }
     }
-  } else {
-    await client.patch(`/products/${externalProductId}`, {
-      name: input.title,
-      description: input.description || "",
-      ...(brand ? { brand } : {}),
-      images,
-    });
-    steps.push({ step: "product_create", label: "Ürün güncelleniyor", ok: true });
   }
 
   if (!externalProductId) {

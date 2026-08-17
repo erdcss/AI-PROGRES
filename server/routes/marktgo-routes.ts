@@ -72,6 +72,10 @@ export function registerMarktGoRoutes(app: Express): void {
       if (!product?.title) {
         return res.status(400).json({ success: false, error: "product.title zorunlu" });
       }
+      const salePrice = product?.salePrice ?? product?.price;
+      if (salePrice == null || !Number.isFinite(Number(salePrice))) {
+        return res.status(400).json({ success: false, error: "product.salePrice zorunlu" });
+      }
       const input = req.body?.localProductId
         ? product
         : mapPoolProductToMarktGoInput(product);

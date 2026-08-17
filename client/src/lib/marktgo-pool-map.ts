@@ -36,8 +36,10 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     const color = String(v.color || v.option1 || "").trim();
     const size = String(v.size || v.option2 || "").trim();
     const stockCount = v.stockCount != null ? Number(v.stockCount) : null;
+    const baseId = String(v.sourceProductId || v.listingId || v.id || "").trim();
+    const id = baseId ? `${baseId}-${i + 1}` : `${color}-${size}-${i + 1}`;
     return {
-      id: String(v.sourceProductId || v.listingId || `${color}-${size}-${i}`),
+      id,
       color: color || undefined,
       size: size || undefined,
       option1: color || undefined,

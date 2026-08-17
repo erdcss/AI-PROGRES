@@ -39,27 +39,35 @@ export function mapPoolProductToMarktGoInput(
         .join("")
     : "";
   const description = features ? `<ul>${features}</ul>` : "";
+  const variantSeen = new Set<string>();
   const variants = Array.isArray(product.variants)
-    ? (product.variants as Array<Record<string, unknown>>).map((v, i) => ({
-        localVariantId: String(v.id || v.sku || `${i}`),
-        option1: v.option1
-          ? String(v.option1)
-          : v.color
-            ? String(v.color)
-            : v.title
-              ? String(v.title)
-              : undefined,
-        option2: v.option2 ? String(v.option2) : v.size ? String(v.size) : undefined,
-        sku: v.sku ? String(v.sku) : undefined,
-        stock:
-          v.inStock === false
-            ? 0
-            : v.stock != null
-              ? Math.max(0, Math.floor(Number(v.stock) || 0))
-              : 1,
-        price: v.price != null ? Number(v.price) : sellPrice,
-        imageUrl: v.imageUrl ? String(v.imageUrl) : v.image ? String(v.image) : undefined,
-      }))
+    ? (product.variants as Array<Record<string, unknown>>).map((v, i) => {
+        let localVariantId = String(v.id || v.sku || `v${i + 1}`).trim();
+        if (!localVariantId || variantSeen.has(localVariantId)) {
+          localVariantId = `${localVariantId || "v"}-${i + 1}`;
+        }
+        variantSeen.add(localVariantId);
+        return {
+          localVariantId,
+          option1: v.option1
+            ? String(v.option1)
+            : v.color
+              ? String(v.color)
+              : v.title
+                ? String(v.title)
+                : undefined,
+          option2: v.option2 ? String(v.option2) : v.size ? String(v.size) : undefined,
+          sku: v.sku ? String(v.sku) : undefined,
+          stock:
+            v.inStock === false
+              ? 0
+              : v.stock != null
+                ? Math.max(0, Math.floor(Number(v.stock) || 0))
+                : 1,
+          price: v.price != null ? Number(v.price) : sellPrice,
+          imageUrl: v.imageUrl ? String(v.imageUrl) : v.image ? String(v.image) : undefined,
+        };
+      })
     : [];
 
   return {
