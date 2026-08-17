@@ -1160,6 +1160,14 @@ export default function UrunHavuzuPage() {
 
   const sendToDestination = async () => {
     if (!product) return;
+    if (!brand.marktgoEnabled) {
+      toast({
+        title: "MARKT-GO bağlantısı yok",
+        description: "Sağ üstteki MARKT-GO · Bağlan butonundan API token kaydedin.",
+        variant: "destructive",
+      });
+      return;
+    }
     setUploading(true);
     setMarktgoSteps([]);
     try {
@@ -1199,6 +1207,14 @@ export default function UrunHavuzuPage() {
 
   const sendBulk = async () => {
     if (products.length < 2) return;
+    if (!brand.marktgoEnabled) {
+      toast({
+        title: "MARKT-GO bağlantısı yok",
+        description: "Sağ üstteki MARKT-GO · Bağlan butonundan API token kaydedin.",
+        variant: "destructive",
+      });
+      return;
+    }
     setBulkUploading(true);
     setMarktgoSteps([]);
     try {
@@ -1302,6 +1318,11 @@ export default function UrunHavuzuPage() {
           </div>
           <div className="flex items-center gap-2">
             <MarktGoSettingsDialog />
+            {!brand.marktgoEnabled ? (
+              <span className="hidden sm:inline text-[11px] text-amber-400/90 max-w-[140px] leading-tight">
+                MARKT-GO bağlantısı gerekli
+              </span>
+            ) : null}
             <div className="relative">
               <button
                 type="button"
@@ -1531,7 +1552,7 @@ export default function UrunHavuzuPage() {
               <ShopifySendButton
                 label="bulk"
                 loading={bulkUploading}
-                disabled={loading}
+                disabled={loading || !brand.marktgoEnabled}
                 onClick={sendBulk}
               />
             </div>
@@ -1802,7 +1823,7 @@ export default function UrunHavuzuPage() {
 
                 <ShopifySendButton
                   loading={uploading || marktgoUploading}
-                  disabled={bulkUploading}
+                  disabled={bulkUploading || !brand.marktgoEnabled}
                   onClick={sendToDestination}
                 />
                 {marktgoSteps.length > 0 ? (

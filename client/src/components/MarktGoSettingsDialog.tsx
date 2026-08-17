@@ -34,16 +34,24 @@ export default function MarktGoSettingsDialog() {
   const [accessToken, setAccessToken] = useState("");
   const [environment, setEnvironment] = useState("production");
 
-  const { data, isLoading } = useQuery<{ connections: Connection[] }>({
+  const { data, isLoading, isFetching } = useQuery<{ connections: Connection[] }>({
     queryKey: ["/api/marktgo/connections"],
     queryFn: async () => {
-      const res = await fetch("/api/marktgo/connections");
+      const res = await fetch("/api/marktgo/connections", { cache: "no-store" });
       return res.json();
     },
-    enabled: open,
+    staleTime: 10_000,
+    refetchInterval: open ? 15_000 : 30_000,
   });
 
   const active = data?.connections?.[0];
+  const connected =
+    active?.status === "connected" || active?.status === "connected_limited";
+  const triggerLabel = connected
+    ? `MARKT-GO · ${active?.statusLabel || "Bağlı"}`
+    : isLoading || isFetching
+      ? "MARKT-GO · …"
+      : "MARKT-GO · Bağlan";
 
   const save = useMutation({
     mutationFn: async () => {
@@ -65,6 +73,7 @@ export default function MarktGoSettingsDialog() {
     onSuccess: (conn) => {
       qc.invalidateQueries({ queryKey: ["/api/marktgo/connections"] });
       qc.invalidateQueries({ queryKey: ["/api/marktgo/health"] });
+      qc.invalidateQueries({ queryKey: ["connection-access"] });
       setAccessToken("");
       toast({
         title: conn.statusLabel || "MARKT-GO",
@@ -101,10 +110,12 @@ export default function MarktGoSettingsDialog() {
         <Button
           type="button"
           variant="outline"
-          className="bg-zinc-800/40 border-zinc-700/60 text-zinc-300 hover:text-white px-3 py-2"
+          className={`bg-zinc-800/40 border-zinc-700/60 text-zinc-300 hover:text-white px-3 py-2 max-w-[220px] ${
+            connected ? "border-emerald-700/60 text-emerald-300" : ""
+          }`}
         >
-          <Plug className="w-4 h-4 mr-2" />
-          MARKT-GO
+          <Plug className="w-4 h-4 mr-2 shrink-0" />
+          <span className="truncate text-xs sm:text-sm">{triggerLabel}</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="bg-neutral-950 border-neutral-800 text-neutral-100 max-w-lg">

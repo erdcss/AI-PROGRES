@@ -38,6 +38,7 @@ import {
   recordTrendyolSuccess,
   shouldSkipDirectHtmlAfterBlock,
   waitTrendyolBlockBackoff,
+  shouldSkipTrendyolBrowserScrape,
   type BlockSignal,
 } from "./trendyol-block-guard";
 import { consumeLastDirectHtmlBlockSignal } from "./trendyol-direct-html";
@@ -134,10 +135,17 @@ function pushStageError(diagnostics: ScrapeDiagnostics, code: ScrapeStageErrorCo
 function notePipelineBlock(
   diagnostics: ScrapeDiagnostics,
   signal: BlockSignal | null,
+  result: any,
+  url: string,
+  pipelineBlockRecorded: { value: boolean },
 ): void {
   if (!signal) return;
   const code = mapBlockSignalToStageError(signal);
   pushStageError(diagnostics, code);
+  const fields = evaluateFields(result, url);
+  if (hasMinimumScrapeData(fields)) return;
+  if (pipelineBlockRecorded.value) return;
+  pipelineBlockRecorded.value = true;
   recordTrendyolBlock(signal);
 }
 
@@ -655,11 +663,20 @@ export async function runTrendyolScrapePipeline(
   logScrapeDiagnostics(diagnostics);
 
   let result: any = emptyResult(url);
+  const pipelineBlockRecorded = { value: false };
   let apiProduct: Awaited<ReturnType<typeof fetchTrendyolProductByUrl>> = null;
   let directHtml: string | null = null;
   let forcedGlobalTimeout = false;
   let skipHeavyStages = false;
   let confirmedBlock: BlockSignal | null = null;
+
+  const blockStatusAtStart = getTrendyolBlockStatus();
+  if (blockStatusAtStart.consecutiveFails > 0) {
+    const waited = await waitTrendyolBlockBackoff(blockStatusAtStart.consecutiveFails);
+    if (waited > 0) {
+      console.log(`⏳ [TRENDYOL_BLOCK] pre-scrape backoff ${Math.round(waited / 1000)}s`);
+    }
+  }
 
   const convertApiProduct = (api: NonNullable<typeof apiProduct>) => ({
     success: true,
@@ -815,7 +832,7 @@ export async function runTrendyolScrapePipeline(
                 detail: bw.error,
               } satisfies BlockSignal);
             confirmedBlock = signal;
-            notePipelineBlock(diagnostics, signal);
+            notePipelineBlock(diagnostics, signal, result, url, pipelineBlockRecorded);
             await waitTrendyolBlockBackoff();
           }
           console.warn(
@@ -861,7 +878,7 @@ export async function runTrendyolScrapePipeline(
           const apiBlock = consumeLastTrendyolApiBlockSignal();
           if (apiBlock) {
             confirmedBlock = apiBlock;
-            notePipelineBlock(diagnostics, apiBlock);
+            notePipelineBlock(diagnostics, apiBlock, result, url, pipelineBlockRecorded);
           }
         }
       } catch (err) {
@@ -874,7 +891,7 @@ export async function runTrendyolScrapePipeline(
         const apiBlock = consumeLastTrendyolApiBlockSignal();
         if (apiBlock) {
           confirmedBlock = apiBlock;
-          notePipelineBlock(diagnostics, apiBlock);
+          notePipelineBlock(diagnostics, apiBlock, result, url, pipelineBlockRecorded);
         }
       }
     }
@@ -904,7 +921,7 @@ export async function runTrendyolScrapePipeline(
           const htmlBlock = consumeLastDirectHtmlBlockSignal();
           if (htmlBlock) {
             confirmedBlock = htmlBlock;
-            notePipelineBlock(diagnostics, htmlBlock);
+            notePipelineBlock(diagnostics, htmlBlock, result, url, pipelineBlockRecorded);
           }
         }
       } catch (err) {
@@ -916,7 +933,7 @@ export async function runTrendyolScrapePipeline(
         const htmlBlock = consumeLastDirectHtmlBlockSignal();
         if (htmlBlock) {
           confirmedBlock = htmlBlock;
-          notePipelineBlock(diagnostics, htmlBlock);
+          notePipelineBlock(diagnostics, htmlBlock, result, url, pipelineBlockRecorded);
         }
       }
     } else if (shouldSkipDirectHtmlAfterBlock(confirmedBlock)) {
@@ -962,33 +979,16 @@ export async function runTrendyolScrapePipeline(
     diagnostics.directHtmlSkippedReason = "cloud-provider-chain";
   } else if (!isPastDeadline()) {
     diagnostics.apiStarted = true;
-    diagnostics.directHtmlStarted = true;
     const apiStart = Date.now();
-    console.log("⚡ [1-2/6] Trendyol API + Direct HTML (paralel)...");
+    console.log("⚡ [1/6] Trendyol API (sıralı — ban koruması)...");
 
-    const htmlRetries = policy.directHtmlRetries;
-
-    const [apiSettled, htmlSettled] = await Promise.allSettled([
-      withStageTimeout(
+    try {
+      apiProduct = await withStageTimeout(
         () => fetchTrendyolProductByUrl(url),
         Math.min(STAGE_TIMEOUT.api, remainingMs()),
         "api-timeout",
-      ),
-      (async () => {
-        const { fetchTrendyolDirectHtmlRaw } = await import("./trendyol-direct-html");
-        const directRaw = await withStageTimeout(
-          () => fetchTrendyolDirectHtmlRaw(url, htmlRetries),
-          Math.min(STAGE_TIMEOUT.directHtml, remainingMs()),
-          "direct-html-timeout",
-        );
-        return directRaw?.html ?? null;
-      })(),
-    ]);
-
-    diagnostics.apiDurationMs = Date.now() - apiStart;
-
-    if (apiSettled.status === "fulfilled") {
-      apiProduct = apiSettled.value;
+      );
+      diagnostics.apiDurationMs = Date.now() - apiStart;
       if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
         result = convertApiProduct(apiProduct);
         diagnostics.apiSuccess = true;
@@ -1004,11 +1004,11 @@ export async function runTrendyolScrapePipeline(
         const apiBlock = consumeLastTrendyolApiBlockSignal();
         if (apiBlock) {
           confirmedBlock = apiBlock;
-          notePipelineBlock(diagnostics, apiBlock);
+          notePipelineBlock(diagnostics, apiBlock, result, url, pipelineBlockRecorded);
         }
       }
-    } else {
-      const err = apiSettled.reason;
+    } catch (err) {
+      diagnostics.apiDurationMs = Date.now() - apiStart;
       const code: ScrapeStageErrorCode =
         err instanceof ScrapeStageTimeoutError ? err.code : "api-error";
       pushStageError(diagnostics, code);
@@ -1018,35 +1018,59 @@ export async function runTrendyolScrapePipeline(
       const apiBlock = consumeLastTrendyolApiBlockSignal();
       if (apiBlock) {
         confirmedBlock = apiBlock;
-        notePipelineBlock(diagnostics, apiBlock);
+        notePipelineBlock(diagnostics, apiBlock, result, url, pipelineBlockRecorded);
       }
     }
 
-    if (htmlSettled.status === "fulfilled") {
-      directHtml = htmlSettled.value;
-      diagnostics.directHtmlSuccess = Boolean(directHtml && directHtml.length > 5000);
-      if (diagnostics.directHtmlSuccess) {
-        console.log(`✅ [2/6] Direct HTML: ${directHtml!.length} bytes (${diagnostics.apiDurationMs}ms)`);
-      } else {
-        console.warn("⚠️ [2/6] Direct HTML: ürün verisi içeren HTML alınamadı");
+    const needsHtmlAfterApi =
+      !diagnostics.apiSuccess ||
+      !isCompleteScrapeData(evaluateFields(result, url));
+
+    if (
+      needsHtmlAfterApi &&
+      !isPastDeadline() &&
+      !shouldSkipDirectHtmlAfterBlock(confirmedBlock)
+    ) {
+      diagnostics.directHtmlStarted = true;
+      const htmlRetries = policy.directHtmlRetries;
+      console.log("⚡ [2/6] Direct HTML (API yetersiz — sıralı)...");
+      try {
+        const { fetchTrendyolDirectHtmlRaw } = await import("./trendyol-direct-html");
+        const directRaw = await withStageTimeout(
+          () => fetchTrendyolDirectHtmlRaw(url, htmlRetries),
+          Math.min(STAGE_TIMEOUT.directHtml, remainingMs()),
+          "direct-html-timeout",
+        );
+        directHtml = directRaw?.html ?? null;
+        diagnostics.directHtmlSuccess = Boolean(directHtml && directHtml.length > 5000);
+        if (diagnostics.directHtmlSuccess) {
+          console.log(`✅ [2/6] Direct HTML: ${directHtml!.length} bytes`);
+        } else {
+          console.warn("⚠️ [2/6] Direct HTML: ürün verisi içeren HTML alınamadı");
+          const htmlBlock = consumeLastDirectHtmlBlockSignal();
+          if (htmlBlock) {
+            confirmedBlock = htmlBlock;
+            notePipelineBlock(diagnostics, htmlBlock, result, url, pipelineBlockRecorded);
+          }
+        }
+      } catch (err) {
+        const code: ScrapeStageErrorCode =
+          err instanceof ScrapeStageTimeoutError ? err.code : "direct-html-error";
+        pushStageError(diagnostics, code);
+        diagnostics.directHtmlError = code;
+        console.warn(`⚠️ [2/6] Direct HTML soft-fail (${code})`);
         const htmlBlock = consumeLastDirectHtmlBlockSignal();
         if (htmlBlock) {
           confirmedBlock = htmlBlock;
-          notePipelineBlock(diagnostics, htmlBlock);
+          notePipelineBlock(diagnostics, htmlBlock, result, url, pipelineBlockRecorded);
         }
       }
-    } else {
-      const err = htmlSettled.reason;
-      const code: ScrapeStageErrorCode =
-        err instanceof ScrapeStageTimeoutError ? err.code : "direct-html-error";
-      pushStageError(diagnostics, code);
-      diagnostics.directHtmlError = code;
-      console.warn(`⚠️ [2/6] Direct HTML soft-fail (${code})`);
-      const htmlBlock = consumeLastDirectHtmlBlockSignal();
-      if (htmlBlock) {
-        confirmedBlock = htmlBlock;
-        notePipelineBlock(diagnostics, htmlBlock);
-      }
+    } else if (shouldSkipDirectHtmlAfterBlock(confirmedBlock)) {
+      diagnostics.directHtmlSkippedReason = "trendyol-block-skip-html";
+      console.warn("⚡ [2/6] Direct HTML atlandı (confirmed WAF/ban — hammer yok)");
+    } else if (diagnostics.apiSuccess) {
+      diagnostics.directHtmlSkippedReason = "api-core-data-sufficient";
+      console.log("⚡ [2/6] Direct HTML atlandı (API yeterli veri döndü)");
     }
   }
 
@@ -1210,6 +1234,8 @@ export async function runTrendyolScrapePipeline(
     !policy.isCloud &&
     policy.puppeteerAllowed &&
     chromiumReady &&
+    modes.effective !== "auto-fast" &&
+    !shouldSkipTrendyolBrowserScrape() &&
     !diagnostics.apiSuccess &&
     (!hasMinimumScrapeData(fieldsAfterHtmlParse) ||
       (!diagnostics.htmlParseSuccess && !diagnostics.directHtmlSuccess));
@@ -1255,9 +1281,15 @@ export async function runTrendyolScrapePipeline(
           : "sufficient-data";
       return;
     }
+    if (shouldSkipTrendyolBrowserScrape()) {
+      diagnostics.scenarioSkippedReason = "trendyol-block-near-circuit";
+      console.warn(
+        `ℹ️ [${stageLabel}] Tarayıcı scrape atlandı (ban koruması aktif / circuit'e yakın)`,
+      );
+      return;
+    }
     if (!puppeteerAllowed()) {
       diagnostics.scenarioSkippedReason = "puppeteer-disabled-in-cloud";
-      // Browser Worker zaten denendiyse yerel Puppeteer kapalı mesajı kullanıcıya yanıltıcı olur.
       const browserWorkerAlreadyTried =
         diagnostics.browserWorkerSucceeded === true ||
         diagnostics.browserWorkerSucceeded === false ||
@@ -1272,6 +1304,7 @@ export async function runTrendyolScrapePipeline(
     // Local: eksik fiyat/görsel için Puppeteer'dan önce Browser Worker dene (daha stabil)
     if (
       !policy.isCloud &&
+      !shouldSkipTrendyolBrowserScrape() &&
       policy.browserWorkerConfigured &&
       policy.browserWorkerHealthy &&
       !diagnostics.browserWorkerSucceeded &&

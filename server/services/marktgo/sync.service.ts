@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { trackedProducts } from "@shared/schema";
+import { MARKTGO_FIXED_STOCK } from "@shared/integration-provider";
 import { redactSecrets } from "../../lib/secret-crypto";
 import { MarktGoApiError } from "./errors";
 import { getMarktGoClientForConnection } from "./connection.service";
@@ -68,7 +69,7 @@ function buildInlineVariants(input: LocalProductInput) {
     });
   }
   const skus = rows.map((v, i) => {
-    const stock = intStock(v.stock, 0);
+    const stock = intStock(v.stock, MARKTGO_FIXED_STOCK);
     return {
       id: `${prefix}-v${i + 1}`.slice(0, 80),
       option1: v.option1 || null,
@@ -139,7 +140,7 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
       ...(brand ? { brand } : {}),
       price: money(input.price),
       discountPrice: input.discountPrice != null ? money(input.discountPrice) : null,
-      stock: intStock(input.stock, 0),
+      stock: intStock(input.stock, MARKTGO_FIXED_STOCK),
       images,
       tags: input.tags || [],
       status: "active" as const,

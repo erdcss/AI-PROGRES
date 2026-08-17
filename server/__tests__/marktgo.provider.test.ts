@@ -100,6 +100,7 @@ const mapped = mapPoolProductToMarktGoInput({
   images: ["https://cdn.example/a.jpg"],
 });
 assert(mapped.localProductId === "PH-1", "pool local id");
+assert(mapped.stock === 10, "pool map fixed stock");
 assert(mapped.price > 100, "product create payload has sell price");
 assert(poolLocalProductId({ poolId: "PH-9" }) === "PH-9", "pool id helper");
 

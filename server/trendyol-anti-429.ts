@@ -12,8 +12,8 @@ type Waiter = { resolve: () => void };
 class TrendyolAnti429Gate {
   private waiters: Waiter[] = [];
   private active = 0;
-  private maxConcurrent = 2;
-  private minIntervalMs = 800;
+  private maxConcurrent = 1;
+  private minIntervalMs = 1500;
   private lastStartAt = 0;
   private cooldownUntil = 0;
   private consecutiveRateLimits = 0;
@@ -40,8 +40,8 @@ class TrendyolAnti429Gate {
       this.consecutiveRateLimits = Math.max(0, this.consecutiveRateLimits - 1);
     }
     if (this.consecutiveRateLimits === 0) {
-      this.maxConcurrent = 2;
-      this.minIntervalMs = Math.max(600, Math.floor(this.minIntervalMs * 0.9));
+      this.maxConcurrent = 1;
+      this.minIntervalMs = Math.max(1200, Math.floor(this.minIntervalMs * 0.92));
     }
   }
 

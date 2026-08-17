@@ -70,11 +70,13 @@ describe("classifyTrendyolBlock", () => {
 describe("circuit breaker", () => {
   const prevThreshold = process.env.TRENDYOL_BLOCK_THRESHOLD;
   const prevCooldown = process.env.TRENDYOL_BLOCK_COOLDOWN_MS;
+  const prevDedupe = process.env.TRENDYOL_BLOCK_DEDUPE_MS;
 
   beforeEach(() => {
     __resetTrendyolBlockGuardForTests();
     process.env.TRENDYOL_BLOCK_THRESHOLD = "3";
     process.env.TRENDYOL_BLOCK_COOLDOWN_MS = "600000";
+    process.env.TRENDYOL_BLOCK_DEDUPE_MS = "0";
   });
 
   afterEach(() => {
@@ -83,6 +85,18 @@ describe("circuit breaker", () => {
     else process.env.TRENDYOL_BLOCK_THRESHOLD = prevThreshold;
     if (prevCooldown === undefined) delete process.env.TRENDYOL_BLOCK_COOLDOWN_MS;
     else process.env.TRENDYOL_BLOCK_COOLDOWN_MS = prevCooldown;
+    if (prevDedupe === undefined) delete process.env.TRENDYOL_BLOCK_DEDUPE_MS;
+    else process.env.TRENDYOL_BLOCK_DEDUPE_MS = prevDedupe;
+  });
+
+  it("dedupes same block kind within window", () => {
+    process.env.TRENDYOL_BLOCK_DEDUPE_MS = "45000";
+    const base = { kind: "access-denied" as const, source: "api" as const };
+    recordTrendyolBlock(base);
+    recordTrendyolBlock(base);
+    recordTrendyolBlock(base);
+    assert.equal(getTrendyolBlockStatus().consecutiveFails, 1);
+    assert.equal(isTrendyolCircuitOpen(), false);
   });
 
   it("trips OPEN after N consecutive blocks", () => {
@@ -160,11 +174,13 @@ describe("resolveTrendyolHttpProxy", () => {
 describe("pipeline rejects when circuit OPEN", () => {
   const prevThreshold = process.env.TRENDYOL_BLOCK_THRESHOLD;
   const prevCooldown = process.env.TRENDYOL_BLOCK_COOLDOWN_MS;
+  const prevDedupe = process.env.TRENDYOL_BLOCK_DEDUPE_MS;
 
   beforeEach(() => {
     __resetTrendyolBlockGuardForTests();
     process.env.TRENDYOL_BLOCK_THRESHOLD = "2";
     process.env.TRENDYOL_BLOCK_COOLDOWN_MS = "600000";
+    process.env.TRENDYOL_BLOCK_DEDUPE_MS = "0";
   });
 
   afterEach(() => {
@@ -173,6 +189,8 @@ describe("pipeline rejects when circuit OPEN", () => {
     else process.env.TRENDYOL_BLOCK_THRESHOLD = prevThreshold;
     if (prevCooldown === undefined) delete process.env.TRENDYOL_BLOCK_COOLDOWN_MS;
     else process.env.TRENDYOL_BLOCK_COOLDOWN_MS = prevCooldown;
+    if (prevDedupe === undefined) delete process.env.TRENDYOL_BLOCK_DEDUPE_MS;
+    else process.env.TRENDYOL_BLOCK_DEDUPE_MS = prevDedupe;
   });
 
   it("runTrendyolScrapePipeline short-circuits without stages", async () => {

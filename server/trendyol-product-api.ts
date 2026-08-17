@@ -22,6 +22,7 @@ import {
   classifyTrendyolBlock,
   type BlockSignal,
 } from './trendyol-block-guard';
+import { trendyolAnti429Gate, withTrendyolRateLimit } from './trendyol-anti-429';
 
 let lastApiBlockSignal: BlockSignal | null = null;
 
@@ -213,24 +214,69 @@ export async function fetchTrendyolImagesFromApi(url: string): Promise<string[]>
     `https://api.trendyol.com/webmobileapi/v1/product/${productId}`,
     `https://apigw.trendyol.com/discovery-web-productgw-service/api/price/${productId}`,
   ];
-  const results = await Promise.allSettled(
-    fastEndpoints.map((endpoint) =>
-      axios.get(endpoint, { timeout: 5000, headers, validateStatus: () => true }),
-    ),
-  );
-
   const collected: unknown[] = [];
-  for (const result of results) {
-    if (result.status !== 'fulfilled') continue;
-    const { status, data } = result.value;
+  const timeoutMs = Number(process.env.TRENDYOL_API_TIMEOUT_MS) || 4_000;
+
+  for (const endpoint of fastEndpoints) {
+    const fetched = await fetchTrendyolApiEndpoint(endpoint, headers, timeoutMs);
+    if (!fetched) continue;
+    const { status, data } = fetched;
     if (status === 403 || status === 429 || status >= 500) continue;
 
     const parsed = parseProductPayload(data, url);
     if (parsed?.images?.length) collected.push(...parsed.images);
     collected.push(...deepExtractImagesFromJson(data));
+    if (filterValidProductImages(collected).length >= 3) break;
   }
 
   return filterValidProductImages(collected);
+}
+
+/** Tek endpoint — sıralı deneme (paralel 4 istek ban riskini artırıyordu) */
+async function fetchTrendyolApiEndpoint(
+  endpoint: string,
+  headers: Record<string, string>,
+  timeoutMs: number,
+): Promise<{ status: number; data: unknown; contentType: string } | null> {
+  try {
+    const response = await withTrendyolRateLimit(`api:${endpoint.split("/").slice(-2).join("/")}`, () =>
+      axios.get(endpoint, {
+        timeout: timeoutMs,
+        headers,
+        validateStatus: (s) => s < 500,
+      }),
+    );
+    if (response.status === 429) {
+      trendyolAnti429Gate.reportRateLimit(`api-status-${response.status}`);
+    } else if (response.status >= 200 && response.status < 300) {
+      trendyolAnti429Gate.reportSuccess();
+    }
+    return {
+      status: response.status,
+      data: response.data,
+      contentType: String(response.headers?.['content-type'] ?? 'unknown'),
+    };
+  } catch (reason: unknown) {
+    const err = reason as {
+      message?: string;
+      response?: { status?: number; headers?: Record<string, unknown>; data?: unknown };
+    };
+    const httpStatus = Number(err?.response?.status) || 0;
+    if (httpStatus === 429) {
+      trendyolAnti429Gate.reportRateLimit(`api-error-${httpStatus}`);
+    }
+    const contentType = String(
+      err?.response?.headers?.['content-type'] ??
+        (httpStatus === 556 ? 'upstream-556' : 'network-error'),
+    );
+    const bodyPreview = String(
+      err?.message ??
+        (typeof err?.response?.data === 'string'
+          ? err.response.data
+          : JSON.stringify(err?.response?.data ?? err ?? '')),
+    ).slice(0, 500);
+    return { status: httpStatus, data: bodyPreview, contentType };
+  }
 }
 
 function scoreTrendyolApiProduct(parsed: TrendyolApiProduct): number {
@@ -251,16 +297,7 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
 
   const endpoints = API_ENDPOINTS(productId);
   const headers = API_HEADERS(productId, url);
-
-  const results = await Promise.allSettled(
-    endpoints.map((endpoint) =>
-      axios.get(endpoint, {
-        timeout: Number(process.env.TRENDYOL_API_TIMEOUT_MS) || 4_000,
-        headers,
-        validateStatus: (s) => s < 500,
-      })
-    )
-  );
+  const timeoutMs = Number(process.env.TRENDYOL_API_TIMEOUT_MS) || 4_000;
 
   const debugSamples: Array<{
     endpoint: string;
@@ -269,40 +306,13 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
     bodyPreview: string;
   }> = [];
 
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i];
-    const endpoint = endpoints[i];
-    if (result.status !== 'fulfilled') {
-      const reason = result.reason as {
-        message?: string;
-        response?: { status?: number; headers?: Record<string, unknown>; data?: unknown };
-        code?: string;
-      };
-      const httpStatus = Number(reason?.response?.status) || 0;
-      const contentType = String(
-        reason?.response?.headers?.['content-type'] ??
-          (httpStatus === 556 ? 'upstream-556' : 'network-error'),
-      );
-      const bodyPreview = String(
-        reason?.message ??
-          (typeof reason?.response?.data === 'string'
-            ? reason.response.data
-            : JSON.stringify(reason?.response?.data ?? reason ?? '')),
-      ).slice(0, 500);
-      debugSamples.push({
-        endpoint,
-        status: httpStatus,
-        contentType,
-        bodyPreview,
-      });
-      continue;
-    }
-    const status = result.value.status;
-    const contentType = String(result.value.headers?.['content-type'] ?? 'unknown');
+  for (const endpoint of endpoints) {
+    const fetched = await fetchTrendyolApiEndpoint(endpoint, headers, timeoutMs);
+    if (!fetched) continue;
+
+    const { status, data, contentType } = fetched;
     const bodyPreview =
-      typeof result.value.data === 'string'
-        ? result.value.data.slice(0, 500)
-        : JSON.stringify(result.value.data ?? {}).slice(0, 500);
+      typeof data === 'string' ? data.slice(0, 500) : JSON.stringify(data ?? {}).slice(0, 500);
 
     if (status === 403 || status === 429 || status >= 500) {
       debugSamples.push({ endpoint, status, contentType, bodyPreview });
@@ -311,7 +321,7 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
 
     let parsed: TrendyolApiProduct | null = null;
     try {
-      parsed = parseProductPayload(result.value.data, url);
+      parsed = parseProductPayload(data, url);
     } catch {
       debugSamples.push({ endpoint, status, contentType, bodyPreview });
       continue;
@@ -322,8 +332,16 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
       if (!bestPartial || parsed.price.original > bestPartial.price.original) {
         bestPartial = parsed;
       }
+      // Tam ürün (fiyat + görsel + varyant) — kalan endpoint'lere gerek yok
+      if (
+        parsed.price.original > 0 &&
+        parsed.images.length > 0 &&
+        variantRichnessScore(parsed.variants) >= 10
+      ) {
+        break;
+      }
     } else if (slugTitle && bestPartial && bestPartial.price.original <= 0) {
-      const priceOnly = parsePriceOnlyPayload(result.value.data, url, bestPartial);
+      const priceOnly = parsePriceOnlyPayload(data, url, bestPartial);
       if (priceOnly) bestPartial = priceOnly;
     } else if (!parsed && (status === 200 || status === 204)) {
       debugSamples.push({ endpoint, status, contentType, bodyPreview });

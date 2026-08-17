@@ -41,8 +41,8 @@ export type ScrapeProviderSnapshot = {
 };
 
 const DEFAULT_PRIORITY: ScrapeProviderId[] = [
-  "browser_worker",
   "trendyol_api",
+  "browser_worker",
   "direct_html",
   "local_agent",
 ];

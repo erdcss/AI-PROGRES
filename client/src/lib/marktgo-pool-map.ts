@@ -1,5 +1,7 @@
 /** Map Trendyol / scraper product payloads into product-pool shape for MARKT-GO upload. */
 
+import { marktGoStockForAvailability } from "@shared/integration-provider";
+
 export function extractNumericPrice(price: unknown): number | null {
   if (typeof price === "number" && Number.isFinite(price) && price > 0) return price;
   if (price && typeof price === "object") {
@@ -35,7 +37,6 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     const v = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
     const color = String(v.color || v.option1 || "").trim();
     const size = String(v.size || v.option2 || "").trim();
-    const stockCount = v.stockCount != null ? Number(v.stockCount) : null;
     const baseId = String(v.sourceProductId || v.listingId || v.id || "").trim();
     const id = baseId ? `${baseId}-${i + 1}` : `${color}-${size}-${i + 1}`;
     return {
@@ -46,12 +47,7 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
       option2: size || undefined,
       sku: v.sku ? String(v.sku) : undefined,
       inStock: v.inStock !== false,
-      stock:
-        stockCount != null && Number.isFinite(stockCount)
-          ? Math.max(0, Math.floor(stockCount))
-          : v.inStock === false
-            ? 0
-            : 1,
+      stock: marktGoStockForAvailability(v.inStock !== false),
       price: v.price != null ? extractNumericPrice(v.price) ?? undefined : undefined,
       image: typeof v.image === "string" ? v.image : undefined,
       imageUrl: typeof v.image === "string" ? v.image : undefined,
@@ -86,8 +82,8 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     features,
     variants,
     inStock: variants.length ? variants.some((v) => v.inStock) : true,
-    stock: variants.length
-      ? variants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
-      : 20,
+    stock: marktGoStockForAvailability(
+      variants.length ? variants.some((v) => v.inStock) : true,
+    ),
   };
 }

@@ -60,6 +60,10 @@ const state: GuardState = {
   openedAt: null,
 };
 
+/** Aynı ban türü kısa aralıkta tekrar sayılmaz (çok aşamalı scrape tek iş sayılır). */
+let lastDedupedBlockAt = 0;
+let lastDedupedBlockKind: TrendyolBlockKind | null = null;
+
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
   if (!raw) return fallback;
@@ -68,7 +72,13 @@ function envInt(name: string, fallback: number): number {
 }
 
 export function getBlockThreshold(): number {
-  return envInt("TRENDYOL_BLOCK_THRESHOLD", 3);
+  return envInt("TRENDYOL_BLOCK_THRESHOLD", 5);
+}
+
+export function getBlockDedupeMs(): number {
+  const raw = process.env.TRENDYOL_BLOCK_DEDUPE_MS?.trim();
+  if (raw === "0") return 0;
+  return envInt("TRENDYOL_BLOCK_DEDUPE_MS", 45_000);
 }
 
 export function getBlockCooldownMs(): number {
@@ -282,6 +292,24 @@ export function shouldSkipDirectHtmlAfterBlock(signal: BlockSignal | null): bool
 }
 
 export function recordTrendyolBlock(signal: BlockSignal, now = Date.now()): TrendyolBlockStatus {
+  const dedupeMs = getBlockDedupeMs();
+  if (
+    dedupeMs > 0 &&
+    lastDedupedBlockKind === signal.kind &&
+    now - lastDedupedBlockAt < dedupeMs
+  ) {
+    console.warn("[TRENDYOL_BLOCK] deduped (same kind within window)", {
+      kind: signal.kind,
+      source: signal.source,
+      dedupeMs,
+    });
+    state.lastKind = signal.kind;
+    state.lastSource = signal.source;
+    return getTrendyolBlockStatus(now);
+  }
+  lastDedupedBlockAt = now;
+  lastDedupedBlockKind = signal.kind;
+
   state.consecutiveFails += 1;
   state.lastKind = signal.kind;
   state.lastSource = signal.source;
@@ -318,7 +346,16 @@ export function recordTrendyolSuccess(now = Date.now()): void {
   state.consecutiveFails = 0;
   state.openUntil = 0;
   state.openedAt = null;
+  lastDedupedBlockAt = 0;
+  lastDedupedBlockKind = null;
   // lastKind/source kept for diagnostics
+}
+
+/** Puppeteer / Browser Worker — circuit'e yaklaşıldığında tarayıcı yollarını atla */
+export function shouldSkipTrendyolBrowserScrape(now = Date.now()): boolean {
+  if (isTrendyolCircuitOpen(now)) return true;
+  const nearTrip = getBlockThreshold() - 1;
+  return state.consecutiveFails >= nearTrip;
 }
 
 /** Jitter'lı exponential backoff (engel sonrası) */
@@ -345,6 +382,8 @@ export function __resetTrendyolBlockGuardForTests(): void {
   state.lastKind = null;
   state.lastSource = null;
   state.openedAt = null;
+  lastDedupedBlockAt = 0;
+  lastDedupedBlockKind = null;
 }
 
 export function mapBlockSignalToStageError(

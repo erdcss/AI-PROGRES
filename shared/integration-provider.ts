@@ -23,6 +23,13 @@ export const MARKTGO_REQUIRED_SCOPES = [
   "brands.read",
 ] as const;
 
+/** MARKT-GO'ya gönderimde her ürün/varyant için sabit stok adedi */
+export const MARKTGO_FIXED_STOCK = 10;
+
+export function marktGoStockForAvailability(inStock?: boolean | null): number {
+  return inStock === false ? 0 : MARKTGO_FIXED_STOCK;
+}
+
 export function isDestinationProvider(v: unknown): v is DestinationProviderId {
   return v === DESTINATION_PROVIDER.SHOPIFY || v === DESTINATION_PROVIDER.MARKTGO;
 }

@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { marktGoStockForAvailability } from "@shared/integration-provider";
 import type { LocalProductInput } from "../services/marktgo/types";
 
 const PROFIT_MARGIN = 0.1;
@@ -58,12 +59,7 @@ export function mapPoolProductToMarktGoInput(
                 : undefined,
           option2: v.option2 ? String(v.option2) : v.size ? String(v.size) : undefined,
           sku: v.sku ? String(v.sku) : undefined,
-          stock:
-            v.inStock === false
-              ? 0
-              : v.stock != null
-                ? Math.max(0, Math.floor(Number(v.stock) || 0))
-                : 1,
+          stock: marktGoStockForAvailability(v.inStock !== false),
           price: v.price != null ? Number(v.price) : sellPrice,
           imageUrl: v.imageUrl ? String(v.imageUrl) : v.image ? String(v.image) : undefined,
         };
@@ -79,7 +75,7 @@ export function mapPoolProductToMarktGoInput(
     sourceUrl: product.sourceUrl ? String(product.sourceUrl) : null,
     price: regular,
     discountPrice: compare ? sellPrice : null,
-    stock: product.inStock === false ? 0 : Math.max(0, Math.floor(Number(product.stock) || 20)),
+    stock: marktGoStockForAvailability(product.inStock !== false),
     images,
     tags: ["urun-havuzu", ...tags],
     variants,
