@@ -24,7 +24,7 @@ import type { CsvStatusResponse } from "@/lib/shopify-csv-download";
 
 /** Features / başlıktan gerçek renk adı çıkarır — "Tek Renk" placeholder'ı yerine */
 function resolveScrapedColorName(input: {
-  features?: Array<{ key: string; value: string }>;
+  features?: Array<{ key?: string; name?: string; value?: string }>;
   title?: string;
   variantColors?: string[];
 }): string | null {
@@ -36,7 +36,8 @@ function resolveScrapedColorName(input: {
   }
 
   for (const feature of input.features || []) {
-    if (!/renk|color/i.test(feature.key || "")) continue;
+    const featureName = feature.key || feature.name || "";
+    if (!/renk|color/i.test(featureName)) continue;
     const normalized = normalizeTrendyolColorName(feature.value);
     if (normalized && !isPlaceholderColor(normalized)) return normalized;
   }
@@ -909,6 +910,11 @@ export const ProductPreview = memo(function ProductPreview({
                       />
                     ))}
                 </div>
+                <ProductAttributes
+                  features={safePreview.features || preview.features || []}
+                  compact
+                  hideEmpty
+                />
               </div>
 
               <div className="flex flex-wrap items-center gap-3">

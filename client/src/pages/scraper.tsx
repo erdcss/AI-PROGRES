@@ -18,7 +18,6 @@ import { LocalAgentWarningAlert, resolveScrapeSourceWarning } from "@/components
 import { ScrapeFetchError } from "@/lib/scrape-url-client";
 import { useDestinationBrand } from "@/hooks/use-destination-brand";
 import { mapScraperLikeToPoolProduct } from "@/lib/marktgo-pool-map";
-import ProductAttributes from "@/components/ProductAttributes";
 import {
   resolveColorFamilyUiStatus,
   shouldBlockShopifyForColorFamily,
@@ -2509,7 +2508,11 @@ function ScraperPage() {
         price: preview.price,
         images: preview.images,
         variants: preview.variants,
-        features: preview.features,
+        features:
+          preview.features && preview.features.length > 0
+            ? preview.features
+            : product?.features || [],
+        description: preview.description,
         sourceUrl: preview.sourceUrl,
         category: preview.category,
         tags: individualTags || [],
@@ -2533,7 +2536,7 @@ function ScraperPage() {
     } finally {
       setUploadingId(null);
     }
-  }, [csvPreviews, brand.destinationName]);
+  }, [csvPreviews, brand.destinationName, product]);
 
   const uploadToShopify = async (csvContent: string, productTitle: string, preview?: { sourceUrl?: string; images?: string[]; price?: { original?: number; withProfit?: number }; brand?: string }) => {
     try {
@@ -3043,16 +3046,6 @@ function ScraperPage() {
             </Card>
           </div>
         )}
-
-        {product?.features && product.features.length > 0 ? (
-          <div className="mt-4">
-            <ProductAttributes features={product.features} />
-          </div>
-        ) : product && !singleScrapeMutation.isPending ? (
-          <div className="mt-4">
-            <ProductAttributes features={[]} />
-          </div>
-        ) : null}
 
         {singleScrapeMutation.isPending && (
           <div className="mt-8">

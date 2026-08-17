@@ -54,7 +54,11 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     };
   });
 
-  const featuresRaw = Array.isArray(input.features) ? input.features : [];
+  const featuresRaw = Array.isArray(input.features)
+    ? input.features
+    : Array.isArray(input.attributes)
+      ? input.attributes
+      : [];
   const features = featuresRaw
     .map((f) => {
       const row = (f && typeof f === "object" ? f : {}) as Record<string, unknown>;
@@ -79,6 +83,7 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     images,
     image: images[0],
     tags: Array.isArray(input.tags) ? input.tags.map(String) : [],
+    description: input.description ? String(input.description) : undefined,
     features,
     variants,
     inStock: variants.length ? variants.some((v) => v.inStock) : true,

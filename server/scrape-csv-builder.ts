@@ -15,6 +15,7 @@ import {
   buildMinimalShopifyCsvRow,
 } from "./shopify-csv-headers";
 import { isValidExportBrandName, brandFromTrendyolUrl } from "./trendyol-title-utils";
+import { mergeProductFeaturePairs } from "@shared/product-attributes";
 import { logCacheGuard } from "./flow-trace";
 import {
   hasCsvEligibleScrapeData,
@@ -216,9 +217,10 @@ export function normalizeScrapeProduct(
   const category = pickFirstNonEmptyString(result, "category");
   const images = normalizeImages(merged.images);
   const variants = normalizeVariants(merged.variants, merged.title);
-  const features = Array.isArray(result.features)
-    ? (result.features as ScrapeProductShape["features"])
-    : [];
+  const features = mergeProductFeaturePairs(
+    result.features as ScrapeProductShape["features"],
+    result.attributes as ScrapeProductShape["features"],
+  );
   const tags = Array.isArray(result.tags) ? (result.tags as string[]) : [];
 
   return {

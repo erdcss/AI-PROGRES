@@ -7,8 +7,9 @@ import {
   normalizeProductAttributes,
   attributesToFeaturePairs,
   isPlausibleAttributePair,
+  mergeProductFeaturePairs,
 } from "../../shared/product-attributes";
-import { extractTrendyolProductAttributes } from "../product-attributes/extract-trendyol-attributes";
+import { extractTrendyolProductAttributes, extractTrendyolProductFeaturesFromRaw } from "../product-attributes/extract-trendyol-attributes";
 
 function section(title: string) {
   console.log(`\n== ${title} ==`);
@@ -111,6 +112,39 @@ section("JSON-LD preferred path");
   assert.equal(attrs.length, 2);
   assert.equal(attrs[0].source, "trendyol-jsonld");
   console.log("ok jsonld");
+}
+
+section("Test 7 — merge keeps richer attributes");
+{
+  const merged = mergeProductFeaturePairs(
+    [
+      { key: "Kumaş Tipi", value: "Örme" },
+      { key: "Desen", value: "Düz" },
+    ],
+    [
+      { name: "Marka", value: "meyastore" },
+      { key: "Kumaş Tipi", value: "Örme" },
+    ],
+  );
+  assert.equal(merged.length, 3);
+  assert.equal(merged.some((f) => f.key === "Kumaş Tipi" && f.value === "Örme"), true);
+  assert.equal(merged.some((f) => f.key === "Marka"), true);
+  console.log("ok merge");
+}
+
+section("Test 8 — API raw product attributes without HTML");
+{
+  const features = extractTrendyolProductFeaturesFromRaw({
+    attributes: [
+      { attributeName: "Kumaş Tipi", attributeValue: "Örme" },
+      { key: "Kalıp", value: "Regular" },
+    ],
+  });
+  assert.equal(features.length, 2);
+  assert.equal(features[0].key, "Kumaş Tipi");
+  assert.equal(features[0].value, "Örme");
+  assert.equal(features[1].key, "Kalıp");
+  console.log("ok raw api attributes");
 }
 
 console.log("\nAll product-attributes tests passed.");

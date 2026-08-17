@@ -4,6 +4,7 @@ import { mergeCanonicalPreviewVariants } from "@/lib/preview-variants";
 import { sanitizeTrendyolVariants } from "@shared/trendyol-variant-utils";
 import { deriveProductStockLabel, summarizeStockFromVariants } from "@shared/stock-status";
 import { filterValidProductImages, prioritizeProductImagesForPreview } from "@shared/trendyol-product-images";
+import { mergeProductFeaturePairs } from "@shared/product-attributes";
 
 export class ScrapeFetchError extends Error {
   reason?: string;
@@ -292,7 +293,10 @@ export function normalizeScrapedPayload(
     },
     images,
     variants: variantSource,
-    features: (raw.features as ScrapedUrlPayload["features"]) || [],
+    features: mergeProductFeaturePairs(
+      raw.features as ScrapedUrlPayload["features"],
+      raw.attributes as ScrapedUrlPayload["features"],
+    ),
     stockAnalysis: raw.stockAnalysis as ScrapedUrlPayload["stockAnalysis"],
     stockSummary: canonicalProduct?.stockSummary ?? (raw.stockSummary as ScrapedUrlPayload["stockSummary"]),
     tags: sourceTags,
@@ -567,6 +571,9 @@ export function buildCsvPreviewEntry(
     imagesByColor: data.imagesByColor,
     sourceAliases: data.sourceAliases,
     familySourceKey: data.familySourceKey,
+    description: data.description,
+    category: data.category,
+    features: data.features || [],
   };
 }
 

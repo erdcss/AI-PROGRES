@@ -11,6 +11,8 @@ interface ProductAttributesProps {
   features?: ProductAttributesInput;
   title?: string;
   className?: string;
+  compact?: boolean;
+  hideEmpty?: boolean;
 }
 
 /**
@@ -22,6 +24,8 @@ export default function ProductAttributes({
   features,
   title = "Ürün Özellikleri",
   className = "",
+  compact = false,
+  hideEmpty = false,
 }: ProductAttributesProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -31,12 +35,40 @@ export default function ProductAttributes({
   );
 
   if (rows.length === 0) {
+    if (hideEmpty) return null;
     return (
       <div className={`rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 ${className}`}>
         <h3 className="text-sm font-semibold tracking-wide text-zinc-200 uppercase">
           {title}
         </h3>
         <p className="mt-2 text-sm italic text-zinc-500">Ürün özellikleri bulunamadı</p>
+      </div>
+    );
+  }
+
+  if (compact) {
+    const compactVisible = rows.slice(0, 6);
+    const extra = rows.length - compactVisible.length;
+    return (
+      <div className={`space-y-1.5 ${className}`}>
+        <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+          {title} ({rows.length})
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {compactVisible.map((attr) => (
+            <span
+              key={`${attr.position}-${attr.name}-${attr.value}`}
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-zinc-800 bg-zinc-900/80 px-2 py-1 text-[11px]"
+              title={`${attr.name}: ${attr.value}`}
+            >
+              <span className="text-zinc-500">{attr.name}</span>
+              <strong className="max-w-[140px] truncate text-zinc-100">{attr.value}</strong>
+            </span>
+          ))}
+          {extra > 0 ? (
+            <span className="inline-flex items-center text-[11px] text-zinc-500">+{extra}</span>
+          ) : null}
+        </div>
       </div>
     );
   }

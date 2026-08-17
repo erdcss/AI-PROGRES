@@ -51,7 +51,7 @@ function extractFromProductState(product: Record<string, unknown>): ProductAttri
     for (const attr of source) {
       if (!attr || typeof attr !== "object") continue;
       const a = attr as Record<string, unknown>;
-      const key = a.key ?? a.attributeKey ?? a.name ?? a.label ?? a.title;
+      const key = a.key ?? a.attributeKey ?? a.attributeName ?? a.name ?? a.label ?? a.title;
       let value = a.value ?? a.attributeValue ?? a.text ?? a.description;
       // Nested attributeValues / values arrays (Trendyol variants of property bags)
       if ((value == null || value === "") && Array.isArray(a.attributeValues)) {
@@ -216,4 +216,22 @@ export function extractTrendyolProductFeatures(
   $?: CheerioAPI,
 ): Array<{ key: string; value: string }> {
   return attributesToFeaturePairs(extractTrendyolProductAttributes(html, $));
+}
+
+/** Trendyol API / Browser Worker raw product JSON — HTML gerekmez. */
+export function extractTrendyolProductAttributesFromRaw(
+  raw: unknown,
+): ProductAttribute[] {
+  if (!raw || typeof raw !== "object") return [];
+  const fromJson = extractFromProductState(raw as Record<string, unknown>);
+  if (fromJson.length > 0) {
+    console.log(`[attributes] source=trendyol-json count=${fromJson.length}`);
+  }
+  return fromJson;
+}
+
+export function extractTrendyolProductFeaturesFromRaw(
+  raw: unknown,
+): Array<{ key: string; value: string }> {
+  return attributesToFeaturePairs(extractTrendyolProductAttributesFromRaw(raw));
 }

@@ -326,9 +326,13 @@ function resolveVariantDetails(product?: ProductLike | null) {
 
 function resolveFeatures(product?: ProductLike | null): Array<{ key: string; value: string }> {
   if (!Array.isArray(product?.features)) return [];
-  return product.features.filter(
-    (f) => f?.key && f?.value && String(f.key).trim() && String(f.value).trim(),
-  );
+  return product.features
+    .map((f) => {
+      const key = String((f as { key?: string; name?: string })?.key || (f as { name?: string })?.name || "").trim();
+      const value = String(f?.value || "").trim();
+      return key && value ? { key, value } : null;
+    })
+    .filter((row): row is { key: string; value: string } => Boolean(row));
 }
 
 export function resolveProductPreview(input: {

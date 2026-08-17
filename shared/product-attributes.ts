@@ -126,6 +126,32 @@ export function attributesToFeaturePairs(
   return attrs.map((a) => ({ key: a.name, value: a.value }));
 }
 
+/**
+ * Union feature lists without inventing values.
+ * Accepts `{key,value}`, `{name,value}`, or a legacy record.
+ * Later lists fill missing names; existing name+value pairs are kept.
+ */
+export function mergeProductFeaturePairs(
+  ...lists: Array<ProductAttributesInput>
+): Array<{ key: string; value: string }> {
+  const combined: Array<{ key?: string; name?: string; value?: string }> = [];
+  for (const list of lists) {
+    if (!list) continue;
+    if (Array.isArray(list)) {
+      for (const row of list) {
+        if (row && typeof row === "object") combined.push(row);
+      }
+      continue;
+    }
+    if (typeof list === "object") {
+      for (const [key, value] of Object.entries(list)) {
+        combined.push({ key, value: String(value ?? "") });
+      }
+    }
+  }
+  return attributesToFeaturePairs(normalizeProductAttributes(combined));
+}
+
 export function attributesToLegacyRecord(attrs: ProductAttribute[]): LegacyProductAttributes {
   const record: LegacyProductAttributes = {};
   for (const a of attrs) {

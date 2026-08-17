@@ -17,6 +17,8 @@ import {
 } from "@shared/scrape-runtime";
 import { evaluateScrapeQuality, assessTrendyolVariantGaps } from "./scrape-quality";
 import { hasRealTrendyolVariants } from "@shared/trendyol-variant-utils";
+import { mergeProductFeaturePairs } from "@shared/product-attributes";
+import { extractTrendyolProductFeaturesFromRaw } from "./product-attributes";
 import { buildStockAnalysisFromVariants } from "./trendyol-html-enrichment";
 import { fetchTrendyolProductByUrl, consumeLastTrendyolApiBlockSignal } from "./trendyol-product-api";
 import {
@@ -109,6 +111,10 @@ function applyBrowserWorkerToResult(
   diagnostics.browserWorkerSucceeded = true;
   if (access.rawProductJson) {
     result._browserWorkerRawProduct = access.rawProductJson;
+    const fromRaw = extractTrendyolProductFeaturesFromRaw(access.rawProductJson);
+    if (fromRaw.length) {
+      result.features = mergeProductFeaturePairs(result.features, fromRaw);
+    }
   }
   if (Array.isArray(access.colorSiblingCandidates)) {
     result._colorSiblingCandidates = access.colorSiblingCandidates;
@@ -690,13 +696,26 @@ export async function runTrendyolScrapePipeline(
     stockAnalysis: api.variants
       ? buildStockAnalysisFromVariants(api.variants) ?? undefined
       : undefined,
-    features: [],
+    features: extractTrendyolProductFeaturesFromRaw(api.rawProduct),
     tags: [],
     extractionMethod: "trendyol-api",
     scenario: "trendyol-api",
     confidence: 90,
     sourceUrl: url,
   });
+
+  const adoptApiProduct = (api: NonNullable<typeof apiProduct>) => {
+    const previousFeatures = result?.features;
+    const previousHtml = result?.htmlContent;
+    const converted = convertApiProduct(api);
+    result = {
+      ...converted,
+      features: mergeProductFeaturePairs(previousFeatures, converted.features),
+    };
+    if (previousHtml && typeof previousHtml === "string") {
+      result.htmlContent = previousHtml;
+    }
+  };
 
   const applyHtmlProduct = (htmlProduct: NonNullable<Awaited<ReturnType<typeof import("./trendyol-html-extractor").parseTrendyolProductFromHtmlContent>>>) => {
     result.title = resolveProductTitle(url, htmlProduct.title || result.title);
@@ -707,7 +726,7 @@ export async function runTrendyolScrapePipeline(
       result.variants = htmlProduct.variants;
     }
     if (htmlProduct.features?.length) {
-      result.features = htmlProduct.features;
+      result.features = mergeProductFeaturePairs(result.features, htmlProduct.features);
     }
     if (htmlProduct.stockAnalysis) {
       result.stockAnalysis = htmlProduct.stockAnalysis;
@@ -868,7 +887,7 @@ export async function runTrendyolScrapePipeline(
         );
         diagnostics.apiDurationMs = Date.now() - apiStart;
         if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
-          result = convertApiProduct(apiProduct);
+          adoptApiProduct(apiProduct);
           diagnostics.apiSuccess = true;
           console.log(`✅ Trendyol API (${diagnostics.apiDurationMs}ms)`);
         } else {
@@ -990,7 +1009,7 @@ export async function runTrendyolScrapePipeline(
       );
       diagnostics.apiDurationMs = Date.now() - apiStart;
       if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
-        result = convertApiProduct(apiProduct);
+        adoptApiProduct(apiProduct);
         diagnostics.apiSuccess = true;
         console.log(
           `✅ [1/6] Trendyol API başarılı (${diagnostics.apiDurationMs}ms): "${apiProduct.title}" — ${apiProduct.price.original} TL`,
@@ -1479,7 +1498,7 @@ export async function runTrendyolScrapePipeline(
         platform: failure.platform,
       });
       if (apiProduct && !hasMinimumScrapeData(fieldsBeforeScenario)) {
-        result = convertApiProduct(apiProduct);
+        adoptApiProduct(apiProduct);
       }
     }
   };

@@ -106,10 +106,16 @@ const mapped = mapPoolProductToMarktGoInput({
   compareAtPrice: 120,
   inStock: true,
   images: ["https://cdn.example/a.jpg"],
+  features: [
+    { key: "Kumaş Tipi", value: "Örme" },
+    { name: "Kalıp", value: "Regular" },
+  ],
 });
 assert(mapped.localProductId === "PH-1", "pool local id");
 assert(mapped.stock === 10, "pool map fixed stock");
 assert(mapped.price > 100, "product create payload has sell price");
+assert(Boolean(mapped.description && mapped.description.includes("Kumaş Tipi")), "features key shape lands in MARKT-GO description");
+assert(Boolean(mapped.description && mapped.description.includes("Kalıp")), "features name shape lands in MARKT-GO description");
 assert(poolLocalProductId({ poolId: "PH-9" }) === "PH-9", "pool id helper");
 
 assert(sendButtonLabel("shopify") === "Shopify'a Gönder", "shopify button label");

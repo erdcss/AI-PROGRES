@@ -39,15 +39,22 @@ export function mapPoolProductToMarktGoInput(
       ? [String(product.image)]
       : [];
   const tags = Array.isArray(product.tags) ? product.tags.map(String) : [];
-  const features = Array.isArray(product.features)
-    ? (product.features as Array<{ name?: string; value?: string }>)
-        .map((f) =>
-          f?.name && f?.value ? `<li><strong>${f.name}:</strong> ${f.value}</li>` : "",
-        )
-        .filter(Boolean)
-        .join("")
-    : "";
-  const description = features ? `<ul>${features}</ul>` : "";
+  const featurePairs = Array.isArray(product.features)
+    ? (product.features as Array<{ name?: string; key?: string; value?: string }>)
+        .map((f) => {
+          const name = String(f?.name || f?.key || "").trim();
+          const value = String(f?.value || "").trim();
+          return name && value ? { name, value } : null;
+        })
+        .filter((row): row is { name: string; value: string } => Boolean(row))
+    : [];
+  const featuresHtml = featurePairs
+    .map((f) => `<li><strong>${f.name}:</strong> ${f.value}</li>`)
+    .join("");
+  const existingDescription = String(product.description || "").trim();
+  const description = [existingDescription, featuresHtml ? `<ul>${featuresHtml}</ul>` : ""]
+    .filter(Boolean)
+    .join("");
   const variantSeen = new Set<string>();
   const variants = Array.isArray(product.variants)
     ? (product.variants as Array<Record<string, unknown>>).map((v, i) => {

@@ -24,6 +24,7 @@ import {
 
 import { isBlockedTrendyolTitle } from '@shared/trendyol-bot-detection';
 import { isClothingProduct } from '@shared/clothing-keywords';
+import { mergeProductFeaturePairs } from '@shared/product-attributes';
 
 const PLACEHOLDER_TITLES = new Set([
   'Trendyol Ürünü',
@@ -135,8 +136,8 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
         if (htmlProduct.images.length > 0) result.images = htmlProduct.images;
         if (hasRealTrendyolVariants(htmlProduct.variants)) result.variants = htmlProduct.variants;
         if (htmlProduct.stockAnalysis) result.stockAnalysis = htmlProduct.stockAnalysis;
-        if (htmlProduct.features?.length && !result.features?.length) {
-          result.features = htmlProduct.features;
+        if (htmlProduct.features?.length) {
+          result.features = mergeProductFeaturePairs(result.features, htmlProduct.features);
         }
         if (needsPrice(result.price) && htmlProduct.price.original > 0) result.price = htmlProduct.price;
       }
@@ -277,7 +278,9 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
           result.title = scraped.title;
           if (scraped.brand) result.brand = scraped.brand;
           if (scraped.description) result.description = scraped.description;
-          if (scraped.features?.length) result.features = scraped.features;
+          if (scraped.features?.length) {
+            result.features = mergeProductFeaturePairs(result.features, scraped.features);
+          }
           if (scraped.variants) result.variants = scraped.variants;
           result.extractionMethod = result.extractionMethod || 'scenario-scrape-enrich';
           result.scenario = scraped.scenario;
@@ -391,8 +394,8 @@ export async function ensureTrendyolVariantsOnResult(
       if (hasRealTrendyolVariants(htmlProduct.variants)) {
         candidates.push(htmlProduct.variants);
       }
-      if (htmlProduct.features?.length && !result.features?.length) {
-        result.features = htmlProduct.features;
+      if (htmlProduct.features?.length) {
+        result.features = mergeProductFeaturePairs(result.features, htmlProduct.features);
       }
       if (htmlProduct.stockAnalysis && !result.stockAnalysis) {
         result.stockAnalysis = htmlProduct.stockAnalysis;
@@ -449,7 +452,7 @@ export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {
       merged.extractionMethod = `${apiResult.extractionMethod || 'trendyol-api'}+variants`;
     }
   }
-  if (scrapeResult?.features?.length) merged.features = scrapeResult.features;
+  merged.features = mergeProductFeaturePairs(merged.features, scrapeResult?.features);
   if (scrapeResult?.tags?.length) merged.tags = scrapeResult.tags;
   if (scrapeResult?.description && !merged.description) merged.description = scrapeResult.description;
   if (scrapeResult?.category && !merged.category) merged.category = scrapeResult.category;
