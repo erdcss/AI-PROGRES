@@ -237,7 +237,7 @@ const MarketplaceSelection = () => {
     },
   ];
 
-  const hideShopifyNav = !brand.shopifyEnabled;
+  const hideShopifyNav = true;
   const visibleSystem = hideShopifyNav
     ? system.filter((item) => !hasShopifyLabel(`${item.path} ${item.name} ${item.testId || ""}`))
     : system;

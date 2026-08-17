@@ -34,7 +34,7 @@ export default function MarktGoSettingsDialog() {
   const [accessToken, setAccessToken] = useState("");
   const [environment, setEnvironment] = useState("production");
 
-  const { data, isLoading, isFetching } = useQuery<{ connections: Connection[] }>({
+  const { data, isLoading } = useQuery<{ connections: Connection[] }>({
     queryKey: ["/api/marktgo/connections"],
     queryFn: async () => {
       const res = await fetch("/api/marktgo/connections", { cache: "no-store" });
@@ -49,7 +49,7 @@ export default function MarktGoSettingsDialog() {
     active?.status === "connected" || active?.status === "connected_limited";
   const triggerLabel = connected
     ? `MARKT-GO · ${active?.statusLabel || "Bağlı"}`
-    : isLoading || isFetching
+    : isLoading && !data
       ? "MARKT-GO · …"
       : "MARKT-GO · Bağlan";
 

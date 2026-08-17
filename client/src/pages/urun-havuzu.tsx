@@ -1857,7 +1857,6 @@ export default function UrunHavuzuPage() {
                     </div>
                     <div className="text-sm font-semibold text-emerald-400">{profitMarginLabel}</div>
                   </div>
-                  {brand.marktgoEnabled || brand.shopifyEnabled ? (
                   <div className="rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2">
                     <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">
                       {brand.destinationName} (+{profitMarginLabel})
@@ -1866,7 +1865,6 @@ export default function UrunHavuzuPage() {
                       {formatMoney(shopifyPreviewPrice, product.currency)}
                     </div>
                   </div>
-                  ) : null}
                 </div>
 
                 <ShopifySendButton

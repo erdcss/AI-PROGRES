@@ -46,7 +46,7 @@ export default function BaglantiApiPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [form, setForm] = useState({
-    connectionId: "shopify",
+    connectionId: "browser-worker",
     connectionName: "",
     value: "",
     label: "",
@@ -61,7 +61,7 @@ export default function BaglantiApiPage() {
     },
   });
 
-  const connections = listQ.data?.connections || [];
+  const connections = (listQ.data?.connections || []).filter((c) => c.id !== "shopify");
   const nameSeeded = useRef(false);
   useEffect(() => {
     if (nameSeeded.current || !connections.length) return;

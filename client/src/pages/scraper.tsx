@@ -26,7 +26,6 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
-import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
 import MarktGoSettingsDialog from "@/components/MarktGoSettingsDialog";
 import MiniBrowser from "@/components/MiniBrowser";
 import { UrlHistory } from "@/components/UrlHistory";
@@ -656,10 +655,10 @@ function ScraperPage() {
         setScrapeError(null);
         setScrapeErrorMeta(null);
         toast({
-          title: "Shopify aktarımı bekliyor",
+          title: "MARKT-GO aktarımı bekliyor",
           description:
             variantBlockReason ||
-            "Ürün verisi alındı; Shopify yüklemesi için manuel kontrol gerekli.",
+            "Ürün verisi alındı; MARKT-GO yüklemesi için manuel kontrol gerekli.",
           duration: 8000,
         });
       } else {
@@ -718,9 +717,9 @@ function ScraperPage() {
         hardVariantFailure
           ? "Varyant doğrulaması başarısız — manuel kontrol gerekli"
           : shopifyBlocked
-            ? "Ürün hazır — Shopify aktarımı için kontrol gerekli"
+            ? "Ürün hazır — MARKT-GO aktarımı için kontrol gerekli"
             : csvReady
-              ? "Ürün hazır — Shopify'a gönderebilirsiniz"
+              ? "Ürün hazır — MARKT-GO'ya gönderebilirsiniz"
               : "Ürün çekildi ama CSV oluşturulamadı",
       );
 
@@ -741,12 +740,12 @@ function ScraperPage() {
               ? "Başarılı"
               : "Uyarı",
         description: isPartial
-          ? `Ürün kısmen çekildi${missingParts.length ? ` — ${missingParts.join(", ")}` : ""}. Shopify aktarımı için fiyat zorunludur.`
+          ? `Ürün kısmen çekildi${missingParts.length ? ` — ${missingParts.join(", ")}` : ""}. MARKT-GO aktarımı için fiyat zorunludur.`
           : csvReady
-            ? "Ürün hazır — Shopify'a gönderebilirsiniz"
+            ? "Ürün hazır — MARKT-GO'ya gönderebilirsiniz"
             : scraped.price?.original && scraped.price.original > 0
               ? "Ürün çekildi ama CSV oluşturulamadı"
-              : "Fiyat alınamadığı için Shopify aktarımı engellendi",
+              : "Fiyat alınamadığı için MARKT-GO aktarımı engellendi",
         variant: isPartial || !csvReady ? "default" : "default",
       });
 
@@ -836,7 +835,7 @@ function ScraperPage() {
 
     if (uploadProgress && uploadProgress.total > 0) {
       const idx = Math.max(uploadProgress.index, 0);
-      document.title = `(${idx}/${uploadProgress.total}) Shopify yükleme · Turmarkt`;
+      document.title = `(${idx}/${uploadProgress.total}) MARKT-GO yükleme · Turmarkt`;
       return () => {
         document.title = DEFAULT_DOCUMENT_TITLE;
       };
@@ -994,7 +993,7 @@ function ScraperPage() {
           if (error?.name === 'AbortError') {
             // Timeout — sunucu büyük ihtimalle başarıyla tamamladı, ağ zaman aşımına uğradı
             console.warn('⏱️ Upload timeout — sunucu yüklemeyi tamamlamış olabilir:', preview.productTitle);
-            results.push({ success: true, title: preview.productTitle, shopifyId: 'timeout-check-shopify', warning: 'Zaman aşımı — Shopify panelini kontrol edin' });
+            results.push({ success: true, title: preview.productTitle, shopifyId: 'timeout-check-shopify', warning: 'Zaman aşımı — MARKT-GO panelini kontrol edin' });
           } else {
             results.push({ success: false, title: preview.productTitle, error: error.message });
           }
@@ -1006,7 +1005,7 @@ function ScraperPage() {
       console.error('Bulk upload error:', error);
       toast({
         title: "Toplu Yükleme Hatası",
-        description: "Shopify'a yüklenirken bir hata oluştu",
+        description: "MARKT-GO'ya yüklenirken bir hata oluştu",
         variant: "destructive"
       });
     },
@@ -1027,14 +1026,14 @@ function ScraperPage() {
         throw new Error("Önce ürün verisi çekilmelidir");
       }
 
-      setWorkflowStep('Shopify bağlantısı kontrol ediliyor...');
+      setWorkflowStep(`${brand.destinationName} bağlantısı kontrol ediliyor...`);
       const connRes = await fetch("/api/shopify/connection-test", { method: "POST" });
       const connData = await connRes.json().catch(() => ({}));
       if (!connRes.ok || !connData.connected) {
-        throw new Error(connData.message || 'Shopify bağlantısı kurulamadı — Bağlantı Ayarlarından token girin');
+        throw new Error(connData.message || `${brand.destinationName} bağlantısı kurulamadı — Bağlantı Ayarlarından token girin`);
       }
 
-      setWorkflowStep(opts?.dryRun ? 'Dry-run: payload hazırlanıyor...' : 'Shopify\'a gönderiliyor...');
+      setWorkflowStep(opts?.dryRun ? 'Dry-run: payload hazırlanıyor...' : `${brand.destinationName}'ya gönderiliyor...`);
       const response = await fetch(
         opts?.dryRun ? "/api/shopify/products?dryRun=true" : "/api/shopify/products",
         {
@@ -1067,17 +1066,17 @@ function ScraperPage() {
         adminUrl: data.adminUrl,
         shopifyId: data.shopifyId || data.shopifyProductId,
       });
-      setWorkflowStep(data.dryRun ? 'Dry-run başarılı' : 'Shopify\'a yüklendi ✅');
+      setWorkflowStep(data.dryRun ? 'Dry-run başarılı' : `${brand.destinationName}'ya yüklendi ✅`);
       toast({
         title: data.dryRun ? "Dry-run Başarılı" : "Başarılı",
         description: data.dryRun
           ? `Payload doğrulandı — ${data.payload?.variantCount || 0} varyant, ${data.payload?.imageCount || 0} görsel`
-          : `Ürün Shopify'a yüklendi (ID: ${data.shopifyId || data.shopifyProductId})`,
+          : `Ürün ${brand.destinationName}'ya yüklendi (ID: ${data.shopifyId || data.shopifyProductId})`,
       });
     },
     onError: (error: any) => {
       setLastShopifyResult({ error: error.message });
-      setWorkflowStep('Shopify yükleme hatası');
+      setWorkflowStep(`${brand.destinationName} yükleme hatası`);
       toast({
         title: "Hata",
         description: error.message,
@@ -1625,7 +1624,7 @@ function ScraperPage() {
     if (successCount > 0 && failCount === 0 && !wasStopped) {
       setScrapeError(null);
       setScrapeErrorMeta(null);
-      setWorkflowStep(`${successCount} ürün hazır — Shopify'a gönderebilirsiniz`);
+      setWorkflowStep(`${successCount} ürün hazır — MARKT-GO'ya gönderebilirsiniz`);
     } else if (successCount > 0 && wasStopped) {
       setWorkflowStep(
         `${successCount} ürün hazır (durduruldu${cancelledCount > 0 ? `, ${cancelledCount} iptal` : ""})`,
@@ -1735,7 +1734,7 @@ function ScraperPage() {
           ? product.price
           : 0;
     if (priceOriginal <= 0) {
-      return "Fiyat alınamadığı için Shopify aktarımı engellendi";
+      return "Fiyat alınamadığı için MARKT-GO aktarımı engellendi";
     }
 
     const imageCount = Array.isArray(product.images)
@@ -1758,7 +1757,7 @@ function ScraperPage() {
     }
 
     if (shouldBlockShopifyForColorFamily(product)) {
-      return "Bağlantılı renk ürünleri bulundu ancak aile birleştirilemedi. Yanlış veya eksik varyant aktarımını önlemek için Shopify yüklemesi durduruldu.";
+      return "Bağlantılı renk ürünleri bulundu ancak aile birleştirilemedi. Yanlış veya eksik varyant aktarımını önlemek için MARKT-GO yüklemesi durduruldu.";
     }
 
     return null;
@@ -1769,7 +1768,7 @@ function ScraperPage() {
     colorFamilyUi?.state === "partial"
       ? `Renk ailesi kısmi: ${colorFamilyUi.failedCount} kardeş alınamadı. Aktarım mümkün; kontrol edin.`
       : product?.titleSource === "url-slug"
-        ? "Başlık URL slug'ından türetildi — Shopify'da yayınlamadan önce başlığı kontrol etmeniz önerilir."
+        ? "Başlık URL slug'ından türetildi — MARKT-GO'ya göndermeden önce başlığı kontrol etmeniz önerilir."
         : null;
 
   const canShopifyUpload = Boolean(product) && !shopifyUploadBlockedReason;
@@ -2167,7 +2166,7 @@ function ScraperPage() {
           failCount,
           title: preview.productTitle,
           phase: "uploading",
-          detail: "CSV Shopify API'ye gönderiliyor...",
+          detail: `${brand.destinationName} API'ye gönderiliyor...`,
           percent: basePercent + Math.round(15 / total),
           outcomes: [...outcomes],
         });
@@ -2233,7 +2232,7 @@ function ScraperPage() {
                 ? {
                     ...prev,
                     phase: "verifying",
-                    detail: "Bağlantı koptu — Shopify'da ürün aranıyor...",
+                    detail: `Bağlantı koptu — ${brand.destinationName}'da ürün aranıyor...`,
                   }
                 : prev,
             );
@@ -2249,13 +2248,13 @@ function ScraperPage() {
             outcomes.push({
               title: preview.productTitle,
               ok: true,
-              mode: "Shopify'da doğrulandı",
+              mode: `${brand.destinationName}'da doğrulandı`,
               productId: recovered.productId,
               adminUrl: recovered.adminUrl,
             });
           } else {
             const msg = isShopifyUploadNetworkError(err)
-              ? "Bağlantı kesildi ve Shopify'da ürün bulunamadı — admin panelini kontrol edin"
+              ? `Bağlantı kesildi ve ${brand.destinationName}'da ürün bulunamadı — paneli kontrol edin`
               : err instanceof Error
                 ? err.message
                 : "Yükleme hatası";
@@ -2341,7 +2340,7 @@ function ScraperPage() {
         title: failCount === 0 ? "Toplu Yükleme Tamamlandı" : "Toplu Yükleme Bitti",
         description:
           failCount === 0
-            ? `✅ ${successCount} ürün Shopify'da doğrulandı${skippedCount ? `, ${skippedCount} engelli ürün atlandı` : ""}${lastSuccess?.adminUrl ? " — son ürünü admin'de açabilirsiniz" : ""}`
+            ? `✅ ${successCount} ürün ${brand.destinationName}'ya gönderildi${skippedCount ? `, ${skippedCount} engelli ürün atlandı` : ""}${lastSuccess?.adminUrl ? " — son ürünü panelde açabilirsiniz" : ""}`
             : `✅ ${successCount} başarılı, ❌ ${failCount} hatalı${skippedCount ? `, ⏭ ${skippedCount} atlandı` : ""}`,
         duration: 12000,
       });
@@ -2570,19 +2569,19 @@ function ScraperPage() {
 
       if (response.ok && result.success) {
         toast({
-          title: "Shopify'a Yüklendi!",
+          title: `${brand.destinationName}'ya Yüklendi!`,
           description: result.adminUrl
             ? `Ürün draft olarak eklendi.`
-            : `Ürün Shopify mağazanıza eklendi. ID: ${result.shopifyProductId || result.productId || 'N/A'}`,
+            : `Ürün ${brand.destinationName} kataloğuna eklendi. ID: ${result.shopifyProductId || result.productId || 'N/A'}`,
           duration: 5000,
         });
       } else {
-        throw new Error(result.error || result.message || "Shopify'a yüklenirken hata oluştu");
+        throw new Error(result.error || result.message || `${brand.destinationName}'ya yüklenirken hata oluştu`);
       }
     } catch (error) {
       toast({
-        title: "Shopify Yükleme Hatası",
-        description: error instanceof Error ? error.message : "Shopify'a yüklenirken bağlantı hatası oluştu",
+        title: `${brand.destinationName} yükleme hatası`,
+        description: error instanceof Error ? error.message : `${brand.destinationName}'ya yüklenirken bağlantı hatası oluştu`,
         variant: "destructive",
         duration: 5000,
       });
@@ -2648,7 +2647,6 @@ function ScraperPage() {
                 <Bell className="w-4 h-4 mr-2" />
                 Telegram Bildirimleri
               </Button>
-              {brand.shopifyEnabled ? <ShopifySettingsDialog /> : null}
               <MarktGoSettingsDialog />
               <Button
                 type="button"
@@ -2964,7 +2962,7 @@ function ScraperPage() {
                         </Button>
                       </div>
 
-              {brand.shopifyEnabled && (shopifyUploadBlockedReason || shopifyUploadWarning) && (
+              {(shopifyUploadBlockedReason || shopifyUploadWarning) && (
                         <div
                           className={`rounded-lg border px-4 py-3 text-sm ${
                             shopifyUploadBlockedReason
@@ -3032,9 +3030,9 @@ function ScraperPage() {
                 )}
                 {lastShopifyResult?.adminUrl && (
                   <p className="text-sm text-zinc-400">
-                    Shopify:{' '}
+                    {brand.destinationName}:{' '}
                     <a href={lastShopifyResult.adminUrl} target="_blank" rel="noreferrer" className="underline">
-                      Admin panelinde aç
+                      Panelde aç
                     </a>
                   </p>
                 )}
@@ -3125,7 +3123,7 @@ function ScraperPage() {
                         : "Hazırlanıyor..."}
                     </p>
                     <p className="text-zinc-100 text-sm mt-0.5 truncate font-medium">
-                      {uploadProgress.title || "Shopify aktarımı"}
+                      {uploadProgress.title || "MARKT-GO aktarımı"}
                     </p>
                     <p className="text-zinc-500 text-xs mt-1">
                       {uploadProgress.detail}
@@ -3288,7 +3286,7 @@ function ScraperPage() {
               ) : null}
                       </div>
 
-              {brand.shopifyEnabled && (shopifyUploadBlockedReason || shopifyUploadWarning) && (
+              {(shopifyUploadBlockedReason || shopifyUploadWarning) && (
                         <div
                           className={`rounded-lg border px-4 py-3 text-sm ${
                             shopifyUploadBlockedReason

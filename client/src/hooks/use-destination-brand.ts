@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 export type DestinationBrand = {
   shopifyEnabled: boolean;
@@ -9,105 +9,60 @@ export type DestinationBrand = {
   transferLabel: string;
   transferLoadingLabel: string;
   bulkLabel: string;
-  provider: "marktgo" | "shopify";
+  provider: "marktgo";
 };
 
-const DEFAULT_BRAND: DestinationBrand = {
-  shopifyEnabled: true,
+const DESTINATION = "MARKT-GO";
+
+const MARKTGO_BRAND: DestinationBrand = {
+  shopifyEnabled: false,
   marktgoEnabled: false,
-  destinationName: "MARKT-GO",
-  sendLabel: "MARKT-GO'ya Gönder",
-  sendLoadingLabel: "MARKT-GO'ya gidiyor…",
-  transferLabel: "MARKT-GO'ya Aktar",
-  transferLoadingLabel: "MARKT-GO'ya aktarılıyor…",
-  bulkLabel: "Tüm ürünleri MARKT-GO'ya yükle",
+  destinationName: DESTINATION,
+  sendLabel: `${DESTINATION}'ya Gönder`,
+  sendLoadingLabel: `${DESTINATION}'ya gidiyor…`,
+  transferLabel: `${DESTINATION}'ya Aktar`,
+  transferLoadingLabel: `${DESTINATION}'ya aktarılıyor…`,
+  bulkLabel: `Tüm ürünleri ${DESTINATION}'ya yükle`,
   provider: "marktgo",
 };
 
-function labelsFor(name: string): Omit<DestinationBrand, "shopifyEnabled" | "marktgoEnabled" | "provider"> {
-  const n = name.trim() || "MARKT-GO";
-  return {
-    destinationName: n,
-    sendLabel: `${n}'a Gönder`,
-    sendLoadingLabel: `${n}'a gidiyor…`,
-    transferLabel: `${n}'a Aktar`,
-    transferLoadingLabel: `${n}'a aktarılıyor…`,
-    bulkLabel: `Tüm ürünleri ${n}'a yükle`,
-  };
+function isConnectedStatus(status: string | undefined): boolean {
+  return status === "connected" || status === "connected_limited";
 }
 
 export function useDestinationBrand(): DestinationBrand {
-  const accessQ = useQuery({
-    queryKey: ["connection-access"],
-    queryFn: async () => {
-      const res = await fetch("/api/connection-access", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Bağlantılar alınamadı");
-      return data as { brand?: Partial<DestinationBrand> };
-    },
-    staleTime: 10_000,
-    refetchInterval: 30_000,
-  });
-
   const connectionsQ = useQuery({
     queryKey: ["/api/marktgo/connections"],
     queryFn: async () => {
       const res = await fetch("/api/marktgo/connections", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) return { connections: [] as Array<{ name?: string; status?: string }> };
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { connections: [] as Array<{ name?: string; status?: string; isActive?: boolean }> };
       return data as { connections?: Array<{ name?: string; status?: string; isActive?: boolean }> };
     },
-    staleTime: 10_000,
-    refetchInterval: 30_000,
-  });
-
-  const marktgoQ = useQuery({
-    queryKey: ["/api/marktgo/health"],
-    queryFn: async () => {
-      const res = await fetch("/api/marktgo/health", { cache: "no-store" });
-      return res.json() as Promise<{
-        success?: boolean;
-        connection?: { name?: string; status?: string };
-        error?: string;
-      }>;
-    },
-    staleTime: 10_000,
-    refetchInterval: 30_000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    placeholderData: keepPreviousData,
+    retry: 1,
   });
 
   const saved =
     connectionsQ.data?.connections?.find((c) => c.isActive !== false) ??
     connectionsQ.data?.connections?.[0];
-  const mg = marktgoQ.data?.connection ?? saved;
-  const mgStatus = mg?.status || saved?.status || "";
-  const marktgoEnabled = Boolean(
-    mgStatus === "connected" ||
-      mgStatus === "connected_limited" ||
-      (marktgoQ.data?.success &&
-        (mg?.status === "connected" || mg?.status === "connected_limited")),
-  );
-  const shopifyEnabled =
-    accessQ.data?.brand?.shopifyEnabled !== false && !marktgoEnabled;
+  const rawName = String(saved?.name || "").trim();
+  const destinationName =
+    rawName && !/shopify/i.test(rawName) ? rawName : DESTINATION;
 
-  if (marktgoEnabled) {
-    const name = mg?.name || saved?.name || "MARKT-GO";
-    return {
-      shopifyEnabled,
-      marktgoEnabled: true,
-      provider: "marktgo",
-      ...labelsFor(name),
-    };
-  }
-
-  const fromAccess = accessQ.data?.brand || {};
-  const name = String(fromAccess.destinationName || saved?.name || "MARKT-GO");
   return {
-    ...DEFAULT_BRAND,
-    ...fromAccess,
-    shopifyEnabled,
-    marktgoEnabled: false,
+    ...MARKTGO_BRAND,
+    destinationName,
+    sendLabel: `${destinationName}'ya Gönder`,
+    sendLoadingLabel: `${destinationName}'ya gidiyor…`,
+    transferLabel: `${destinationName}'ya Aktar`,
+    transferLoadingLabel: `${destinationName}'ya aktarılıyor…`,
+    bulkLabel: `Tüm ürünleri ${destinationName}'ya yükle`,
+    shopifyEnabled: false,
+    marktgoEnabled: isConnectedStatus(saved?.status),
     provider: "marktgo",
-    ...labelsFor(name),
   };
 }
 

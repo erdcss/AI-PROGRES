@@ -281,19 +281,32 @@ function slugifyName(name: string): string {
   return s || `app-${Date.now().toString(36)}`;
 }
 
+const SHOPIFY_CONNECTION_ID = "shopify";
+const DESTINATION_NAME = "MARKT-GO";
+
 export function getDestinationBrand() {
-  const store = readStore();
-  const shopifyEnabled = !store.disabled.includes("shopify");
-  const destinationName = (store.displayNames.shopify || "Shopify").trim() || "Shopify";
   return {
-    shopifyEnabled,
-    destinationName,
-    sendLabel: `${destinationName}'a Gönder`,
-    sendLoadingLabel: `${destinationName}'a gidiyor…`,
-    transferLabel: `${destinationName}'a Aktar`,
-    transferLoadingLabel: `${destinationName}'a aktarılıyor…`,
-    bulkLabel: `Tüm ürünleri ${destinationName}'a yükle`,
+    shopifyEnabled: false,
+    marktgoEnabled: true,
+    destinationName: DESTINATION_NAME,
+    sendLabel: `${DESTINATION_NAME}'ya Gönder`,
+    sendLoadingLabel: `${DESTINATION_NAME}'ya gidiyor…`,
+    transferLabel: `${DESTINATION_NAME}'ya Aktar`,
+    transferLoadingLabel: `${DESTINATION_NAME}'ya aktarılıyor…`,
+    bulkLabel: `Tüm ürünleri ${DESTINATION_NAME}'ya yükle`,
+    provider: "marktgo" as const,
   };
+}
+
+function stopShopifyConnection(store: StoreFile): StoreFile {
+  if (!store.disabled.includes(SHOPIFY_CONNECTION_ID)) {
+    store.disabled.push(SHOPIFY_CONNECTION_ID);
+  }
+  const shopify = catalogById(SHOPIFY_CONNECTION_ID);
+  if (shopify) {
+    for (const envName of shopify.schema.envVars) clearEnv(envName);
+  }
+  return store;
 }
 
 function snapshotEnv(envName: string) {
@@ -319,7 +332,9 @@ function restoreEnv(envName: string) {
 }
 
 export function applyConnectionAccessOnBoot(): void {
-  const store = readStore();
+  let store = readStore();
+  store = stopShopifyConnection(store);
+  writeStore(store);
   for (const key of store.keys) {
     const item = catalogById(key.connectionId);
     if (!item) continue;
@@ -353,41 +368,46 @@ export function listConnectionAccess() {
     })),
   ];
 
-  const connections = catalog.map((item) => {
-    const enabled = !store.disabled.includes(item.id);
-    const displayName = store.displayNames[item.id] || item.name;
-    const envStatus = item.schema.envVars.map((name) => {
-      const { configured, masked } = maskSecret(process.env[name]);
-      return { name, configured, masked };
+  const connections = catalog
+    .filter((item) => item.id !== SHOPIFY_CONNECTION_ID)
+    .map((item) => {
+      const enabled = !store.disabled.includes(item.id);
+      const displayName = store.displayNames[item.id] || item.name;
+      const envStatus = item.schema.envVars.map((name) => {
+        const { configured, masked } = maskSecret(process.env[name]);
+        return { name, configured, masked };
+      });
+      const configured = envStatus.some((e) => e.configured);
+      const extraKeys = store.keys
+        .filter((k) => k.connectionId === item.id)
+        .map((k) => ({
+          id: k.id,
+          envName: k.envName,
+          label: k.label,
+          masked: maskSecret(k.value).masked,
+          createdAt: k.createdAt,
+        }));
+      return {
+        id: item.id,
+        name: displayName,
+        catalogName: item.name,
+        group: item.group,
+        description: item.description,
+        enabled,
+        configured,
+        schema: item.schema,
+        envStatus,
+        extraKeys,
+      };
     });
-    const configured = envStatus.some((e) => e.configured);
-    const extraKeys = store.keys
-      .filter((k) => k.connectionId === item.id)
-      .map((k) => ({
-        id: k.id,
-        envName: k.envName,
-        label: k.label,
-        masked: maskSecret(k.value).masked,
-        createdAt: k.createdAt,
-      }));
-    return {
-      id: item.id,
-      name: displayName,
-      catalogName: item.name,
-      group: item.group,
-      description: item.description,
-      enabled,
-      configured,
-      schema: item.schema,
-      envStatus,
-      extraKeys,
-    };
-  });
 
   return { connections, brand: getDestinationBrand() };
 }
 
 export function setConnectionEnabled(id: string, enabled: boolean): { ok: boolean; error?: string } {
+  if (id === SHOPIFY_CONNECTION_ID && enabled) {
+    return { ok: false, error: "Shopify bağlantısı kalıcı olarak durduruldu" };
+  }
   const item = catalogById(id);
   if (!item) return { ok: false, error: "Bağlantı bulunamadı" };
   const store = readStore();
