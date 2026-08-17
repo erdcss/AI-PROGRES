@@ -19,6 +19,7 @@ export type ScrapeCapabilities = {
   globalTimeoutMs?: number;
   defaultScrapeMode: string;
   pipelineEndpoint?: string;
+  gitSha?: string;
 };
 
 let cached: ScrapeCapabilities | null = null;

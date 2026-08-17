@@ -2999,6 +2999,7 @@ function ScraperPage() {
                 ) : null}
                 <p className="text-slate-300">
                   Provider: {(runtimeCapabilities.selectedProviders || []).join(" → ") || "—"}
+                  {runtimeCapabilities.gitSha ? ` · ${runtimeCapabilities.gitSha}` : ""}
                 </p>
                 {runtimeCapabilities.warnings?.map((w) => (
                   <p key={w} className="text-amber-300 text-xs">{w}</p>

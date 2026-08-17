@@ -1,4 +1,5 @@
 import { isCloudRuntime, puppeteerAllowed } from "@shared/deploy-runtime";
+import { resolveDeployRevision } from "../deploy-revision";
 import {
   getBrowserWorkerHealthStatus,
   isBrowserWorkerConfigured,
@@ -343,6 +344,7 @@ export async function buildScrapeCapabilitiesPayload() {
     globalTimeoutMs: snap.globalTimeoutMs,
     defaultScrapeMode: "auto-fast",
     pipelineEndpoint: "/api/trendyol-scrape",
+    gitSha: resolveDeployRevision(),
   };
 }
 

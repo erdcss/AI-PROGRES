@@ -12,6 +12,7 @@ import { parse } from 'csv-parse/sync';
 import { getShopifyConfig, saveShopifyAccessToken } from './shopify-credentials';
 import { uploadProductToShopify } from './shopify-api-uploader';
 import { getValidShopifyAccessToken } from './shopify-token-manager';
+import { resolveDeployRevision } from './deploy-revision';
 
 const router = Router();
 
@@ -98,9 +99,11 @@ router.get('/health', async (_req: Request, res: Response) => {
   const shopifyOk = tokenStatus.valid;
   const shopifyConfig = await getShopifyConfig().catch(() => null);
 
-  res.status(shopifyOk ? 200 : 503).json({
+  // Always 200: Railway / load-balancer healthchecks treat 5xx as a failed deploy.
+  // Shopify being stopped must not block new releases from going live.
+  res.status(200).json({
     status: shopifyOk ? 'ok' : 'degraded',
-    service: 'Replit Importer API',
+    service: 'trendyol-scraper',
     shopify: {
       connected: shopifyOk,
       shopDomain: shopifyConfig?.shopDomain || tokenStatus.shopDomain || null,
@@ -108,6 +111,7 @@ router.get('/health', async (_req: Request, res: Response) => {
       checkCount: tokenStatus.checkCount,
     },
     importKey: !!process.env.IMPORT_KEY,
+    gitSha: resolveDeployRevision(),
     timestamp: new Date().toISOString(),
   });
 });
