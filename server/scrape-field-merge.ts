@@ -1,10 +1,12 @@
 import { normalizeTrendyolPriceValue, TRENDYOL_PROFIT_MARGIN } from "./trendyol-price-utils";
+import { resolveExportBrand, type ExportBrandSource } from "./trendyol-title-utils";
 
 export type ScrapeFieldSource =
   | "productInfo"
   | "product"
   | "canonicalProduct"
-  | "root";
+  | "root"
+  | ExportBrandSource;
 
 export interface ScrapeSourceLayer {
   key: ScrapeFieldSource;
@@ -93,17 +95,33 @@ export function pickFirstNonEmptyTitle(layers: ScrapeSourceLayer[]): {
   return { title: "", source: null };
 }
 
-export function pickFirstNonEmptyBrand(layers: ScrapeSourceLayer[]): {
+export function pickFirstNonEmptyBrand(
+  layers: ScrapeSourceLayer[],
+  extras?: { sourceUrl?: string; features?: unknown },
+): {
   brand: string;
   source: ScrapeFieldSource | null;
 } {
+  const { title } = pickFirstNonEmptyTitle(layers);
+  let category = "";
   for (const layer of layers) {
-    const brand = layer.data.brand;
-    if (isNonEmptyString(brand)) {
-      return { brand: brand.trim(), source: layer.key };
+    const c = layer.data.category;
+    if (typeof c === "string" && c.trim()) {
+      category = c.trim();
+      break;
     }
   }
-  return { brand: "", source: null };
+  const resolved = resolveExportBrand({
+    layers,
+    sourceUrl: extras?.sourceUrl,
+    features: extras?.features,
+    title,
+    category,
+  });
+  return {
+    brand: resolved.brand,
+    source: resolved.source as ScrapeFieldSource | null,
+  };
 }
 
 export function pickFirstPositivePrice(layers: ScrapeSourceLayer[]): {
@@ -193,7 +211,13 @@ export function pickRichestVariants(layers: ScrapeSourceLayer[]): {
 export function mergeScrapeFields(result: Record<string, unknown>): MergedScrapeFields {
   const layers = collectScrapeSourceLayers(result);
   const { title, source: titleSource } = pickFirstNonEmptyTitle(layers);
-  const { brand, source: brandSource } = pickFirstNonEmptyBrand(layers);
+  const sourceUrl = String(
+    result.sourceUrl ?? result.originalUrl ?? result.url ?? "",
+  ).trim();
+  const { brand, source: brandSource } = pickFirstNonEmptyBrand(layers, {
+    sourceUrl,
+    features: result.features,
+  });
   const price = pickFirstPositivePrice(layers);
   const images = mergeImagesFromLayers(layers);
   const { variants, source: variantsSource } = pickRichestVariants(layers);

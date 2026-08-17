@@ -62,6 +62,7 @@ import {
 } from "@shared/trendyol-variant-utils";
 import { applyTagsToShopifyCsv } from "@shared/shopify-csv-tags";
 import { formatOriginalPrice, formatSalePrice, normalizeTrendyolDisplayPrice } from "@/utils/price-utils";
+import { useScraperWorkspace } from "@/components/scraper-workspace-context";
 
 
 const scrapeSchema = z.object({
@@ -296,6 +297,7 @@ interface Product {
 }
 
 function ScraperPage() {
+  const workspace = useScraperWorkspace();
   const brand = useDestinationBrand();
   const [product, setProduct] = useState<Product | null>(null);
   const [, setLocation] = useLocation();
@@ -804,8 +806,16 @@ function ScraperPage() {
 
   const DEFAULT_DOCUMENT_TITLE = "Turmarkt - Ürün Çekme Uygulaması";
 
+  const tabBusy =
+    singleScrapeMutation.isPending || isBulkProcessing || Boolean(uploadProgress);
+  const tabTitle =
+    (typeof product?.title === "string" && product.title.trim()) ||
+    csvPreviews[0]?.productTitle?.trim() ||
+    (tabBusy ? "Çekiliyor…" : "Yeni çekim");
+
   // Sekme başlığında ürün çekme / yükleme sayacı
   useEffect(() => {
+    if (workspace) return;
     if (isBulkProcessing && bulkProgress && bulkProgress.total > 0) {
       const active =
         bulkProgress.current < bulkProgress.total
@@ -833,7 +843,7 @@ function ScraperPage() {
     }
 
     document.title = DEFAULT_DOCUMENT_TITLE;
-  }, [isBulkProcessing, bulkProgress, singleScrapeMutation.isPending, uploadProgress]);
+  }, [workspace, isBulkProcessing, bulkProgress, singleScrapeMutation.isPending, uploadProgress]);
 
   // Toplu Shopify yükleme mutation'ı
   const bulkUploadMutation = useMutation({
@@ -1417,7 +1427,9 @@ function ScraperPage() {
       const left = globalCooldownUntil - Date.now();
       if (left > 0) {
         setWorkflowStep(`Trendyol 429 — ${Math.ceil(left / 1000)}s bekleniyor...`);
-        document.title = `(429) ${Math.ceil(left / 1000)}s bekle · Turmarkt`;
+        if (!workspace) {
+          document.title = `(429) ${Math.ceil(left / 1000)}s bekle · Turmarkt`;
+        }
         await new Promise((r) => setTimeout(r, left));
       }
     };
@@ -1859,6 +1871,14 @@ function ScraperPage() {
     }
     shopifyTransferMutation.mutate();
   };
+
+  useEffect(() => {
+    if (!workspace) return;
+    workspace.reportMeta({
+      title: tabTitle,
+      busy: tabBusy || shopifyTransferMutation.isPending,
+    });
+  }, [workspace, tabTitle, tabBusy, shopifyTransferMutation.isPending]);
 
 
   // Sürükle-bırak fonksiyonları

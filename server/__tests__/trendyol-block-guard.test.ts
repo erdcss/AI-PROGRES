@@ -134,8 +134,13 @@ describe("circuit breaker", () => {
       true,
     );
     assert.equal(
-      shouldSkipDirectHtmlAfterBlock({ kind: "upstream-556", source: "api" }),
+      shouldSkipDirectHtmlAfterBlock({ kind: "upstream-556", source: "html" }),
       true,
+    );
+    assert.equal(
+      shouldSkipDirectHtmlAfterBlock({ kind: "upstream-556", source: "api" }),
+      false,
+      "API 556 must not skip product-page HTML",
     );
     assert.equal(shouldSkipDirectHtmlAfterBlock(null), false);
   });

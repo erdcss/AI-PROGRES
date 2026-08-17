@@ -171,7 +171,7 @@ export function parseTrendyolProductFromHtmlContent(
     fromState.brand ||
     fromNext.brand ||
     brandFromTrendyolUrl(url) ||
-    'Marka';
+    '';
 
   const product = getTrendyolProductFromState(html);
   const listNodes = $(".prc-org, .original-price, .price-original, .was-price");

@@ -278,9 +278,11 @@ export function classifyTrendyolBlock(input: {
   return null;
 }
 
-/** Confirmed WAF: aynı job içinde Direct HTML hammer etme */
+/** Confirmed WAF on the HTML channel — don't hammer Direct HTML in the same job.
+ * API 556/403 does not skip www.trendyol.com HTML; those are different hosts. */
 export function shouldSkipDirectHtmlAfterBlock(signal: BlockSignal | null): boolean {
   if (!signal) return false;
+  if (signal.source === "api") return false;
   return (
     signal.kind === "cloudflare" ||
     signal.kind === "upstream-556" ||

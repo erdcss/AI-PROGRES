@@ -11,6 +11,7 @@ import {
   type TrendyolSourceIdentity,
 } from "./shopify-source-key";
 import { mergeScrapeFields, collectScrapeSourceLayers } from "./scrape-field-merge";
+import { brandFromTrendyolUrl } from "./trendyol-title-utils";
 import { normalizeTrendyolPriceValue } from "./trendyol-price-utils";
 import { traceVariants } from "./variant-trace";
 import { isComboSizeLabel } from "@shared/trendyol-variant-utils";
@@ -693,7 +694,10 @@ export function buildCanonicalProductForShopify(
   const title = merged.title.trim();
   if (!title) return null;
 
-  const brand = merged.brand.trim() || "Generic";
+  const brand =
+    merged.brand.trim() ||
+    (sourceUrl ? brandFromTrendyolUrl(sourceUrl) : null) ||
+    "Generic";
   const salePriceNum =
     merged.priceWithProfit > 0 ? merged.priceWithProfit : merged.priceOriginal;
   if (salePriceNum <= 0) return null;

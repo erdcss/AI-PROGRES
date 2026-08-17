@@ -1494,12 +1494,11 @@ export async function runTrendyolScrapePipeline(
   const hasImagesBeforeFetch = filterValidProductImages(result?.images || []).length > 0;
   const fieldSnapshot = evaluateFields(result, url);
   const skipImageDownloadNoCore =
-    !fieldSnapshot.hasTitle &&
-    !fieldSnapshot.hasPrice &&
+    !diagnostics.apiSuccess &&
     !diagnostics.htmlParseSuccess &&
     !diagnostics.directHtmlSuccess &&
     !diagnostics.browserWorkerSucceeded &&
-    !diagnostics.apiSuccess;
+    !fieldSnapshot.hasPrice;
   const skipImageDownloadStages =
     skipImageDownloadNoCore ||
     (policy.isCloud &&
@@ -1558,11 +1557,11 @@ export async function runTrendyolScrapePipeline(
   const stillNoImages = filterValidProductImages(result?.images || []).length === 0;
   const fieldsBeforeImageFallback = evaluateFields(result, url);
   const skipImageFallbackNoCore =
-    !fieldsBeforeImageFallback.hasTitle &&
-    !fieldsBeforeImageFallback.hasPrice &&
+    !diagnostics.apiSuccess &&
     !diagnostics.htmlParseSuccess &&
     !diagnostics.directHtmlSuccess &&
-    !diagnostics.browserWorkerSucceeded;
+    !diagnostics.browserWorkerSucceeded &&
+    !fieldsBeforeImageFallback.hasPrice;
 
   if (
     !skipHeavyStages &&

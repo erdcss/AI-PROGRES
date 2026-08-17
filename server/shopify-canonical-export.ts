@@ -7,6 +7,7 @@ import type { CanonicalProductForShopify } from "./variant-shape-normalizer";
 import { getShopifyInventoryConfig } from "@shared/shopify-inventory-config";
 import { traceVariants } from "./variant-trace";
 import { joinShopifyTags, buildAutomaticProductTags } from "@shared/shopify-tag-sanitizer";
+import { brandFromTrendyolUrl, isValidExportBrandName } from "./trendyol-title-utils";
 
 const COL = {
   TITLE: 0,
@@ -50,6 +51,15 @@ function escapeCsvCell(cell: string): string {
   return cell;
 }
 
+function resolveCsvVendorBrand(product: CanonicalProductForShopify): string {
+  const ctx = { title: product.title };
+  const raw = String(product.brand || "").trim();
+  if (isValidExportBrandName(raw, ctx)) return raw;
+  const fromUrl = product.sourceUrl ? brandFromTrendyolUrl(product.sourceUrl) : null;
+  if (fromUrl && isValidExportBrandName(fromUrl, ctx)) return fromUrl;
+  return raw || "Generic";
+}
+
 function buildTags(product: CanonicalProductForShopify): string {
   return joinShopifyTags(buildAutomaticProductTags(product.sourceProductId));
 }
@@ -62,7 +72,7 @@ function buildBodyHtml(product: CanonicalProductForShopify): string {
     ...new Set(product.variants.filter((v) => v.inStock).map((v) => v.color)),
   ];
   let html = `<div class="product-details">`;
-  if (product.brand) html += `<p><strong>Marka:</strong> ${product.brand}</p>`;
+  if (product.brand) html += `<p><strong>Marka:</strong> ${resolveCsvVendorBrand(product)}</p>`;
   if (inStockColors.length)
     html += `<p><strong>Mevcut Renkler:</strong> ${inStockColors.join(", ")}</p>`;
   if (inStockSizes.length)
@@ -212,7 +222,7 @@ export function generateCanonicalShopifyCSV(
     if (isFirst) {
       row[COL.TITLE] = product.title;
       row[COL.DESCRIPTION] = bodyHtml;
-      row[COL.VENDOR] = product.brand || "Generic";
+      row[COL.VENDOR] = resolveCsvVendorBrand(product);
       row[COL.TAGS] = tags;
       row[COL.PUBLISHED] = "TRUE";
       row[COL.STATUS] = variant.inStock ? "active" : "draft";

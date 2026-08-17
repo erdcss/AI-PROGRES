@@ -2,7 +2,7 @@ import { Switch, Route, Redirect } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TrackingStartupNotifier } from "@/components/TrackingStartupNotifier";
 import { useIsMobile } from "@/hooks/use-mobile";
-import ScraperPage from "@/pages/scraper";
+import ScraperWorkspace from "@/components/ScraperWorkspace";
 import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
 import UrunHavuzuPage from "@/pages/urun-havuzu";
@@ -268,7 +268,7 @@ function Router() {
       <Route path="/scraper/:platform?">
         <PageTransition>
           <div className={`mx-auto ${isMobile ? "px-4 py-4 max-w-full" : "container px-4 py-4"}`}>
-            <ScraperPage />
+            <ScraperWorkspace />
           </div>
         </PageTransition>
       </Route>
@@ -290,7 +290,7 @@ function Router() {
       <Route path="/trendyol">
         <PageTransition>
           <div className={`mx-auto ${isMobile ? "px-4 py-4 max-w-full" : "container px-4 py-4"}`}>
-            <ScraperPage />
+            <ScraperWorkspace />
           </div>
         </PageTransition>
       </Route>

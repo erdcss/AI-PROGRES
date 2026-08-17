@@ -14,6 +14,7 @@ import {
 import {
   buildMinimalShopifyCsvRow,
 } from "./shopify-csv-headers";
+import { isValidExportBrandName, brandFromTrendyolUrl } from "./trendyol-title-utils";
 import { logCacheGuard } from "./flow-trace";
 import {
   hasCsvEligibleScrapeData,
@@ -401,9 +402,13 @@ export async function buildScrapeCsvContent(
   }
 
   const salePrice = product.price.withProfit || product.price.original;
+  let vendorBrand = product.brand.trim();
+  if (!isValidExportBrandName(vendorBrand, { title: product.title })) {
+    vendorBrand = (sourceUrl ? brandFromTrendyolUrl(sourceUrl) : null) || "";
+  }
   const minimalCsv = buildMinimalShopifyCsvRow({
     title: product.title,
-    brand: product.brand,
+    brand: vendorBrand,
     price: salePrice,
     imageUrl: product.images[0]?.url,
   });

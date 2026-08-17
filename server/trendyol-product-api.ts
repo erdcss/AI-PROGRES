@@ -316,6 +316,7 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
 
     if (status === 403 || status === 429 || status >= 500) {
       debugSamples.push({ endpoint, status, contentType, bodyPreview });
+      if (status === 403 || status === 429 || status === 556) break;
       continue;
     }
 
