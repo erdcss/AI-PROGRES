@@ -312,3 +312,22 @@ export async function migrateMisplacedMarktGoTokenFromShopify(): Promise<boolean
 export function maskMarktGoTokenForUi(token: string): string {
   return maskToken(token);
 }
+
+/** Canlı ortamda token env'deyse local ile aynı MARKT-GO bağlantısını kur. */
+export async function ensureMarktGoConnectionFromEnv(): Promise<boolean> {
+  const token = String(process.env.MARKTGO_ACCESS_TOKEN || "").trim();
+  if (!token || !looksLikeMarktGoToken(token)) return false;
+  const existing = await getActiveMarktGoConnection();
+  if (existing) return false;
+  await saveMarktGoConnection({
+    name: String(process.env.MARKTGO_CONNECTION_NAME || "MARKT-GO").trim() || "MARKT-GO",
+    apiBaseUrl:
+      process.env.MARKTGO_API_BASE_URL || "https://api.turmarkt.com/api/v1/external",
+    accessToken: token,
+    environment: String(process.env.MARKTGO_ENVIRONMENT || "production").toLowerCase() === "test"
+      ? "test"
+      : "production",
+  });
+  console.info("[marktgo] bağlantı MARKTGO_ACCESS_TOKEN env ile kuruldu");
+  return true;
+}

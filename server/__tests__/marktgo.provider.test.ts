@@ -14,13 +14,21 @@ import {
 } from "../lib/secret-crypto";
 import { missingRequiredScopes, parseScopeList } from "../services/marktgo/scopes";
 import { normalizeMarktGoHttpError } from "../services/marktgo/errors";
-import { extractId, normalizeMarktGoProduct } from "../services/marktgo/normalize";
+import { extractId, listItemsFromPayload, normalizeMarktGoProduct } from "../services/marktgo/normalize";
 import { idempotencyKeyForProduct, stableExternalId } from "../services/marktgo/mapping.service";
-import { mapPoolProductToMarktGoInput, poolLocalProductId } from "../services/marktgo/pool-map";
+import {
+  localIdFromRemote,
+  mapPoolProductToMarktGoInput,
+  parseSourceUrlFromTags,
+  poolLocalProductId,
+  remoteToPoolProduct,
+  sourceUrlTag,
+} from "../services/marktgo/pool-map";
 import { sendButtonLabel } from "@shared/integration-provider";
 import { MarktGoClient } from "../services/marktgo/client";
 import {
   pickMissingMappings,
+  pickUnmappedRemoteIds,
   shouldAbortCatalogWipe,
 } from "../services/marktgo/reconcile.service";
 
@@ -136,6 +144,38 @@ const goneMappings = pickMissingMappings(
 assert(goneMappings.length === 1 && goneMappings[0].externalProductId === "2", "missing mapping detected");
 assert(shouldAbortCatalogWipe(5, 0, 5), "wipe abort when all look missing");
 assert(!shouldAbortCatalogWipe(5, 2, 3), "wipe allowed when some still live");
+assert(
+  pickUnmappedRemoteIds(["1", "2", "3"], [{ externalProductId: "1" }]).join(",") === "2,3",
+  "unmapped remote ids imported",
+);
+
+const srcTagged = mapPoolProductToMarktGoInput({
+  poolId: "PH-SRC",
+  title: "Kaynak",
+  salePrice: 100,
+  sourceUrl: "https://www.trendyol.com/x-p-1",
+  inStock: true,
+  images: ["https://cdn.example/a.jpg"],
+});
+assert(srcTagged.tags?.some((t) => t.startsWith("src:https://www.trendyol.com")), "source url stored in tags");
+assert(parseSourceUrlFromTags([sourceUrlTag("https://www.n11.com/urun/1")]) === "https://www.n11.com/urun/1", "source tag parsed");
+assert(localIdFromRemote({ externalId: "aip_PH-ABCDEF" }) === "PH-ABCDEF", "remote externalId maps back to pool id");
+assert(listItemsFromPayload({ items: [{ id: 7 }], pagination: { hasMore: false } }).length === 1, "list payload items");
+
+const fromLive = remoteToPoolProduct({
+  id: 1001,
+  name: "Canlı Ürün",
+  price: 110,
+  discountPrice: 110,
+  stock: 10,
+  externalId: "aip_PH-LIVE01",
+  tags: [sourceUrlTag("https://www.n11.com/urun/canli")],
+  images: ["https://cdn.example/live.jpg"],
+});
+assert(fromLive?.poolId === "PH-LIVE01", "catalog product keeps pool id");
+assert(fromLive?.externalProductId === "1001", "catalog product keeps live id");
+assert(fromLive?.sourceUrl === "https://www.n11.com/urun/canli", "catalog recovers source url");
+assert(fromLive?.salePrice === 100, "catalog reverses 10% margin");
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);

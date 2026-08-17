@@ -3,11 +3,17 @@ import { db } from "../../db";
 import { trackedProducts } from "@shared/schema";
 import { MarktGoApiError } from "./errors";
 import { getMarktGoClientForConnection } from "./connection.service";
-import { extractId } from "./normalize";
+import { extractId, listItemsFromPayload } from "./normalize";
 import {
   deleteProductMapping,
   listProductMappings,
+  stableExternalId,
+  upsertProductMapping,
 } from "./mapping.service";
+import {
+  remoteToPoolProduct,
+  type CatalogPoolProduct,
+} from "./pool-map";
 import type { IntegrationProductMapping } from "@shared/schema";
 
 const INTERVAL_MS = 15 * 60_000;
@@ -18,10 +24,12 @@ export type MarktGoCatalogReconcileResult = {
   checked: number;
   live: number;
   removed: number;
+  imported: number;
   skipped: number;
   abortedBySafety: boolean;
   removedLocalProductIds: string[];
   removedExternalProductIds: string[];
+  products: CatalogPoolProduct[];
   message: string;
   ranAt: string;
 };
@@ -45,33 +53,44 @@ export function pickMissingMappings(
   return mappings.filter((m) => !remoteIds.has(String(m.externalProductId)));
 }
 
-function idsFromListPayload(payload: unknown): { ids: string[]; hasMore: boolean; pageSize: number } {
+export function pickUnmappedRemoteIds(
+  remoteIds: Iterable<string>,
+  mappings: Array<{ externalProductId: string }>,
+): string[] {
+  const known = new Set(mappings.map((m) => String(m.externalProductId)));
+  return [...remoteIds].filter((id) => !known.has(id));
+}
+
+function pageFromListPayload(payload: unknown): {
+  items: unknown[];
+  ids: string[];
+  hasMore: boolean;
+  pageSize: number;
+} {
   const root = asObj(payload);
-  const items = Array.isArray(root.items)
-    ? root.items
-    : Array.isArray(payload)
-      ? payload
-      : [];
+  const items = listItemsFromPayload(payload);
   const ids = items
     .map((row) => extractId(row))
     .filter((id): id is string => Boolean(id));
   const pag = asObj(root.pagination);
   const hasMore = pag.hasMore === true;
-  return { ids, hasMore, pageSize: items.length };
+  return { items, ids, hasMore, pageSize: items.length };
 }
 
-async function listRemoteProductIds(
+async function listRemoteCatalog(
   client: Awaited<ReturnType<typeof getMarktGoClientForConnection>>["client"],
-): Promise<Set<string>> {
+): Promise<{ ids: Set<string>; items: unknown[] }> {
   const ids = new Set<string>();
+  const items: unknown[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     const raw = await client.get<unknown>(`/products?page=${page}&limit=100`);
-    const parsed = idsFromListPayload(raw);
+    const parsed = pageFromListPayload(raw);
     for (const id of parsed.ids) ids.add(id);
+    items.push(...parsed.items);
     if (!parsed.hasMore && parsed.pageSize < 100) break;
     if (parsed.pageSize === 0) break;
   }
-  return ids;
+  return { ids, items };
 }
 
 async function remoteProductGone(
@@ -101,10 +120,12 @@ async function runReconcile(): Promise<MarktGoCatalogReconcileResult> {
     checked: 0,
     live: 0,
     removed: 0,
+    imported: 0,
     skipped: 0,
     abortedBySafety: false,
     removedLocalProductIds: [],
     removedExternalProductIds: [],
+    products: [],
     message,
     ranAt,
     ...extra,
@@ -119,13 +140,9 @@ async function runReconcile(): Promise<MarktGoCatalogReconcileResult> {
   }
 
   const mappings = await listProductMappings(connection.id);
-  if (!mappings.length) {
-    return empty("Gönderilmiş MARKT-GO ürünü yok");
-  }
-
-  let remoteIds: Set<string>;
+  let catalog: { ids: Set<string>; items: unknown[] };
   try {
-    remoteIds = await listRemoteProductIds(client);
+    catalog = await listRemoteCatalog(client);
   } catch (err) {
     return empty("MARKT-GO ürün listesi alınamadı — silme yapılmadı", {
       success: false,
@@ -135,14 +152,25 @@ async function runReconcile(): Promise<MarktGoCatalogReconcileResult> {
     });
   }
 
+  const remoteIds = catalog.ids;
+  const products = catalog.items
+    .map((row) => remoteToPoolProduct(row))
+    .filter((row): row is CatalogPoolProduct => Boolean(row));
+
+  if (!mappings.length && !products.length) {
+    return empty("Gönderilmiş MARKT-GO ürünü yok");
+  }
+
   const missing = pickMissingMappings(mappings, remoteIds);
   const liveFromList = mappings.length - missing.length;
 
   if (shouldAbortCatalogWipe(mappings.length, liveFromList, missing.length)) {
     return empty("Güvenlik: tüm ürünler eksik göründü, silme iptal", {
       checked: mappings.length,
+      live: products.length,
       abortedBySafety: true,
       skipped: mappings.length,
+      products,
     });
   }
 
@@ -170,20 +198,44 @@ async function runReconcile(): Promise<MarktGoCatalogReconcileResult> {
     }
   }
 
+  let imported = 0;
+  const mappedExt = new Set(
+    (await listProductMappings(connection.id)).map((m) => String(m.externalProductId)),
+  );
+  for (const product of products) {
+    if (mappedExt.has(product.externalProductId)) continue;
+    try {
+      await upsertProductMapping({
+        connectionId: connection.id,
+        localProductId: product.poolId,
+        externalProductId: product.externalProductId,
+        externalId: stableExternalId(product.poolId),
+        status: "synced",
+      });
+      mappedExt.add(product.externalProductId);
+      imported += 1;
+    } catch {
+      skipped += 1;
+    }
+  }
+
   const removed = removedLocalProductIds.length;
-  const live = liveFromList + extraLive;
+  const live = Math.max(products.length, liveFromList + extraLive);
+  const parts: string[] = [];
+  if (imported) parts.push(`${imported} canlı ürün programa alındı`);
+  if (removed) parts.push(`${removed} silinen ürün çıkarıldı`);
   return {
     success: true,
-    checked: mappings.length,
+    checked: Math.max(mappings.length, products.length),
     live,
     removed,
+    imported,
     skipped,
     abortedBySafety: false,
     removedLocalProductIds,
     removedExternalProductIds,
-    message: removed
-      ? `MARKT-GO'dan silinen ${removed} ürün programdan çıkarıldı`
-      : "MARKT-GO katalog eşleşiyor",
+    products,
+    message: parts.length ? parts.join(" · ") : "MARKT-GO katalog eşleşiyor",
     ranAt,
   };
 }
@@ -201,7 +253,7 @@ export async function triggerMarktGoCatalogReconcile(force = false): Promise<Mar
   inFlight = runReconcile()
     .then((result) => {
       lastResult = result;
-      if (result.removed > 0) {
+      if (result.removed > 0 || result.imported > 0) {
         console.info(`[marktgo-reconcile] ${result.message}`);
       }
       return result;

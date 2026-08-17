@@ -75,7 +75,6 @@ export function useDestinationBrand(): DestinationBrand {
     refetchInterval: 30_000,
   });
 
-  const shopifyEnabled = accessQ.data?.brand?.shopifyEnabled !== false;
   const saved =
     connectionsQ.data?.connections?.find((c) => c.isActive !== false) ??
     connectionsQ.data?.connections?.[0];
@@ -87,6 +86,8 @@ export function useDestinationBrand(): DestinationBrand {
       (marktgoQ.data?.success &&
         (mg?.status === "connected" || mg?.status === "connected_limited")),
   );
+  const shopifyEnabled =
+    accessQ.data?.brand?.shopifyEnabled !== false && !marktgoEnabled;
 
   if (marktgoEnabled) {
     const name = mg?.name || saved?.name || "MARKT-GO";

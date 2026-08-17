@@ -802,14 +802,52 @@ export default function UrunHavuzuPage() {
       saveMarktGoSent(loadMarktGoSent().filter((id) => !gone.has(id)));
       setActiveIndex((i) => (i > 0 ? 0 : i));
     };
-    const poll = async (force = false) => {
+    const applyCatalog = (catalog: PoolProduct[]) => {
+      if (!catalog.length) return;
+      setProducts((prev) => {
+        const catalogIds = new Set(catalog.map((p) => p.poolId));
+        const localOnly = prev.filter((p) => !catalogIds.has(p.poolId));
+        return [...catalog, ...localOnly];
+      });
+      saveMarktGoSent([...loadMarktGoSent(), ...catalog.map((p) => p.poolId)]);
+      setTracking((prev) => {
+        const have = new Set(prev.map((t) => t.id));
+        const add = catalog
+          .filter((p) => !have.has(p.poolId))
+          .map((p) => ({
+            id: p.poolId,
+            sourceUrl: p.sourceUrl,
+            title: p.title,
+            siteName: p.siteName,
+            siteLogoUrl: p.siteLogoUrl,
+            category: inferMainCategory({
+              title: p.title,
+              siteName: p.siteName,
+              tags: p.brand ? [p.brand] : undefined,
+            }),
+            price: p.price,
+            salePrice: p.salePrice,
+            inStock: p.inStock !== false,
+            image: p.images[0],
+            addedAt: p.scrapedAt || new Date().toISOString(),
+            lastCheckedAt: new Date().toISOString(),
+            removed: false,
+          }));
+        if (!add.length) return prev;
+        const next = [...add, ...prev];
+        saveTracking(next);
+        return next;
+      });
+    };
+    const poll = async () => {
       try {
-        const res = await fetch(
-          "/api/marktgo/catalog-reconcile",
-          force ? { method: "POST" } : undefined,
-        );
+        const res = await fetch("/api/marktgo/catalog", { cache: "no-store" });
         const data = await res.json();
         if (cancelled || !data) return;
+        const catalog = Array.isArray(data.products)
+          ? (data.products as PoolProduct[]).filter((p) => p?.poolId && p?.title)
+          : [];
+        applyCatalog(catalog);
         const removed = Array.isArray(data.removedLocalProductIds)
           ? data.removedLocalProductIds.map(String)
           : [];
@@ -818,8 +856,8 @@ export default function UrunHavuzuPage() {
         /* bağlantı yoksa sessiz */
       }
     };
-    void poll(true);
-    const timer = window.setInterval(() => void poll(true), 15 * 60_000);
+    void poll();
+    const timer = window.setInterval(() => void poll(), 15 * 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -941,7 +979,6 @@ export default function UrunHavuzuPage() {
       }
 
       setLoading(true);
-      setProducts([]);
       setActiveIndex(0);
       setImageIndex(0);
       const scraped: PoolProduct[] = [];
@@ -971,7 +1008,10 @@ export default function UrunHavuzuPage() {
           throw new Error("Hiçbir URL çekilemedi");
         }
 
-        setProducts(scraped);
+        setProducts((prev) => {
+          const scrapedIds = new Set(scraped.map((p) => p.poolId));
+          return [...scraped, ...prev.filter((p) => !scrapedIds.has(p.poolId))];
+        });
         toast({
           title: "Ürünler çekildi",
           description: `${scraped.length} ürün hazır`,
@@ -1264,19 +1304,27 @@ export default function UrunHavuzuPage() {
   const clearWorkspace = useCallback(() => {
     if (loading || uploading || bulkUploading) return;
     setUrlList([]);
-    setProducts([]);
     setActiveIndex(0);
     setImageIndex(0);
     setTags([]);
     setTagDraft("");
     setDragOver(false);
     setLoadingProgress("");
+    void fetch("/api/marktgo/catalog", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        const catalog = Array.isArray(data?.products)
+          ? (data.products as PoolProduct[]).filter((p) => p?.poolId && p?.title)
+          : [];
+        setProducts(catalog);
+      })
+      .catch(() => setProducts([]));
     toast({
       title: "Sayfa temizlendi",
       description:
         tracking.length > 0
-          ? `Takipteki ${tracking.length} ürün korundu — yeni URL ekleyebilirsiniz`
-          : "Yeni URL ekleyebilirsiniz",
+          ? `Takipteki ${tracking.length} ürün korundu — canlı katalog yenilendi`
+          : "Canlı katalog yenilendi",
     });
   }, [bulkUploading, loading, toast, tracking.length, uploading]);
 

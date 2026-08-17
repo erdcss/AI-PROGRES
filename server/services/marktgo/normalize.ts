@@ -70,3 +70,24 @@ export function extractId(payload: unknown): string | null {
   const id = p.id ?? root.id;
   return id != null ? String(id) : null;
 }
+
+export function extractExternalId(payload: unknown): string | null {
+  const root = asObj(payload);
+  const p = asObj(root.data && typeof root.data === "object" ? root.data : root.product || root);
+  return str(p.externalId || p.external_id || root.externalId);
+}
+
+export function extractTags(payload: unknown): string[] {
+  const root = asObj(payload);
+  const p = asObj(root.data && typeof root.data === "object" ? root.data : root.product || root);
+  const raw = Array.isArray(p.tags) ? p.tags : Array.isArray(root.tags) ? root.tags : [];
+  return raw.map((t) => String(t || "").trim()).filter(Boolean);
+}
+
+export function listItemsFromPayload(payload: unknown): unknown[] {
+  const root = asObj(payload);
+  if (Array.isArray(root.items)) return root.items;
+  if (Array.isArray(root.data)) return root.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}

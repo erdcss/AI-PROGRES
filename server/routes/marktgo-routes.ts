@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { DESTINATION_PROVIDER } from "@shared/integration-provider";
 import {
+  ensureMarktGoConnectionFromEnv,
   listMarktGoConnections,
   migrateMisplacedMarktGoTokenFromShopify,
   saveMarktGoConnection,
@@ -13,7 +14,9 @@ import { runMarktGoMigration } from "../migrations/run-marktgo-migration";
 
 export function registerMarktGoRoutes(app: Express): void {
   void runMarktGoMigration(false);
-  void migrateMisplacedMarktGoTokenFromShopify().catch(() => undefined);
+  void migrateMisplacedMarktGoTokenFromShopify()
+    .then(() => ensureMarktGoConnectionFromEnv())
+    .catch(() => undefined);
 
   app.get("/api/marktgo/connections", async (_req, res) => {
     try {
@@ -93,6 +96,7 @@ export function registerMarktGoRoutes(app: Express): void {
       return res.json({
         success: true,
         removedLocalProductIds: last?.removedLocalProductIds || [],
+        products: last?.products || [],
         ...last,
       });
     } catch (err) {
@@ -104,7 +108,25 @@ export function registerMarktGoRoutes(app: Express): void {
     try {
       const { triggerMarktGoCatalogReconcile } = await import("../services/marktgo/reconcile.service");
       const result = await triggerMarktGoCatalogReconcile(true);
-      return res.json({ success: true, ...result });
+      return res.json({ success: true, products: result?.products || [], ...result });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: userMessageForMarktGoError(err) });
+    }
+  });
+
+  app.get("/api/marktgo/catalog", async (_req, res) => {
+    try {
+      const { triggerMarktGoCatalogReconcile } = await import("../services/marktgo/reconcile.service");
+      const result = await triggerMarktGoCatalogReconcile(true);
+      return res.json({
+        success: true,
+        products: result?.products || [],
+        imported: result?.imported || 0,
+        removed: result?.removed || 0,
+        removedLocalProductIds: result?.removedLocalProductIds || [],
+        live: result?.live || 0,
+        message: result?.message || "",
+      });
     } catch (err) {
       return res.status(500).json({ success: false, error: userMessageForMarktGoError(err) });
     }

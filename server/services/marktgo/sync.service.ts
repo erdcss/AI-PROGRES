@@ -145,6 +145,9 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
       tags: input.tags || [],
       status: "active" as const,
       externalId,
+      ...(input.sourceUrl && /^https?:\/\//i.test(input.sourceUrl)
+        ? { sourceUrl: input.sourceUrl }
+        : {}),
       ...(inline ? { variants: inline } : {}),
     };
   };
