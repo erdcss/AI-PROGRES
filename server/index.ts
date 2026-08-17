@@ -615,22 +615,6 @@ app.use(pendingChangesRoutes);
   
   const server = await registerRoutes(app);
 
-  // SHOPIFY_APP_SECRET_NEW / DB domain hydrate
-  try {
-    const { syncNewTokenToDB, hydrateShopDomainFromDatabase, bootstrapShopifyConnectionFromEnv } =
-      await import('./shopify-credentials');
-    await hydrateShopDomainFromDatabase();
-    await syncNewTokenToDB();
-    const boot = await bootstrapShopifyConnectionFromEnv();
-    if (!boot.hasAccessToken) {
-      console.warn(`⚠️ SHOPIFY: ${boot.message}`);
-    } else {
-      console.log(`✅ SHOPIFY: ${boot.message} (${boot.shopDomain})`);
-    }
-  } catch (e) {
-    console.error('Shopify startup bootstrap error:', e);
-  }
-
   // Serve static CSV files from temp and exports directories
   app.use('/temp', express.static(pathModule.resolve('./temp')));
   app.use('/exports', express.static(pathModule.resolve('./exports')));
@@ -777,6 +761,23 @@ app.use(pendingChangesRoutes);
       console.log("✅ Kararlı mod aktif (Vite kapalı) — veri çekme için önerilen başlatma: npm run dev:stable");
       console.log("");
     }
+
+    void (async () => {
+      try {
+        const { syncNewTokenToDB, hydrateShopDomainFromDatabase, bootstrapShopifyConnectionFromEnv } =
+          await import("./shopify-credentials");
+        await hydrateShopDomainFromDatabase();
+        await syncNewTokenToDB();
+        const boot = await bootstrapShopifyConnectionFromEnv();
+        if (!boot.hasAccessToken) {
+          console.warn(`⚠️ SHOPIFY: ${boot.message}`);
+        } else {
+          console.log(`✅ SHOPIFY: ${boot.message} (${boot.shopDomain})`);
+        }
+      } catch (e) {
+        console.error("Shopify startup bootstrap error:", e);
+      }
+    })();
     
     // Initialize error detection system
     enhancedErrorDetection.startMonitoring();
