@@ -20,8 +20,11 @@ if (isRailway) {
   // Açıkça verilen Railway env değerleri korunur; aşağıdakiler güvenli varsayılanlardır.
   process.env.ENABLE_PUPPETEER_IN_CLOUD = "false";
   applyDefaultEnv("BROWSER_WORKER_TIMEOUT_MS", "25000");
-  applyDefaultEnv("CLOUD_SCRAPE_GLOBAL_TIMEOUT_MS", "35000");
-  applyDefaultEnv("CLOUD_SCRAPE_JOB_MAX_MS", "45000");
+
+  // Worker Docker içinde 22sn'de kesilir. Kalan süre API (8sn) + HTML (10sn)
+  // fallback'lerine ayrılır; bir provider takılırsa tüm iş kör noktada kalmaz.
+  applyDefaultEnv("CLOUD_SCRAPE_GLOBAL_TIMEOUT_MS", "45000");
+  applyDefaultEnv("CLOUD_SCRAPE_JOB_MAX_MS", "55000");
 
   // Block guard exponential backoff kullanıyor. 25ms taban ile en kötü normal
   // pre-backoff yaklaşık 1.6sn'de kalır; kullanıcı aynı istekte 30-60sn beklemez.
