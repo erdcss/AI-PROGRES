@@ -16,13 +16,16 @@ function applyDefaultEnv(key, value) {
 }
 
 if (isRailway) {
-  // Production scrape hız profili: tarayıcı işi Browser Worker'da kalır.
-  // Railway env'de açıkça verilen timeout değerleri korunur.
+  // Production scrape hız profili: tarayıcı işi yalnız Browser Worker'da kalır.
+  // Açıkça verilen Railway env değerleri korunur; aşağıdakiler güvenli varsayılanlardır.
   process.env.ENABLE_PUPPETEER_IN_CLOUD = "false";
-  applyDefaultEnv("BROWSER_WORKER_TIMEOUT_MS", "30000");
-  applyDefaultEnv("CLOUD_SCRAPE_GLOBAL_TIMEOUT_MS", "45000");
-  applyDefaultEnv("CLOUD_SCRAPE_JOB_MAX_MS", "60000");
-  applyDefaultEnv("TRENDYOL_BLOCK_BACKOFF_MS", "500");
+  applyDefaultEnv("BROWSER_WORKER_TIMEOUT_MS", "25000");
+  applyDefaultEnv("CLOUD_SCRAPE_GLOBAL_TIMEOUT_MS", "35000");
+  applyDefaultEnv("CLOUD_SCRAPE_JOB_MAX_MS", "45000");
+
+  // Block guard exponential backoff kullanıyor. 25ms taban ile en kötü normal
+  // pre-backoff yaklaşık 1.6sn'de kalır; kullanıcı aynı istekte 30-60sn beklemez.
+  applyDefaultEnv("TRENDYOL_BLOCK_BACKOFF_MS", "25");
 
   console.log("⚡ Railway Trendyol hızlı profil aktif", {
     browserWorkerTimeoutMs: process.env.BROWSER_WORKER_TIMEOUT_MS,
