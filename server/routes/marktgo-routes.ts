@@ -12,6 +12,17 @@ import { mapPoolProductToMarktGoInput } from "../services/marktgo/pool-map";
 import { userMessageForMarktGoError } from "../services/marktgo/errors";
 import { runMarktGoMigration } from "../migrations/run-marktgo-migration";
 
+async function ensureRuntimeMarktGoConnection(): Promise<void> {
+  try {
+    await ensureMarktGoConnectionFromEnv();
+  } catch (err) {
+    console.warn(
+      "[marktgo] env bağlantısı hazırlanamadı:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
 export function registerMarktGoRoutes(app: Express): void {
   void runMarktGoMigration(false);
   void migrateMisplacedMarktGoTokenFromShopify()
@@ -20,6 +31,9 @@ export function registerMarktGoRoutes(app: Express): void {
 
   app.get("/api/marktgo/connections", async (_req, res) => {
     try {
+      // Railway yeniden başlatıldığında frontend ilk sorguyu boot tamamlanmadan yapabilir.
+      // Env token varsa bu istekte bağlantıyı garanti altına al.
+      await ensureRuntimeMarktGoConnection();
       const connections = await listMarktGoConnections();
       return res.json({ success: true, provider: DESTINATION_PROVIDER.MARKTGO, connections });
     } catch (err) {
@@ -54,6 +68,7 @@ export function registerMarktGoRoutes(app: Express): void {
 
   app.get("/api/marktgo/health", async (_req, res) => {
     try {
+      await ensureRuntimeMarktGoConnection();
       const connection = await testMarktGoConnection();
       return res.json({
         success: connection.status === "connected" || connection.status === "connected_limited",
@@ -71,6 +86,7 @@ export function registerMarktGoRoutes(app: Express): void {
 
   app.post("/api/marktgo/products/sync", async (req, res) => {
     try {
+      await ensureRuntimeMarktGoConnection();
       const product = req.body?.product || req.body;
       if (!product?.title) {
         return res.status(400).json({ success: false, error: "product.title zorunlu" });
@@ -116,6 +132,7 @@ export function registerMarktGoRoutes(app: Express): void {
 
   app.get("/api/marktgo/catalog", async (_req, res) => {
     try {
+      await ensureRuntimeMarktGoConnection();
       const { triggerMarktGoCatalogReconcile } = await import("../services/marktgo/reconcile.service");
       const result = await triggerMarktGoCatalogReconcile(true);
       return res.json({
