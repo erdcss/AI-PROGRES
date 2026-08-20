@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 export type DestinationBrand = {
   shopifyEnabled: boolean;
@@ -26,22 +26,33 @@ const MARKTGO_BRAND: DestinationBrand = {
   provider: "marktgo",
 };
 
-function isConnectedStatus(status: string | undefined): boolean {
-  return status === "connected" || status === "connected_limited";
-}
-
 export function useDestinationBrand(): DestinationBrand {
   const connectionsQ = useQuery({
     queryKey: ["/api/marktgo/connections"],
     queryFn: async () => {
       const res = await fetch("/api/marktgo/connections", { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) return { connections: [] as Array<{ name?: string; status?: string; isActive?: boolean }> };
-      return data as { connections?: Array<{ name?: string; status?: string; isActive?: boolean }> };
+      if (!res.ok) {
+        return {
+          connections: [] as Array<{
+            name?: string;
+            status?: string;
+            isActive?: boolean;
+          }>,
+        };
+      }
+      return data as {
+        connections?: Array<{
+          name?: string;
+          status?: string;
+          isActive?: boolean;
+        }>;
+      };
     },
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-    placeholderData: keepPreviousData,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
     retry: 1,
   });
 
@@ -61,7 +72,9 @@ export function useDestinationBrand(): DestinationBrand {
     transferLoadingLabel: `${destinationName}'ya aktarılıyor…`,
     bulkLabel: `Tüm ürünleri ${destinationName}'ya yükle`,
     shopifyEnabled: false,
-    marktgoEnabled: isConnectedStatus(saved?.status),
+    // UI yalnız bağlantı kaydının varlığını kontrol eder. Sağlık/yetki doğrulaması
+    // gönderim anında backend tarafından yapılır; eski health cache'i butonu kilitlemez.
+    marktgoEnabled: Boolean(saved),
     provider: "marktgo",
   };
 }
