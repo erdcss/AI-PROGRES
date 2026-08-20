@@ -662,6 +662,8 @@ export async function runTrendyolScrapePipeline(
   const policy = getScrapeEnvironmentPolicy();
   const globalDeadline = pipelineStart + policy.globalTimeoutMs;
   const STAGE_TIMEOUT = stageTimeouts(policy);
+  const autoFastScenarioTimeoutMs =
+    Number(process.env.AUTO_FAST_SCENARIO_TIMEOUT_MS) || 30_000;
 
   const isPastDeadline = () => Date.now() >= globalDeadline;
   const remainingMs = () => Math.max(500, globalDeadline - Date.now());
@@ -1430,9 +1432,13 @@ export async function runTrendyolScrapePipeline(
 
     console.log(`⚡ [${stageLabel}] Scenario scrape (eksik veri)...`);
     try {
+      const scenarioTimeoutMs =
+        modes.effective === "auto-fast"
+          ? Math.min(STAGE_TIMEOUT.scenario || autoFastScenarioTimeoutMs, autoFastScenarioTimeoutMs)
+          : STAGE_TIMEOUT.scenario;
       const scrapeResult = await withStageTimeout(
         () => scenarioBasedScrape(url, { allowPuppeteer: true }),
-        Math.min(STAGE_TIMEOUT.scenario, remainingMs()),
+        Math.min(scenarioTimeoutMs, remainingMs()),
         "scenario-timeout",
       );
 
@@ -1491,6 +1497,9 @@ export async function runTrendyolScrapePipeline(
         err instanceof ScrapeStageTimeoutError ? err.code : failure.code;
       pushStageError(diagnostics, code);
       diagnostics.scenarioSkippedReason = "scenario-failed-keeping-partial";
+      if (modes.effective === "auto-fast" && err instanceof ScrapeStageTimeoutError) {
+        skipHeavyStages = true;
+      }
       console.error(`⚠️ [${stageLabel}] Scenario soft-fail (${code})`, {
         message: failure.message,
         chromiumSource: failure.chromiumSource,

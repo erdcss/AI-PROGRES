@@ -1008,13 +1008,12 @@ export interface ScenarioBasedResult {
   };
 }
 
-// Global Puppeteer concurrency limiter — local'de 2, cloud'da 1 (OOM koruması)
+// Global Puppeteer concurrency limiter — local ve cloud'da varsayılan 2 (OOM koruması)
 const PUPPETEER_MAX_SLOTS = Math.max(
   1,
   Math.min(
     3,
-    Number(process.env.PUPPETEER_MAX_CONCURRENT) ||
-      (process.env.RAILWAY_ENVIRONMENT || process.env.RENDER || process.env.FLY_APP_NAME ? 1 : 2),
+    Number(process.env.PUPPETEER_MAX_CONCURRENT) || 2,
   ),
 );
 let puppeteerSlotsInUse = 0;
@@ -1873,10 +1872,15 @@ export async function scenarioBasedScrape(
             hasExtractableSizesInHtml = false;
           }
 
+          const renderedProductTitle = ($?.('h1').first().text?.() || '').trim();
+          const confirmedClothingProduct = isConfirmedClothingProduct(renderedProductTitle, url);
+          const hasUsableSingleProductContent =
+            !confirmedClothingProduct && renderedProductTitle.length > 10 && htmlContent.length > 10_000;
+
           // HTTP engellendiyse veya varyant eksikse Puppeteer kullan
           const needsPuppeteer =
-            !hasRealProductContent ||
-            (!hasColors && !hasExtractableSizesInHtml) ||
+            (!hasRealProductContent && !hasUsableSingleProductContent) ||
+            (!hasColors && !hasExtractableSizesInHtml && confirmedClothingProduct) ||
             incompleteSizes ||
             needsPuppeteerForStock;
           if (!needsPuppeteer && hasExtractableSizesInHtml && !hasColors) {
@@ -3041,7 +3045,12 @@ export async function scenarioBasedScrape(
         
         // SPEED OPTIMIZATION: Skip Puppeteer hybrid if HTML already has extractable sizes
         // (e.g. age sizes, standard S/M/L, or numeric shoe sizes found via regex)
-        if (hasExtractableSizesInHtml) {
+        const hybridProductTitle = ($?.('h1').first().text?.() || '').trim();
+        const skipHybridForSingleProduct =
+          !isConfirmedClothingProduct(hybridProductTitle, url) &&
+          hybridProductTitle.length > 10 &&
+          htmlContent.length > 10_000;
+        if (hasExtractableSizesInHtml || skipHybridForSingleProduct) {
           console.log('⚡ SPEED: HTML has extractable sizes — skipping Hybrid Puppeteer, going straight to SKU detection');
           // Jump directly to SKU-level detection below (variants stays empty → falls through)
         } else {

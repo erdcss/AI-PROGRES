@@ -462,12 +462,14 @@ function ShopifyWaterFill({ progress, uid }: { progress: number; uid: string }) 
 /** Gönderilen tasarıma birebir Shopify gönder butonu + 3D dalgalı su dolum */
 function ShopifySendButton({
   onClick,
+  onDisabledClick,
   disabled,
   loading,
   label = "send",
   className = "",
 }: {
   onClick: () => void;
+  onDisabledClick?: () => void;
   disabled?: boolean;
   loading?: boolean;
   label?: "send" | "bulk";
@@ -524,6 +526,7 @@ function ShopifySendButton({
       onClick={(e) => {
         if (blocked) {
           e.preventDefault();
+          onDisabledClick?.();
           return;
         }
         onClick();
@@ -757,6 +760,7 @@ export default function UrunHavuzuPage() {
   const [marktgoUploading, setMarktgoUploading] = useState(false);
   const [marktgoSteps, setMarktgoSteps] = useState<Array<{ label: string; ok: boolean }>>([]);
   const [bulkUploading, setBulkUploading] = useState(false);
+  const [marktgoSettingsOpen, setMarktgoSettingsOpen] = useState(false);
   const [products, setProducts] = useState<PoolProduct[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [tags, setTags] = useState<string[]>([]);
@@ -1201,6 +1205,7 @@ export default function UrunHavuzuPage() {
   const sendToDestination = async () => {
     if (!product) return;
     if (!brand.marktgoEnabled) {
+      setMarktgoSettingsOpen(true);
       toast({
         title: "MARKT-GO bağlantısı yok",
         description: "Sağ üstteki MARKT-GO · Bağlan butonundan API token kaydedin.",
@@ -1248,6 +1253,7 @@ export default function UrunHavuzuPage() {
   const sendBulk = async () => {
     if (products.length < 2) return;
     if (!brand.marktgoEnabled) {
+      setMarktgoSettingsOpen(true);
       toast({
         title: "MARKT-GO bağlantısı yok",
         description: "Sağ üstteki MARKT-GO · Bağlan butonundan API token kaydedin.",
@@ -1365,7 +1371,10 @@ export default function UrunHavuzuPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <MarktGoSettingsDialog />
+            <MarktGoSettingsDialog
+              open={marktgoSettingsOpen}
+              onOpenChange={setMarktgoSettingsOpen}
+            />
             {!brand.marktgoEnabled ? (
               <span className="hidden sm:inline text-[11px] text-amber-400/90 max-w-[140px] leading-tight">
                 MARKT-GO bağlantısı gerekli
@@ -1600,7 +1609,8 @@ export default function UrunHavuzuPage() {
               <ShopifySendButton
                 label="bulk"
                 loading={bulkUploading}
-                disabled={loading || !brand.marktgoEnabled}
+                disabled={loading}
+                onDisabledClick={() => setMarktgoSettingsOpen(true)}
                 onClick={sendBulk}
               />
             </div>
@@ -1869,7 +1879,8 @@ export default function UrunHavuzuPage() {
 
                 <ShopifySendButton
                   loading={uploading || marktgoUploading}
-                  disabled={bulkUploading || !brand.marktgoEnabled}
+                  disabled={bulkUploading}
+                  onDisabledClick={() => setMarktgoSettingsOpen(true)}
                   onClick={sendToDestination}
                 />
                 {marktgoSteps.length > 0 ? (

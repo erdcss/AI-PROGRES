@@ -2308,18 +2308,22 @@ setTimeout(check, 1000);
         console.log(`âš¡ Pipeline completed in ${Date.now() - scrapeStartTime}ms`);
 
         if (result) {
-          const { withStageTimeout } = await import("@shared/scrape-runtime");
-          try {
-            result = await withStageTimeout(
-              () => enrichTrendyolResult(url, result),
-              Math.max(5_000, JOB_MAX_MS - (Date.now() - jobStartedAt) - 2_000),
-              "pipeline-global-timeout",
-            );
-          } catch (enrichErr) {
-            console.warn(
-              "âš ï¸ enrichTrendyolResult timeout/error â€” pipeline verisi korunuyor:",
-              enrichErr instanceof Error ? enrichErr.message : enrichErr,
-            );
+          if (onlyExtractData) {
+            console.log("⚡ onlyExtractData: enrichTrendyolResult atlandı");
+          } else {
+            const { withStageTimeout } = await import("@shared/scrape-runtime");
+            try {
+              result = await withStageTimeout(
+                () => enrichTrendyolResult(url, result),
+                Math.max(5_000, JOB_MAX_MS - (Date.now() - jobStartedAt) - 2_000),
+                "pipeline-global-timeout",
+              );
+            } catch (enrichErr) {
+              console.warn(
+                "âš ï¸ enrichTrendyolResult timeout/error â€” pipeline verisi korunuyor:",
+                enrichErr instanceof Error ? enrichErr.message : enrichErr,
+              );
+            }
           }
         } else {
           result = await enrichTrendyolResult(url, {

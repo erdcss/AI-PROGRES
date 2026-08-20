@@ -26,10 +26,18 @@ type Connection = {
   isActive?: boolean;
 };
 
-export default function MarktGoSettingsDialog() {
+export default function MarktGoSettingsDialog({
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+} = {}) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = controlledOnOpenChange ?? setUncontrolledOpen;
   const [name, setName] = useState("MARKT-GO");
   const [apiBaseUrl, setApiBaseUrl] = useState("https://api.turmarkt.com/api/v1/external");
   const [accessToken, setAccessToken] = useState("");
@@ -40,8 +48,8 @@ export default function MarktGoSettingsDialog() {
     queryFn: async () => {
       const res = await fetch("/api/marktgo/connections", { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(json.error || "MARKT-GO bağlantıları alınamadı");
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || `MARKT-GO bağlantıları alınamadı (HTTP ${res.status})`);
       }
       return json as { connections: Connection[] };
     },
@@ -65,6 +73,9 @@ export default function MarktGoSettingsDialog() {
 
   const save = useMutation({
     mutationFn: async () => {
+      if (!active?.id && !accessToken.trim()) {
+        throw new Error("Yeni bağlantı için MARKT-GO Access Token girin.");
+      }
       const res = await fetch("/api/marktgo/connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -143,12 +154,16 @@ export default function MarktGoSettingsDialog() {
         </div>
         {isLoading ? (
           <p className="text-sm text-neutral-500">Yükleniyor…</p>
-        ) : (
+        ) : (data ? (
           <p className="text-sm text-neutral-400">
             Durum: {active?.statusLabel || "Bağlı değil"}
             {active?.tokenMasked ? ` · ${active.tokenMasked}` : ""}
           </p>
-        )}
+        ) : (
+          <p className="text-sm text-red-400">
+            MARKT-GO bağlantı ayarları alınamadı. DATABASE_URL ve bağlantı bilgilerini kontrol edin.
+          </p>
+        ))}
         {active?.missingScopes?.length ? (
           <p className="text-xs text-amber-400">Eksik: {active.missingScopes.join(", ")}</p>
         ) : null}
