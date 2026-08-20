@@ -128,7 +128,7 @@
     "framer-motion": "^11.13.1",
     "geckodriver": "^5.0.0",
     "google-auth-library": "^10.2.1",
-    "input-otp": "^4.0.0",
+    "input-otp": "^1.2.4",
     "lru-cache": "^11.2.1",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
