@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node dist/server.js",
+    "start": "node start.mjs",
     "dev": "tsx watch server.ts",
     "build": "esbuild server.ts --platform=node --packages=external --bundle --format=esm --alias:@shared=../shared --outdir=dist"
   },
