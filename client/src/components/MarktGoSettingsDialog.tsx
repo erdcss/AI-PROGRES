@@ -23,6 +23,7 @@ type Connection = {
   tokenMasked: string;
   missingScopes: string[];
   lastError: string | null;
+  isActive?: boolean;
 };
 
 export default function MarktGoSettingsDialog() {
@@ -38,13 +39,22 @@ export default function MarktGoSettingsDialog() {
     queryKey: ["/api/marktgo/connections"],
     queryFn: async () => {
       const res = await fetch("/api/marktgo/connections", { cache: "no-store" });
-      return res.json();
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error || "MARKT-GO bağlantıları alınamadı");
+      }
+      return json as { connections: Connection[] };
     },
-    staleTime: 10_000,
-    refetchInterval: open ? 15_000 : 30_000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: open ? 10_000 : 15_000,
+    retry: 1,
   });
 
-  const active = data?.connections?.[0];
+  const active =
+    data?.connections?.find((connection) => connection.isActive !== false) ??
+    data?.connections?.[0];
   const connected =
     active?.status === "connected" || active?.status === "connected_limited";
   const triggerLabel = connected
