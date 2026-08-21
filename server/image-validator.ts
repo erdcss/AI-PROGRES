@@ -116,10 +116,8 @@ export function enhanceImageUrls(imageUrls: string[]): string[] {
           .replace('_org.png', '_org_zoom.png');
       }
       
-      // Enhance image quality parameters
-      enhanced = enhanced
-        .replace(/\/ty\d+\//, '/ty1000/') // Use highest quality path
-        .replace(/quality=\d+/, 'quality=100'); // Max quality
+      // Keep the original /tyXXXX/ folder — rewriting breaks CDN paths.
+      enhanced = enhanced.replace(/quality=\d+/, "quality=100"); // Max quality
       
       // Add zoom suffix if missing
       if (enhanced.includes('cdn.dsmcdn.com') && 

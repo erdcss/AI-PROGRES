@@ -28,8 +28,7 @@ function optimizeImageUrl(url: string): string | null {
   
   let optimized = url;
   
-  // En yüksek kalite resolution path
-  optimized = optimized.replace(/\/ty\d+\//, '/ty1660/');
+  // Keep the original /tyXXXX/ folder — rewriting to a fixed ty breaks CDN paths (404).
   
   // Maksimum çözünürlük ayarla
   optimized = optimized.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');

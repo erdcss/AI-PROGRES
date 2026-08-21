@@ -28,7 +28,7 @@ function optimizeImageUrl(url: string): string | null {
     return null;
   }
 
-  optimized = optimized.replace(/\/ty\d+\//, '/ty1660/');
+  // Keep the original /tyXXXX/ folder — rewriting to a fixed ty breaks CDN paths (404).
   optimized = optimized.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
   optimized = optimized.replace(/^http:/, 'https:');
 

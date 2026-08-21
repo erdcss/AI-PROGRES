@@ -203,7 +203,8 @@ function extractImages($: cheerio.CheerioAPI): string[] {
       const src = $(img).attr('src') || $(img).attr('data-src');
       if (src && (src.includes('cdn.dsmcdn.com') || src.includes('cdn.trendyol.com'))) {
         let fullUrl = src.startsWith('//') ? 'https:' + src : src;
-        fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty1505/');
+        // Keep the original /tyXXXX/ folder from the source CDN path.
+        fullUrl = fullUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
         if (!images.includes(fullUrl)) {
           images.push(fullUrl);
         }

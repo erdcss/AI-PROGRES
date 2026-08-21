@@ -16,6 +16,7 @@ import {
 } from "./mapping.service";
 import { extractId, normalizeMarktGoProduct } from "./normalize";
 import type { LocalProductInput, SyncProgress } from "./types";
+import { prepareMarktGoImages } from "./images";
 
 const STEP_LABEL: Record<string, string> = {
   product_create: "Ürün oluşturuluyor",
@@ -119,7 +120,7 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   const failed: string[] = [];
   const localProductId = String(input.localProductId);
   const externalId = stableExternalId(localProductId);
-  const images = (input.images || []).filter((u) => /^https?:\/\//i.test(u)).slice(0, 8);
+  const images = await prepareMarktGoImages(input.images || [], 12);
   const brand = input.brand ? String(input.brand).trim() : "";
 
   let mapping = await findProductMapping({

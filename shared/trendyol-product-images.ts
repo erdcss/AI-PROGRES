@@ -99,23 +99,60 @@ export function filterValidProductImages(images: unknown): string[] {
   });
 }
 
+function imagePreviewDedupeKey(url: string): string {
+  return url
+    .replace(/mnresize\/\d+\/\d+\//, "")
+    .replace(/\/ty\d+\//, "/")
+    .split("?")[0];
+}
+
+/** Known-bad CDN folder rewrites that often 404; prefer any other ty when deduping. */
+const LOW_QUALITY_TY = new Set(["ty1660", "ty1000", "ty1505"]);
+
+function tyFolderOf(url: string): string | null {
+  const m = url.match(/\/(ty\d+)\//i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+/** Prefer real CDN ty folders over hardcoded rewrites; prefer org_zoom / non-mnresize. */
+export function preferBetterTrendyolImageUrl(existing: string, candidate: string): string {
+  const existingTy = tyFolderOf(existing);
+  const candidateTy = tyFolderOf(candidate);
+  if (existingTy && candidateTy && existingTy !== candidateTy) {
+    const existingLow = LOW_QUALITY_TY.has(existingTy);
+    const candidateLow = LOW_QUALITY_TY.has(candidateTy);
+    if (existingLow && !candidateLow) return candidate;
+    if (!existingLow && candidateLow) return existing;
+  }
+  if (/1_org_zoom/i.test(candidate) && !/1_org_zoom/i.test(existing)) return candidate;
+  if (/org_zoom/i.test(candidate) && !/org_zoom/i.test(existing)) return candidate;
+  if (!/mnresize/i.test(candidate) && /mnresize/i.test(existing)) return candidate;
+  return existing;
+}
+
 export function mergeTrendyolImageLists(...lists: unknown[]): string[] {
-  const merged: string[] = [];
-  const seen = new Set<string>();
+  const byKey = new Map<string, string>();
 
   for (const list of lists) {
     for (const url of normalizeTrendyolImages(list)) {
-      if (seen.has(url)) continue;
-      seen.add(url);
-      merged.push(url);
+      const key = imagePreviewDedupeKey(url);
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, url);
+        continue;
+      }
+      byKey.set(key, preferBetterTrendyolImageUrl(existing, url));
     }
   }
 
-  return merged;
+  return [...byKey.values()];
 }
 
 /** CDN 404 durumunda denenecek alternatif görsel URL'leri */
-export function getTrendyolImageFallbackUrls(url: string): string[] {
+export function getTrendyolImageFallbackUrls(
+  url: string,
+  preferredTyFolders: string[] = [],
+): string[] {
   const normalized = url.trim().replace(/^http:/, "https:");
   if (!normalized.startsWith("https://")) return [];
 
@@ -149,14 +186,30 @@ export function getTrendyolImageFallbackUrls(url: string): string[] {
       add(`https://cdn.dsmcdn.com/mnresize/620/920/${qcPath}`);
       add(`https://cdn.dsmcdn.com/mnresize/1200/1800/${qcPath}`);
     }
+    if (barePath.includes("/prod/QC_ENRICHMENT/")) {
+      add(`https://cdn.dsmcdn.com/${barePath.replace("/prod/QC_ENRICHMENT/", "/prod/QC/")}`);
+      add(`https://cdn.dsmcdn.com/${barePath.replace("/prod/QC_ENRICHMENT/", "/prod/QC_PREP/")}`);
+    }
 
-    // tyXXXX klasör numarası CDN'de kayabiliyor — hash aynı kalınca alternatif dene
+    // tyXXXX klasör numarası CDN'de kayabiliyor — önce ürün galerisinden gelen ty'ler
     const tyMatch = barePath.match(/^(ty\d+)\//i);
     if (tyMatch) {
       const rest = barePath.slice(tyMatch[0].length);
-      for (const ty of ["ty1660", "ty1814", "ty1813", "ty1929", "ty1835"]) {
-        if (ty.toLowerCase() === tyMatch[1].toLowerCase()) continue;
+      const tyCandidates = [
+        ...preferredTyFolders,
+        "ty1660",
+        "ty1814",
+        "ty1813",
+        "ty1929",
+        "ty1835",
+        "ty1504",
+        "ty1694",
+        "ty1856",
+      ];
+      for (const ty of tyCandidates) {
+        if (!ty || ty.toLowerCase() === tyMatch[1].toLowerCase()) continue;
         add(`https://cdn.dsmcdn.com/${ty}/${rest}`);
+        add(`https://cdn.dsmcdn.com/mnresize/1200/1800/${ty}/${rest}`);
       }
     }
   }
@@ -164,11 +217,19 @@ export function getTrendyolImageFallbackUrls(url: string): string[] {
   return variants;
 }
 
-function imagePreviewDedupeKey(url: string): string {
-  return url
-    .replace(/mnresize\/\d+\/\d+\//, "")
-    .replace(/\/ty\d+\//, "/")
-    .split("?")[0];
+/** Collect distinct /tyXXXX/ folders already present in a gallery (prefer these on recovery). */
+export function collectTrendyolTyFolders(images: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of images) {
+    const m = String(url || "").match(/\/(ty\d+)\//i);
+    if (!m) continue;
+    const ty = m[1].toLowerCase();
+    if (seen.has(ty)) continue;
+    seen.add(ty);
+    out.push(m[1]);
+  }
+  return out;
 }
 
 /** Önizleme için org_zoom görselleri öne alır, tekrarları eler */
@@ -182,14 +243,13 @@ export function prioritizeProductImagesForPreview(images: string[]): string[] {
       byKey.set(key, url);
       continue;
     }
-    const preferNew =
-      (/1_org_zoom/i.test(url) && !/1_org_zoom/i.test(existing)) ||
-      (/org_zoom/i.test(url) && !/org_zoom/i.test(existing));
-    if (preferNew) byKey.set(key, url);
+    byKey.set(key, preferBetterTrendyolImageUrl(existing, url));
   }
 
   return [...byKey.values()].sort((a, b) => {
     const rank = (u: string) => {
+      const ty = tyFolderOf(u);
+      if (ty && LOW_QUALITY_TY.has(ty)) return 4;
       if (/1_org_zoom/i.test(u)) return 0;
       if (/org_zoom|_org_/i.test(u)) return 1;
       if (/mnresize/i.test(u)) return 3;
