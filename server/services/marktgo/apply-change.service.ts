@@ -84,6 +84,23 @@ export async function applyDetectedChangeToMarktGo(changeId: number) {
           action = "variant_price";
         }
       }
+    } else if (t === "product_removed" || t === "source_unavailable" || t === "product_out_of_stock") {
+      await client.patch(`/products/${productId}`, { status: "inactive" });
+      action = "deactivate";
+      await db
+        .update(trackedProducts)
+        .set({
+          trackingEnabled: false,
+          currentStatus: "disabled",
+          pausedReason:
+            t === "product_removed"
+              ? "Kaynak ürün kaldırıldı — otomatik durduruldu"
+              : t === "source_unavailable"
+                ? "Kaynak erişilemedi — otomatik durduruldu"
+                : "Ürün stok dışı — otomatik durduruldu",
+          updatedAt: new Date(),
+        })
+        .where(eq(trackedProducts.id, change.trackedProductId));
     }
 
     return {

@@ -503,10 +503,11 @@ export class TrackingService {
     sourceUrl: string;
     title: string;
     price: number;
-    shopifyProductId: string;
+    shopifyProductId?: string | null;
     shopifyHandle?: string;
     shopifyProductGid?: string;
     variants?: TrackingRegistrationVariant[];
+    registeredFrom?: string;
   }) {
     await this.assertEnabled();
     if (input.price <= 0) {
@@ -536,14 +537,20 @@ export class TrackingService {
       sourceSite: site,
       sourceProductId: productIdMatch?.[1] ?? null,
       sourceTitle: input.title,
-      shopifyProductId: input.shopifyProductId,
-      shopifyHandle: input.shopifyHandle ?? null,
-      shopifyProductGid: input.shopifyProductGid ?? null,
+      shopifyProductId: input.shopifyProductId
+        ? String(input.shopifyProductId)
+        : existing[0]?.shopifyProductId ?? null,
+      shopifyHandle: input.shopifyHandle ?? existing[0]?.shopifyHandle ?? null,
+      shopifyProductGid: input.shopifyProductGid ?? existing[0]?.shopifyProductGid ?? null,
       trackingUid,
       currentSourcePrice: String(input.price),
       currentStatus: "active",
       trackingEnabled: true,
-      shopifySyncStatus: "live",
+      shopifySyncStatus: input.shopifyProductId?.startsWith("marktgo:")
+        ? "marktgo"
+        : input.shopifyProductId
+          ? "live"
+          : existing[0]?.shopifySyncStatus ?? "pending",
       lastShopifySyncAt: new Date(),
       pausedReason: null,
       archivedAt: null,
@@ -653,7 +660,9 @@ export class TrackingService {
         images: [],
         variants: variantList,
         rawData: { shopifyProductId: input.shopifyProductId },
-        quality: { registeredFrom: "shopify_upload" },
+        quality: {
+          registeredFrom: input.registeredFrom || "shopify_upload",
+        },
       });
     } else if (variantList.length > 0) {
       await db
@@ -666,12 +675,16 @@ export class TrackingService {
       trackedProductId: productRow.id,
       action: "tracking_check",
       status: "success",
-      message: "Shopify aktarımı sonrası tracking kaydı oluşturuldu",
+      message:
+        input.registeredFrom === "marktgo_upload"
+          ? "MARKT-GO gönderimi sonrası tracking kaydı oluşturuldu"
+          : "Shopify aktarımı sonrası tracking kaydı oluşturuldu",
       meta: {
         sourceUrl: input.sourceUrl,
         trackedProductId: productRow.id,
         newSnapshotId: snapshot.id,
         stage: "register",
+        registeredFrom: input.registeredFrom || "shopify_upload",
       },
     });
 
@@ -700,6 +713,38 @@ export class TrackingService {
       );
 
     return productRow;
+  }
+
+  /**
+   * MARKT-GO (veya diğer hedef) başarılı gönderiminden sonra takip kaydı.
+   * Shopify ID zorunlu değil; sourceUrl ile upsert edilir.
+   */
+  async registerFromDestinationUpload(input: {
+    sourceUrl: string;
+    title: string;
+    price: number;
+    destinationProductId?: string | null;
+    variants?: TrackingRegistrationVariant[];
+  }) {
+    const settings = await getTrackingSettings().catch(() => null);
+    if (settings && (!settings.trackingEnabled || !settings.schedulerEnabled)) {
+      const { updateTrackingSettings } = await import("./tracking-settings.service");
+      await updateTrackingSettings({
+        trackingEnabled: true,
+        schedulerEnabled: true,
+      });
+    }
+
+    return this.registerFromShopifyUpload({
+      sourceUrl: input.sourceUrl,
+      title: input.title,
+      price: input.price,
+      shopifyProductId: input.destinationProductId
+        ? `marktgo:${input.destinationProductId}`
+        : null,
+      variants: input.variants,
+      registeredFrom: "marktgo_upload",
+    });
   }
 
   async setTrackingEnabled(id: number, enabled: boolean) {

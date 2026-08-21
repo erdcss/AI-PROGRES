@@ -291,23 +291,55 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   steps.push({ step: "pricing", label: STEP_LABEL.pricing, ok: true });
 
   const status = failed.length ? "partial_sync" : "synced";
+  let trackedProductId = input.trackedProductId ?? null;
+
+  if (input.sourceUrl && status !== "partial_sync") {
+    try {
+      const { trackingService } = await import("../tracking.service");
+      const sell = Number(input.discountPrice ?? input.price);
+      if (Number.isFinite(sell) && sell > 0) {
+        const tracked = await trackingService.registerFromDestinationUpload({
+          sourceUrl: String(input.sourceUrl),
+          title: input.title,
+          price: sell,
+          destinationProductId: externalProductId,
+          variants: (input.variants || []).map((v) => ({
+            color: v.option1,
+            size: v.option2,
+            sku: v.sku,
+            price: v.price ?? undefined,
+            inStock: Number(v.stock) > 0,
+          })),
+        });
+        trackedProductId = tracked.id;
+      }
+    } catch (err) {
+      console.warn(
+        "[marktgo] tracking register skipped:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   mapping = await upsertProductMapping({
     connectionId: connection.id,
     localProductId,
     externalProductId,
     externalId,
-    trackedProductId: input.trackedProductId,
+    trackedProductId,
     status,
     lastError: failed.length ? failed.join(",") : null,
     failedSteps: failed,
   });
 
-  if (input.trackedProductId) {
+  if (trackedProductId) {
     try {
       await db
         .update(trackedProducts)
         .set({ updatedAt: new Date() })
-        .where(eq(trackedProducts.id, input.trackedProductId));
+        .where(eq(trackedProducts.id, trackedProductId));
+      const { ensureTrackedLink } = await import("./apply-change.service");
+      await ensureTrackedLink(trackedProductId, mapping.id);
     } catch {
       /* tracking optional */
     }

@@ -348,7 +348,10 @@ export async function applyChange(changeId: number, actor = "user", dryRun = fal
       .from(trackedProducts)
       .where(eq(trackedProducts.id, change.trackedProductId))
       .limit(1);
-    if (trackedRow?.shopifyProductId || !hasMarktGo) {
+    const shopifyId = String(trackedRow?.shopifyProductId || "");
+    const isShopifyLinked =
+      Boolean(shopifyId) && !shopifyId.startsWith("marktgo:") && !shopifyId.startsWith("pending:");
+    if (isShopifyLinked || !hasMarktGo) {
       shopifyResult = await applyDetectedChangeToShopify(changeId);
     }
 

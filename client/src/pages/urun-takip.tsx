@@ -145,6 +145,7 @@ const CHANGE_FILTERS = [
 ] as const;
 
 type ChangeKindFilter = "price" | "color_oos" | "size_oos" | "product_oos";
+type AuthenticityFilter = "all" | "real" | "review" | "suspect";
 
 const CHANGE_KIND_FILTERS: Array<{ value: ChangeKindFilter; label: string }> = [
   { value: "price", label: "Fiyatı değişen ürünler" },
@@ -152,6 +153,34 @@ const CHANGE_KIND_FILTERS: Array<{ value: ChangeKindFilter; label: string }> = [
   { value: "size_oos", label: "Beden seçeneği tükenen ürünler" },
   { value: "product_oos", label: "Stoğu biten ürünler" },
 ];
+
+const AUTHENTICITY_FILTERS: Array<{ value: AuthenticityFilter; label: string; hint: string }> = [
+  { value: "all", label: "Tümü", hint: "Filtre yok" },
+  { value: "real", label: "Gerçek aday", hint: "Bekleyen · güven ≥ %70" },
+  { value: "review", label: "İnceleme", hint: "Manuel kontrol gerekli" },
+  { value: "suspect", label: "Şüpheli", hint: "Düşük güven / sahte riski" },
+];
+
+function changeConfidence(change: DetectedChange): number {
+  const n = Number(change.confidence);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function matchesAuthenticity(change: DetectedChange, filter: AuthenticityFilter): boolean {
+  if (filter === "all") return true;
+  const conf = changeConfidence(change);
+  if (filter === "real") {
+    return change.status === "pending" && conf >= 70;
+  }
+  if (filter === "review") {
+    return change.status === "manual_review";
+  }
+  return (
+    (change.status === "pending" && conf < 70) ||
+    change.status === "failed" ||
+    (change.status === "ignored" && conf < 50)
+  );
+}
 
 type ChangeFilterCounts = {
   actionable: number;
@@ -280,6 +309,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("actionable");
   const [kindFilter, setKindFilter] = useState<ChangeKindFilter | null>(null);
+  const [authenticityFilter, setAuthenticityFilter] = useState<AuthenticityFilter>("all");
   const [settingsForm, setSettingsForm] = useState<Partial<TrackingSettings>>({});
 
   const refreshTrackingQueries = () => {
@@ -371,12 +401,25 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Kaydedilemedi");
-      return data.settings;
+      return data.settings as TrackingSettings;
     },
-    onSuccess: () => {
-      toast({ title: "Takip ayarları kaydedildi" });
+    onSuccess: (settings, patch) => {
+      setSettingsForm({});
+      queryClient.setQueryData(["tracking-settings"], settings);
       queryClient.invalidateQueries({ queryKey: ["tracking-settings"] });
       queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
+      if (typeof patch.autoShopifySyncEnabled === "boolean") {
+        toast({
+          title: patch.autoShopifySyncEnabled
+            ? "Otomatik düzeltme açıldı"
+            : "Otomatik düzeltme kapatıldı",
+          description: patch.autoShopifySyncEnabled
+            ? "Yüksek güvenli değişiklikler hedefe uygulanacak"
+            : undefined,
+        });
+      } else {
+        toast({ title: "Takip ayarları kaydedildi" });
+      }
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
@@ -594,9 +637,30 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   }, [groupedChanges]);
 
   const filteredGroupedChanges = useMemo(() => {
-    if (!kindFilter) return groupedChanges;
-    return groupedChanges.filter((group) => getProductChangeKinds(group).has(kindFilter));
-  }, [groupedChanges, kindFilter]);
+    let groups = groupedChanges;
+    if (authenticityFilter !== "all") {
+      groups = groups
+        .map((group) => group.filter((c) => matchesAuthenticity(c, authenticityFilter)))
+        .filter((group) => group.length > 0);
+    }
+    if (!kindFilter) return groups;
+    return groups.filter((group) => getProductChangeKinds(group).has(kindFilter));
+  }, [groupedChanges, kindFilter, authenticityFilter]);
+
+  const authenticityCounts = useMemo(() => {
+    const counts: Record<AuthenticityFilter, number> = {
+      all: groupedChanges.length,
+      real: 0,
+      review: 0,
+      suspect: 0,
+    };
+    for (const group of groupedChanges) {
+      if (group.some((c) => matchesAuthenticity(c, "real"))) counts.real += 1;
+      if (group.some((c) => matchesAuthenticity(c, "review"))) counts.review += 1;
+      if (group.some((c) => matchesAuthenticity(c, "suspect"))) counts.suspect += 1;
+    }
+    return counts;
+  }, [groupedChanges]);
 
   const bulkFixIds = useMemo(() => {
     const ids: number[] = [];
@@ -608,6 +672,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
 
   const st = statusQuery.data;
   const settings = { ...settingsQuery.data, ...settingsForm } as TrackingSettings | undefined;
+  const autoCorrectOn = Boolean(settings?.autoShopifySyncEnabled);
   const trackingOff = settings && !settings.trackingEnabled;
 
   return (
@@ -635,6 +700,35 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         </div>
       </div>
       )}
+
+      <Card className="border-border/60 bg-card/40">
+        <CardContent className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Otomatik düzeltme</p>
+            <p className="text-xs text-muted-foreground">
+              Açıkken yüksek güvenli değişiklikler MARKT-GO&apos;ya uygulanır; kaynak kalkmış ürün
+              takipten düşer
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <Badge variant={autoCorrectOn ? "default" : "secondary"}>
+              {autoCorrectOn ? "Açık" : "Kapalı"}
+            </Badge>
+            <Switch
+              id="auto-correct-toggle"
+              checked={autoCorrectOn}
+              disabled={saveSettingsMutation.isPending || settingsQuery.isLoading}
+              onCheckedChange={(v) => {
+                setSettingsForm((f) => ({ ...f, autoShopifySyncEnabled: v }));
+                saveSettingsMutation.mutate({
+                  autoShopifySyncEnabled: v,
+                  ...(v ? { trackingEnabled: true, schedulerEnabled: true } : {}),
+                });
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {trackingOff && (
         <Card className="border-amber-500/50 bg-amber-500/5">
@@ -761,7 +855,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           {!productsQuery.isLoading && !productsQuery.error && (productsQuery.data?.length ?? 0) === 0 && (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
-                Henüz takip edilen ürün yok. Shopify&apos;a başarılı aktarım sonrası otomatik eklenir.
+                Henüz takip edilen ürün yok. MARKT-GO veya Shopify&apos;a başarılı gönderim sonrası
+                otomatik eklenir.
               </CardContent>
             </Card>
           )}
@@ -880,8 +975,9 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
 
         <TabsContent value="changes" className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground max-w-2xl">
-            Düzeltilecekler bekleyen tespitleri gösterir. Shopify&apos;a uygulananlar
-            Uygulanan / Tümü sekmelerinde kalır.
+            Değişiklikler kademeli süzülür: önce gerçek adaylar, sonra inceleme, sonra şüpheli.
+            Otomatik düzeltme açıksa yalnız yüksek güvenli (gerçek) kayıtlar hedefe uygulanır;
+            kaynak kalkmışsa ürün takipten düşürülür.
           </p>
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2 items-center justify-between">
@@ -938,6 +1034,35 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                   Yenile
                 </Button>
               </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">
+                Doğruluk
+              </span>
+              {AUTHENTICITY_FILTERS.map((f) => {
+                const count = authenticityCounts[f.value];
+                const active = authenticityFilter === f.value;
+                return (
+                  <Button
+                    key={f.value}
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    className="h-8"
+                    title={f.hint}
+                    onClick={() => setAuthenticityFilter(f.value)}
+                  >
+                    {f.label}
+                    <span
+                      className={`ml-1.5 tabular-nums ${
+                        active ? "opacity-90" : "text-muted-foreground"
+                      }`}
+                    >
+                      ({count})
+                    </span>
+                  </Button>
+                );
+              })}
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -1061,12 +1186,25 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       onCheckedChange={(v) => setSettingsForm((f) => ({ ...f, schedulerEnabled: v }))}
                     />
                   </div>
-                  <div className="flex items-center justify-between opacity-60">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <Label>Otomatik Shopify güncelleme</Label>
-                      <p className="text-xs text-muted-foreground">Bu özellik henüz kapalı</p>
+                      <Label>Otomatik düzeltme</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Yüksek güvenli değişiklikleri MARKT-GO / Shopify&apos;a uygular; kaynak
+                        kalkmış ürünü takipten düşürür
+                      </p>
                     </div>
-                    <Switch checked={false} disabled />
+                    <Switch
+                      checked={autoCorrectOn}
+                      disabled={saveSettingsMutation.isPending}
+                      onCheckedChange={(v) => {
+                        setSettingsForm((f) => ({ ...f, autoShopifySyncEnabled: v }));
+                        saveSettingsMutation.mutate({
+                          autoShopifySyncEnabled: v,
+                          ...(v ? { trackingEnabled: true, schedulerEnabled: true } : {}),
+                        });
+                      }}
+                    />
                   </div>
                   <div>
                     <Label>Kontrol aralığı (dakika)</Label>
