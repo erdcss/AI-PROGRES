@@ -3,6 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 export type DestinationBrand = {
   shopifyEnabled: boolean;
   marktgoEnabled: boolean;
+  marktgoStatus: string | null;
+  marktgoStatusLabel: string | null;
+  marktgoMissingScopes: string[];
   destinationName: string;
   sendLabel: string;
   sendLoadingLabel: string;
@@ -17,6 +20,9 @@ const DESTINATION = "MARKT-GO";
 const MARKTGO_BRAND: DestinationBrand = {
   shopifyEnabled: false,
   marktgoEnabled: false,
+  marktgoStatus: null,
+  marktgoStatusLabel: null,
+  marktgoMissingScopes: [],
   destinationName: DESTINATION,
   sendLabel: `${DESTINATION}'ya Gönder`,
   sendLoadingLabel: `${DESTINATION}'ya gidiyor…`,
@@ -37,7 +43,10 @@ export function useDestinationBrand(): DestinationBrand {
           connections: [] as Array<{
             name?: string;
             status?: string;
+            statusLabel?: string;
             isActive?: boolean;
+            scopes?: string[];
+            missingScopes?: string[];
           }>,
         };
       }
@@ -45,7 +54,10 @@ export function useDestinationBrand(): DestinationBrand {
         connections?: Array<{
           name?: string;
           status?: string;
+          statusLabel?: string;
           isActive?: boolean;
+          scopes?: string[];
+          missingScopes?: string[];
         }>;
       };
     },
@@ -62,6 +74,17 @@ export function useDestinationBrand(): DestinationBrand {
   const rawName = String(saved?.name || "").trim();
   const destinationName =
     rawName && !/shopify/i.test(rawName) ? rawName : DESTINATION;
+  const missingScopes = Array.isArray(saved?.missingScopes)
+    ? saved!.missingScopes!.map(String)
+    : [];
+  const grantedScopes = Array.isArray(saved?.scopes)
+    ? saved!.scopes!.map(String)
+    : [];
+  const hasWildcard = grantedScopes.some((s) => {
+    const n = s.toLowerCase();
+    return n === "*" || n === "*.*" || n === "all" || n === "full";
+  });
+  const effectiveMissing = hasWildcard ? [] : missingScopes;
 
   return {
     ...MARKTGO_BRAND,
@@ -74,7 +97,14 @@ export function useDestinationBrand(): DestinationBrand {
     shopifyEnabled: false,
     // UI yalnız bağlantı kaydının varlığını kontrol eder. Sağlık/yetki doğrulaması
     // gönderim anında backend tarafından yapılır; eski health cache'i butonu kilitlemez.
-    marktgoEnabled: Boolean(saved),
+    marktgoEnabled: Boolean(saved) && saved?.status !== "error",
+    marktgoStatus: saved?.status ? String(saved.status) : null,
+    marktgoStatusLabel: hasWildcard
+      ? "Bağlı"
+      : saved?.statusLabel
+        ? String(saved.statusLabel)
+        : null,
+    marktgoMissingScopes: effectiveMissing,
     provider: "marktgo",
   };
 }

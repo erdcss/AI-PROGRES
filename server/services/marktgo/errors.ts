@@ -63,6 +63,14 @@ export function normalizeMarktGoHttpError(status: number, bodyText: string): Mar
       false,
     );
   }
+  if (/integration_product_mappings|duplicate key value violates unique constraint/i.test(safe)) {
+    return new MarktGoApiError(
+      "Ürün eşlemesi çakıştı — mevcut MARKT-GO kaydı güncellenecek. Tekrar deneyin.",
+      409,
+      "mapping_conflict",
+      true,
+    );
+  }
   if (apiCode === "DUPLICATE_VARIANT_ID" || lower.includes("duplicate variant")) {
     return new MarktGoApiError(
       "Varyant kimlikleri çakışıyor — gönderim yeniden denenecek.",

@@ -21,10 +21,18 @@ type Connection = {
   status: string;
   statusLabel: string;
   tokenMasked: string;
+  scopes?: string[];
   missingScopes: string[];
   lastError: string | null;
   isActive?: boolean;
 };
+
+function hasWildcardScopeHint(conn: Pick<Connection, "scopes"> | null | undefined): boolean {
+  return (conn?.scopes || []).some((s) => {
+    const n = String(s).toLowerCase();
+    return n === "*" || n === "*.*" || n === "all" || n === "full";
+  });
+}
 
 export default function MarktGoSettingsDialog({
   open: controlledOpen,
@@ -63,10 +71,20 @@ export default function MarktGoSettingsDialog({
   const active =
     data?.connections?.find((connection) => connection.isActive !== false) ??
     data?.connections?.[0];
+  const hasWildcard = (active?.scopes || []).some((s) => {
+    const n = String(s).toLowerCase();
+    return n === "*" || n === "*.*" || n === "all" || n === "full";
+  });
+  const effectiveMissing = hasWildcard ? [] : active?.missingScopes || [];
   const connected =
-    active?.status === "connected" || active?.status === "connected_limited";
+    active?.status === "connected" ||
+    active?.status === "connected_limited" ||
+    (Boolean(active) && hasWildcard && active?.status !== "error");
+  const displayStatusLabel = hasWildcard
+    ? "Bağlı"
+    : active?.statusLabel || (connected ? "Bağlı" : "Bağlı değil");
   const triggerLabel = connected
-    ? `MARKT-GO · ${active?.statusLabel || "Bağlı"}`
+    ? `MARKT-GO · ${displayStatusLabel}`
     : isLoading && !data
       ? "MARKT-GO · …"
       : "MARKT-GO · Bağlan";
@@ -96,11 +114,21 @@ export default function MarktGoSettingsDialog({
       qc.invalidateQueries({ queryKey: ["/api/marktgo/health"] });
       qc.invalidateQueries({ queryKey: ["connection-access"] });
       setAccessToken("");
+      const isBad =
+        !hasWildcardScopeHint(conn) &&
+        (conn.status === "error" ||
+          conn.status === "connected_limited" ||
+          (conn.missingScopes?.length ?? 0) > 0);
       toast({
-        title: conn.statusLabel || "MARKT-GO",
-        description: conn.missingScopes?.length
-          ? `Eksik: ${conn.missingScopes.join(", ")}`
-          : "Bağlantı kaydedildi",
+        title: hasWildcardScopeHint(conn) ? "Bağlı" : conn.statusLabel || "MARKT-GO",
+        description: conn.lastError && conn.status === "error"
+          ? conn.lastError
+          : hasWildcardScopeHint(conn)
+            ? "Bağlantı kaydedildi (Full Access)"
+            : conn.missingScopes?.length
+              ? `Eksik: ${conn.missingScopes.join(", ")}`
+              : "Bağlantı kaydedildi ve doğrulandı",
+        variant: isBad ? "destructive" : "default",
       });
     },
     onError: (err: Error) => {
@@ -118,7 +146,21 @@ export default function MarktGoSettingsDialog({
     },
     onSuccess: (conn) => {
       qc.invalidateQueries({ queryKey: ["/api/marktgo/connections"] });
-      toast({ title: conn.statusLabel, description: conn.lastError || "Health check tamam" });
+      const isBad =
+        !hasWildcardScopeHint(conn) &&
+        (conn.status === "error" ||
+          conn.status === "connected_limited" ||
+          (conn.missingScopes?.length ?? 0) > 0);
+      toast({
+        title: hasWildcardScopeHint(conn) ? "Bağlı" : conn.statusLabel || "MARKT-GO",
+        description:
+          conn.lastError && conn.status === "error"
+            ? conn.lastError
+            : isBad
+              ? "Health check uyarı verdi"
+              : "Health check tamam",
+        variant: isBad ? "destructive" : "default",
+      });
     },
     onError: (err: Error) => {
       toast({ title: "MARKT-GO test", description: err.message, variant: "destructive" });
@@ -156,7 +198,7 @@ export default function MarktGoSettingsDialog({
           <p className="text-sm text-neutral-500">Yükleniyor…</p>
         ) : (data ? (
           <p className="text-sm text-neutral-400">
-            Durum: {active?.statusLabel || "Bağlı değil"}
+            Durum: {displayStatusLabel}
             {active?.tokenMasked ? ` · ${active.tokenMasked}` : ""}
           </p>
         ) : (
@@ -164,8 +206,8 @@ export default function MarktGoSettingsDialog({
             MARKT-GO bağlantı ayarları alınamadı. DATABASE_URL ve bağlantı bilgilerini kontrol edin.
           </p>
         ))}
-        {active?.missingScopes?.length ? (
-          <p className="text-xs text-amber-400">Eksik: {active.missingScopes.join(", ")}</p>
+        {effectiveMissing.length ? (
+          <p className="text-xs text-amber-400">Eksik: {effectiveMissing.join(", ")}</p>
         ) : null}
         {active?.lastError ? (
           <p className="text-xs text-red-400">{active.lastError}</p>
@@ -190,15 +232,18 @@ export default function MarktGoSettingsDialog({
             />
           </div>
           <div>
-            <Label>Access Token</Label>
+            <Label>API Token</Label>
             <Input
               type="password"
               value={accessToken}
               onChange={(e) => setAccessToken(e.target.value)}
-              placeholder={active?.tokenMasked || "mgt_live_…"}
+              placeholder={active?.tokenMasked || "tm_live_… (API Token)"}
               className="bg-neutral-900 border-neutral-700"
               autoComplete="off"
             />
+            <p className="text-[11px] text-neutral-500 mt-1">
+              Client Secret (`tm_live_sk_…`) değil — kimlik ekranındaki <span className="text-neutral-300">API Token</span> (`tm_live_…`) alanını yapıştırın.
+            </p>
           </div>
           <div>
             <Label>Environment</Label>

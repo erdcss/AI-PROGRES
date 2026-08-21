@@ -45,8 +45,16 @@ function statusLabel(status: string, missing: string[]): string {
 
 function toPublic(row: typeof integrationConnections.$inferSelect): PublicMarktGoConnection {
   const missing = asStringArray(row.missingScopes);
-  const last4 = row.tokenLast4 || "";
-  const envPrefix = row.environment === "test" ? "mgt_test_" : "mgt_live_";
+  let tokenMasked = "";
+  try {
+    const plain = decryptSecret(row.accessTokenEncrypted);
+    tokenMasked = maskToken(plain);
+  } catch {
+    const last4 = row.tokenLast4 || "";
+    tokenMasked = last4
+      ? `${row.environment === "test" ? "tm_test_" : "tm_live_"}••••••••••${last4}`
+      : "";
+  }
   return {
     id: row.id,
     name: row.name,
@@ -55,7 +63,7 @@ function toPublic(row: typeof integrationConnections.$inferSelect): PublicMarktG
     environment: row.environment,
     status: row.status,
     statusLabel: statusLabel(row.status, missing),
-    tokenMasked: last4 ? `${envPrefix}••••••••••${last4}` : "",
+    tokenMasked,
     scopes: asStringArray(row.scopes),
     missingScopes: missing,
     lastError: row.lastError,

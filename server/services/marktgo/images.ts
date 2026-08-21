@@ -1,6 +1,9 @@
 /**
  * Prepare Trendyol/CDN image URLs for MARKT-GO product payloads.
- * Drops unreachable URLs and recovers broken /tyXXXX/ rewrites when possible.
+ *
+ * Offline-first: prefer real ty folders and drop known-bad rewrites without
+ * probing CDN (Railway/datacenter IPs often cannot reach cdn.dsmcdn.com).
+ * Optional light probe only for remaining low-quality ty URLs when enabled.
  */
 import {
   collectTrendyolTyFolders,
@@ -8,10 +11,12 @@ import {
   getTrendyolImageFallbackUrls,
   prioritizeProductImagesForPreview,
 } from "@shared/trendyol-product-images";
+import { isCloudRuntime } from "@shared/deploy-runtime";
 
 const MIN_BYTES = 512;
-const PROBE_TIMEOUT_MS = 3_500;
+const PROBE_TIMEOUT_MS = 2_000;
 const MAX_IMAGES = 12;
+const LOW_TY_RE = /\/ty(1660|1000|1505)\//i;
 
 function imageIdentityKey(url: string): string {
   return url
@@ -19,6 +24,10 @@ function imageIdentityKey(url: string): string {
     .replace(/\/ty\d+\//i, "/")
     .split("?")[0]
     .toLowerCase();
+}
+
+function rewriteTyFolder(url: string, ty: string): string {
+  return url.replace(/\/ty\d+\//i, `/${ty}/`);
 }
 
 async function probeImageUrl(url: string): Promise<boolean> {
@@ -48,51 +57,71 @@ async function probeImageUrl(url: string): Promise<boolean> {
   }
 }
 
-async function resolveWorkingUrl(
+/**
+ * Recover a low-quality ty rewrite using sibling gallery folders (no network).
+ * Example: ty1660/.../hash.jpg + preferred ty1819 → ty1819/.../hash.jpg
+ */
+function recoverWithPreferredTy(url: string, preferredTyFolders: string[]): string {
+  if (!LOW_TY_RE.test(url) || !preferredTyFolders.length) return url;
+  return rewriteTyFolder(url, preferredTyFolders[0]);
+}
+
+async function resolveSuspiciousUrl(
   url: string,
   preferredTyFolders: string[],
 ): Promise<string | null> {
-  const candidates = getTrendyolImageFallbackUrls(url, preferredTyFolders);
-  for (const candidate of candidates.slice(0, 12)) {
-    if (await probeImageUrl(candidate)) return candidate;
+  const recovered = recoverWithPreferredTy(url, preferredTyFolders);
+  if (!isCloudRuntime()) {
+    const candidates = getTrendyolImageFallbackUrls(recovered, preferredTyFolders).slice(0, 6);
+    for (const candidate of candidates) {
+      if (await probeImageUrl(candidate)) return candidate;
+    }
+    return null;
   }
-  return null;
+  // Cloud: never block sync on CDN probes — return best offline guess.
+  if (LOW_TY_RE.test(recovered)) return null;
+  return recovered;
 }
 
-/** Normalize, dedupe, and keep only reachable image URLs for MARKT-GO. */
+/** Normalize, dedupe, and keep usable image URLs for MARKT-GO. */
 export async function prepareMarktGoImages(
   raw: unknown,
   limit = MAX_IMAGES,
 ): Promise<string[]> {
   const filtered = filterValidProductImages(Array.isArray(raw) ? raw : []);
-  // Collect ty folders from the full raw list BEFORE identity-dedupe, otherwise
-  // a leading ty1660 rewrite can hide the real folder needed for recovery.
   const preferredTy = collectTrendyolTyFolders(filtered).filter(
     (ty) => !/^ty(1660|1000|1505)$/i.test(ty),
   );
-  const ranked = prioritizeProductImagesForPreview(filtered);
+  const ranked = prioritizeProductImagesForPreview(filtered).map((url) =>
+    recoverWithPreferredTy(url, preferredTy),
+  );
+
   const resolved: string[] = [];
   const seen = new Set<string>();
 
   for (const url of ranked) {
     if (resolved.length >= limit) break;
-    const working = await resolveWorkingUrl(url, preferredTy);
-    if (!working) continue;
-    const key = imageIdentityKey(working);
+    let finalUrl = url;
+    if (LOW_TY_RE.test(url)) {
+      const fixed = await resolveSuspiciousUrl(url, preferredTy);
+      if (!fixed) continue;
+      finalUrl = fixed;
+    }
+    const key = imageIdentityKey(finalUrl);
     if (seen.has(key)) continue;
     seen.add(key);
-    resolved.push(working);
-    const ty = working.match(/\/(ty\d+)\//i)?.[1];
+    resolved.push(finalUrl);
+    const ty = finalUrl.match(/\/(ty\d+)\//i)?.[1];
     if (ty && !preferredTy.some((t) => t.toLowerCase() === ty.toLowerCase())) {
       preferredTy.unshift(ty);
     }
   }
 
-  // Last resort: only keep non-rewrite URLs if probes failed entirely.
-  if (!resolved.length && ranked.length) {
+  // Absolute fallback: any non-rewrite URL still unused
+  if (!resolved.length) {
     for (const url of ranked) {
       if (resolved.length >= limit) break;
-      if (/\/ty(1660|1000|1505)\//i.test(url)) continue;
+      if (LOW_TY_RE.test(url)) continue;
       const key = imageIdentityKey(url);
       if (seen.has(key)) continue;
       seen.add(key);

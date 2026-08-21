@@ -54,7 +54,11 @@ export function maskToken(token: string): string {
     ? "mgt_test_"
     : t.startsWith("mgt_live_")
       ? "mgt_live_"
-      : t.slice(0, Math.min(8, t.length));
+      : t.startsWith("tm_test_")
+        ? "tm_test_"
+        : t.startsWith("tm_live_")
+          ? "tm_live_"
+          : t.slice(0, Math.min(8, t.length));
   return `${prefix}••••••••••${last4}`;
 }
 
@@ -64,11 +68,17 @@ export function tokenLast4(token: string): string {
 
 export function looksLikeMarktGoToken(token: string): boolean {
   const t = String(token || "").trim();
-  return t.startsWith("mgt_live_") || t.startsWith("mgt_test_");
+  return (
+    t.startsWith("mgt_live_") ||
+    t.startsWith("mgt_test_") ||
+    t.startsWith("tm_live_") ||
+    t.startsWith("tm_test_")
+  );
 }
 
 export function redactSecrets(value: string): string {
   return String(value || "")
     .replace(/mgt_(live|test)_[A-Za-z0-9_-]+/g, "mgt_$1_***")
+    .replace(/tm_(live|test)_[A-Za-z0-9_-]+/g, "tm_$1_***")
     .replace(/Bearer\s+\S+/gi, "Bearer ***");
 }

@@ -2215,12 +2215,17 @@ setTimeout(check, 1000);
         const jobWatchdog = setTimeout(() => {
           const entry = scrapeJobs.get(jobId);
           if (!entry || entry.status !== 'processing') return;
-          console.warn(`âš ï¸ Scrape job ${jobId} watchdog timeout (${JOB_MAX_MS}ms)`);
+          console.warn(`⚠️ Scrape job ${jobId} watchdog timeout (${JOB_MAX_MS}ms)`);
           scrapeJobs.set(jobId, {
             ...entry,
             status: 'error',
             error: 'extraction-failed',
             code: 'extraction-failed',
+            userMessage:
+              'Canlı scrape zaman aşımına uğradı. Browser Worker yanıt vermiyor veya Trendyol erişimi engellenmiş olabilir. Railway’de BROWSER_WORKER_URL/TOKEN ve INTERNAL_LOCAL_AGENT_* (trycloudflare) ayarlarını kontrol edin.',
+            finalSuccessReason: 'job-watchdog-timeout',
+            stageErrors: ['pipeline-global-timeout'],
+            stageErrorsHuman: ['Scrape işi üst süre sınırını aştı'],
           });
         }, JOB_MAX_MS);
 
@@ -2242,7 +2247,7 @@ setTimeout(check, 1000);
           variantExtractor: "trendyol-variant-stock-normalizer",
           normalizer: "variant-shape-normalizer",
         });
-        console.log("âš¡ FAST EXTRACTION baÅŸlÄ±yor...");
+        console.log("⚡ FAST EXTRACTION başlıyor...");
 
         const selectedScrapeMode =
           req.body.scrapeMode ||
@@ -2250,21 +2255,26 @@ setTimeout(check, 1000);
           (req.body.useBrowser ? "browser" : "auto-fast");
 
         const { enrichTrendyolResult, resolveProductTitle } = await import("./trendyol-result-normalizer");
-        const { formatScrapeError, logScrapeDiagnostics, formatScrapeDeployUserMessage, formatStageErrorsForUser } = await import("@shared/scrape-runtime");
+        const { formatScrapeError, logScrapeDiagnostics, formatScrapeDeployUserMessage, formatStageErrorsForUser, withStageTimeout } = await import("@shared/scrape-runtime");
         const { runTrendyolScrapePipeline } = await import("./trendyol-scrape-pipeline");
 
         let result: any = null;
         let scrapeDiagnostics: any = null;
 
         try {
-          const pipeline = await runTrendyolScrapePipeline(url, selectedScrapeMode);
+          const pipelineBudget = Math.max(8_000, JOB_MAX_MS - 10_000);
+          const pipeline = await withStageTimeout(
+            () => runTrendyolScrapePipeline(url, selectedScrapeMode),
+            pipelineBudget,
+            "pipeline-global-timeout",
+          );
           scrapeDiagnostics = pipeline.diagnostics;
           logScrapeDiagnostics(scrapeDiagnostics);
 
           if (!pipeline.success && !pipeline.partialSuccess) {
             const userMessage = formatScrapeDeployUserMessage(scrapeDiagnostics);
             const stageErrorsHuman = formatStageErrorsForUser(scrapeDiagnostics.stageErrors ?? []);
-            console.error("âŒ Scrape pipeline: hiÃ§bir veri bulunamadÄ±", {
+            console.error("❌ Scrape pipeline: hiçbir veri bulunamadı", {
               stageErrors: scrapeDiagnostics.stageErrors,
               finalSuccessReason: scrapeDiagnostics.finalSuccessReason,
               userMessage,
@@ -2288,18 +2298,24 @@ setTimeout(check, 1000);
 
           result = pipeline.result;
           if (pipeline.partialSuccess || !pipeline.success) {
-            console.warn("âš ï¸ Scrape pipeline kÄ±smi veri ile tamamlandÄ±", scrapeDiagnostics.stageErrors);
+            console.warn("⚠️ Scrape pipeline kısmi veri ile tamamlandı", scrapeDiagnostics.stageErrors);
           }
         } catch (pipelineErr) {
           const formatted = formatScrapeError(pipelineErr);
-          console.error("âŒ Scrape pipeline fatal error:", formatted.message);
+          console.error("❌ Scrape pipeline fatal error:", formatted.message);
           const _entry = scrapeJobs.get(jobId);
           if (_entry) {
             scrapeJobs.set(jobId, {
               ..._entry,
               status: "error",
               error: formatted.message,
-              code: formatted.code,
+              code: formatted.code || "extraction-failed",
+              userMessage:
+                formatted.code === "pipeline-global-timeout"
+                  ? "Canlı scrape süresi doldu. Browser Worker veya Trendyol API yanıt vermedi."
+                  : formatted.message,
+              stageErrors: formatted.code ? [formatted.code] : ["extraction-failed"],
+              scrapeDiagnostics,
             });
           }
           return;
@@ -2345,11 +2361,12 @@ setTimeout(check, 1000);
           priceType: typeof result?.price
         });
         
-        // Fiyat hâlâ yoksa kısa acil kurtarma (20s yerine 8s) — canlıda tamamen kapatmak extraction-failed yapıyordu.
+        // Fiyat hâlâ yoksa kısa acil kurtarma — canlıda Railway IP Trendyol'a engelli;
+        // ekstra axios HTML çekimi yalnızca lokalde.
         const skipEmergencyPrice =
-          onlyExtractData &&
-          scrapePolicy.isCloud &&
-          Boolean(result?.price?.original && result.price.original > 0);
+          scrapePolicy.isCloud ||
+          (onlyExtractData &&
+            Boolean(result?.price?.original && result.price.original > 0));
         if (
           !skipEmergencyPrice &&
           result &&

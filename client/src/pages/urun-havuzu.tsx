@@ -190,6 +190,21 @@ type PoolNotification = {
 const TRACK_KEY = "product-pool-tracking-v2";
 const MARKTGO_SENT_KEY = "product-pool-marktgo-sent-v1";
 const NOTIF_KEY = "product-pool-notifications-v1";
+/** Bir kez çalışır: eski katalog enjekte edilmiş yerel veriyi siler */
+const STRICT_CLEAN_KEY = "product-pool-strict-clean-v3";
+
+function wipeProductPoolLocalStorage() {
+  try {
+    window.localStorage.removeItem(TRACK_KEY);
+    window.localStorage.removeItem("product-pool-tracking-v1");
+    window.localStorage.removeItem(MARKTGO_SENT_KEY);
+    window.localStorage.removeItem(NOTIF_KEY);
+    window.localStorage.removeItem("product-pool-suppress-catalog-v1");
+    window.sessionStorage.removeItem("product-pool-workspace-v1");
+  } catch {
+    /* ignore */
+  }
+}
 const POLL_MS = 3 * 60 * 1000;
 const PROFIT_MARGIN_PERCENT = 10;
 
@@ -517,23 +532,24 @@ function ShopifySendButton({
 
   const isBusy = Boolean(loading) || finishing || fill > 1;
   const filledEnough = fill >= 38;
+  // Native disabled + pointer-events-none onDisabledClick'i öldürür — tıklamayı JS ile yönet.
   const blocked = Boolean(disabled) || Boolean(loading);
 
   return (
     <button
       type="button"
-      disabled={blocked}
+      aria-disabled={blocked || undefined}
+      aria-busy={loading || undefined}
       onClick={(e) => {
         if (blocked) {
           e.preventDefault();
-          onDisabledClick?.();
+          if (!loading) onDisabledClick?.();
           return;
         }
         onClick();
       }}
-      aria-busy={loading || undefined}
-      className={`group relative isolate w-full inline-flex items-center justify-between gap-3 overflow-hidden rounded-full border-2 border-[#96bf48] bg-[#0a0a0a] px-5 py-3.5 transition-[box-shadow,border-color,background-color] duration-200 disabled:pointer-events-none disabled:!opacity-100 ${
-        disabled && !loading ? "!opacity-50" : ""
+      className={`group relative isolate w-full inline-flex items-center justify-between gap-3 overflow-hidden rounded-full border-2 border-[#96bf48] bg-[#0a0a0a] px-5 py-3.5 transition-[box-shadow,border-color,background-color] duration-200 ${
+        blocked && !loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
       } ${
         isBusy
           ? "shadow-[0_0_28px_rgba(150,191,72,0.55)]"
@@ -778,11 +794,23 @@ export default function UrunHavuzuPage() {
   const pollBusyRef = useRef(false);
 
   useEffect(() => {
+    // Katı kural: eski katalog/havuz localStorage bir kez silinir
+    try {
+      if (window.localStorage.getItem(STRICT_CLEAN_KEY) !== "1") {
+        wipeProductPoolLocalStorage();
+        window.localStorage.setItem(STRICT_CLEAN_KEY, "1");
+      }
+    } catch {
+      /* ignore */
+    }
     const loaded = loadTracking();
     setTracking(loaded);
     trackingRef.current = loaded;
     saveTracking(loaded);
     setNotifications(loadNotifications());
+    setProducts([]);
+    setUrlList([]);
+    setTags([]);
   }, []);
 
   useEffect(() => {
@@ -791,6 +819,8 @@ export default function UrunHavuzuPage() {
 
   useEffect(() => {
     let cancelled = false;
+    // Katı kural: MARKT-GO kataloğu çalışma alanına ASLA enjekte edilmez.
+    // Yalnızca uzak silinen ürünleri takip listesinden düşür.
     const applyRemoved = (removed: string[]) => {
       if (!removed.length) return;
       const gone = new Set(removed);
@@ -806,52 +836,11 @@ export default function UrunHavuzuPage() {
       saveMarktGoSent(loadMarktGoSent().filter((id) => !gone.has(id)));
       setActiveIndex((i) => (i > 0 ? 0 : i));
     };
-    const applyCatalog = (catalog: PoolProduct[]) => {
-      if (!catalog.length) return;
-      setProducts((prev) => {
-        const catalogIds = new Set(catalog.map((p) => p.poolId));
-        const localOnly = prev.filter((p) => !catalogIds.has(p.poolId));
-        return [...catalog, ...localOnly];
-      });
-      saveMarktGoSent([...loadMarktGoSent(), ...catalog.map((p) => p.poolId)]);
-      setTracking((prev) => {
-        const have = new Set(prev.map((t) => t.id));
-        const add = catalog
-          .filter((p) => !have.has(p.poolId))
-          .map((p) => ({
-            id: p.poolId,
-            sourceUrl: p.sourceUrl,
-            title: p.title,
-            siteName: p.siteName,
-            siteLogoUrl: p.siteLogoUrl,
-            category: inferMainCategory({
-              title: p.title,
-              siteName: p.siteName,
-              tags: p.brand ? [p.brand] : undefined,
-            }),
-            price: p.price,
-            salePrice: p.salePrice,
-            inStock: p.inStock !== false,
-            image: p.images[0],
-            addedAt: p.scrapedAt || new Date().toISOString(),
-            lastCheckedAt: new Date().toISOString(),
-            removed: false,
-          }));
-        if (!add.length) return prev;
-        const next = [...add, ...prev];
-        saveTracking(next);
-        return next;
-      });
-    };
     const poll = async () => {
       try {
         const res = await fetch("/api/marktgo/catalog", { cache: "no-store" });
         const data = await res.json();
         if (cancelled || !data) return;
-        const catalog = Array.isArray(data.products)
-          ? (data.products as PoolProduct[]).filter((p) => p?.poolId && p?.title)
-          : [];
-        applyCatalog(catalog);
         const removed = Array.isArray(data.removedLocalProductIds)
           ? data.removedLocalProductIds.map(String)
           : [];
@@ -1213,6 +1202,21 @@ export default function UrunHavuzuPage() {
       });
       return;
     }
+    if (
+      brand.marktgoStatus === "error" ||
+      brand.marktgoMissingScopes.includes("products.create")
+    ) {
+      setMarktgoSettingsOpen(true);
+      toast({
+        title: "MARKT-GO yetkisi eksik",
+        description:
+          brand.marktgoMissingScopes.length > 0
+            ? `Token'da products.create yok. MARKT-GO panelinden tam yetkili yeni token alın ve kaydedin. Eksik: ${brand.marktgoMissingScopes.slice(0, 4).join(", ")}${brand.marktgoMissingScopes.length > 4 ? "…" : ""}`
+            : brand.marktgoStatusLabel || "Bağlantıyı test edip yeni token kaydedin.",
+        variant: "destructive",
+      });
+      return;
+    }
     setUploading(true);
     setMarktgoSteps([]);
     try {
@@ -1257,6 +1261,19 @@ export default function UrunHavuzuPage() {
       toast({
         title: "MARKT-GO bağlantısı yok",
         description: "Sağ üstteki MARKT-GO · Bağlan butonundan API token kaydedin.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (
+      brand.marktgoStatus === "error" ||
+      brand.marktgoMissingScopes.includes("products.create")
+    ) {
+      setMarktgoSettingsOpen(true);
+      toast({
+        title: "MARKT-GO yetkisi eksik",
+        description:
+          "Token'da products.create yok. MARKT-GO panelinden tam yetkili yeni token alın ve kaydedin.",
         variant: "destructive",
       });
       return;
@@ -1306,33 +1323,33 @@ export default function UrunHavuzuPage() {
 
   const profitMarginLabel = `%${PROFIT_MARGIN_PERCENT}`;
 
-  /** Takip listesine dokunmadan çalışma alanını sıfırla */
+  /** Katı temizleme: çalışma alanı + takip takip/bildirim */
   const clearWorkspace = useCallback(() => {
     if (loading || uploading || bulkUploading) return;
+    wipeProductPoolLocalStorage();
+    try {
+      window.localStorage.setItem(STRICT_CLEAN_KEY, "1");
+    } catch {
+      /* ignore */
+    }
     setUrlList([]);
+    setProducts([]);
+    setTracking([]);
+    trackingRef.current = [];
+    setNotifications([]);
     setActiveIndex(0);
     setImageIndex(0);
     setTags([]);
     setTagDraft("");
     setDragOver(false);
     setLoadingProgress("");
-    void fetch("/api/marktgo/catalog", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        const catalog = Array.isArray(data?.products)
-          ? (data.products as PoolProduct[]).filter((p) => p?.poolId && p?.title)
-          : [];
-        setProducts(catalog);
-      })
-      .catch(() => setProducts([]));
+    setMarktgoSteps([]);
+    setNotifOpen(false);
     toast({
       title: "Sayfa temizlendi",
-      description:
-        tracking.length > 0
-          ? `Takipteki ${tracking.length} ürün korundu — canlı katalog yenilendi`
-          : "Canlı katalog yenilendi",
+      description: "Ürün listesi, takip ve bildirimler silindi. MARKT-GO kataloğu buraya yüklenmez.",
     });
-  }, [bulkUploading, loading, toast, tracking.length, uploading]);
+  }, [bulkUploading, loading, toast, uploading]);
 
   const markAllNotifsRead = () => {
     setNotifications((prev) => {
@@ -1509,7 +1526,7 @@ export default function UrunHavuzuPage() {
               }
               onClick={clearWorkspace}
               className="rounded-lg border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 px-3 py-2.5 font-semibold text-sm disabled:opacity-40 inline-flex items-center justify-center gap-2"
-              title="Takiptekiler hariç URL listesi, ürün kartları ve etiketleri temizler"
+              title="URL listesi, ürün kartları, etiketler ve yerel takip listesini temizler"
             >
               <Eraser className="w-4 h-4 shrink-0" />
               <span className="hidden sm:inline">Sayfayı Temizle</span>
@@ -1609,8 +1626,15 @@ export default function UrunHavuzuPage() {
               <ShopifySendButton
                 label="bulk"
                 loading={bulkUploading}
-                disabled={loading}
-                onDisabledClick={() => setMarktgoSettingsOpen(true)}
+                disabled={
+                  loading ||
+                  !brand.marktgoEnabled ||
+                  brand.marktgoMissingScopes.includes("products.create")
+                }
+                onDisabledClick={() => {
+                  if (loading) return;
+                  setMarktgoSettingsOpen(true);
+                }}
                 onClick={sendBulk}
               />
             </div>
@@ -1879,10 +1903,38 @@ export default function UrunHavuzuPage() {
 
                 <ShopifySendButton
                   loading={uploading || marktgoUploading}
-                  disabled={bulkUploading}
-                  onDisabledClick={() => setMarktgoSettingsOpen(true)}
+                  disabled={
+                    bulkUploading ||
+                    !brand.marktgoEnabled ||
+                    brand.marktgoMissingScopes.includes("products.create")
+                  }
+                  onDisabledClick={() => {
+                    if (bulkUploading) return;
+                    setMarktgoSettingsOpen(true);
+                    if (!brand.marktgoEnabled) {
+                      toast({
+                        title: "MARKT-GO bağlantısı yok",
+                        description: "Önce sağ üstten token kaydedin.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    if (brand.marktgoMissingScopes.includes("products.create")) {
+                      toast({
+                        title: "MARKT-GO yetkisi eksik",
+                        description: "Token'da products.create yok — yeni token kaydedin.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
                   onClick={sendToDestination}
                 />
+                {brand.marktgoEnabled && brand.marktgoMissingScopes.includes("products.create") ? (
+                  <p className="text-[11px] text-amber-400/90 px-1">
+                    Token yetkisi eksik ({brand.marktgoStatusLabel || "Bağlı — Eksik Yetki"}). Sağ
+                    üstten tam yetkili yeni token kaydedin.
+                  </p>
+                ) : null}
                 {marktgoSteps.length > 0 ? (
                   <ul className="text-[11px] text-neutral-500 space-y-0.5 px-1">
                     {marktgoSteps.map((s, i) => (

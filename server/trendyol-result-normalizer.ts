@@ -126,6 +126,10 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
 
   const { isCloudRuntime } = await import('@shared/deploy-runtime');
   if (isCloudRuntime()) {
+    // Cloud'da doğrudan Trendyol HTML çekimi engellenir / asılır — yalnızca pipeline
+    // (Browser Worker / API) verisini kullan. Eksik alan için burada ağ çağırma.
+    result.title = resolveProductTitle(url, result.title);
+  } else {
     const missingImagesAfterFirstPass = normalizeImages(result.images).length === 0;
     const missingVariantsAfterFirstPass = !hasRealTrendyolVariants(result.variants);
     if (missingImagesAfterFirstPass || titleWasPlaceholder || missingVariantsAfterFirstPass) {
@@ -156,7 +160,8 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
       (String(result.extractionMethod || '').includes('scenario') ||
         result._priceSource === 'scenario-scrape');
 
-    if (!alreadyFromBrowser) {
+    const { isCloudRuntime } = await import('@shared/deploy-runtime');
+    if (!alreadyFromBrowser && !isCloudRuntime()) {
       const { scrapeTrendyolHttpFallback } = await import('./http-scraper-fallback');
       const http = await scrapeTrendyolHttpFallback(url);
       if (http.success && http.product) {
@@ -200,7 +205,10 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
     let stillMissingImages = !hasValidImages(result.images);
     const stillMissingVariants = !hasRealTrendyolVariants(result.variants);
 
-    if (stillMissingPrice || stillMissingImages || stillMissingVariants) {
+    if (
+      !isCloudRuntime() &&
+      (stillMissingPrice || stillMissingImages || stillMissingVariants)
+    ) {
       const { extractTrendyolProductFromHtml } = await import('./trendyol-html-extractor');
       const htmlProduct = await extractTrendyolProductFromHtml(url);
       if (htmlProduct) {
@@ -243,7 +251,6 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
     stillMissingPrice = needsPrice(result.price);
     stillMissingImages = !hasValidImages(result.images);
 
-    const { isCloudRuntime } = await import('@shared/deploy-runtime');
     const skipPuppeteerOnCloud =
       isCloudRuntime() &&
       !stillMissingPrice &&
@@ -388,17 +395,21 @@ export async function ensureTrendyolVariantsOnResult(
   if (!hasLocalVariants) {
     candidates.push(await fetchTrendyolVariantsFromApi(url, productTitle));
 
-    const { extractTrendyolProductFromHtml } = await import("./trendyol-html-extractor");
-    const htmlProduct = await extractTrendyolProductFromHtml(url);
-    if (htmlProduct) {
-      if (hasRealTrendyolVariants(htmlProduct.variants)) {
-        candidates.push(htmlProduct.variants);
-      }
-      if (htmlProduct.features?.length) {
-        result.features = mergeProductFeaturePairs(result.features, htmlProduct.features);
-      }
-      if (htmlProduct.stockAnalysis && !result.stockAnalysis) {
-        result.stockAnalysis = htmlProduct.stockAnalysis;
+    // Cloud: Trendyol HTML fetch from Railway IPs hangs/gets blocked — never do it here.
+    const { isCloudRuntime } = await import("@shared/deploy-runtime");
+    if (!isCloudRuntime()) {
+      const { extractTrendyolProductFromHtml } = await import("./trendyol-html-extractor");
+      const htmlProduct = await extractTrendyolProductFromHtml(url);
+      if (htmlProduct) {
+        if (hasRealTrendyolVariants(htmlProduct.variants)) {
+          candidates.push(htmlProduct.variants);
+        }
+        if (htmlProduct.features?.length) {
+          result.features = mergeProductFeaturePairs(result.features, htmlProduct.features);
+        }
+        if (htmlProduct.stockAnalysis && !result.stockAnalysis) {
+          result.stockAnalysis = htmlProduct.stockAnalysis;
+        }
       }
     }
   }

@@ -92,10 +92,22 @@ export async function upsertProductMapping(input: {
   lastError?: string | null;
   failedSteps?: string[];
 }) {
-  const existing = await findProductMapping({
-    connectionId: input.connectionId,
-    localProductId: input.localProductId,
-  });
+  // Aynı remote ürün farklı localProductId ile gelebilir (yeniden çekim / reconcile).
+  // Unique: (connection, external_product_id) ve (connection, external_id)
+  const existing =
+    (await findProductMapping({
+      connectionId: input.connectionId,
+      localProductId: input.localProductId,
+    })) ||
+    (await findProductMapping({
+      connectionId: input.connectionId,
+      externalProductId: input.externalProductId,
+    })) ||
+    (await findProductMapping({
+      connectionId: input.connectionId,
+      externalId: input.externalId,
+    }));
+
   const patch = {
     provider: DESTINATION_PROVIDER.MARKTGO,
     localProductId: input.localProductId,
@@ -108,7 +120,18 @@ export async function upsertProductMapping(input: {
     lastSyncedAt: new Date(),
     updatedAt: new Date(),
   };
+
   if (existing) {
+    // Aynı localProductId başka satırdaysa (eski kayıt) çakışmayı çöz
+    if (existing.localProductId !== input.localProductId) {
+      const byLocal = await findProductMapping({
+        connectionId: input.connectionId,
+        localProductId: input.localProductId,
+      });
+      if (byLocal && byLocal.id !== existing.id) {
+        await deleteProductMapping(byLocal.id);
+      }
+    }
     const [row] = await db
       .update(integrationProductMappings)
       .set(patch)
@@ -116,14 +139,41 @@ export async function upsertProductMapping(input: {
       .returning();
     return row;
   }
-  const [row] = await db
-    .insert(integrationProductMappings)
-    .values({
-      connectionId: input.connectionId,
-      ...patch,
-    })
-    .returning();
-  return row;
+
+  try {
+    const [row] = await db
+      .insert(integrationProductMappings)
+      .values({
+        connectionId: input.connectionId,
+        ...patch,
+      })
+      .returning();
+    return row;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/unique|duplicate/i.test(msg)) throw err;
+    // Yarış / eski satır: unique ihlalinde mevcut kaydı bulup güncelle
+    const raced =
+      (await findProductMapping({
+        connectionId: input.connectionId,
+        externalProductId: input.externalProductId,
+      })) ||
+      (await findProductMapping({
+        connectionId: input.connectionId,
+        externalId: input.externalId,
+      })) ||
+      (await findProductMapping({
+        connectionId: input.connectionId,
+        localProductId: input.localProductId,
+      }));
+    if (!raced) throw err;
+    const [row] = await db
+      .update(integrationProductMappings)
+      .set(patch)
+      .where(eq(integrationProductMappings.id, raced.id))
+      .returning();
+    return row;
+  }
 }
 
 export async function upsertVariantMapping(input: {

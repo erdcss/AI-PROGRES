@@ -367,7 +367,23 @@ async function finalizeTrendyolPipelineWithVariants(
   });
 
   const { ensureTrendyolVariantsOnResult } = await import("./trendyol-result-normalizer");
-  await ensureTrendyolVariantsOnResult(url, result, variantOpts);
+  const variantBudgetMs = Math.max(
+    2_000,
+    Math.min(18_000, policy.globalTimeoutMs - (Date.now() - pipelineStart) - 3_000),
+  );
+  try {
+    const { withStageTimeout } = await import("@shared/scrape-runtime");
+    await withStageTimeout(
+      () => ensureTrendyolVariantsOnResult(url, result, variantOpts),
+      variantBudgetMs,
+      "pipeline-global-timeout",
+    );
+  } catch (err) {
+    console.warn(
+      "⚠️ ensureTrendyolVariantsOnResult soft-fail:",
+      err instanceof Error ? err.message : err,
+    );
+  }
 
   // Renk ailesi: Browser Worker üyeleri veya adaylardan merge (≥2 productId)
   try {

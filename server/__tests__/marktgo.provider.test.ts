@@ -75,6 +75,8 @@ assert(!missingRequiredScopes(parseScopeList([
   "media.read","media.create",
   "categories.read","brands.read",
 ])).length, "all required scopes present");
+assert(!missingRequiredScopes(parseScopeList(["*"])).length, "wildcard * grants all");
+assert(!missingRequiredScopes(parseScopeList("*")).length, "wildcard string * grants all");
 
 assert(stableExternalId("12991") === "aip_12991", "external ID mapping aip_<id>");
 assert(idempotencyKeyForProduct("12991") === "aip-product-aip_12991", "idempotency key stable");
