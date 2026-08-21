@@ -81,6 +81,21 @@ assert(!missingRequiredScopes(parseScopeList("*")).length, "wildcard string * gr
 assert(stableExternalId("12991") === "aip_12991", "external ID mapping aip_<id>");
 assert(idempotencyKeyForProduct("12991") === "aip-product-aip_12991", "idempotency key stable");
 assert(stableExternalId("aip_12991") === "aip_12991", "duplicate create key unchanged");
+assert(
+  stableExternalId("https://www.trendyol.com/x/uzun-baslik-urun-adi-p-111111111") ===
+    "aip_ty_111111111",
+  "trendyol url uses product id",
+);
+assert(
+  stableExternalId("https://www.trendyol.com/x/uzun-baslik-urun-adi-p-222222222") ===
+    "aip_ty_222222222",
+  "different trendyol urls stay unique",
+);
+assert(
+  stableExternalId("https://www.trendyol.com/x/uzun-baslik-urun-adi-p-111111111") !==
+    stableExternalId("https://www.trendyol.com/x/uzun-baslik-urun-adi-p-222222222"),
+  "sibling colors do not collide on truncated url",
+);
 
 assert(extractId({ id: 55 }) === "55", "response ID extracted");
 assert(extractId({ data: { id: "88" } }) === "88", "nested response ID stored");

@@ -1807,6 +1807,9 @@ function ScraperPage() {
         variants: cleanVariants,
         sourceUrl,
         title: product.title,
+        poolId: product.sourceProductId
+          ? `ty_${product.sourceProductId}`
+          : sourceUrl || undefined,
       } as Record<string, unknown>);
 
       const response = await fetch('/api/marktgo/products/sync', {
@@ -2210,6 +2213,8 @@ function ScraperPage() {
 
           const poolProduct = mapScraperLikeToPoolProduct({
             ...(item.productData || {}),
+            poolId: preview.id,
+            id: preview.id,
             title: preview.productTitle,
             sourceUrl: preview.sourceUrl,
             tags: item.individualTags || [],
@@ -2522,6 +2527,8 @@ function ScraperPage() {
     setUploadingId(id);
     try {
       const poolProduct = mapScraperLikeToPoolProduct({
+        poolId: preview.id,
+        id: preview.id,
         title: preview.productTitle,
         brand: preview.brand,
         price: preview.price,
@@ -3235,37 +3242,25 @@ function ScraperPage() {
 
             {/* Hatalı Yüklemeler Listesi */}
             {failedUploads.length > 0 && (
-              <div className="mt-4 rounded-xl border border-zinc-700/50 bg-zinc-900/60 p-4">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-zinc-400 font-medium text-sm flex items-center gap-1.5">
+              <div className="mt-4 rounded-xl border border-red-900/40 bg-zinc-900/80 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-zinc-200 font-medium text-sm flex items-center gap-1.5">
                     <span>❌</span> {failedUploads.length} Ürün Yüklenemedi
                   </span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      disabled={!!uploadProgress || isBulkProcessing}
-                      onClick={() => {
-                        const ids = failedUploads
-                          .map((f) => f.previewId)
-                          .filter(Boolean);
-                        void uploadAllCSVsToShopify(ids);
-                      }}
-                      className="text-xs font-medium rounded-md px-2.5 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-100 disabled:opacity-40"
-                    >
-                      Tekrar yüklemeyi dene
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFailedUploads([])}
-                      className="text-zinc-500 hover:text-zinc-400 text-xs"
-                    >
-                      kapat
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFailedUploads([])}
+                    className="text-zinc-500 hover:text-zinc-300 text-xs"
+                  >
+                    kapat
+                  </button>
                 </div>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {failedUploads.map((f, i) => (
-                    <div key={`${f.previewId || f.title}-${i}`} className="flex items-start gap-2 text-xs bg-zinc-800/50 rounded-lg px-3 py-2">
+                    <div
+                      key={`${f.previewId || f.title}-${i}`}
+                      className="flex items-start gap-2 text-xs bg-zinc-800/60 rounded-lg px-3 py-2"
+                    >
                       <span className="text-zinc-500 shrink-0 mt-0.5">•</span>
                       <div className="min-w-0 flex-1">
                         <p className="text-zinc-300 font-medium truncate">{f.title}</p>
@@ -3276,14 +3271,27 @@ function ScraperPage() {
                           type="button"
                           disabled={!!uploadProgress || isBulkProcessing}
                           onClick={() => void uploadAllCSVsToShopify([f.previewId])}
-                          className="shrink-0 text-[11px] text-emerald-400/90 hover:text-emerald-300 disabled:opacity-40"
+                          className="shrink-0 rounded px-2 py-1 text-[11px] font-semibold bg-emerald-700/80 hover:bg-emerald-600 text-white disabled:opacity-40"
                         >
-                          Tekrar dene
+                          Tekrar yükle
                         </button>
                       ) : null}
                     </div>
                   ))}
                 </div>
+                <Button
+                  type="button"
+                  disabled={!!uploadProgress || isBulkProcessing}
+                  onClick={() => {
+                    const ids = failedUploads.map((f) => f.previewId).filter(Boolean);
+                    void uploadAllCSVsToShopify(ids);
+                  }}
+                  className="w-full h-10 bg-emerald-700 hover:bg-emerald-600 text-white font-semibold"
+                >
+                  {uploadProgress
+                    ? `Yeniden yükleniyor… (${uploadProgress.index}/${uploadProgress.total})`
+                    : `Tekrar yükle (${failedUploads.length})`}
+                </Button>
               </div>
             )}
 

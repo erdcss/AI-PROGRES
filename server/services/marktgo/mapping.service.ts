@@ -9,9 +9,25 @@ import { createHash } from "crypto";
 
 export function stableExternalId(localProductId: string): string {
   const raw = String(localProductId || "").trim();
+  if (!raw) {
+    return `aip_${createHash("sha1").update(String(Date.now())).digest("hex").slice(0, 16)}`;
+  }
   if (/^aip_/i.test(raw)) return raw.slice(0, 120);
+
+  // Trendyol productId URL sonunda — kısaltmadan önce yakala
+  const trendyolPid = raw.match(/[?&](?:productId|contentId)=(\d{5,})/i)?.[1]
+    || raw.match(/-p-(\d{5,})(?:\?|#|$)/i)?.[1]
+    || raw.match(/\/p-(\d{5,})(?:\?|#|$)/i)?.[1];
+  if (trendyolPid) return `aip_ty_${trendyolPid}`.slice(0, 120);
+
+  // URL / uzun id: baştan kesmek çakışma üretir — her zaman hash
+  if (/^https?:\/\//i.test(raw) || raw.length > 64) {
+    const hash = createHash("sha1").update(raw).digest("hex").slice(0, 20);
+    return `aip_${hash}`;
+  }
+
   const safe = raw.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 80);
-  if (safe && safe.length <= 80) return `aip_${safe}`;
+  if (safe) return `aip_${safe}`;
   const hash = createHash("sha1").update(raw).digest("hex").slice(0, 16);
   return `aip_${hash}`;
 }

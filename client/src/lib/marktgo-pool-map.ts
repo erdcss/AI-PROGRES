@@ -74,7 +74,14 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     0;
 
   return {
-    poolId: String(input.poolId || input.id || input.sourceUrl || `scraper-${Date.now()}`),
+    poolId: String(
+      input.poolId ||
+        input.id ||
+        (input.sourceUrl
+          ? `url_${String(input.sourceUrl).replace(/^https?:\/\//i, "").slice(-48)}`
+          : "") ||
+        `scraper-${Date.now()}`,
+    ),
     title: String(input.title || input.productTitle || "Ürün"),
     salePrice,
     brand: input.brand ? String(input.brand) : undefined,
