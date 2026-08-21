@@ -315,7 +315,9 @@ function ScraperPage() {
   const bulkActiveUrlsRef = useRef<Set<string>>(new Set());
   const [uploadProgress, setUploadProgress] = useState<ShopifyUploadProgressState | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
-  const [failedUploads, setFailedUploads] = useState<{title: string; error: string}[]>([]);
+  const [failedUploads, setFailedUploads] = useState<
+    { title: string; error: string; previewId: string }[]
+  >([]);
   const [bulkScrapeSummary, setBulkScrapeSummary] = useState<{
     totalProducts: number;
     inStockProducts: number;
@@ -2047,8 +2049,9 @@ function ScraperPage() {
     return applyTagsToShopifyCsv(csvContent, tags);
   }, []);
 
-  // Tüm CSV'leri Shopify'a yükleme — ürün başına canlı ilerleme
-  const uploadAllCSVsToShopify = async () => {
+  // Tüm CSV'leri MARKT-GO'ya yükleme — ürün başına canlı ilerleme
+  // onlyPreviewIds verilirse yalnız o ürünler (tekrar dene)
+  const uploadAllCSVsToShopify = async (onlyPreviewIds?: string[]) => {
     if (isBulkProcessing) {
       toast({
         title: "Ürün çekimi henüz tamamlanmadı",
@@ -2064,19 +2067,27 @@ function ScraperPage() {
     }
     if (uploadProgress) return;
 
+    const idFilter =
+      onlyPreviewIds && onlyPreviewIds.length > 0 ? new Set(onlyPreviewIds) : null;
+
     const eligiblePreviews = csvPreviews.filter(
       (preview) =>
+        (!idFilter || idFilter.has(preview.id)) &&
         preview.restoredFromDisk !== true &&
         preview.approvedForShopify !== false &&
         preview.shopifyUploadBlocked !== true &&
         preview.canonicalProduct?.shopifyUploadBlocked !== true &&
         Boolean(preview.sourceUrl?.trim()),
     );
-    const skippedCount = csvPreviews.length - eligiblePreviews.length;
+    const skippedCount = idFilter
+      ? Math.max(0, (onlyPreviewIds?.length || 0) - eligiblePreviews.length)
+      : csvPreviews.length - eligiblePreviews.length;
     if (eligiblePreviews.length === 0) {
       toast({
         title: "Yüklenecek uygun ürün yok",
-        description: "Diskten geri yüklenen, kaynağı eksik veya aktarımı engellenmiş ürünler yüklenemez.",
+        description: idFilter
+          ? "Hatalı ürünler listede bulunamadı veya aktarımı engelli."
+          : "Diskten geri yüklenen, kaynağı eksik veya aktarımı engellenmiş ürünler yüklenemez.",
         variant: "destructive",
       });
       return;
@@ -2144,7 +2155,7 @@ function ScraperPage() {
         };
       });
 
-      const failedList: { title: string; error: string }[] = [];
+      const failedList: { title: string; error: string; previewId: string }[] = [];
       const SHOPIFY_UPLOAD_CONCURRENCY = 2;
       let uploadCursor = 0;
       let completedUploads = 0;
@@ -2259,7 +2270,11 @@ function ScraperPage() {
                 : "Yükleme hatası";
             failCount++;
             outcomes.push({ title: preview.productTitle, ok: false, error: msg });
-            failedList.push({ title: preview.productTitle, error: msg });
+            failedList.push({
+              title: preview.productTitle,
+              error: msg,
+              previewId: preview.id,
+            });
           }
         } finally {
           clearTimeout(tid);
@@ -2296,7 +2311,11 @@ function ScraperPage() {
               adminUrl: row.adminUrl,
               error: errText,
             });
-            failedList.push({ title: preview.productTitle, error: errText });
+            failedList.push({
+              title: preview.productTitle,
+              error: errText,
+              previewId: preview.id,
+            });
           }
         }
 
@@ -3217,24 +3236,51 @@ function ScraperPage() {
             {/* Hatalı Yüklemeler Listesi */}
             {failedUploads.length > 0 && (
               <div className="mt-4 rounded-xl border border-zinc-700/50 bg-zinc-900/60 p-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="text-zinc-400 font-medium text-sm flex items-center gap-1.5">
                     <span>❌</span> {failedUploads.length} Ürün Yüklenemedi
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setFailedUploads([])}
-                    className="text-zinc-500 hover:text-zinc-400 text-xs"
-                  >kapat</button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={!!uploadProgress || isBulkProcessing}
+                      onClick={() => {
+                        const ids = failedUploads
+                          .map((f) => f.previewId)
+                          .filter(Boolean);
+                        void uploadAllCSVsToShopify(ids);
+                      }}
+                      className="text-xs font-medium rounded-md px-2.5 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-100 disabled:opacity-40"
+                    >
+                      Tekrar yüklemeyi dene
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFailedUploads([])}
+                      className="text-zinc-500 hover:text-zinc-400 text-xs"
+                    >
+                      kapat
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {failedUploads.map((f, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs bg-zinc-800/50 rounded-lg px-3 py-2">
+                    <div key={`${f.previewId || f.title}-${i}`} className="flex items-start gap-2 text-xs bg-zinc-800/50 rounded-lg px-3 py-2">
                       <span className="text-zinc-500 shrink-0 mt-0.5">•</span>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-zinc-300 font-medium truncate">{f.title}</p>
                         <p className="text-zinc-500 mt-0.5 break-words">{f.error}</p>
                       </div>
+                      {f.previewId ? (
+                        <button
+                          type="button"
+                          disabled={!!uploadProgress || isBulkProcessing}
+                          onClick={() => void uploadAllCSVsToShopify([f.previewId])}
+                          className="shrink-0 text-[11px] text-emerald-400/90 hover:text-emerald-300 disabled:opacity-40"
+                        >
+                          Tekrar dene
+                        </button>
+                      ) : null}
                     </div>
                   ))}
                 </div>

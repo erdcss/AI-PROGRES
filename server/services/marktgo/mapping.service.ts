@@ -82,6 +82,25 @@ export async function findProductMapping(opts: {
   return null;
 }
 
+export function isUniqueConstraintError(err: unknown): boolean {
+  const stack: unknown[] = [err];
+  const seen = new Set<unknown>();
+  while (stack.length) {
+    const cur = stack.pop();
+    if (!cur || seen.has(cur)) continue;
+    seen.add(cur);
+    if (typeof cur === "object") {
+      const rec = cur as Record<string, unknown>;
+      if (rec.code === "23505") return true;
+      if (rec.cause) stack.push(rec.cause);
+      if (rec.originalError) stack.push(rec.originalError);
+    }
+    const msg = cur instanceof Error ? cur.message : String(cur);
+    if (/unique|duplicate key/i.test(msg)) return true;
+  }
+  return false;
+}
+
 export async function upsertProductMapping(input: {
   connectionId: number;
   localProductId: string;
@@ -93,12 +112,8 @@ export async function upsertProductMapping(input: {
   failedSteps?: string[];
 }) {
   // Aynı remote ürün farklı localProductId ile gelebilir (yeniden çekim / reconcile).
-  // Unique: (connection, external_product_id) ve (connection, external_id)
+  // Unique: (connection, external_product_id) ve (connection, external_id) ve (connection, local)
   const existing =
-    (await findProductMapping({
-      connectionId: input.connectionId,
-      localProductId: input.localProductId,
-    })) ||
     (await findProductMapping({
       connectionId: input.connectionId,
       externalProductId: input.externalProductId,
@@ -106,6 +121,10 @@ export async function upsertProductMapping(input: {
     (await findProductMapping({
       connectionId: input.connectionId,
       externalId: input.externalId,
+    })) ||
+    (await findProductMapping({
+      connectionId: input.connectionId,
+      localProductId: input.localProductId,
     }));
 
   const patch = {
@@ -121,17 +140,30 @@ export async function upsertProductMapping(input: {
     updatedAt: new Date(),
   };
 
-  if (existing) {
-    // Aynı localProductId başka satırdaysa (eski kayıt) çakışmayı çöz
-    if (existing.localProductId !== input.localProductId) {
-      const byLocal = await findProductMapping({
+  async function clearConflictingRows(keepId: number | null) {
+    const candidates = [
+      await findProductMapping({
         connectionId: input.connectionId,
         localProductId: input.localProductId,
-      });
-      if (byLocal && byLocal.id !== existing.id) {
-        await deleteProductMapping(byLocal.id);
+      }),
+      await findProductMapping({
+        connectionId: input.connectionId,
+        externalId: input.externalId,
+      }),
+      await findProductMapping({
+        connectionId: input.connectionId,
+        externalProductId: input.externalProductId,
+      }),
+    ];
+    for (const row of candidates) {
+      if (row && row.id !== keepId) {
+        await deleteProductMapping(row.id);
       }
     }
+  }
+
+  if (existing) {
+    await clearConflictingRows(existing.id);
     const [row] = await db
       .update(integrationProductMappings)
       .set(patch)
@@ -150,9 +182,7 @@ export async function upsertProductMapping(input: {
       .returning();
     return row;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (!/unique|duplicate/i.test(msg)) throw err;
-    // Yarış / eski satır: unique ihlalinde mevcut kaydı bulup güncelle
+    if (!isUniqueConstraintError(err)) throw err;
     const raced =
       (await findProductMapping({
         connectionId: input.connectionId,
@@ -167,6 +197,7 @@ export async function upsertProductMapping(input: {
         localProductId: input.localProductId,
       }));
     if (!raced) throw err;
+    await clearConflictingRows(raced.id);
     const [row] = await db
       .update(integrationProductMappings)
       .set(patch)
