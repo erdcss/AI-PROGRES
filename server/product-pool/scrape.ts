@@ -1900,15 +1900,8 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
     const { getKnownMarktGoCollectionTags, syncMarktGoCategorySummary } = await import(
       "../services/marktgo/collections-sync.service"
     );
-    let known = getKnownMarktGoCollectionTags();
-    if (!known.length) {
-      try {
-        await syncMarktGoCategorySummary(false);
-        known = getKnownMarktGoCollectionTags();
-      } catch {
-        /* optional */
-      }
-    }
+    const known = getKnownMarktGoCollectionTags();
+    void syncMarktGoCategorySummary(false).catch(() => undefined);
     const categoryPath =
       /trendyol\.com/i.test(trimmed) && pageHtml
         ? extractTrendyolCategoryPath(pageHtml, { title: result.title, brand: result.brand })

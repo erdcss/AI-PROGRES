@@ -1525,9 +1525,14 @@ function extractAllVariantsFromProductGroupJsonLd(htmlContent: string): Array<{
 
 export type ScenarioScrapeOptions = {
   allowPuppeteer?: boolean;
+  /** Rate-limit / hybrid Puppeteer atla — pipeline auto-fast için */
+  fastMode?: boolean;
+  /** Zaten çekilmiş HTML — yeniden fetch etme */
+  cachedHtml?: string | null;
 };
 
 let activeScenarioAllowPuppeteer = true;
+let activeScenarioFastMode = false;
 
 export async function scenarioBasedScrape(
   url: string,
@@ -1535,9 +1540,12 @@ export async function scenarioBasedScrape(
 ): Promise<ScenarioBasedResult> {
   activeScenarioAllowPuppeteer =
     options.allowPuppeteer !== false && isPuppeteerAllowedInRuntime();
+  activeScenarioFastMode = options.fastMode === true;
 
   const startTime = Date.now();
-  console.log(`🚨🚨🚨 FUNCTION ENTRY: scenarioBasedScrape called for ${url} (puppeteer=${activeScenarioAllowPuppeteer})`);
+  console.log(
+    `🚨🚨🚨 FUNCTION ENTRY: scenarioBasedScrape called for ${url} (puppeteer=${activeScenarioAllowPuppeteer}, fastMode=${activeScenarioFastMode})`,
+  );
   
   // Local store for color variant URLs found during Puppeteer extraction
   let detectedColorVariantUrls: string[] = [];
@@ -1546,18 +1554,22 @@ export async function scenarioBasedScrape(
     console.log(`🎯 SCENARIO-BASED EXTRACTION for: ${url}`);
     console.log(`🚨 DEBUGGING: Current URL being processed: ${url}`);
     
-    // INTELLIGENT RATE LIMITING - Human-like delays
-    console.log('🧠 Applying intelligent rate limiting...');
-    try {
-      const { getTrendyolBlockStatus } = await import('./trendyol-block-guard');
-      const blockStatus = getTrendyolBlockStatus();
-      if (blockStatus.consecutiveFails > 0 || blockStatus.open) {
-        intelligentRateLimiter.enableBlockAwareAdaptive();
+    // INTELLIGENT RATE LIMITING - Human-like delays (auto-fast'te atla)
+    if (!activeScenarioFastMode) {
+      console.log('🧠 Applying intelligent rate limiting...');
+      try {
+        const { getTrendyolBlockStatus } = await import('./trendyol-block-guard');
+        const blockStatus = getTrendyolBlockStatus();
+        if (blockStatus.consecutiveFails > 0 || blockStatus.open) {
+          intelligentRateLimiter.enableBlockAwareAdaptive();
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
+      await intelligentRateLimiter.executeSmartDelay(url);
+    } else {
+      console.log('⚡ FAST MODE: rate-limit delay atlandı');
     }
-    await intelligentRateLimiter.executeSmartDelay(url);
 
     
     // CACHE COMPLETELY DISABLED for fresh price extraction
@@ -1592,10 +1604,18 @@ export async function scenarioBasedScrape(
     try {
       // ⚡ SPEED OPTIMIZATION: Try direct scraping FIRST (fastest method)
       console.log('⚡ SPEED MODE: Trying direct scraping first...');
+
+      // Pipeline'dan gelen HTML varsa yeniden fetch etme
+      const cached = typeof options.cachedHtml === "string" ? options.cachedHtml : "";
+      if (cached.length >= 5_000) {
+        htmlContent = cached;
+        $ = cheerio.load(htmlContent);
+        console.log(`⚡ FAST MODE: cached HTML kullanılıyor (${htmlContent.length} bytes)`);
+      }
       
       // ── CURL SUBPROCESS: local only (Railway has no curl binary) ──
       const { isCloudRuntime } = await import('@shared/deploy-runtime');
-      if (!isCloudRuntime()) {
+      if (!htmlContent && !isCloudRuntime()) {
       try {
         console.log('🌐 Trying curl subprocess...');
         const { fetchUrlWithCurl } = await import('./curl-fetch');
@@ -1610,7 +1630,7 @@ export async function scenarioBasedScrape(
       } catch (curlErr: any) {
         console.log(`⚠️ Curl subprocess failed: ${curlErr?.message?.slice(0, 100)}, trying axios...`);
       }
-      } else {
+      } else if (!htmlContent && isCloudRuntime()) {
         console.log('☁️ Curl subprocess skipped in cloud runtime');
       }
 
@@ -3050,8 +3070,17 @@ export async function scenarioBasedScrape(
           !isConfirmedClothingProduct(hybridProductTitle, url) &&
           hybridProductTitle.length > 10 &&
           htmlContent.length > 10_000;
-        if (hasExtractableSizesInHtml || skipHybridForSingleProduct) {
-          console.log('⚡ SPEED: HTML has extractable sizes — skipping Hybrid Puppeteer, going straight to SKU detection');
+        if (
+          activeScenarioFastMode ||
+          !activeScenarioAllowPuppeteer ||
+          hasExtractableSizesInHtml ||
+          skipHybridForSingleProduct
+        ) {
+          console.log(
+            activeScenarioFastMode || !activeScenarioAllowPuppeteer
+              ? '⚡ FAST MODE: Hybrid Puppeteer atlandı'
+              : '⚡ SPEED: HTML has extractable sizes — skipping Hybrid Puppeteer, going straight to SKU detection',
+          );
           // Jump directly to SKU-level detection below (variants stays empty → falls through)
         } else {
         // 🎯 NEW: Try Enhanced Puppeteer with Hybrid Fallback

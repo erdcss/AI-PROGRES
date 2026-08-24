@@ -367,10 +367,10 @@ async function finalizeTrendyolPipelineWithVariants(
   const coreFields = evaluateFields(result, url);
   const coreReady = isCompleteScrapeData(coreFields);
 
-  // auto-fast: fiyat+görsel+başlık varsa ağır post-process dış timeout'u öldürmesin
-  if (autoFast && coreReady && (forcedGlobalTimeout || remainingMs() < 35_000)) {
+  // auto-fast: çekirdek veri (başlık+fiyat+görsel) yeter — ağır post-process atla
+  if (autoFast && coreReady) {
     console.log(
-      `⚡ auto-fast finalize kısaltıldı (remaining=${remainingMs()}ms, forced=${forcedGlobalTimeout})`,
+      `⚡ auto-fast finalize kısaltıldı (core ready, remaining=${remainingMs()}ms)`,
     );
     return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
   }
@@ -707,7 +707,7 @@ export async function runTrendyolScrapePipeline(
   const STAGE_TIMEOUT = stageTimeouts(policy);
   const autoFastScenarioTimeoutMs =
     Number(process.env.AUTO_FAST_SCENARIO_TIMEOUT_MS) ||
-    (policy.isCloud ? 30_000 : 90_000);
+    (policy.isCloud ? 25_000 : 45_000);
 
   const isPastDeadline = () => Date.now() >= globalDeadline;
   const remainingMs = () => Math.max(500, globalDeadline - Date.now());
@@ -801,7 +801,10 @@ export async function runTrendyolScrapePipeline(
       const bwBudgetMs = Math.min(
         includeColorFamily
           ? Math.max(policy.browserWorkerTimeoutMs, 100_000)
-          : Math.max(35_000, Math.min(policy.browserWorkerTimeoutMs || 45_000, 55_000)),
+          : Math.max(
+              18_000,
+              Math.min(policy.browserWorkerTimeoutMs || 45_000, modes.effective === "auto-fast" ? 28_000 : 55_000),
+            ),
         remainingMs(),
       );
       console.log("⚡ [1] Browser Worker (primary)...", {
@@ -1273,6 +1276,34 @@ export async function runTrendyolScrapePipeline(
           console.log(
             `✅ [3/6] HTML parse (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel, fiyat=${htmlProduct.price.original} (${diagnostics.htmlParseDurationMs}ms)`,
           );
+          // Fiyat 0 kaldıysa aynı HTML üzerinden hızlı fiyat kurtarma (BW/scenario'yu atlatır)
+          if (
+            modes.effective === "auto-fast" &&
+            (!result.price?.original || result.price.original <= 0) &&
+            directHtml &&
+            directHtml.length > 5_000
+          ) {
+            try {
+              const cheerioMod = await import("cheerio");
+              const $price = cheerioMod.load(directHtml);
+              const { ultimatePriceExtract } = await import("./ultimate-price-extractor");
+              const rescued = await ultimatePriceExtract($price, directHtml, url);
+              const n = Number(rescued?.original || 0);
+              if (Number.isFinite(n) && n > 0) {
+                result.price = {
+                  original: n,
+                  withProfit: Number(rescued?.withProfit || n) || n,
+                  currency: String(rescued?.currency || "TRY"),
+                };
+                console.log(`⚡ [3/6] Fiyat kurtarıldı (HTML): ${n} TL`);
+              }
+            } catch (priceErr) {
+              console.warn(
+                "⚠️ [3/6] Hızlı fiyat kurtarma soft-fail:",
+                priceErr instanceof Error ? priceErr.message : String(priceErr),
+              );
+            }
+          }
         } else {
           diagnostics.htmlParseError = "html-parse-empty";
           console.warn("⚠️ [3/6] HTML parse: veri çıkarılamadı");
@@ -1294,6 +1325,19 @@ export async function runTrendyolScrapePipeline(
 
   const chromiumReady = resolveChromiumPath().exists;
   const fieldsAfterHtmlParse = evaluateFields(result, url);
+
+  // auto-fast + çekirdek veri: BW / scenario / image fallback atla
+  if (
+    modes.effective === "auto-fast" &&
+    isCompleteScrapeData(fieldsAfterHtmlParse) &&
+    !forcedGlobalTimeout
+  ) {
+    skipHeavyStages = true;
+    diagnostics.scenarioSkippedReason =
+      diagnostics.scenarioSkippedReason || "auto-fast-core-after-html";
+    console.log("⚡ auto-fast: HTML çekirdek veri hazır — ağır aşamalar atlandı");
+  }
+
   // Local: API/HTML eksikse senaryo (Puppeteer) önce — auto-fast dahil (556 sonrası zorunlu)
   const localPreferPuppeteerFirst =
     !policy.isCloud &&
@@ -1301,6 +1345,7 @@ export async function runTrendyolScrapePipeline(
     chromiumReady &&
     !shouldSkipTrendyolBrowserScrape() &&
     !diagnostics.apiSuccess &&
+    !skipHeavyStages &&
     (!isCompleteScrapeData(fieldsAfterHtmlParse) ||
       (!diagnostics.htmlParseSuccess && !diagnostics.directHtmlSuccess));
 
@@ -1313,27 +1358,32 @@ export async function runTrendyolScrapePipeline(
     const { applySparseApparelPolicy } = await import("./trendyol-variant-probe");
     applySparseApparelPolicy(result, url);
     const variantGaps = assessTrendyolVariantGaps(url, (result ?? {}) as Record<string, unknown>);
-    const missingVariantOrFeatureData =
-      !hasRealTrendyolVariants(result?.variants) ||
-      !(Array.isArray(result?.features) && result.features.length > 0);
+    const autoFastMode = modes.effective === "auto-fast";
+    // auto-fast: yalnız başlık+fiyat+görsel eksikse senaryo — varyant/özellik için Puppeteer açma
+    const coreDataReady = isCompleteScrapeData(fieldsBeforeScenario);
     const coreDataFromHtml =
       diagnostics.htmlParseSuccess &&
       fieldsBeforeScenario.hasTitle &&
       fieldsBeforeScenario.hasPrice &&
       fieldsBeforeScenario.hasImages &&
-      !missingVariantOrFeatureData &&
-      !variantGaps.likelyIncomplete &&
-      !result?.requiresFullVariantScrape;
+      (autoFastMode ||
+        (!variantGaps.likelyIncomplete &&
+          hasRealTrendyolVariants(result?.variants) &&
+          Array.isArray(result?.features) &&
+          result.features.length > 0 &&
+          !result?.requiresFullVariantScrape));
 
     const scenarioNeeded =
       !skipHeavyStages &&
       !coreDataFromHtml &&
       !forcedGlobalTimeout &&
       !isPastDeadline() &&
-      (!hasMinimumScrapeData(fieldsBeforeScenario) ||
-        !isCompleteScrapeData(fieldsBeforeScenario) ||
-        variantGaps.likelyIncomplete ||
-        result?.requiresFullVariantScrape === true);
+      (autoFastMode
+        ? !coreDataReady
+        : !hasMinimumScrapeData(fieldsBeforeScenario) ||
+          !coreDataReady ||
+          variantGaps.likelyIncomplete ||
+          result?.requiresFullVariantScrape === true);
 
     scenarioStageCompleted = true;
 
@@ -1380,7 +1430,7 @@ export async function runTrendyolScrapePipeline(
           scrapeTrendyolWithBrowserWorker,
         } = await import("./services/browser-worker-client.service");
         const bwBudgetMs = Math.min(
-          Math.max(25_000, Math.min(policy.browserWorkerTimeoutMs || 45_000, 55_000)),
+          Math.max(12_000, Math.min(policy.browserWorkerTimeoutMs || 45_000, modes.effective === "auto-fast" ? 22_000 : 45_000)),
           remainingMs(),
         );
         console.log(`⚡ [${stageLabel}] Local Browser Worker (pre-scenario)...`);
@@ -1475,20 +1525,23 @@ export async function runTrendyolScrapePipeline(
 
     console.log(`⚡ [${stageLabel}] Scenario scrape (eksik veri)...`);
     try {
-      const needsLongLocalScenario =
-        !policy.isCloud &&
-        (!diagnostics.apiSuccess || !isCompleteScrapeData(evaluateFields(result, url)));
+      const needsPuppeteer =
+        modes.effective !== "auto-fast" ||
+        (!evaluateFields(result, url).hasPrice && !evaluateFields(result, url).hasImages);
       const scenarioTimeoutMs =
         modes.effective === "auto-fast"
-          ? needsLongLocalScenario
-            ? Math.max(
-                autoFastScenarioTimeoutMs,
-                Math.min(STAGE_TIMEOUT.scenario || 120_000, 120_000),
-              )
-            : Math.min(STAGE_TIMEOUT.scenario || autoFastScenarioTimeoutMs, autoFastScenarioTimeoutMs)
+          ? Math.min(
+              autoFastScenarioTimeoutMs,
+              Math.max(12_000, remainingMs()),
+            )
           : STAGE_TIMEOUT.scenario;
       const scrapeResult = await withStageTimeout(
-        () => scenarioBasedScrape(url, { allowPuppeteer: true }),
+        () =>
+          scenarioBasedScrape(url, {
+            allowPuppeteer: needsPuppeteer,
+            fastMode: modes.effective === "auto-fast",
+            cachedHtml: directHtml,
+          }),
         Math.min(scenarioTimeoutMs, remainingMs()),
         "scenario-timeout",
       );

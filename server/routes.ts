@@ -2469,15 +2469,21 @@ setTimeout(check, 1000);
           console.log(`Variants already extracted: ${result.variants.allVariants.length} variants, sizes=${sizeCount}`);
           console.log(`Colors: ${result.variants.colors?.length || 0}, Sizes: ${result.variants.sizes?.length || 0}`);
         } else if (result.success) {
+          // onlyExtractData / auto-fast: ağır varyant retry'ı atla (çekim süresini şişiriyor)
           if (
             (sparseApparel || sizeCount <= 1) &&
-            !(onlyExtractData && scrapePolicy.isCloud)
+            !onlyExtractData &&
+            !scrapePolicy.isCloud
           ) {
             console.log(`Sparse apparel variant detected (sizes=${sizeCount}) — full variant scrape retry`);
             await applyFullVariantScrapeToResult(url, result, {
               html: typeof result.htmlContent === 'string' ? result.htmlContent : null,
               mode: 'routes-retry',
             });
+          } else if (onlyExtractData && (sparseApparel || sizeCount <= 1)) {
+            console.log(
+              `⚡ onlyExtractData: sparse apparel full-variant retry atlandı (sizes=${sizeCount})`,
+            );
           }
 
           const htmlForStock =
@@ -2521,13 +2527,11 @@ setTimeout(check, 1000);
               "./services/marktgo/collections-sync.service"
             );
             knownTags = getKnownMarktGoCollectionTags();
+            // Hot path'i MARKT-GO sync ile bloklama — arka planda tazele
             if (!knownTags.length) {
-              try {
-                await syncMarktGoCategorySummary(false);
-                knownTags = getKnownMarktGoCollectionTags();
-              } catch {
-                void syncMarktGoCategorySummary(false).catch(() => undefined);
-              }
+              void syncMarktGoCategorySummary(false).catch(() => undefined);
+            } else {
+              void syncMarktGoCategorySummary(false).catch(() => undefined);
             }
           } catch {
             /* MARKT-GO yoksa sadece başlık / breadcrumb etiketleri */
