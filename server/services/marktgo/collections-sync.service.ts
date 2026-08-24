@@ -107,15 +107,20 @@ function parseCollections(payload: unknown): RemoteCollection[] {
     const o = asObj(row);
     const id = extractId(o);
     if (!id) continue;
-    const title = String(o.name || o.title || "").trim();
+    const title = String(o.name || o.title || "")
+      .replace(/["']/g, "")
+      .trim();
     if (!title) continue;
     const handle = String(o.slug || o.handle || "").trim() || id;
-    const conditions = parseConditions(o.conditions);
+    const conditions = parseConditions(o.conditions).map((c) => ({
+      ...c,
+      value: c.value.replace(/["']/g, "").trim(),
+    }));
     const tagsFromField = Array.isArray(o.tags)
-      ? o.tags.map((t) => String(t || "").trim()).filter(Boolean)
+      ? o.tags.map((t) => String(t || "").replace(/["']/g, "").trim()).filter(Boolean)
       : [];
     const tags = [
-      ...new Set([...conditionTags(conditions), ...tagsFromField, title]),
+      ...new Set([...conditionTags(conditions), ...tagsFromField, title].filter(Boolean)),
     ];
     const match = String(o.conditionMatch || "all").toLowerCase() === "any" ? "any" : "all";
     out.push({
@@ -310,16 +315,36 @@ export async function syncMarktGoCategorySummary(force = false): Promise<MarktGo
   lastRunAt = Date.now();
   inFlight = (async () => {
     const { client } = await getMarktGoClientForConnection();
-    const [collections, products] = await Promise.all([
-      fetchCollections(client),
-      fetchProducts(client),
-    ]);
+    let collections: RemoteCollection[] = [];
+    let products: RemoteProduct[] = [];
+    let collectionError = "";
+    let productError = "";
+
+    try {
+      collections = await fetchCollections(client);
+    } catch (err) {
+      collectionError = err instanceof Error ? err.message : String(err);
+    }
+
+    try {
+      products = await fetchProducts(client);
+    } catch (err) {
+      productError = err instanceof Error ? err.message : String(err);
+    }
+
+    if (!collections.length && !products.length) {
+      throw new Error(
+        collectionError || productError || "MARKT-GO koleksiyon / ürün listesi alınamadı",
+      );
+    }
+
     const summary = buildSummary(collections, products);
-    summary.message = collections.length
-      ? `${collections.length} koleksiyon · ${products.length} ürün`
-      : products.length
-        ? "Koleksiyon listesi boş — ürün etiketleri yüklendi"
-        : "MARKT-GO katalog boş";
+    const notes: string[] = [];
+    if (collections.length) notes.push(`${collections.length} koleksiyon`);
+    if (products.length) notes.push(`${products.length} ürün`);
+    if (collectionError && !collections.length) notes.push(`koleksiyon: ${collectionError}`);
+    if (productError && !products.length) notes.push(`ürün listesi atlandı`);
+    summary.message = notes.join(" · ") || "MARKT-GO katalog boş";
     lastResult = summary;
     return summary;
   })().finally(() => {
