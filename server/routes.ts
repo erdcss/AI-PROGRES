@@ -2513,7 +2513,27 @@ setTimeout(check, 1000);
             url,
             result.id ?? result.productId ?? result.contentId,
           );
-          result.tags = [sourceIds.sourceKey];
+          const { generateAutoProductTags } = await import("@shared/auto-product-tags");
+          let knownTags: string[] = [];
+          try {
+            const { getKnownMarktGoCollectionTags, syncMarktGoCategorySummary } = await import(
+              "./services/marktgo/collections-sync.service"
+            );
+            knownTags = getKnownMarktGoCollectionTags();
+            if (!knownTags.length) {
+              void syncMarktGoCategorySummary(false).catch(() => undefined);
+            }
+          } catch {
+            /* MARKT-GO yoksa sadece başlık etiketleri */
+          }
+          const autoTags = generateAutoProductTags({
+            title: result.title,
+            brand: result.brand,
+            category: result.category || result.categoryName,
+            knownCollectionTags: knownTags,
+            existingTags: Array.isArray(result.tags) ? result.tags : [],
+          });
+          result.tags = autoTags;
           result.scrapeRunId = scrapeRunId;
           result.sourceUrl = url;
           result.urlProductId = sourceIds.urlProductId;

@@ -98,6 +98,11 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
         .then(({ triggerMarktGoCatalogReconcile }) => triggerMarktGoCatalogReconcile(true))
         .catch((err) => console.warn("⚠️ Açılış MARKT-GO katalog kontrolü atlandı:", err));
     }, isCloudRuntime() ? 20_000 : 8_000);
+    setTimeout(() => {
+      void import("./marktgo/collections-sync.service")
+        .then(({ syncMarktGoCategorySummary }) => syncMarktGoCategorySummary(true))
+        .catch((err) => console.warn("⚠️ Açılış MARKT-GO koleksiyon senkronu atlandı:", err));
+    }, isCloudRuntime() ? 25_000 : 12_000);
 
     if (controlCenterOk) {
       void resumePendingImportJobs();

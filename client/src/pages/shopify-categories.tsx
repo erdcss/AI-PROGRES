@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useDestinationBrand } from "@/hooks/use-destination-brand";
 
 type CategorySummary = {
+  provider?: string;
   syncedAt: string;
   totalProducts: number;
   taggedProducts: number;
   untaggedProducts: number;
+  message?: string;
   tags: Array<{
     tag: string;
     productCount: number;
@@ -27,20 +30,26 @@ type CategorySummary = {
     handle: string;
     taggedProductCount: number;
     tags: string[];
+    conditions?: Array<{ field: string; operator: string; value: string }>;
+    conditionMatch?: string;
   }>;
 };
 
 async function fetchCategorySummary(): Promise<CategorySummary> {
-  const response = await fetch("/api/shopify/categories", { cache: "no-store" });
+  const response = await fetch("/api/marktgo/categories", { cache: "no-store" });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || "Shopify kategori verileri alınamadı");
+  if (!response.ok) {
+    throw new Error(body.error || "MARKT-GO kategori / koleksiyon verileri alınamadı");
+  }
   return body;
 }
 
 export default function ShopifyCategoriesPage() {
+  const brand = useDestinationBrand();
+  const dest = brand.destinationName || "MARKT-GO";
   const [search, setSearch] = useState("");
   const query = useQuery({
-    queryKey: ["shopify-category-summary"],
+    queryKey: ["marktgo-category-summary"],
     queryFn: fetchCategorySummary,
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
@@ -59,6 +68,16 @@ export default function ShopifyCategoriesPage() {
       ),
     [normalizedSearch, query.data?.tags],
   );
+  const collections = useMemo(
+    () =>
+      (query.data?.collections ?? []).filter(
+        (row) =>
+          !normalizedSearch ||
+          row.title.toLocaleLowerCase("tr-TR").includes(normalizedSearch) ||
+          row.tags.some((tag) => tag.toLocaleLowerCase("tr-TR").includes(normalizedSearch)),
+      ),
+    [normalizedSearch, query.data?.collections],
+  );
   const summaryCards = [
     { label: "Toplam ürün", value: query.data?.totalProducts ?? 0, icon: Package },
     { label: "Etiketli ürün", value: query.data?.taggedProducts ?? 0, icon: Tags },
@@ -75,7 +94,7 @@ export default function ShopifyCategoriesPage() {
             Kategoriler
           </h1>
           <p className="text-slate-400 mt-1">
-            Shopify etiketleri, ürün sayıları ve bağlı koleksiyonlar
+            {dest} etiketleri, koleksiyonlar ve ürün koşulları
           </p>
         </div>
         <Button
@@ -84,7 +103,7 @@ export default function ShopifyCategoriesPage() {
           className="bg-blue-600 hover:bg-blue-500"
         >
           <RefreshCw className={`mr-2 h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} />
-          Shopify ile Senkronize Et
+          {dest} ile Senkronize Et
         </Button>
       </div>
 
@@ -120,11 +139,51 @@ export default function ShopifyCategoriesPage() {
 
       <Card className="border-slate-700 bg-slate-900/90">
         <CardHeader>
+          <CardTitle>Koleksiyonlar</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {query.isLoading ? (
+            <p className="text-slate-400">{dest} koleksiyonları yükleniyor...</p>
+          ) : collections.length === 0 ? (
+            <p className="text-slate-400">Eşleşen koleksiyon bulunamadı.</p>
+          ) : (
+            collections.map((row) => (
+              <div
+                key={row.id}
+                className="rounded-xl border border-slate-700 bg-slate-950/60 p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white">{row.title}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {row.taggedProductCount} ürün
+                      {row.conditionMatch ? ` · koşul: ${row.conditionMatch}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(row.tags.length ? row.tags : ["etiket yok"]).map((tag) => (
+                      <Badge
+                        key={`${row.id}-${tag}`}
+                        className="bg-emerald-700/30 text-emerald-200 border-emerald-700/40"
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-700 bg-slate-900/90">
+        <CardHeader>
           <CardTitle>Etiketlere göre ürün dağılımı</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {query.isLoading ? (
-            <p className="text-slate-400">Shopify verileri yükleniyor...</p>
+            <p className="text-slate-400">{dest} etiketleri yükleniyor...</p>
           ) : tags.length === 0 ? (
             <p className="text-slate-400">Eşleşen etiket bulunamadı.</p>
           ) : (
@@ -160,7 +219,8 @@ export default function ShopifyCategoriesPage() {
 
       {query.data?.syncedAt && (
         <p className="text-xs text-slate-500">
-          Son Shopify senkronu: {new Date(query.data.syncedAt).toLocaleString("tr-TR")}
+          Son {dest} senkronu: {new Date(query.data.syncedAt).toLocaleString("tr-TR")}
+          {query.data.message ? ` · ${query.data.message}` : ""}
         </p>
       )}
     </main>

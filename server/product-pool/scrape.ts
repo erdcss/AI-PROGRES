@@ -1886,6 +1886,27 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
   };
   assertStrictPoolProduct(result, host);
 
+  try {
+    const { generateAutoProductTags } = await import("@shared/auto-product-tags");
+    const { getKnownMarktGoCollectionTags, syncMarktGoCategorySummary } = await import(
+      "../services/marktgo/collections-sync.service"
+    );
+    let known = getKnownMarktGoCollectionTags();
+    if (!known.length) {
+      void syncMarktGoCategorySummary(false).catch(() => undefined);
+      known = getKnownMarktGoCollectionTags();
+    }
+    result.tags = generateAutoProductTags({
+      title: result.title,
+      brand: result.brand,
+      category: undefined,
+      knownCollectionTags: known,
+      existingTags: result.tags,
+    });
+  } catch {
+    /* etiket üretimi opsiyonel */
+  }
+
   // Supabase mobile mirror — fire-and-forget; scrape sonucunu etkilemez
   void import("../services/mobile-sync.service")
     .then(({ upsertMobileProduct }) => {

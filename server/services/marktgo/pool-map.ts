@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { marktGoStockForAvailability } from "@shared/integration-provider";
+import { generateAutoProductTags } from "@shared/auto-product-tags";
 import { matchWebHookSite } from "@shared/web-hooks-sites";
 import type { LocalProductInput } from "./types";
 import {
@@ -8,6 +9,7 @@ import {
   extractTags,
   normalizeMarktGoProduct,
 } from "./normalize";
+import { getKnownMarktGoCollectionTags } from "./collections-sync.service";
 
 const PROFIT_MARGIN = 0.1;
 export const SOURCE_URL_TAG_PREFIX = "src:";
@@ -39,6 +41,13 @@ export function mapPoolProductToMarktGoInput(
       ? [String(product.image)]
       : [];
   const tags = Array.isArray(product.tags) ? product.tags.map(String) : [];
+  const autoTags = generateAutoProductTags({
+    title: String(product.title || ""),
+    brand: product.brand ? String(product.brand) : null,
+    category: product.category ? String(product.category) : null,
+    knownCollectionTags: getKnownMarktGoCollectionTags(),
+    existingTags: tags,
+  });
   const featurePairs = Array.isArray(product.features)
     ? (product.features as Array<{ name?: string; key?: string; value?: string }>)
         .map((f) => {
@@ -92,7 +101,7 @@ export function mapPoolProductToMarktGoInput(
     discountPrice: compare ? sellPrice : null,
     stock: marktGoStockForAvailability(product.inStock !== false),
     images,
-    tags: buildExportTags(tags, product.sourceUrl ? String(product.sourceUrl) : null),
+    tags: buildExportTags(autoTags, product.sourceUrl ? String(product.sourceUrl) : null),
     variants,
   };
 }

@@ -42,6 +42,8 @@ export interface ProductPoolProduct {
   variants?: ProductPoolVariant[];
   inStock: boolean;
   scrapedAt: string;
+  /** Otomatik / manuel ürün etiketleri (MARKT-GO koleksiyon koşulları) */
+  tags?: string[];
 }
 
 export interface ProductPoolTrackItem {

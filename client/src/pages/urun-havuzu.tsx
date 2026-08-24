@@ -90,6 +90,7 @@ type PoolProduct = {
   variants?: PoolVariant[];
   inStock: boolean;
   scrapedAt: string;
+  tags?: string[];
 };
 
 type TrackItem = {
@@ -1005,9 +1006,23 @@ export default function UrunHavuzuPage() {
           const scrapedIds = new Set(scraped.map((p) => p.poolId));
           return [...scraped, ...prev.filter((p) => !scrapedIds.has(p.poolId))];
         });
+        const autoFromScrape = scraped.flatMap((p) =>
+          Array.isArray(p.tags) ? p.tags.map(String).filter(Boolean) : [],
+        );
+        if (autoFromScrape.length) {
+          setTags((prev) => {
+            const merged = [...prev];
+            for (const t of autoFromScrape) {
+              if (!merged.some((x) => x.toLowerCase() === t.toLowerCase())) merged.push(t);
+            }
+            return merged.slice(0, 24);
+          });
+        }
         toast({
           title: "Ürünler çekildi",
-          description: `${scraped.length} ürün hazır`,
+          description: autoFromScrape.length
+            ? `${scraped.length} ürün hazır · ${autoFromScrape.length} otomatik etiket`
+            : `${scraped.length} ürün hazır`,
         });
       } catch (err) {
         toast({

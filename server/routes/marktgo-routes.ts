@@ -148,4 +148,38 @@ export function registerMarktGoRoutes(app: Express): void {
       return res.status(500).json({ success: false, error: userMessageForMarktGoError(err) });
     }
   });
+
+  app.get("/api/marktgo/categories", async (_req, res) => {
+    try {
+      await ensureRuntimeMarktGoConnection();
+      const { syncMarktGoCategorySummary } = await import(
+        "../services/marktgo/collections-sync.service"
+      );
+      const summary = await syncMarktGoCategorySummary(true);
+      return res.json({ success: true, ...summary });
+    } catch (err) {
+      return res.status(502).json({
+        success: false,
+        provider: DESTINATION_PROVIDER.MARKTGO,
+        error: userMessageForMarktGoError(err),
+      });
+    }
+  });
+
+  app.post("/api/marktgo/categories/sync", async (_req, res) => {
+    try {
+      await ensureRuntimeMarktGoConnection();
+      const { syncMarktGoCategorySummary } = await import(
+        "../services/marktgo/collections-sync.service"
+      );
+      const summary = await syncMarktGoCategorySummary(true);
+      return res.json({ success: true, ...summary });
+    } catch (err) {
+      return res.status(502).json({
+        success: false,
+        provider: DESTINATION_PROVIDER.MARKTGO,
+        error: userMessageForMarktGoError(err),
+      });
+    }
+  });
 }

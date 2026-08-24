@@ -594,10 +594,11 @@ function ScraperPage() {
         imagesByColor: scraped.imagesByColor,
         sourceAliases: scraped.sourceAliases,
         familySourceKey: scraped.familySourceKey,
-        tags:
-          scraped.canonicalProduct?.sourceKey
+        tags: Array.isArray(scraped.tags) && scraped.tags.length
+          ? scraped.tags.map(String).filter(Boolean)
+          : scraped.canonicalProduct?.sourceKey
             ? [scraped.canonicalProduct.sourceKey]
-            : scraped.tags || [],
+            : [],
         category: scraped.category || "",
         success: scraped.success !== false,
         partialSuccess: scraped.partialSuccess,
@@ -705,6 +706,13 @@ function ScraperPage() {
 
         return [newCSVPreview, ...filtered];
       });
+
+      if (Array.isArray(transformedProduct.tags) && transformedProduct.tags.length) {
+        setIndividualTags((prev) => ({
+          ...prev,
+          [newCSVPreview.id]: transformedProduct.tags as string[],
+        }));
+      }
 
       if (import.meta.env.DEV) {
         console.log("[ScraperState] preview added", {
