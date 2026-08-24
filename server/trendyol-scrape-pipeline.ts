@@ -221,7 +221,10 @@ function finalizeOutcome(
       if (
         code === "image-proxy-timeout" ||
         code === "image-fallback-timeout" ||
-        code === "direct-html-timeout"
+        code === "direct-html-timeout" ||
+        code === "pipeline-global-timeout" ||
+        code === "scenario-timeout" ||
+        code === "upstream-556"
       ) {
         recovered.push(code);
       }
@@ -359,33 +362,57 @@ async function finalizeTrendyolPipelineWithVariants(
   const { applyFullVariantScrapeToResult } = await import("./trendyol-variant-probe");
   const policy = getScrapeEnvironmentPolicy();
   const autoFast = (variantOpts?.scrapeMode || "auto-fast") === "auto-fast";
+  const remainingMs = () =>
+    Math.max(0, policy.globalTimeoutMs - (Date.now() - pipelineStart));
+  const coreFields = evaluateFields(result, url);
+  const coreReady = isCompleteScrapeData(coreFields);
 
-  await applyFullVariantScrapeToResult(url, result, {
-    html: variantOpts?.html ?? result.htmlContent ?? null,
-    mode: String(result.scrapeMode ?? "auto-fast"),
-    browserWorkerEnabled: policy.browserWorkerConfigured && policy.browserWorkerHealthy,
-  });
+  // auto-fast: fiyat+görsel+başlık varsa ağır post-process dış timeout'u öldürmesin
+  if (autoFast && coreReady && (forcedGlobalTimeout || remainingMs() < 35_000)) {
+    console.log(
+      `⚡ auto-fast finalize kısaltıldı (remaining=${remainingMs()}ms, forced=${forcedGlobalTimeout})`,
+    );
+    return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
+  }
+
+  if (!forcedGlobalTimeout && remainingMs() > 8_000) {
+    await applyFullVariantScrapeToResult(url, result, {
+      html: variantOpts?.html ?? result.htmlContent ?? null,
+      mode: String(result.scrapeMode ?? "auto-fast"),
+      browserWorkerEnabled: policy.browserWorkerConfigured && policy.browserWorkerHealthy,
+    });
+  } else {
+    console.log("⚡ applyFullVariantScrapeToResult atlandı (süre/timeout)");
+  }
 
   const { ensureTrendyolVariantsOnResult } = await import("./trendyol-result-normalizer");
   const variantBudgetMs = Math.max(
-    2_000,
-    Math.min(18_000, policy.globalTimeoutMs - (Date.now() - pipelineStart) - 3_000),
+    1_000,
+    Math.min(autoFast ? 8_000 : 18_000, remainingMs() - 5_000),
   );
-  try {
-    const { withStageTimeout } = await import("@shared/scrape-runtime");
-    await withStageTimeout(
-      () => ensureTrendyolVariantsOnResult(url, result, variantOpts),
-      variantBudgetMs,
-      "pipeline-global-timeout",
-    );
-  } catch (err) {
-    console.warn(
-      "⚠️ ensureTrendyolVariantsOnResult soft-fail:",
-      err instanceof Error ? err.message : err,
-    );
+  if (variantBudgetMs >= 1_500) {
+    try {
+      const { withStageTimeout } = await import("@shared/scrape-runtime");
+      await withStageTimeout(
+        () => ensureTrendyolVariantsOnResult(url, result, variantOpts),
+        variantBudgetMs,
+        "pipeline-global-timeout",
+      );
+    } catch (err) {
+      console.warn(
+        "⚠️ ensureTrendyolVariantsOnResult soft-fail:",
+        err instanceof Error ? err.message : err,
+      );
+    }
   }
 
   // Renk ailesi: Browser Worker üyeleri veya adaylardan merge (≥2 productId)
+  // auto-fast + çekirdek veri: kardeş crawl atla (canlıda 45–90s)
+  if (autoFast && coreReady) {
+    console.log("⚡ auto-fast: renk ailesi crawl atlandı (çekirdek veri hazır)");
+    return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
+  }
+
   try {
     const {
       mergeColorFamilyIntoScrapeResult,
@@ -679,7 +706,8 @@ export async function runTrendyolScrapePipeline(
   const globalDeadline = pipelineStart + policy.globalTimeoutMs;
   const STAGE_TIMEOUT = stageTimeouts(policy);
   const autoFastScenarioTimeoutMs =
-    Number(process.env.AUTO_FAST_SCENARIO_TIMEOUT_MS) || 30_000;
+    Number(process.env.AUTO_FAST_SCENARIO_TIMEOUT_MS) ||
+    (policy.isCloud ? 30_000 : 90_000);
 
   const isPastDeadline = () => Date.now() >= globalDeadline;
   const remainingMs = () => Math.max(500, globalDeadline - Date.now());
@@ -1266,15 +1294,14 @@ export async function runTrendyolScrapePipeline(
 
   const chromiumReady = resolveChromiumPath().exists;
   const fieldsAfterHtmlParse = evaluateFields(result, url);
-  // Local: API/HTML henüz yoksa senaryo (Puppeteer) önce gelsin — görsel timeout bütçeyi yemesin
+  // Local: API/HTML eksikse senaryo (Puppeteer) önce — auto-fast dahil (556 sonrası zorunlu)
   const localPreferPuppeteerFirst =
     !policy.isCloud &&
     policy.puppeteerAllowed &&
     chromiumReady &&
-    modes.effective !== "auto-fast" &&
     !shouldSkipTrendyolBrowserScrape() &&
     !diagnostics.apiSuccess &&
-    (!hasMinimumScrapeData(fieldsAfterHtmlParse) ||
+    (!isCompleteScrapeData(fieldsAfterHtmlParse) ||
       (!diagnostics.htmlParseSuccess && !diagnostics.directHtmlSuccess));
 
   let scenarioStageCompleted = false;
@@ -1448,9 +1475,17 @@ export async function runTrendyolScrapePipeline(
 
     console.log(`⚡ [${stageLabel}] Scenario scrape (eksik veri)...`);
     try {
+      const needsLongLocalScenario =
+        !policy.isCloud &&
+        (!diagnostics.apiSuccess || !isCompleteScrapeData(evaluateFields(result, url)));
       const scenarioTimeoutMs =
         modes.effective === "auto-fast"
-          ? Math.min(STAGE_TIMEOUT.scenario || autoFastScenarioTimeoutMs, autoFastScenarioTimeoutMs)
+          ? needsLongLocalScenario
+            ? Math.max(
+                autoFastScenarioTimeoutMs,
+                Math.min(STAGE_TIMEOUT.scenario || 120_000, 120_000),
+              )
+            : Math.min(STAGE_TIMEOUT.scenario || autoFastScenarioTimeoutMs, autoFastScenarioTimeoutMs)
           : STAGE_TIMEOUT.scenario;
       const scrapeResult = await withStageTimeout(
         () => scenarioBasedScrape(url, { allowPuppeteer: true }),
@@ -1514,7 +1549,11 @@ export async function runTrendyolScrapePipeline(
       pushStageError(diagnostics, code);
       diagnostics.scenarioSkippedReason = "scenario-failed-keeping-partial";
       if (modes.effective === "auto-fast" && err instanceof ScrapeStageTimeoutError) {
-        skipHeavyStages = true;
+        // Fiyat/görsel hâlâ yoksa image fallback'i de kesme — kısmi title ile bitmesin
+        const afterTimeout = evaluateFields(result, url);
+        if (isCompleteScrapeData(afterTimeout)) {
+          skipHeavyStages = true;
+        }
       }
       console.error(`⚠️ [${stageLabel}] Scenario soft-fail (${code})`, {
         message: failure.message,

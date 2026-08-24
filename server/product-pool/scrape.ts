@@ -1828,6 +1828,7 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
   const host = hostnameOf(trimmed).toLowerCase();
 
   let product: ProductPoolProduct;
+  let pageHtml: string | null = null;
 
   // PTT AVM Cloudflare korumalı — mevcut stealth scraper (axios UA + Puppeteer)
   if (host.includes("pttavm.com")) {
@@ -1835,10 +1836,12 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
   } else if (host.includes("n11.com")) {
     // n11 Cloudflare — crawler UA → Browser Worker → stealth Chromium
     const html = await fetchN11Html(trimmed);
+    pageHtml = html;
     product = await scrapeN11(html, trimmed);
   } else if (host.includes("trendyol.com")) {
     // Trendyol bot korumalı — Browser Worker → stealth Chromium fallback
     const html = await fetchTrendyolHtml(trimmed);
+    pageHtml = html;
     product = scrapeTrendyolPool(html, trimmed);
   } else if (host.includes("amazon.")) {
     product = await scrapeAmazonPool(trimmed);
@@ -1848,6 +1851,7 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
       "beymen",
       "Beymen sayfası alınamadı",
     );
+    pageHtml = html;
     product = scrapeBeymen(html, trimmed);
   } else if (host.includes("pazarama.com")) {
     const html = await fetchProtectedMarketplaceHtml(
@@ -1855,6 +1859,7 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
       "pazarama",
       "Pazarama sayfası alınamadı",
     );
+    pageHtml = html;
     product = scrapePazarama(html, trimmed);
   } else if (host.includes("idefix.com")) {
     const html = await fetchProtectedMarketplaceHtml(
@@ -1862,6 +1867,7 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
       "idefix",
       "idefix sayfası alınamadı",
     );
+    pageHtml = html;
     product = scrapeIdefix(html, trimmed);
   } else if (host.includes("hepegitim.com")) {
     let html: string;
@@ -1874,9 +1880,11 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
         "Hepegitim sayfası alınamadı",
       );
     }
+    pageHtml = html;
     product = scrapeHepegitim(html, trimmed);
   } else {
     const html = await fetchHtml(trimmed);
+    pageHtml = html;
     product = scrapeGeneric(html, trimmed);
   }
 
@@ -1888,18 +1896,31 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
 
   try {
     const { generateAutoProductTags } = await import("@shared/auto-product-tags");
+    const { extractTrendyolCategoryPath } = await import("@shared/trendyol-category-path");
     const { getKnownMarktGoCollectionTags, syncMarktGoCategorySummary } = await import(
       "../services/marktgo/collections-sync.service"
     );
     let known = getKnownMarktGoCollectionTags();
     if (!known.length) {
-      void syncMarktGoCategorySummary(false).catch(() => undefined);
-      known = getKnownMarktGoCollectionTags();
+      try {
+        await syncMarktGoCategorySummary(false);
+        known = getKnownMarktGoCollectionTags();
+      } catch {
+        /* optional */
+      }
+    }
+    const categoryPath =
+      /trendyol\.com/i.test(trimmed) && pageHtml
+        ? extractTrendyolCategoryPath(pageHtml, { title: result.title, brand: result.brand })
+        : [];
+    if (categoryPath.length) {
+      (result as { categoryPath?: string[] }).categoryPath = categoryPath;
     }
     result.tags = generateAutoProductTags({
       title: result.title,
       brand: result.brand,
-      category: undefined,
+      category: categoryPath[0],
+      categoryPath,
       knownCollectionTags: known,
       existingTags: result.tags,
     });

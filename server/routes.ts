@@ -2262,7 +2262,7 @@ setTimeout(check, 1000);
         let scrapeDiagnostics: any = null;
 
         try {
-          const pipelineBudget = Math.max(8_000, JOB_MAX_MS - 10_000);
+          const pipelineBudget = Math.max(12_000, JOB_MAX_MS - 5_000);
           const pipeline = await withStageTimeout(
             () => runTrendyolScrapePipeline(url, selectedScrapeMode),
             pipelineBudget,
@@ -2514,6 +2514,7 @@ setTimeout(check, 1000);
             result.id ?? result.productId ?? result.contentId,
           );
           const { generateAutoProductTags } = await import("@shared/auto-product-tags");
+          const { extractTrendyolCategoryPath } = await import("@shared/trendyol-category-path");
           let knownTags: string[] = [];
           try {
             const { getKnownMarktGoCollectionTags, syncMarktGoCategorySummary } = await import(
@@ -2521,19 +2522,44 @@ setTimeout(check, 1000);
             );
             knownTags = getKnownMarktGoCollectionTags();
             if (!knownTags.length) {
-              void syncMarktGoCategorySummary(false).catch(() => undefined);
+              try {
+                await syncMarktGoCategorySummary(false);
+                knownTags = getKnownMarktGoCollectionTags();
+              } catch {
+                void syncMarktGoCategorySummary(false).catch(() => undefined);
+              }
             }
           } catch {
-            /* MARKT-GO yoksa sadece başlık etiketleri */
+            /* MARKT-GO yoksa sadece başlık / breadcrumb etiketleri */
+          }
+          const htmlForTags =
+            typeof result.htmlContent === "string" && result.htmlContent.length > 500
+              ? result.htmlContent
+              : null;
+          const categoryPath =
+            (Array.isArray(result.categoryPath) && result.categoryPath.length
+              ? result.categoryPath.map(String)
+              : null) ||
+            (htmlForTags
+              ? extractTrendyolCategoryPath(htmlForTags, {
+                  title: result.title,
+                  brand: result.brand,
+                })
+              : []);
+          if (categoryPath.length) {
+            result.categoryPath = categoryPath;
+            console.log(`🏷️ Kategori yolu: ${categoryPath.join(" › ")}`);
           }
           const autoTags = generateAutoProductTags({
             title: result.title,
             brand: result.brand,
-            category: result.category || result.categoryName,
+            category: result.category || result.categoryName || categoryPath[0],
+            categoryPath,
             knownCollectionTags: knownTags,
             existingTags: Array.isArray(result.tags) ? result.tags : [],
           });
           result.tags = autoTags;
+          console.log(`🏷️ Otomatik etiketler (${autoTags.length}): ${autoTags.join(", ")}`);
           result.scrapeRunId = scrapeRunId;
           result.sourceUrl = url;
           result.urlProductId = sourceIds.urlProductId;

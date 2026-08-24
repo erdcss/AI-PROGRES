@@ -266,6 +266,8 @@ function buildSummary(
   for (const c of collections) {
     for (const t of c.tags) known.add(t);
     for (const t of conditionTags(c.conditions)) known.add(t);
+    const title = String(c.title || "").trim();
+    if (title && !/trendyol/i.test(title)) known.add(title);
   }
   knownCollectionTags = [...known];
 

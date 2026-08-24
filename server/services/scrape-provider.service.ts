@@ -185,7 +185,7 @@ function defaultSnapshot(): ScrapeProviderSnapshot {
   const browserWorkerTimeoutMs =
     Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || (isCloud ? 100_000 : 45_000);
   const localGlobalTimeout =
-    Number(process.env.LOCAL_SCRAPE_GLOBAL_TIMEOUT_MS) || 180_000;
+    Number(process.env.LOCAL_SCRAPE_GLOBAL_TIMEOUT_MS) || 240_000;
   const localScenarioTimeout = Number(process.env.SCENARIO_TIMEOUT_MS) || 120_000;
   const localLaunchTimeout = Number(process.env.PUPPETEER_LAUNCH_TIMEOUT_MS) || 60_000;
   // Cloud + Browser Worker: renk ailesi crawl ~90s; 55s deadline BW'yi her zaman kesiyordu.
@@ -225,7 +225,7 @@ function defaultSnapshot(): ScrapeProviderSnapshot {
     localAgentHealthTimeoutMs: isCloud ? 2_000 : 8_000,
     imageFetcherTimeoutMs: isCloud ? 5_000 : 18_000,
     imageFallbackTimeoutMs: isCloud ? 3_000 : 12_000,
-    scrapeJobMaxMs: isCloud ? cloudJobMaxMs : 180_000,
+    scrapeJobMaxMs: isCloud ? cloudJobMaxMs : Number(process.env.LOCAL_SCRAPE_JOB_MAX_MS) || 260_000,
     directHtmlRetries: isCloud ? 1 : 2,
   };
 }
@@ -243,7 +243,7 @@ export async function refreshScrapeProviderSnapshot(): Promise<ScrapeProviderSna
     localAgentConfigured ? getLocalAgentHealthStatus() : Promise.resolve(null),
   ]);
 
-  const browserWorkerHealthy = Boolean(bwHealth?.reachable);
+  const browserWorkerHealthy = Boolean(bwHealth?.reachable && bwHealth?.browserReady);
   const localAgentHealthy = Boolean(laHealth?.reachable);
   const priority = parseProviderPriority();
   const { warnings, fatal } = buildWarnings({
@@ -258,7 +258,7 @@ export async function refreshScrapeProviderSnapshot(): Promise<ScrapeProviderSna
   const browserWorkerTimeoutMs =
     Number(process.env.BROWSER_WORKER_TIMEOUT_MS) || (isCloud ? 100_000 : 45_000);
   const localGlobalTimeout =
-    Number(process.env.LOCAL_SCRAPE_GLOBAL_TIMEOUT_MS) || 180_000;
+    Number(process.env.LOCAL_SCRAPE_GLOBAL_TIMEOUT_MS) || 240_000;
   const localScenarioTimeout = Number(process.env.SCENARIO_TIMEOUT_MS) || 120_000;
   const localLaunchTimeout = Number(process.env.PUPPETEER_LAUNCH_TIMEOUT_MS) || 60_000;
   const cloudGlobalTimeoutMs =
@@ -297,7 +297,7 @@ export async function refreshScrapeProviderSnapshot(): Promise<ScrapeProviderSna
     localAgentHealthTimeoutMs: isCloud ? 2_000 : 8_000,
     imageFetcherTimeoutMs: isCloud ? 5_000 : 18_000,
     imageFallbackTimeoutMs: isCloud ? 3_000 : 12_000,
-    scrapeJobMaxMs: isCloud ? cloudJobMaxMs : 180_000,
+    scrapeJobMaxMs: isCloud ? cloudJobMaxMs : Number(process.env.LOCAL_SCRAPE_JOB_MAX_MS) || 260_000,
     directHtmlRetries: isCloud ? 1 : 2,
   };
 

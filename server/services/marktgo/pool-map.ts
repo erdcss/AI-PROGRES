@@ -45,6 +45,9 @@ export function mapPoolProductToMarktGoInput(
     title: String(product.title || ""),
     brand: product.brand ? String(product.brand) : null,
     category: product.category ? String(product.category) : null,
+    categoryPath: Array.isArray((product as { categoryPath?: string[] }).categoryPath)
+      ? (product as { categoryPath: string[] }).categoryPath
+      : undefined,
     knownCollectionTags: getKnownMarktGoCollectionTags(),
     existingTags: tags,
   });

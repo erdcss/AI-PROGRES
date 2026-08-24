@@ -1,4 +1,5 @@
 import { sanitizeShopifyTags } from "./shopify-tag-sanitizer";
+import { cleanTrendyolCategoryPath } from "./trendyol-category-path";
 
 /** MARKT-GO koleksiyon koşulu ile aynı etiket anahtarı (boşluk → tire). */
 export function normalizeTagKey(tag: string): string {
@@ -24,6 +25,8 @@ const PRODUCT_TYPE_RULES: Array<{ tag: string; re: RegExp }> = [
   { tag: "elektronik", re: /kulakl[iı]k|telefon|laptop|tablet|bluetooth|şarj|sarj|kamera/i },
   { tag: "oyuncak", re: /oyuncak|lego|puzzle|peluş|pelus/i },
   { tag: "spor", re: /spor|fitness|yoga|koşu|kosu|antrenman/i },
+  { tag: "banyo", re: /banyo|lavabo|duş|dus|gider|musluk/i },
+  { tag: "bahçe", re: /bah[cç]e|yap[iı]\s*market|h[iı]rdavat/i },
 ];
 
 const GENDER_RULES: Array<{ tag: string; re: RegExp }> = [
@@ -49,13 +52,17 @@ const CATEGORY_RULES: Array<{ tag: string; re: RegExp }> = [
     re: /ev\s*&\s*yaşam|mobilya|mutfak|yatak|dekor|havlu|aydınlatma/i,
   },
   {
+    tag: "Bahçe & Yapı Market",
+    re: /bah[cç]e|yap[iı]\s*market|h[iı]rdavat|banyo\s*yap[iı]|yap[iı]\s*malzem/i,
+  },
+  {
     tag: "Moda",
     re: /tiş[oö]rt|tisort|elbise|pantolon|g[oö]mlek|ayakkab[iı]|çanta|canta|mont|ceket|giyim|moda|sweatshirt/i,
   },
 ];
 
-function titleBlob(title: string, brand?: string, category?: string): string {
-  return [title, brand, category]
+function titleBlob(title: string, brand?: string, category?: string, path?: string[]): string {
+  return [title, brand, category, ...(path || [])]
     .filter(Boolean)
     .join(" ")
     .toLocaleLowerCase("tr-TR");
@@ -71,25 +78,110 @@ function titleContainsTagWords(blob: string, tag: string): boolean {
   return words.every((w) => blob.includes(w));
 }
 
+/** Kategori yolu segmentini bilinen koleksiyon etiket yazımına çevirir. */
+export function resolveKnownTagSpelling(
+  segment: string,
+  knownCollectionTags: string[],
+): string {
+  const key = normalizeTagKey(segment);
+  if (!key) return segment;
+  const exact = knownCollectionTags.find((k) => normalizeTagKey(k) === key);
+  if (exact) return exact;
+
+  // Bilinen etiket, segment içinde geçiyor veya tersi (kısa eşleşme)
+  const segLower = segment.toLocaleLowerCase("tr-TR");
+  let best: string | null = null;
+  let bestScore = 0;
+  for (const known of knownCollectionTags) {
+    const k = String(known || "").trim();
+    if (!k || /trendyol/i.test(k)) continue;
+    const kn = k.toLocaleLowerCase("tr-TR");
+    if (segLower === kn) return k;
+    if (segLower.includes(kn) || kn.includes(segLower)) {
+      const score = Math.min(segLower.length, kn.length);
+      if (score > bestScore && score >= 4) {
+        best = k;
+        bestScore = score;
+      }
+    }
+  }
+  return best || segment;
+}
+
 /**
- * Ürün başlığından MARKT-GO koleksiyon koşullarına uygun etiketler üretir.
+ * Breadcrumb kategori yolundan etiket listesi üretir (Trendyol hariç).
+ * Kategoriler sayfasındaki bilinen etiket yazımlarına öncelik verir.
+ */
+export function tagsFromCategoryPath(
+  categoryPath: string[] | undefined,
+  opts?: {
+    title?: string | null;
+    brand?: string | null;
+    knownCollectionTags?: string[];
+  },
+): string[] {
+  const path = cleanTrendyolCategoryPath(categoryPath || [], {
+    title: opts?.title || undefined,
+    brand: opts?.brand || undefined,
+  });
+  if (!path.length) return [];
+
+  const known = (opts?.knownCollectionTags || [])
+    .map((t) => String(t || "").trim())
+    .filter((t) => t && !/trendyol/i.test(t));
+
+  const out: string[] = [];
+  for (const segment of path) {
+    out.push(resolveKnownTagSpelling(segment, known));
+  }
+
+  // Yol blob'u bilinen koleksiyon etiketlerini de yakalasın
+  const pathBlob = path.join(" ").toLocaleLowerCase("tr-TR");
+  for (const tag of known) {
+    if (titleContainsTagWords(pathBlob, tag)) out.push(tag);
+  }
+
+  return sanitizeShopifyTags(out);
+}
+
+/**
+ * Ürün başlığı + kategori yolundan MARKT-GO koleksiyon koşullarına uygun etiketler.
  * Bilinen koleksiyon etiketleri varsa onlara öncelik verir.
  */
 export function generateAutoProductTags(input: {
   title?: string | null;
   brand?: string | null;
   category?: string | null;
+  /** Trendyol breadcrumb segmentleri (Trendyol kelimesi olmadan) */
+  categoryPath?: string[] | null;
   knownCollectionTags?: string[];
   existingTags?: string[];
 }): string[] {
   const title = String(input.title || "").trim();
-  if (!title) return sanitizeShopifyTags(input.existingTags || []);
+  const pathTags = tagsFromCategoryPath(input.categoryPath || undefined, {
+    title,
+    brand: input.brand,
+    knownCollectionTags: input.knownCollectionTags,
+  });
 
-  const blob = titleBlob(title, input.brand || undefined, input.category || undefined);
-  const out: string[] = [];
+  if (!title && !pathTags.length) {
+    return sanitizeShopifyTags(input.existingTags || []);
+  }
+
+  const path = cleanTrendyolCategoryPath(input.categoryPath || [], {
+    title: title || undefined,
+    brand: input.brand || undefined,
+  });
+  const blob = titleBlob(
+    title,
+    input.brand || undefined,
+    input.category || undefined,
+    path,
+  );
+  const out: string[] = [...pathTags];
   const known = (input.knownCollectionTags || [])
     .map((t) => String(t || "").trim())
-    .filter(Boolean);
+    .filter((t) => t && !/trendyol/i.test(t));
 
   for (const tag of known) {
     if (titleContainsTagWords(blob, tag)) out.push(tag);
@@ -101,7 +193,6 @@ export function generateAutoProductTags(input: {
   for (const g of genders) out.push(g);
   for (const t of types) out.push(t);
 
-  // "kadın" + "elbise" → "kadın elbise" (koleksiyon koşulları sık böyle)
   for (const g of genders) {
     for (const t of types) {
       const composite = `${g} ${t}`;
@@ -112,7 +203,7 @@ export function generateAutoProductTags(input: {
 
   for (const rule of CATEGORY_RULES) {
     if (rule.re.test(blob)) {
-      out.push(rule.tag);
+      out.push(resolveKnownTagSpelling(rule.tag, known));
       break;
     }
   }
@@ -122,7 +213,21 @@ export function generateAutoProductTags(input: {
     out.push(brand);
   }
 
-  return sanitizeShopifyTags([...(input.existingTags || []), ...out]).slice(0, 12);
+  // leaf kategori (yolun son anlamlı parçası) — marka+kategori birleşikse marka ayrıştır
+  if (path.length) {
+    const leaf = path[path.length - 1];
+    if (leaf && !/trendyol/i.test(leaf)) {
+      out.push(resolveKnownTagSpelling(leaf, known));
+      if (brand && leaf.toLocaleLowerCase("tr-TR").startsWith(brand.toLocaleLowerCase("tr-TR"))) {
+        const withoutBrand = leaf.slice(brand.length).trim();
+        if (withoutBrand.length >= 3) {
+          out.push(resolveKnownTagSpelling(withoutBrand, known));
+        }
+      }
+    }
+  }
+
+  return sanitizeShopifyTags([...(input.existingTags || []), ...out]).slice(0, 18);
 }
 
 export function mergeAutoTags(
