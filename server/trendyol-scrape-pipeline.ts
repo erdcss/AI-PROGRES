@@ -125,8 +125,9 @@ function applyBrowserWorkerToResult(
 }
 
 function evaluateFields(result: any, url: string) {
+  const rawTitle = String(result?.title || "").trim();
   const title = resolveProductTitle(url, result?.title);
-  const hasTitle = isValidTrendyolProductTitle(title) || title.length > 3;
+  const hasTitle = isValidTrendyolProductTitle(rawTitle) && rawTitle.length > 8;
   const hasPrice = Boolean(result?.price?.original && result.price.original > 0);
   const hasImages = filterValidProductImages(result?.images || []).length > 0;
   return { hasTitle, hasPrice, hasImages, title };
@@ -790,9 +791,14 @@ export async function runTrendyolScrapePipeline(
 
   if (policy.isCloud && !skipInternalSourceAccess && !isPastDeadline()) {
     const providers = policy.selectedProviders;
+    const autoFastCloud = modes.effective === "auto-fast";
     console.log(`⚡ [cloud] Provider zinciri: ${providers.join(" → ")}`);
 
-    if (providers.includes("browser_worker") && policy.preferBrowserWorker) {
+    if (
+      providers.includes("browser_worker") &&
+      policy.preferBrowserWorker &&
+      !autoFastCloud
+    ) {
       diagnostics.gatewayStarted = true;
       const correlationId = `scrape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
       // Trendyol sayfası (auto-fast): ana ürün yeter; renk ailesi kardeş crawl canlıda 45–90s ekliyor.
@@ -803,7 +809,7 @@ export async function runTrendyolScrapePipeline(
           ? Math.max(policy.browserWorkerTimeoutMs, 100_000)
           : Math.max(
               18_000,
-              Math.min(policy.browserWorkerTimeoutMs || 45_000, modes.effective === "auto-fast" ? 28_000 : 55_000),
+              Math.min(policy.browserWorkerTimeoutMs || 45_000, 55_000),
             ),
         remainingMs(),
       );
@@ -901,7 +907,7 @@ export async function runTrendyolScrapePipeline(
               } satisfies BlockSignal);
             confirmedBlock = signal;
             notePipelineBlock(diagnostics, signal, result, url, pipelineBlockRecorded);
-            await waitTrendyolBlockBackoff();
+            if (!autoFastCloud) await waitTrendyolBlockBackoff();
           }
           console.warn(
             `⚠️ Browser Worker [${bw.errorCategory ?? "unknown"}]: ${bw.error ?? errCode}`,
@@ -1010,6 +1016,77 @@ export async function runTrendyolScrapePipeline(
     }
 
     if (
+      autoFastCloud &&
+      needsCoreData() &&
+      providers.includes("browser_worker") &&
+      policy.preferBrowserWorker &&
+      !isPastDeadline()
+    ) {
+      diagnostics.gatewayStarted = true;
+      const correlationId = `scrape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      const bwBudgetMs = Math.min(12_000, remainingMs());
+      console.log("⚡ [3b] Browser Worker (auto-fast fallback)...", {
+        correlationId,
+        bwBudgetMs,
+        remainingMs: remainingMs(),
+      });
+      try {
+        const { scrapeTrendyolWithBrowserWorker } = await import(
+          "./services/browser-worker-client.service"
+        );
+        const bw = await withStageTimeout(
+          () =>
+            scrapeTrendyolWithBrowserWorker(url, {
+              includeColorFamily: false,
+              includeSiblingHtml: false,
+              correlationId,
+              clientTimeoutMs: Math.max(4_000, bwBudgetMs - 1_000),
+            }),
+          bwBudgetMs,
+          "browser-worker-timeout",
+        );
+        const usableHtml = Boolean(bw.html && bw.html.length >= 500);
+        const usableRaw = Boolean(
+          bw.rawProductJson && Object.keys(bw.rawProductJson).length > 0,
+        );
+        if (bw.success && (usableHtml || usableRaw)) {
+          if (usableHtml) {
+            directHtml = bw.html;
+            diagnostics.directHtmlSuccess = true;
+          }
+          applyBrowserWorkerToResult(result, url, bw, diagnostics);
+          if (bw.rawProductJson) {
+            apiProduct = apiProduct
+              ? { ...apiProduct, rawProduct: bw.rawProductJson }
+              : ({ rawProduct: bw.rawProductJson } as typeof apiProduct);
+          }
+          console.log(
+            `✅ Browser Worker fallback (${bw.durationMs}ms): HTML ${bw.html?.length ?? 0} bytes`,
+            { correlationId },
+          );
+        } else {
+          diagnostics.browserWorkerSucceeded = false;
+          const errCode = (bw.stageError ?? "browser-worker-failed") as ScrapeStageErrorCode;
+          diagnostics.gatewayError = errCode;
+          pushStageError(diagnostics, errCode);
+          console.warn(
+            `⚠️ Browser Worker fallback [${bw.errorCategory ?? "unknown"}]: ${bw.error ?? errCode}`,
+            { correlationId },
+          );
+        }
+      } catch (err) {
+        diagnostics.browserWorkerSucceeded = false;
+        const code: ScrapeStageErrorCode =
+          err instanceof ScrapeStageTimeoutError
+            ? "browser-worker-timeout"
+            : "browser-worker-failed";
+        pushStageError(diagnostics, code);
+        diagnostics.gatewayError = code;
+        console.warn(`⚠️ Browser Worker fallback soft-fail (${code})`, { correlationId });
+      }
+    }
+
+    if (
       needsCoreData() &&
       policy.localAgentHealthy &&
       providers.includes("local_agent") &&
@@ -1044,7 +1121,9 @@ export async function runTrendyolScrapePipeline(
       }
     }
 
-    diagnostics.directHtmlSkippedReason = "cloud-provider-chain";
+    if (!diagnostics.directHtmlStarted) {
+      diagnostics.directHtmlSkippedReason = "cloud-provider-chain";
+    }
   } else if (!isPastDeadline()) {
     diagnostics.apiStarted = true;
     const apiStart = Date.now();

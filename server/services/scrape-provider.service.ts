@@ -218,15 +218,15 @@ function defaultSnapshot(): ScrapeProviderSnapshot {
     globalTimeoutMs: isCloud ? cloudGlobalTimeoutMs : localGlobalTimeout,
     scenarioTimeoutMs: isCloud ? 0 : localScenarioTimeout,
     puppeteerLaunchTimeoutMs: isCloud ? 45_000 : localLaunchTimeout,
-    apiTimeoutMs: isCloud ? 6_000 : 5_000,
-    directHtmlTimeoutMs: isCloud ? 8_000 : 10_000,
+    apiTimeoutMs: isCloud ? 6_000 : 8_000,
+    directHtmlTimeoutMs: isCloud ? 8_000 : 16_000,
     browserWorkerTimeoutMs,
     localAgentTimeoutMs: isCloud ? 3_000 : 8_000,
     localAgentHealthTimeoutMs: isCloud ? 2_000 : 8_000,
     imageFetcherTimeoutMs: isCloud ? 5_000 : 12_000,
     imageFallbackTimeoutMs: isCloud ? 3_000 : 8_000,
     scrapeJobMaxMs: isCloud ? cloudJobMaxMs : Number(process.env.LOCAL_SCRAPE_JOB_MAX_MS) || 180_000,
-    directHtmlRetries: isCloud ? 1 : 1,
+    directHtmlRetries: isCloud ? 1 : 2,
   };
 }
 
@@ -290,15 +290,15 @@ export async function refreshScrapeProviderSnapshot(): Promise<ScrapeProviderSna
     globalTimeoutMs: isCloud ? cloudGlobalTimeoutMs : localGlobalTimeout,
     scenarioTimeoutMs: isCloud ? 0 : localScenarioTimeout,
     puppeteerLaunchTimeoutMs: isCloud ? 45_000 : localLaunchTimeout,
-    apiTimeoutMs: isCloud ? 6_000 : 5_000,
-    directHtmlTimeoutMs: isCloud ? 8_000 : 10_000,
+    apiTimeoutMs: isCloud ? 6_000 : 8_000,
+    directHtmlTimeoutMs: isCloud ? 8_000 : 16_000,
     browserWorkerTimeoutMs,
     localAgentTimeoutMs: isCloud ? 3_000 : 8_000,
     localAgentHealthTimeoutMs: isCloud ? 2_000 : 8_000,
     imageFetcherTimeoutMs: isCloud ? 5_000 : 12_000,
     imageFallbackTimeoutMs: isCloud ? 3_000 : 8_000,
     scrapeJobMaxMs: isCloud ? cloudJobMaxMs : Number(process.env.LOCAL_SCRAPE_JOB_MAX_MS) || 180_000,
-    directHtmlRetries: isCloud ? 1 : 1,
+    directHtmlRetries: isCloud ? 1 : 2,
   };
 
   cachedSnapshot = snapshot;

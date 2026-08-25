@@ -2,12 +2,28 @@ import { execFileSync } from "child_process";
 import os from "os";
 
 let curlHttp2Supported: boolean | null = null;
+let curlAvailableCached: boolean | null = null;
 
 function resolveCurlExecutable(): string {
   if (process.platform === "win32") {
     return process.env.CURL_EXECUTABLE?.trim() || "curl.exe";
   }
   return process.env.CURL_EXECUTABLE?.trim() || "curl";
+}
+
+export function isCurlAvailable(): boolean {
+  if (curlAvailableCached !== null) return curlAvailableCached;
+  try {
+    execFileSync(resolveCurlExecutable(), ["--version"], {
+      encoding: "utf8",
+      timeout: 800,
+      windowsHide: true,
+    });
+    curlAvailableCached = true;
+  } catch {
+    curlAvailableCached = false;
+  }
+  return curlAvailableCached;
 }
 
 export function curlSupportsHttp2(): boolean {

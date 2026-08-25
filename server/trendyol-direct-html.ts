@@ -5,6 +5,7 @@
  * Ban/WAF: BlockSignal + opsiyonel HTTP proxy.
  */
 import axios from "axios";
+import { isCloudRuntime } from "@shared/deploy-runtime";
 import { extractProductImagesFromHtmlRegex } from "@shared/trendyol-bot-detection";
 import {
   isTrendyolRateLimitHtml,
@@ -97,6 +98,7 @@ function htmlHasProductData(html: string): boolean {
   if (!html || html.length < 5000) return false;
   if (isTrendyolRateLimitHtml(html)) return false;
   if (html.includes("__PRODUCT_DETAIL_APP_INITIAL_STATE__")) return true;
+  if (html.includes("application/ld+json") && html.includes("product")) return true;
   if (html.includes("__NEXT_DATA__") && html.includes("cdn.dsmcdn.com")) return true;
   if (extractProductImagesFromHtmlRegex(html).length >= 1) return true;
   return (
@@ -105,9 +107,40 @@ function htmlHasProductData(html: string): boolean {
   );
 }
 
+function axiosHtmlTimeoutMs(): number {
+  const env = Number(process.env.TRENDYOL_DIRECT_HTML_TIMEOUT_MS);
+  if (Number.isFinite(env) && env > 0) return env;
+  return isCloudRuntime() ? 7_000 : 12_000;
+}
+
 type FetchOutcome =
   | { ok: true; html: string }
   | { ok: false; rateLimited: boolean };
+
+async function tryCurlFetch(url: string): Promise<FetchOutcome> {
+  try {
+    const { fetchUrlWithCurl, isCurlAvailable } = await import("./curl-fetch");
+    if (isCloudRuntime() || !isCurlAvailable()) {
+      return { ok: false, rateLimited: false };
+    }
+    const html = fetchUrlWithCurl(url, 10);
+    if (html && htmlHasProductData(html)) {
+      trendyolAnti429Gate.reportSuccess();
+      return { ok: true, html };
+    }
+    if (html) {
+      const block = classifyTrendyolBlock({
+        source: "html",
+        httpStatus: 200,
+        html,
+      });
+      if (block) lastDirectHtmlBlock = block;
+    }
+    return { ok: false, rateLimited: false };
+  } catch {
+    return { ok: false, rateLimited: false };
+  }
+}
 
 async function tryOneFetch(
   targetUrl: string,
@@ -116,7 +149,7 @@ async function tryOneFetch(
   try {
     const response = await withTrendyolRateLimit("direct-html", () =>
       axios.get(targetUrl, {
-        timeout: Number(process.env.TRENDYOL_DIRECT_HTML_TIMEOUT_MS) || 20_000,
+        timeout: axiosHtmlTimeoutMs(),
         maxRedirects: 5,
         headers: { ...headers, "Cache-Control": "no-cache" },
         validateStatus: (s) => s < 500,
@@ -169,7 +202,7 @@ async function tryScenarioExactFetch(url: string): Promise<FetchOutcome> {
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36",
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
-        timeout: Number(process.env.TRENDYOL_DIRECT_HTML_TIMEOUT_MS) || 25_000,
+        timeout: axiosHtmlTimeoutMs(),
         maxRedirects: 5,
         validateStatus: (s) => s < 500,
         ...axiosProxyConfig(),
@@ -212,11 +245,19 @@ export async function fetchTrendyolDirectHtmlRaw(
   let rateLimitedHits = 0;
   lastDirectHtmlBlock = null;
 
-  for (let attempt = 0; attempt < retries; attempt++) {
+  const curlFirst = await tryCurlFetch(url);
+  if (curlFirst.ok) {
+    console.log(`✅ Direct HTML (curl, ${curlFirst.html.length} bytes)`);
+    return { html: curlFirst.html, source: "curl" };
+  }
+
+  const maxAttempts = isCloudRuntime() ? Math.min(Math.max(1, retries), 1) : retries;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (attempt > 0) {
       const wait = trendyolBackoffMs(attempt + rateLimitedHits, {
         baseMs: rateLimitedHits > 0 ? 4000 : 2000,
-        maxMs: 90_000,
+        maxMs: isCloudRuntime() ? 8_000 : 90_000,
       });
       console.log(
         `⏳ [direct-html] retry ${attempt + 1}/${retries} — ${Math.round(wait / 1000)}s bekleniyor${
@@ -232,6 +273,10 @@ export async function fetchTrendyolDirectHtmlRaw(
       return { html: exact.html, source: "scenario-exact" };
     }
     if (exact.rateLimited) rateLimitedHits++;
+
+    if (isCloudRuntime()) {
+      continue;
+    }
 
     // 429 sonrası paralel header fırtınası yapma — tek tek dene
     if (rateLimitedHits > 0) {

@@ -2159,7 +2159,6 @@ setTimeout(check, 1000);
       });
     }
     const result = job.result as Record<string, unknown> | undefined;
-    scrapeJobs.delete(req.params.jobId);
     const jobStatus =
       result?.partialSuccess === true
         ? 'partial_success'

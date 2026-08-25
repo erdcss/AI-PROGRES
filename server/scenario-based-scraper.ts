@@ -1613,12 +1613,13 @@ export async function scenarioBasedScrape(
         console.log(`⚡ FAST MODE: cached HTML kullanılıyor (${htmlContent.length} bytes)`);
       }
       
-      // ── CURL SUBPROCESS: local only (Railway has no curl binary) ──
+      // ── CURL SUBPROCESS: local only (Railway curl yok / timeout yavaşlatır) ──
       const { isCloudRuntime } = await import('@shared/deploy-runtime');
       if (!htmlContent && !isCloudRuntime()) {
       try {
         console.log('🌐 Trying curl subprocess...');
-        const { fetchUrlWithCurl } = await import('./curl-fetch');
+        const { fetchUrlWithCurl, isCurlAvailable } = await import('./curl-fetch');
+        if (!isCurlAvailable()) throw new Error('curl yok');
         const curlOutput = fetchUrlWithCurl(url, 12);
         if (curlOutput && curlOutput.length > 5000 && (curlOutput.includes('application/ld+json') || curlOutput.includes('product'))) {
           htmlContent = curlOutput;
