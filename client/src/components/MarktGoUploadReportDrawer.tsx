@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { CheckCircle2, FolderTree, Tag, XCircle } from "lucide-react";
 import {
   Sheet,
@@ -6,6 +7,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { MarktGoCategoryDistributionDrawer } from "@/components/MarktGoCategoryDistributionDrawer";
 import type { MarktGoBulkUploadReport } from "@/lib/marktgo-upload-report";
 
 function TagPills({ tags, tone }: { tags: string[]; tone: "auto" | "manual" | "all" }) {
@@ -38,9 +40,9 @@ export function MarktGoUploadReportDrawer({
   report: MarktGoBulkUploadReport | null;
   destinationName?: string;
 }) {
-  if (!report) return null;
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(true);
 
-  const maxCategoryCount = Math.max(1, ...report.categorySummary.map((c) => c.count));
+  if (!report) return null;
 
   return (
     <>
@@ -61,7 +63,7 @@ export function MarktGoUploadReportDrawer({
             </SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 pb-28">
             {report.items.map((item, index) => (
               <div
                 key={`${item.title}-${index}`}
@@ -128,52 +130,17 @@ export function MarktGoUploadReportDrawer({
               </div>
             ))}
           </div>
-
-          {report.categorySummary.length > 0 ? (
-            <div className="border-t border-zinc-800 bg-zinc-900/80 px-5 py-4">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Kategori dağılımı
-              </p>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {report.categorySummary.map((row, i) => (
-                  <div
-                    key={row.title}
-                    className="animate-in fade-in slide-in-from-bottom-1 duration-500"
-                    style={{ animationDelay: `${i * 50}ms` }}
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                      <span className="truncate text-zinc-200">{row.title}</span>
-                      <span className="shrink-0 font-semibold text-emerald-400">{row.count} adet</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-violet-600 to-emerald-400 transition-all duration-700"
-                        style={{ width: `${Math.round((row.count / maxCategoryCount) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
         </SheetContent>
       </Sheet>
 
       {open && report.categorySummary.length > 0 ? (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-sm px-4 py-2 animate-in slide-in-from-bottom duration-500 sm:right-[min(32rem,100vw)]">
-          <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-            <span className="font-medium text-zinc-400 shrink-0">Kategoriler:</span>
-            {report.categorySummary.slice(0, 8).map((row) => (
-              <span key={row.title} className="text-zinc-300">
-                {row.title}{" "}
-                <span className="font-semibold text-emerald-400">({row.count})</span>
-              </span>
-            ))}
-            {report.categorySummary.length > 8 ? (
-              <span className="text-zinc-500">+{report.categorySummary.length - 8} daha</span>
-            ) : null}
-          </div>
-        </div>
+        <MarktGoCategoryDistributionDrawer
+          rows={report.categorySummary}
+          open={categoryDrawerOpen}
+          onOpenChange={setCategoryDrawerOpen}
+          defaultOpen
+          className="sm:right-[min(32rem,100vw)]"
+        />
       ) : null}
     </>
   );

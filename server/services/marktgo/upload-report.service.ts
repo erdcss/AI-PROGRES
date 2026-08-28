@@ -25,13 +25,17 @@ export type MarktGoBulkUploadReport = {
   tagSummary: Array<{ tag: string; count: number }>;
 };
 
-const SYSTEM_TAGS = new Set(["urun-havuzu"]);
+const HIDDEN_CATEGORY_TITLES = new Set(["urun-havuzu", "koleksiyonsuz"]);
 
 function isSystemTag(tag: string): boolean {
   const t = String(tag || "").trim();
   if (!t) return true;
-  if (SYSTEM_TAGS.has(t.toLowerCase())) return true;
+  if (HIDDEN_CATEGORY_TITLES.has(t.toLowerCase())) return true;
   return t.toLowerCase().startsWith("src:");
+}
+
+function normalizeCategoryKey(title: string): string {
+  return String(title || "").trim().toLocaleLowerCase("tr-TR");
 }
 
 async function ensureCollectionsLoaded(): Promise<void> {
@@ -66,7 +70,7 @@ export async function buildMarktGoUploadItemReport(
 export function aggregateMarktGoUploadReport(
   items: MarktGoUploadItemReport[],
 ): MarktGoBulkUploadReport {
-  const categoryMap = new Map<string, number>();
+  const categoryMap = new Map<string, { title: string; count: number }>();
   const tagMap = new Map<string, number>();
   let successCount = 0;
   let failCount = 0;
@@ -83,8 +87,12 @@ export function aggregateMarktGoUploadReport(
         : [{ id: "__none__", title: "Kategorisiz" }];
 
     for (const col of collections) {
-      const key = col.title || "Kategorisiz";
-      categoryMap.set(key, (categoryMap.get(key) || 0) + 1);
+      const title = col.title || "Kategorisiz";
+      if (HIDDEN_CATEGORY_TITLES.has(normalizeCategoryKey(title))) continue;
+      const mapKey = normalizeCategoryKey(title);
+      const existing = categoryMap.get(mapKey);
+      if (existing) existing.count += 1;
+      else categoryMap.set(mapKey, { title, count: 1 });
     }
 
     for (const tag of [...item.autoTags, ...item.manualTags]) {
@@ -97,8 +105,8 @@ export function aggregateMarktGoUploadReport(
     successCount,
     failCount,
     items,
-    categorySummary: [...categoryMap.entries()]
-      .map(([title, count]) => ({ title, count }))
+    categorySummary: [...categoryMap.values()]
+      .map(({ title, count }) => ({ title, count }))
       .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title, "tr")),
     tagSummary: [...tagMap.entries()]
       .map(([tag, count]) => ({ tag, count }))

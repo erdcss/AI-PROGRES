@@ -342,6 +342,8 @@ function ScraperPage() {
   const lastUrlIngestRef = useRef<{ fingerprint: string; at: number } | null>(null);
   const shopifyUploadInFlightRef = useRef(false);
   const uploadCompleteTimerRef = useRef<number | null>(null);
+  const uploadStopRequestedRef = useRef(false);
+  const uploadAbortControllersRef = useRef<Set<AbortController>>(new Set());
   const csvPreviewSectionRef = useRef<HTMLDivElement | null>(null);
   const previousCsvPreviewCountRef = useRef(0);
   const sessionHydratedRef = useRef(false);
@@ -2233,6 +2235,18 @@ function ScraperPage() {
     return applyTagsToShopifyCsv(csvContent, tags);
   }, []);
 
+  const stopMarktGoUpload = useCallback(() => {
+    if (!uploadProgress || uploadProgress.phase === "complete") return;
+    uploadStopRequestedRef.current = true;
+    for (const controller of uploadAbortControllersRef.current) {
+      controller.abort();
+    }
+    toast({
+      title: "Aktarım durduruluyor",
+      description: "Mevcut istek tamamlandıktan sonra süreç kesilecek.",
+    });
+  }, [toast, uploadProgress]);
+
   // Tüm CSV'leri MARKT-GO'ya yükleme — ürün başına canlı ilerleme
   // onlyPreviewIds verilirse yalnız o ürünler (tekrar dene)
   const uploadAllCSVsToShopify = async (onlyPreviewIds?: string[]) => {
@@ -2294,6 +2308,8 @@ function ScraperPage() {
       outcomes: [],
     });
     setFailedUploads([]);
+    uploadStopRequestedRef.current = false;
+    uploadAbortControllersRef.current.clear();
 
     try {
       const connRes = await fetch("/api/marktgo/health");
@@ -2347,6 +2363,7 @@ function ScraperPage() {
 
       const uploadWorker = async () => {
         while (uploadCursor < items.length) {
+        if (uploadStopRequestedRef.current) break;
         const i = uploadCursor++;
         const preview = eligiblePreviews[i];
         const item = items[i];
@@ -2367,6 +2384,7 @@ function ScraperPage() {
         });
 
         const controller = new AbortController();
+        uploadAbortControllersRef.current.add(controller);
         const tid = setTimeout(() => controller.abort(), 10 * 60 * 1000);
 
         let row: {
@@ -2382,6 +2400,8 @@ function ScraperPage() {
         } | undefined;
 
         try {
+          if (uploadStopRequestedRef.current) break;
+
           setUploadProgress((prev) =>
             prev
               ? {
@@ -2418,14 +2438,16 @@ function ScraperPage() {
             );
           }
           if (syncResult?.assignment) reportItems.push(syncResult.assignment);
+          const alreadyExists = syncResult.status === "already_exists" || syncResult.skipped;
           row = {
             success: true,
             status: syncResult.status || "synced",
             productId: syncResult.externalProductId || syncResult.productId,
             verified: true,
-            mode: syncResult.created ? "created" : "updated",
+            mode: alreadyExists ? "zaten yüklü" : syncResult.created ? "created" : "updated",
           };
         } catch (err: unknown) {
+          if (uploadStopRequestedRef.current) break;
           let recovered: Awaited<ReturnType<typeof recoverShopifyUploadFromStore>> = null;
           if (isShopifyUploadNetworkError(err)) {
             setUploadProgress((prev) =>
@@ -2479,6 +2501,7 @@ function ScraperPage() {
           }
         } finally {
           clearTimeout(tid);
+          uploadAbortControllersRef.current.delete(controller);
         }
 
         if (row) {
@@ -2544,8 +2567,13 @@ function ScraperPage() {
         ),
       );
 
-      const completeDetail =
-        failCount === 0
+      const wasStopped = uploadStopRequestedRef.current;
+      uploadStopRequestedRef.current = false;
+      uploadAbortControllersRef.current.clear();
+
+      const completeDetail = wasStopped
+        ? `⏹ ${successCount} ürün gönderildi · ${completedUploads}/${total} işlendi`
+        : failCount === 0
           ? `✅ ${successCount} ürün ${brand.destinationName}'ya gönderildi${skippedCount ? ` · ${skippedCount} engelli ürün atlandı` : ""}`
           : `✅ ${successCount} başarılı · ❌ ${failCount} hatalı${skippedCount ? ` · ⏭ ${skippedCount} atlandı` : ""}`;
 
@@ -2564,7 +2592,12 @@ function ScraperPage() {
           successCount,
           failCount,
           detail: completeDetail,
-          title: failCount === 0 ? "Tüm ürünler aktarıldı" : "Aktarım tamamlandı",
+          title: wasStopped
+            ? "Aktarım durduruldu"
+            : failCount === 0
+              ? "Ürünler gönderildi"
+              : "Aktarım tamamlandı",
+          stopped: wasStopped,
         }),
       );
 
@@ -3360,9 +3393,8 @@ function ScraperPage() {
               uploadingId={uploadingId}
             />
             
-            {/* Toplu Yükleme Progress Banner */}
-            {uploadProgress && <MarktGoUploadProgressBanner progress={uploadProgress} />}
-
+            {/* Toplu Yükleme Progress Banner — sayfa altında sabit */}
+            
             {/* Hatalı Yüklemeler Listesi */}
             {failedUploads.length > 0 && (
               <div className="mt-4 rounded-xl border border-red-900/40 bg-zinc-900/80 p-4 space-y-3">
@@ -3477,6 +3509,13 @@ function ScraperPage() {
         report={uploadReport}
         destinationName={brand.destinationName}
       />
+      {uploadProgress ? (
+        <MarktGoUploadProgressBanner
+          progress={uploadProgress}
+          onStop={stopMarktGoUpload}
+          fixed
+        />
+      ) : null}
     </div>
   );
 }

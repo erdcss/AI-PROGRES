@@ -1,4 +1,5 @@
-import { CheckCircle2, ShoppingCart } from "lucide-react";
+import { CheckCircle2, ShoppingCart, Square } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export type MarktGoUploadPhase =
   | "connecting"
@@ -26,6 +27,7 @@ export type MarktGoUploadProgress = {
   detail: string;
   percent: number;
   outcomes: MarktGoUploadOutcome[];
+  stopped?: boolean;
 };
 
 const STEPS: Array<[MarktGoUploadPhase, string]> = [
@@ -45,32 +47,45 @@ const PHASE_ORDER: MarktGoUploadPhase[] = [
 
 export function MarktGoUploadProgressBanner({
   progress,
+  onStop,
+  fixed = false,
 }: {
   progress: MarktGoUploadProgress;
+  onStop?: () => void;
+  fixed?: boolean;
 }) {
   const isComplete = progress.phase === "complete";
-  const allSucceeded = isComplete && progress.failCount === 0;
+  const isActive = !isComplete;
+  const allSucceeded = isComplete && progress.failCount === 0 && !progress.stopped;
   const hasErrors = progress.failCount > 0;
+  const wasStopped = Boolean(progress.stopped);
 
-  return (
+  const shell = (
     <div
-      className={`mt-4 rounded-xl border p-4 space-y-3 transition-all duration-700 ease-out ${
+      className={`rounded-xl border p-4 space-y-3 transition-all duration-700 ease-out ${
         isComplete
           ? allSucceeded
-            ? "border-emerald-500/70 bg-emerald-950/35 shadow-[0_0_24px_rgba(16,185,129,0.15)]"
-            : hasErrors
-              ? "border-amber-500/50 bg-amber-950/20 shadow-[0_0_20px_rgba(245,158,11,0.1)]"
-              : "border-emerald-500/60 bg-emerald-950/30"
-          : "border-emerald-900/40 bg-zinc-900/90"
+            ? "border-emerald-400/80 bg-emerald-600/20 shadow-[0_0_32px_rgba(16,185,129,0.35)] scale-[1.01]"
+            : wasStopped
+              ? "border-amber-500/50 bg-amber-950/25"
+              : hasErrors
+                ? "border-amber-500/50 bg-amber-950/20 shadow-[0_0_20px_rgba(245,158,11,0.1)]"
+                : "border-emerald-500/60 bg-emerald-950/30"
+          : "border-emerald-900/40 bg-zinc-900/95 backdrop-blur-sm"
       }`}
     >
       <div className="flex items-start gap-3">
         <div className="relative w-11 h-11 shrink-0">
-          {isComplete ? (
+          {isComplete && allSucceeded ? (
+            <div className="absolute inset-0 flex items-center justify-center animate-in zoom-in-50 fade-in duration-700">
+              <div className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
+              <CheckCircle2 className="relative w-10 h-10 text-emerald-300 drop-shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
+            </div>
+          ) : isComplete ? (
             <div className="absolute inset-0 flex items-center justify-center animate-in zoom-in-50 fade-in duration-700">
               <CheckCircle2
                 className={`w-10 h-10 ${
-                  allSucceeded ? "text-emerald-400" : hasErrors ? "text-amber-400" : "text-emerald-400"
+                  wasStopped ? "text-amber-400" : hasErrors ? "text-amber-400" : "text-emerald-400"
                 }`}
               />
             </div>
@@ -86,15 +101,23 @@ export function MarktGoUploadProgressBanner({
           {isComplete ? (
             <>
               <p
-                className={`font-semibold text-sm animate-in fade-in slide-in-from-bottom-1 duration-500 ${
-                  allSucceeded ? "text-emerald-300" : hasErrors ? "text-amber-300" : "text-emerald-300"
+                className={`font-semibold animate-in fade-in slide-in-from-bottom-1 duration-500 ${
+                  allSucceeded
+                    ? "text-emerald-200 text-base"
+                    : wasStopped
+                      ? "text-amber-300 text-sm"
+                      : hasErrors
+                        ? "text-amber-300 text-sm"
+                        : "text-emerald-300 text-sm"
                 }`}
               >
                 {allSucceeded
-                  ? "Aktarım tamamlandı"
-                  : hasErrors
-                    ? "Aktarım bitti — bazı ürünler hatalı"
-                    : "Aktarım tamamlandı"}
+                  ? "Ürünler gönderildi"
+                  : wasStopped
+                    ? "Aktarım durduruldu"
+                    : hasErrors
+                      ? "Aktarım bitti — bazı ürünler hatalı"
+                      : "Aktarım tamamlandı"}
               </p>
               <p className="text-zinc-100 text-sm mt-1 animate-in fade-in duration-700 delay-100">
                 {progress.detail}
@@ -115,25 +138,43 @@ export function MarktGoUploadProgressBanner({
           )}
         </div>
 
-        <div className="shrink-0 flex gap-4 text-right animate-in fade-in duration-500">
-          <div>
-            <span className={`text-xl font-bold ${isComplete ? "text-emerald-300" : "text-emerald-400"}`}>
-              {progress.successCount}
-            </span>
-            <span className="text-xs text-zinc-500 block">başarılı</span>
-          </div>
-          {progress.failCount > 0 && (
+        <div className="shrink-0 flex items-start gap-3">
+          <div className="flex gap-4 text-right animate-in fade-in duration-500">
             <div>
-              <span className="text-xl font-bold text-red-400">{progress.failCount}</span>
-              <span className="text-xs text-zinc-500 block">hatalı</span>
+              <span
+                className={`text-xl font-bold ${isComplete && allSucceeded ? "text-emerald-200" : "text-emerald-400"}`}
+              >
+                {progress.successCount}
+              </span>
+              <span className="text-xs text-zinc-500 block">başarılı</span>
             </div>
-          )}
-          <div>
-            <span className={`text-xl font-bold ${isComplete ? "text-emerald-300" : "text-zinc-300"}`}>
-              {isComplete ? 100 : progress.percent}%
-            </span>
-            <span className="text-xs text-zinc-500 block">ilerleme</span>
+            {progress.failCount > 0 && (
+              <div>
+                <span className="text-xl font-bold text-red-400">{progress.failCount}</span>
+                <span className="text-xs text-zinc-500 block">hatalı</span>
+              </div>
+            )}
+            <div>
+              <span
+                className={`text-xl font-bold ${isComplete && allSucceeded ? "text-emerald-200" : "text-zinc-300"}`}
+              >
+                {isComplete ? 100 : progress.percent}%
+              </span>
+              <span className="text-xs text-zinc-500 block">ilerleme</span>
+            </div>
           </div>
+          {isActive && onStop ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onStop}
+              className="shrink-0 border-red-800/60 bg-red-950/30 text-red-300 hover:bg-red-900/40 hover:text-red-200"
+            >
+              <Square className="h-3.5 w-3.5 mr-1.5 fill-current" />
+              Durdur
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -142,7 +183,7 @@ export function MarktGoUploadProgressBanner({
           className={`h-full transition-all ease-out ${
             isComplete
               ? allSucceeded
-                ? "bg-gradient-to-r from-emerald-600 to-emerald-300 duration-700"
+                ? "bg-gradient-to-r from-emerald-500 to-emerald-200 duration-1000"
                 : "bg-gradient-to-r from-amber-600 to-emerald-400 duration-700"
               : "bg-gradient-to-r from-emerald-600 to-emerald-400 duration-500"
           }`}
@@ -150,37 +191,39 @@ export function MarktGoUploadProgressBanner({
         />
       </div>
 
-      <div className="flex flex-wrap gap-2 text-[11px]">
-        {STEPS.map(([phase, label]) => {
-          const done =
-            isComplete || PHASE_ORDER.indexOf(progress.phase) > PHASE_ORDER.indexOf(phase);
-          const active = !isComplete && progress.phase === phase;
-          return (
-            <span
-              key={phase}
-              className={`px-2 py-0.5 rounded-full border transition-all duration-500 ${
-                isComplete && done
-                  ? "border-emerald-500/60 bg-emerald-950/50 text-emerald-300 scale-100"
-                  : active
-                    ? "border-emerald-500/60 bg-emerald-950/50 text-emerald-300"
-                    : done
-                      ? "border-zinc-600 text-zinc-400"
-                      : "border-zinc-800 text-zinc-600"
-              } ${isComplete && done ? "animate-in fade-in zoom-in-95 duration-500" : ""}`}
-              style={
-                isComplete && done
-                  ? { animationDelay: `${PHASE_ORDER.indexOf(phase) * 80}ms` }
-                  : undefined
-              }
-            >
-              {done ? "✓ " : active ? "● " : ""}
-              {label}
-            </span>
-          );
-        })}
-      </div>
+      {!allSucceeded || !isComplete ? (
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          {STEPS.map(([phase, label]) => {
+            const done =
+              isComplete || PHASE_ORDER.indexOf(progress.phase) > PHASE_ORDER.indexOf(phase);
+            const active = !isComplete && progress.phase === phase;
+            return (
+              <span
+                key={phase}
+                className={`px-2 py-0.5 rounded-full border transition-all duration-500 ${
+                  isComplete && done && allSucceeded
+                    ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-100 scale-100"
+                    : active
+                      ? "border-emerald-500/60 bg-emerald-950/50 text-emerald-300"
+                      : done
+                        ? "border-zinc-600 text-zinc-400"
+                        : "border-zinc-800 text-zinc-600"
+                } ${isComplete && done && allSucceeded ? "animate-in fade-in zoom-in-95 duration-500" : ""}`}
+                style={
+                  isComplete && done && allSucceeded
+                    ? { animationDelay: `${PHASE_ORDER.indexOf(phase) * 80}ms` }
+                    : undefined
+                }
+              >
+                {done ? "✓ " : active ? "● " : ""}
+                {label}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
 
-      {progress.outcomes.length > 0 && (
+      {progress.outcomes.length > 0 && !allSucceeded ? (
         <div className="space-y-1.5 max-h-36 overflow-y-auto border-t border-zinc-800 pt-2">
           {progress.outcomes.map((outcome, i) => (
             <div
@@ -212,16 +255,32 @@ export function MarktGoUploadProgressBanner({
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
+
+  if (fixed) {
+    return (
+      <div className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-3 sm:px-4 sm:pb-4 pointer-events-none animate-in slide-in-from-bottom duration-500">
+        <div className="pointer-events-auto mx-auto max-w-4xl">{shell}</div>
+      </div>
+    );
+  }
+
+  return shell;
 }
 
-export const MARKTGO_UPLOAD_COMPLETE_MS = 4000;
+export const MARKTGO_UPLOAD_COMPLETE_MS = 6000;
 
 export function buildUploadCompleteProgress(
   base: MarktGoUploadProgress,
-  summary: { successCount: number; failCount: number; detail: string; title?: string },
+  summary: {
+    successCount: number;
+    failCount: number;
+    detail: string;
+    title?: string;
+    stopped?: boolean;
+  },
 ): MarktGoUploadProgress {
   return {
     ...base,
@@ -232,5 +291,6 @@ export function buildUploadCompleteProgress(
     phase: "complete",
     detail: summary.detail,
     percent: 100,
+    stopped: summary.stopped,
   };
 }

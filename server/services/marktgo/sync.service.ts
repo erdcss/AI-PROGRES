@@ -108,6 +108,19 @@ async function lookupByExternalId(
   }
 }
 
+async function verifyRemoteProductExists(
+  client: Awaited<ReturnType<typeof getMarktGoClientForConnection>>["client"],
+  externalProductId: string,
+): Promise<boolean> {
+  try {
+    await client.get<unknown>(`/products/${externalProductId}`);
+    return true;
+  } catch (err) {
+    if (err instanceof MarktGoApiError && err.status === 404) return false;
+    throw err;
+  }
+}
+
 export async function fetchNormalizedMarktGoProduct(externalProductId: string, connectionId?: number) {
   const { client } = await getMarktGoClientForConnection(connectionId);
   const raw = await client.get<unknown>(`/products/${externalProductId}`);
@@ -132,6 +145,85 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
 
   let externalProductId = mapping?.externalProductId || null;
   let createdPayload: unknown = null;
+
+  if (externalProductId) {
+    const stillOnRemote = await verifyRemoteProductExists(client, externalProductId);
+    if (stillOnRemote) {
+      steps.push({
+        step: "product_lookup",
+        label: "Ürün zaten MARKT-GO'da",
+        ok: true,
+        detail: "aynı benzersiz ID — tekrar gönderilmedi",
+      });
+      mapping = await upsertProductMapping({
+        connectionId: connection.id,
+        localProductId,
+        externalProductId,
+        externalId,
+        trackedProductId: input.trackedProductId || mapping?.trackedProductId || undefined,
+        status: "already_exists",
+        lastError: null,
+        failedSteps: [],
+      });
+      return {
+        success: true,
+        status: "already_exists",
+        skipped: true,
+        provider: "marktgo" as const,
+        connectionId: connection.id,
+        externalProductId,
+        externalId,
+        mappingId: mapping.id,
+        categoryUnresolved: false,
+        steps,
+        failedSteps: [],
+        message: redactSecrets("Ürün zaten MARKT-GO'da — tekrar gönderilmedi"),
+      };
+    }
+    if (mapping) {
+      await deleteProductMapping(mapping.id);
+      mapping = null;
+    }
+    externalProductId = null;
+  }
+
+  if (!externalProductId && !mapping) {
+    const linkedId = await lookupByExternalId(client, externalId);
+    if (linkedId && (await verifyRemoteProductExists(client, linkedId))) {
+      externalProductId = linkedId;
+      steps.push({
+        step: "product_lookup",
+        label: "Ürün zaten MARKT-GO'da",
+        ok: true,
+        detail: "externalId ile eşleşti — tekrar gönderilmedi",
+      });
+      mapping = await upsertProductMapping({
+        connectionId: connection.id,
+        localProductId,
+        externalProductId,
+        externalId,
+        trackedProductId: input.trackedProductId || undefined,
+        status: "already_exists",
+        lastError: null,
+        failedSteps: [],
+      });
+      return {
+        success: true,
+        status: "already_exists",
+        skipped: true,
+        provider: "marktgo" as const,
+        connectionId: connection.id,
+        externalProductId,
+        externalId,
+        mappingId: mapping.id,
+        categoryUnresolved: false,
+        steps,
+        failedSteps: [],
+        message: redactSecrets("Ürün zaten MARKT-GO'da — tekrar gönderilmedi"),
+      };
+    }
+    if (linkedId) externalProductId = null;
+  }
 
   const buildProductBody = (withVariants: boolean): Record<string, unknown> => {
     const inline = withVariants ? buildInlineVariants(input) : undefined;
