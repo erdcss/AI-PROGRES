@@ -8,6 +8,8 @@ export type ScraperWorkspaceTabMeta = {
 export type ScraperWorkspaceContextValue = {
   tabId: string;
   isActive: boolean;
+  /** İlk sekme — oturum geri yükleme yalnızca burada yapılır */
+  isPrimaryTab: boolean;
   reportMeta: (meta: ScraperWorkspaceTabMeta) => void;
 };
 

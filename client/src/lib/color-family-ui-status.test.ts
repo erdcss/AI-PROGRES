@@ -196,6 +196,7 @@ console.log("\n=== Color Family UI Status ===\n");
   assert(ui.state === "not_applicable", "multi-color without family → not_applicable");
   assert(ui.state !== "success", "colors alone ≠ success");
   assert(ui.title.includes("Çok renkli") || ui.colorCount === 3, "açık başlık");
+  assert(Array.isArray(ui.memberStatuses), "memberStatuses always array (legacy path)");
 }
 
 {

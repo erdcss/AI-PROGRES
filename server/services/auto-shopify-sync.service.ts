@@ -54,3 +54,56 @@ async function runAutoShopifySync(rows: DetectedChange[]): Promise<void> {
     }
   }
 }
+
+/** Program açılışında bekleyen yüksek güvenli değişiklikleri mağazaya uygular */
+export async function applyPendingTrackingChangesOnStartup(options?: {
+  limit?: number;
+}): Promise<{ applied: number; skipped: number; errors: number }> {
+  const { getTrackingSettings } = await import("./tracking-settings.service");
+  const settings = await getTrackingSettings().catch(() => null);
+  if (!settings?.autoShopifySyncEnabled) {
+    return { applied: 0, skipped: 0, errors: 0 };
+  }
+
+  const limit = Math.min(Math.max(options?.limit ?? 40, 1), 120);
+  const { db } = await import("../db");
+  const { detectedChanges } = await import("@shared/schema");
+  const { desc, eq } = await import("drizzle-orm");
+
+  const rows = await db
+    .select()
+    .from(detectedChanges)
+    .where(eq(detectedChanges.status, "pending"))
+    .orderBy(desc(detectedChanges.createdAt))
+    .limit(limit);
+
+  const { shopifySyncChange } = await import("./change-approval.service");
+  let applied = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const row of rows) {
+    if (!isAutoCorrectCandidate(row)) {
+      skipped++;
+      continue;
+    }
+    try {
+      await shopifySyncChange(row.id, "startup-auto");
+      applied++;
+    } catch (err) {
+      errors++;
+      console.warn(
+        `[startup-auto-correct] change #${row.id} skipped:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  if (applied > 0 || errors > 0) {
+    console.info(
+      `[startup-auto-correct] uygulandı=${applied} atlandı=${skipped} hata=${errors}`,
+    );
+  }
+
+  return { applied, skipped, errors };
+}

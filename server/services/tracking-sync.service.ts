@@ -10,13 +10,22 @@ export async function ensureLocalTrackingAutoStart(): Promise<void> {
   if (isCloudRuntime()) return;
 
   const settings = await getTrackingSettings();
-  if (settings.trackingEnabled && settings.schedulerEnabled) return;
+  if (
+    settings.trackingEnabled &&
+    settings.schedulerEnabled &&
+    settings.autoShopifySyncEnabled
+  ) {
+    return;
+  }
 
   await updateTrackingSettings({
     trackingEnabled: true,
     schedulerEnabled: true,
+    autoShopifySyncEnabled: true,
   });
-  console.info("✅ Yerel ortam: ürün takibi ve scheduler otomatik etkinleştirildi");
+  console.info(
+    "✅ Yerel ortam: ürün takibi, scheduler ve otomatik mağaza düzeltmesi etkinleştirildi",
+  );
 }
 
 /** Shopify aktarım kayıtlarını v2 tracked_products tablosuyla senkronize et */

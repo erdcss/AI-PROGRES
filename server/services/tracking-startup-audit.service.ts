@@ -211,6 +211,7 @@ export async function runStartupTrackingAndShopifyAudit(): Promise<StartupAuditR
 
       // Açık fiyat tespitlerini canlı kaynakla teyit et
       let changeVerify: StartupAuditResult["changeVerify"];
+      let startupAutoCorrect: { applied: number; skipped: number; errors: number } | null = null;
       try {
         const cv = await verifyOpenDetectedChanges({ limitProducts: 35, delayMs: 300 });
         changeVerify = {
@@ -225,6 +226,35 @@ export async function runStartupTrackingAndShopifyAudit(): Promise<StartupAuditR
           title: "Değişiklik teyidi",
           body: cv.message,
         });
+
+        try {
+          const { applyPendingTrackingChangesOnStartup } = await import(
+            "./auto-shopify-sync.service"
+          );
+          startupAutoCorrect = await applyPendingTrackingChangesOnStartup({ limit: 50 });
+          if (startupAutoCorrect.applied > 0) {
+            notifications.push({
+              id: "startup-auto-correct",
+              level: "success",
+              title: "Mağaza otomatik düzeltildi",
+              body: `${startupAutoCorrect.applied} takip değişikliği mağazaya uygulandı.`,
+            });
+          } else if (startupAutoCorrect.errors > 0) {
+            notifications.push({
+              id: "startup-auto-correct-partial",
+              level: "warning",
+              title: "Otomatik mağaza düzeltmesi kısmi",
+              body: `${startupAutoCorrect.errors} değişiklik uygulanamadı (eşleşme veya API).`,
+            });
+          }
+        } catch (autoErr) {
+          notifications.push({
+            id: "startup-auto-correct-error",
+            level: "warning",
+            title: "Otomatik mağaza düzeltmesi atlandı",
+            body: (autoErr as Error).message,
+          });
+        }
       } catch (err) {
         notifications.push({
           id: "change-verify-error",

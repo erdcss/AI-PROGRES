@@ -1914,6 +1914,7 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
       brand: result.brand,
       category: categoryPath[0],
       categoryPath,
+      features: result.features,
       knownCollectionTags: known,
       existingTags: result.tags,
     });

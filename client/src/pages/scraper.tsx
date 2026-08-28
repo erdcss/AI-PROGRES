@@ -30,7 +30,7 @@ import MiniBrowser from "@/components/MiniBrowser";
 import { UrlHistory } from "@/components/UrlHistory";
 import { addRecentUrl } from "@/lib/url-history-client";
 import { fetchShopifyCsvStatus, deleteCurrentShopifyCsv } from "@/lib/shopify-csv-download";
-import { clearScraperUiStorage } from "@/lib/scraper-state-persist";
+import { clearScraperUiStorage, loadScraperState, saveScraperState, type ScraperUrlQueueEntry } from "@/lib/scraper-state-persist";
 import { resolvePreviewImageUrl, resolvePreviewImageUrls, resolvePreviewProxyUrl } from "@/lib/product-image-url";
 import { fetchScrapeCapabilities, type ScrapeCapabilities } from "@/lib/scrape-capabilities";
 import { resolveProductPreview } from "@/lib/product-preview-resolver";
@@ -50,6 +50,7 @@ import {
   buildCsvPreviewEntry,
   fetchScenarioScrapeResult,
   hasCsvPreviewData,
+  normalizeStoredCsvPreview,
   type ScrapedUrlPayload,
 } from "@/lib/scrape-url-client";
 import {
@@ -348,6 +349,9 @@ function ScraperPage() {
   const shopifyUploadInFlightRef = useRef(false);
   const csvPreviewSectionRef = useRef<HTMLDivElement | null>(null);
   const previousCsvPreviewCountRef = useRef(0);
+  const sessionHydratedRef = useRef(false);
+  const resumeBulkQueueRef = useRef<UrlQueueItem[] | null>(null);
+  const persistTimerRef = useRef<number | null>(null);
   urlQueueRef.current = urlQueue;
   
   const singleForm = useForm<ScrapeFormData>({
@@ -367,6 +371,161 @@ function ScraperPage() {
   useEffect(() => {
     fetchScrapeCapabilities(true).then(setRuntimeCapabilities).catch(() => undefined);
   }, []);
+
+  const restoreUrlQueueFromStorage = useCallback(
+    (raw: ScraperUrlQueueEntry[] | undefined): UrlQueueItem[] => {
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .filter((entry) => typeof entry.url === "string" && entry.url.trim())
+        .map((entry) => {
+          const statusRaw = entry.status === "processing" ? "pending" : entry.status;
+          const status: UrlQueueStatus =
+            statusRaw === "success" ||
+            statusRaw === "error" ||
+            statusRaw === "pending" ||
+            statusRaw === "processing"
+              ? statusRaw
+              : "pending";
+          return {
+            url: entry.url.trim(),
+            status,
+            error: typeof entry.error === "string" ? entry.error : undefined,
+          };
+        });
+    },
+    [],
+  );
+
+  /** Sayfadan çıkıp dönünce ön izleme + kuyruk geri yüklenir; toplu çekim varsa devam eder */
+  useEffect(() => {
+    const isPrimaryTab = !workspace || workspace.isPrimaryTab;
+    if (!isPrimaryTab || sessionHydratedRef.current) return;
+    sessionHydratedRef.current = true;
+
+    const saved = loadScraperState();
+    if (!saved) return;
+
+    const savedPreviews = Array.isArray(saved.csvPreviews) ? saved.csvPreviews : [];
+    const restoredQueue = restoreUrlQueueFromStorage(saved.urlQueue ?? saved.pendingUrls);
+    const hasPreviews = savedPreviews.length > 0;
+    const hasQueue = restoredQueue.length > 0;
+
+    if (!hasPreviews && !hasQueue && !saved.bulkInProgress) return;
+
+    if (hasPreviews) {
+      const normalized = savedPreviews
+        .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+        .map((row) => normalizeStoredCsvPreview(row) as CSVPreviewData);
+      startTransition(() => {
+        setCsvPreviews(normalized);
+      });
+    }
+
+    if (saved.individualTags && typeof saved.individualTags === "object") {
+      setIndividualTags(saved.individualTags);
+    }
+
+    if (typeof saved.scrapingMode === "string") {
+      setScrapingMode(saved.scrapingMode);
+    }
+
+    if (hasQueue) {
+      urlQueueRef.current = restoredQueue;
+      setUrlQueue(restoredQueue);
+    }
+
+    if (saved.workflowStep) {
+      setWorkflowStep(saved.workflowStep);
+    }
+
+    if (saved.bulkProgress) {
+      setBulkProgress(saved.bulkProgress);
+    }
+
+    if (typeof saved.bulkCurrentTitle === "string") {
+      setBulkCurrentTitle(saved.bulkCurrentTitle);
+    }
+
+    if (saved.bulkInProgress) {
+      const remaining = restoredQueue.filter(
+        (item) =>
+          item.status === "pending" ||
+          item.status === "error" ||
+          item.status === "processing",
+      );
+      if (remaining.length > 0) {
+        resumeBulkQueueRef.current = remaining.map((item) => ({
+          ...item,
+          status: "pending" as const,
+          error: undefined,
+        }));
+        toast({
+          title: "Çekim oturumu geri yüklendi",
+          description: `${remaining.length} ürün kaldı — kaldığı yerden devam ediliyor.`,
+          duration: 6000,
+        });
+      } else if (hasPreviews) {
+        toast({
+          title: "Ön izleme geri yüklendi",
+          description: `${savedPreviews.length} ürün kartı korundu.`,
+          duration: 4000,
+        });
+      }
+    } else if (hasPreviews) {
+      toast({
+        title: "Ön izleme geri yüklendi",
+        description: `${savedPreviews.length} ürün kartı korundu.`,
+        duration: 4000,
+      });
+    }
+  }, [workspace?.isPrimaryTab, restoreUrlQueueFromStorage]);
+
+  const persistScraperSession = useCallback(() => {
+    const isPrimaryTab = !workspace || workspace.isPrimaryTab;
+    if (!isPrimaryTab || !sessionHydratedRef.current) return;
+
+    saveScraperState({
+      product,
+      csvPreviews,
+      url: singleForm.getValues("url") ?? "",
+      urlQueue,
+      individualTags,
+      scrapingMode,
+      workflowStep,
+      bulkInProgress: isBulkProcessing,
+      bulkProgress,
+      bulkCurrentTitle,
+    });
+  }, [
+    workspace?.isPrimaryTab,
+    product,
+    csvPreviews,
+    urlQueue,
+    individualTags,
+    scrapingMode,
+    workflowStep,
+    isBulkProcessing,
+    bulkProgress,
+    bulkCurrentTitle,
+    singleForm,
+  ]);
+
+  useEffect(() => {
+    if (!sessionHydratedRef.current) return;
+    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = window.setTimeout(() => {
+      persistScraperSession();
+    }, 400);
+    return () => {
+      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
+    };
+  }, [persistScraperSession]);
+
+  useEffect(() => {
+    return () => {
+      persistScraperSession();
+    };
+  }, [persistScraperSession]);
 
   useEffect(() => {
     const previousCount = previousCsvPreviewCountRef.current;
@@ -711,6 +870,11 @@ function ScraperPage() {
         setIndividualTags((prev) => ({
           ...prev,
           [newCSVPreview.id]: transformedProduct.tags as string[],
+        }));
+      } else if (Array.isArray(newCSVPreview.autoTags) && newCSVPreview.autoTags.length) {
+        setIndividualTags((prev) => ({
+          ...prev,
+          [newCSVPreview.id]: newCSVPreview.autoTags as string[],
         }));
       }
 
@@ -1665,6 +1829,15 @@ function ScraperPage() {
       duration: 10000,
     });
   };
+
+  /** Oturum geri yüklendiğinde yarım kalan toplu çekimi sürdür */
+  useEffect(() => {
+    const pending = resumeBulkQueueRef.current;
+    if (!pending?.length || isBulkProcessing) return;
+    resumeBulkQueueRef.current = null;
+    void processAllUrls(pending);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- yalnızca mount sonrası bir kez devam ettir
+  }, [isBulkProcessing]);
 
   const handleFetchProducts = useCallback(async () => {
     if (singleScrapeMutation.isPending || isBulkProcessing) return;

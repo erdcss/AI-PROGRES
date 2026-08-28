@@ -32,19 +32,22 @@ function labelFor(tab: WorkspaceTab, index: number): string {
 const KeepAliveScraperTab = memo(function KeepAliveScraperTab({
   tabId,
   isActive,
+  isPrimaryTab,
   onReportMeta,
 }: {
   tabId: string;
   isActive: boolean;
+  isPrimaryTab: boolean;
   onReportMeta: (tabId: string, meta: ScraperWorkspaceTabMeta) => void;
 }) {
   const value = useMemo<ScraperWorkspaceContextValue>(
     () => ({
       tabId,
       isActive,
+      isPrimaryTab,
       reportMeta: (meta) => onReportMeta(tabId, meta),
     }),
-    [tabId, isActive, onReportMeta],
+    [tabId, isActive, isPrimaryTab, onReportMeta],
   );
 
   return (
@@ -185,11 +188,12 @@ export default function ScraperWorkspace() {
         ) : null}
       </div>
 
-      {tabs.map((tab) => (
+      {tabs.map((tab, index) => (
         <KeepAliveScraperTab
           key={tab.id}
           tabId={tab.id}
           isActive={tab.id === currentActiveId}
+          isPrimaryTab={index === 0}
           onReportMeta={reportMeta}
         />
       ))}

@@ -18,7 +18,7 @@ export function AppOpenSplash({ onDone }: { onDone: () => void }) {
       <motion.img
         src="/orvian-logo.png"
         alt="ORVIAN"
-        className="h-16 w-auto max-w-[70vw] object-contain sm:h-20"
+        className="h-32 w-auto max-w-[85vw] object-contain sm:h-40 md:h-48"
         initial={{ opacity: 0, scale: 0.88, filter: "blur(8px)" }}
         animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}

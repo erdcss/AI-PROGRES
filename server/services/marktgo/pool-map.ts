@@ -48,6 +48,9 @@ export function mapPoolProductToMarktGoInput(
     categoryPath: Array.isArray((product as { categoryPath?: string[] }).categoryPath)
       ? (product as { categoryPath: string[] }).categoryPath
       : undefined,
+    features: Array.isArray(product.features)
+      ? (product.features as Array<{ name?: string; key?: string; value?: string }>)
+      : undefined,
     knownCollectionTags: getKnownMarktGoCollectionTags(),
     existingTags: tags,
   });

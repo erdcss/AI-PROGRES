@@ -93,6 +93,13 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
       );
     }, isCloudRuntime() ? 10_000 : 3_000);
     triggerImmediateSchedulerCycle(isCloudRuntime() ? 15_000 : 5_000);
+    if (!isCloudRuntime()) {
+      setTimeout(() => {
+        void import("./tracking.scheduler")
+          .then(({ triggerShopifyTrackingReconcile }) => triggerShopifyTrackingReconcile(true))
+          .catch((err) => console.warn("⚠️ Yerel Shopify reconcile atlandı:", err));
+      }, 12_000);
+    }
     setTimeout(() => {
       void import("./marktgo/reconcile.service")
         .then(({ triggerMarktGoCatalogReconcile }) => triggerMarktGoCatalogReconcile(true))

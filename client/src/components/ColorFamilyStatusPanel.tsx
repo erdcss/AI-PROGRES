@@ -19,6 +19,28 @@ import { getTrendyolImageFallbackUrls } from "@shared/trendyol-product-images";
 
 type PreviewLike = Parameters<typeof resolveColorFamilyUiStatus>[0];
 
+function normalizeGalleryImages(images: unknown): string[] {
+  if (Array.isArray(images)) {
+    return images.filter((u): u is string => typeof u === "string" && u.trim().length > 0);
+  }
+  if (typeof images === "string" && images.trim().length > 0) {
+    return [images.trim()];
+  }
+  return [];
+}
+
+function normalizeImagesByColor(
+  raw: Record<string, unknown> | undefined,
+): Record<string, string[]> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, string[]> = {};
+  for (const [color, value] of Object.entries(raw)) {
+    const list = normalizeGalleryImages(value);
+    if (list.length) out[color] = list;
+  }
+  return out;
+}
+
 const CHECK_TEST_IDS: Record<string, string> = {
   candidates: "color-family-check-candidates",
   members: "color-family-check-members",
@@ -138,6 +160,7 @@ export function ColorFamilyStatusPanel({
   compact?: boolean;
 }) {
   const ui = resolveColorFamilyUiStatus(preview);
+  const imagesByColor = normalizeImagesByColor(ui.imagesByColor as Record<string, unknown>);
   const { badge, Icon, iconClass } = stateStyles(ui.state);
 
   const compactLabel =
@@ -205,19 +228,19 @@ export function ColorFamilyStatusPanel({
         </div>
       </div>
 
-      {ui.checks.length > 0 && (
+      {(ui.checks ?? []).length > 0 && (
         <div className="space-y-0.5 border-t border-zinc-800/80 pt-2">
-          {ui.checks.map((check) => (
+          {(ui.checks ?? []).map((check) => (
             <CheckRow key={check.key} check={check} />
           ))}
         </div>
       )}
 
-      {ui.memberStatuses.length > 0 && (
+      {(ui.memberStatuses ?? []).length > 0 && (
         <div data-testid="color-family-member-statuses">
           <p className="text-[10px] uppercase tracking-wide text-zinc-500 mb-2">Renk Ailesi</p>
           <div className="space-y-1.5">
-            {ui.memberStatuses.map((m) => {
+            {(ui.memberStatuses ?? []).map((m) => {
               const missingImages = m.fetched && m.imageCount === 0;
               const missingSizes = m.fetched && m.sizeCount === 0;
               const failed = !m.fetched;
@@ -297,13 +320,13 @@ export function ColorFamilyStatusPanel({
         </div>
       )}
 
-      {ui.sourceAliases.length > 0 && (
+      {(ui.sourceAliases ?? []).length > 0 && (
         <div data-testid="color-family-source-aliases">
           <p className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5">
             sourceAliases
           </p>
           <div className="flex flex-wrap gap-1">
-            {ui.sourceAliases.map((alias) => (
+            {(ui.sourceAliases ?? []).map((alias) => (
               <Badge
                 key={alias}
                 variant="outline"
@@ -316,12 +339,12 @@ export function ColorFamilyStatusPanel({
         </div>
       )}
 
-      {ui.failedMembers.length > 0 && (
+      {(ui.failedMembers ?? []).length > 0 && (
         <div className="rounded-md border border-red-900/40 bg-red-950/20 p-2 space-y-1">
           <p className="text-[10px] uppercase tracking-wide text-red-400/80">
             Başarısız kardeşler
           </p>
-          {ui.failedMembers.map((m, i) => (
+          {(ui.failedMembers ?? []).map((m, i) => (
             <p key={`${m.productId}-${i}`} className="text-[11px] text-red-300/90">
               {m.productId || "?"}
               {m.error ? ` — ${m.error}` : ""}
@@ -330,14 +353,15 @@ export function ColorFamilyStatusPanel({
         </div>
       )}
 
-      {Object.keys(ui.imagesByColor).length > 0 && (
+      {Object.keys(imagesByColor).length > 0 && (
         <div>
           <p className="text-[10px] uppercase tracking-wide text-zinc-500 mb-2">
             Renk Galerileri
           </p>
           <div className="space-y-2">
-            {Object.entries(ui.imagesByColor).map(([color, images]) => {
-              const empty = !images?.length;
+            {Object.entries(imagesByColor).map(([color, images]) => {
+              const gallery = normalizeGalleryImages(images);
+              const empty = gallery.length === 0;
               const productId = memberProductIds.get(color);
               return (
                 <div
@@ -351,7 +375,7 @@ export function ColorFamilyStatusPanel({
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <span className="text-xs text-zinc-300">{color}</span>
                     <span className="text-[10px] text-zinc-500">
-                      {images?.length ?? 0} görsel
+                      {gallery.length} görsel
                       {productId ? ` · ${productId}` : ""}
                     </span>
                   </div>
@@ -362,7 +386,7 @@ export function ColorFamilyStatusPanel({
                     </p>
                   ) : (
                     <div className="flex gap-1.5 overflow-x-auto">
-                      {images.slice(0, 3).map((imgUrl, i) => (
+                      {gallery.slice(0, 3).map((imgUrl, i) => (
                         <div
                           key={`${imgUrl}-${i}`}
                           className="w-12 h-12 rounded overflow-hidden border border-zinc-800 shrink-0 bg-zinc-950"

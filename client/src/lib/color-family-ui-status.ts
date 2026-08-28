@@ -129,6 +129,21 @@ function dedupe(values: Array<string | undefined | null>): string[] {
   return [...new Set(values.map((v) => String(v || "").trim()).filter(Boolean))];
 }
 
+/** Eksik dizi alanları undefined.length hatasına yol açmasın */
+function ensureCompleteUiStatus(
+  partial: Omit<ColorFamilyUiStatus, "checks" | "sourceAliases" | "failedMembers" | "memberStatuses" | "imagesByColor"> &
+    Partial<Pick<ColorFamilyUiStatus, "checks" | "sourceAliases" | "failedMembers" | "memberStatuses" | "imagesByColor">>,
+): ColorFamilyUiStatus {
+  return {
+    checks: partial.checks ?? [],
+    sourceAliases: partial.sourceAliases ?? [],
+    failedMembers: partial.failedMembers ?? [],
+    memberStatuses: partial.memberStatuses ?? [],
+    imagesByColor: partial.imagesByColor ?? {},
+    ...partial,
+  };
+}
+
 function titlesFor(state: ColorFamilyUiState): { title: string; description: string } {
   switch (state) {
     case "success":
@@ -303,6 +318,7 @@ function inferFromLegacy(preview: PreviewLike): ColorFamilyUiStatus {
         failedCount: 0,
         sourceAliases: [],
         failedMembers: [],
+        memberStatuses: [],
         imagesByColor: {},
       };
     }
@@ -317,6 +333,7 @@ function inferFromLegacy(preview: PreviewLike): ColorFamilyUiStatus {
       failedCount: 0,
       sourceAliases: [],
       failedMembers: [],
+      memberStatuses: [],
       imagesByColor: {},
     };
   }
@@ -389,19 +406,14 @@ function inferFromLegacy(preview: PreviewLike): ColorFamilyUiStatus {
 export function resolveColorFamilyUiStatus(preview: PreviewLike | null | undefined): ColorFamilyUiStatus {
   if (!preview) {
     const { title, description } = titlesFor("unknown");
-    return {
+    return ensureCompleteUiStatus({
       state: "unknown",
       title,
       description,
-      checks: [],
       colorCount: 0,
       memberCount: 0,
       failedCount: 0,
-      sourceAliases: [],
-      failedMembers: [],
-      memberStatuses: [],
-      imagesByColor: {},
-    };
+    });
   }
 
   const status = preview.colorFamilyStatus;
@@ -438,7 +450,7 @@ export function resolveColorFamilyUiStatus(preview: PreviewLike | null | undefin
     }));
 
     const { title, description: defaultDesc } = titlesFor(state);
-    return {
+    return ensureCompleteUiStatus({
       state,
       title,
       description: status.message || defaultDesc,
@@ -465,10 +477,10 @@ export function resolveColorFamilyUiStatus(preview: PreviewLike | null | undefin
       backendState: status.state,
       shopifyUploadBlocked: status.shopifyUploadBlocked,
       blockReason: status.blockReason,
-    };
+    });
   }
 
-  return inferFromLegacy(preview);
+  return ensureCompleteUiStatus(inferFromLegacy(preview));
 }
 
 /** Shopify yükleme engeli — failed aile veya eksik bedenli kıyafet ailesi */

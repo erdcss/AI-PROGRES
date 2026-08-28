@@ -2558,6 +2558,7 @@ setTimeout(check, 1000);
             brand: result.brand,
             category: result.category || result.categoryName || categoryPath[0],
             categoryPath,
+            features: Array.isArray(result.features) ? result.features : [],
             knownCollectionTags: knownTags,
             existingTags: Array.isArray(result.tags) ? result.tags : [],
           });

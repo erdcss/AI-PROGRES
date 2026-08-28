@@ -3,13 +3,25 @@ const STORAGE_KEY = "turmarkt_scraper_state_v1";
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const MAX_PREVIEW_ROWS = 40;
 
+export type ScraperUrlQueueEntry = {
+  url: string;
+  status?: string;
+  error?: string;
+};
+
 export type ScraperPersistedState = {
   product: unknown | null;
   csvPreviews: unknown[];
   url: string;
-  pendingUrls?: Array<string | { url: string; status?: string; error?: string }>;
+  /** @deprecated urlQueue kullanın */
+  pendingUrls?: ScraperUrlQueueEntry[];
+  urlQueue?: ScraperUrlQueueEntry[];
+  individualTags?: Record<string, string[]>;
   scrapingMode: "single" | "multi-url";
   workflowStep: string | null;
+  bulkInProgress?: boolean;
+  bulkProgress?: { current: number; total: number } | null;
+  bulkCurrentTitle?: string | null;
   savedAt: number;
 };
 
@@ -52,6 +64,13 @@ function compactPreview(preview: unknown): unknown {
   };
 }
 
+function normalizeQueue(
+  state: Omit<ScraperPersistedState, "savedAt">,
+): ScraperUrlQueueEntry[] {
+  const queue = state.urlQueue ?? state.pendingUrls;
+  return Array.isArray(queue) ? queue.slice(0, 50) : [];
+}
+
 function buildPayload(state: Omit<ScraperPersistedState, "savedAt">): ScraperPersistedState {
   const csvPreviews = Array.isArray(state.csvPreviews)
     ? state.csvPreviews.slice(0, MAX_PREVIEW_ROWS).map(compactPreview)
@@ -61,11 +80,13 @@ function buildPayload(state: Omit<ScraperPersistedState, "savedAt">): ScraperPer
     product: state.product ?? null,
     csvPreviews,
     url: state.url ?? "",
-    pendingUrls: Array.isArray(state.pendingUrls)
-      ? state.pendingUrls.slice(0, 50)
-      : [],
+    urlQueue: normalizeQueue(state),
+    individualTags: state.individualTags ?? {},
     scrapingMode: state.scrapingMode ?? "single",
     workflowStep: state.workflowStep ?? null,
+    bulkInProgress: state.bulkInProgress === true,
+    bulkProgress: state.bulkProgress ?? null,
+    bulkCurrentTitle: state.bulkCurrentTitle ?? null,
     savedAt: Date.now(),
   };
 }
@@ -84,6 +105,10 @@ function buildLightPayload(state: Omit<ScraperPersistedState, "savedAt">): Scrap
         price: row.price,
         brand: row.brand,
         variants: row.variants,
+        features: row.features,
+        autoTags: row.autoTags,
+        colorFamilyStatus: row.colorFamilyStatus,
+        imagesByColor: row.imagesByColor,
         createdAt: row.createdAt,
         csvContent: "",
       };
@@ -93,11 +118,13 @@ function buildLightPayload(state: Omit<ScraperPersistedState, "savedAt">): Scrap
     product: state.product ?? null,
     csvPreviews,
     url: state.url ?? "",
-    pendingUrls: Array.isArray(state.pendingUrls)
-      ? state.pendingUrls.slice(0, 50)
-      : [],
+    urlQueue: normalizeQueue(state),
+    individualTags: state.individualTags ?? {},
     scrapingMode: state.scrapingMode ?? "single",
     workflowStep: state.workflowStep ?? null,
+    bulkInProgress: state.bulkInProgress === true,
+    bulkProgress: state.bulkProgress ?? null,
+    bulkCurrentTitle: state.bulkCurrentTitle ?? null,
     savedAt: Date.now(),
   };
 }
@@ -175,15 +202,19 @@ export function clearScraperUiStorage(): void {
 
 /** URL kuyruğunu anında kaydet (sayfa yenilenince kaybolmasın) */
 export function savePendingUrls(
-  urls: Array<string | { url: string; status?: string; error?: string }>,
+  urls: ScraperUrlQueueEntry[],
 ): void {
   const existing = loadScraperState();
   saveScraperState({
     product: existing?.product ?? null,
     csvPreviews: existing?.csvPreviews ?? [],
     url: existing?.url ?? "",
-    pendingUrls: urls,
+    urlQueue: urls,
+    individualTags: existing?.individualTags,
     scrapingMode: existing?.scrapingMode ?? "single",
     workflowStep: existing?.workflowStep ?? null,
+    bulkInProgress: existing?.bulkInProgress,
+    bulkProgress: existing?.bulkProgress,
+    bulkCurrentTitle: existing?.bulkCurrentTitle,
   });
 }

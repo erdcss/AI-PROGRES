@@ -97,10 +97,10 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({
 
   const parseCSVContent = (csvContent: string, csvPreview?: { headers?: string[]; rows?: string[][] }) => {
     if (csvPreview?.headers?.length) {
-      return {
-        headers: csvPreview.headers,
-        rows: (csvPreview.rows ?? []).slice(0, 5),
-      };
+      const rows = (csvPreview.rows ?? [])
+        .slice(0, 5)
+        .filter((row): row is string[] => Array.isArray(row));
+      return { headers: csvPreview.headers, rows };
     }
     const lines = csvContent.split('\n').filter((line) => line.trim());
     if (lines.length < 2) return { headers: [], rows: [] };
@@ -160,13 +160,21 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({
           const safeCsvContent = typeof preview.csvContent === 'string' ? preview.csvContent : '';
           const { headers, rows } = parseCSVContent(safeCsvContent, preview.csvPreview);
           const imageCount = Array.isArray(preview.images) ? preview.images.length : 0;
+          const autoTags = Array.isArray(preview.autoTags) ? preview.autoTags : [];
+          const activeTags = individualTags[preview.id] || [];
 
           return (
             <ProductPreview
               key={preview.id}
               preview={preview}
               imageIndex={selectedImageIndex[preview.id] || 0}
-              tags={individualTags[preview.id] || []}
+              tags={
+                activeTags.length
+                  ? activeTags
+                  : autoTags.length
+                    ? autoTags
+                    : []
+              }
               onPrevImage={() => prevImage(preview.id, Math.max(imageCount, 1))}
               onNextImage={() => nextImage(preview.id, Math.max(imageCount, 1))}
               onSelectImage={(index) =>
@@ -187,7 +195,14 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({
               onDownload={() =>
                 onDownload(preview.id, `${safeTitle.replace(/[^a-zA-Z0-9]/g, '-')}.csv`)
               }
-              onShopifyUpload={() => onShopifyUpload(preview.id, individualTags[preview.id])}
+              onShopifyUpload={() =>
+                onShopifyUpload(
+                  preview.id,
+                  (individualTags[preview.id]?.length
+                    ? individualTags[preview.id]
+                    : autoTags) || [],
+                )
+              }
               isUploading={uploadingId === preview.id}
               uploadDisabled={
                 !!uploadingId ||

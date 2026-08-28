@@ -574,6 +574,8 @@ export function buildCsvPreviewEntry(
     description: data.description,
     category: data.category,
     features: data.features || [],
+    autoTags: Array.isArray(data.tags) ? data.tags.map(String).filter(Boolean) : [],
+    tags: Array.isArray(data.tags) ? data.tags.map(String).filter(Boolean) : [],
   };
 }
 

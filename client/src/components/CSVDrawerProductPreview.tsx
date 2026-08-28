@@ -22,6 +22,138 @@ import { useDestinationBrand } from "@/hooks/use-destination-brand";
 import ProductAttributes from "@/components/ProductAttributes";
 import type { CsvStatusResponse } from "@/lib/shopify-csv-download";
 
+function ProductTagEditor({
+  previewId,
+  autoTags,
+  tags,
+  onAddTag,
+  onRemoveTag,
+  showInput = true,
+  className = "",
+}: {
+  previewId: string;
+  autoTags: string[];
+  tags: string[];
+  onAddTag: (tag: string) => void;
+  onRemoveTag: (index: number) => void;
+  showInput?: boolean;
+  className?: string;
+}) {
+  const inactiveAutoTags = autoTags.filter((tag) => !tags.includes(tag));
+  const manualTags = tags.filter((tag) => !autoTags.includes(tag));
+  const hasAny = autoTags.length > 0 || tags.length > 0;
+
+  return (
+    <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
+      <Tag className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+      {!hasAny && (
+        <span className="text-xs text-zinc-600">Henüz etiket eklenmedi</span>
+      )}
+      {autoTags.map((tag, index) => {
+        const active = tags.includes(tag);
+        return (
+          <Badge
+            key={`auto-${tag}-${index}`}
+            variant="outline"
+            className={`text-xs h-6 gap-1 ${
+              active
+                ? "border-violet-800/50 text-violet-300"
+                : "border-zinc-700 text-zinc-500 opacity-70"
+            }`}
+            title={active ? "Otomatik etiket" : "Otomatik etiket — tıklayarak ekle"}
+          >
+            <span
+              className={active ? undefined : "cursor-pointer"}
+              onClick={() => {
+                if (!active && !isBlockedShopifyTag(tag)) onAddTag(tag);
+              }}
+            >
+              {tag}
+            </span>
+          </Badge>
+        );
+      })}
+      {manualTags.map((tag, index) => (
+        <Badge
+          key={`manual-${tag}-${index}`}
+          variant="outline"
+          className="border-cyan-800/40 text-cyan-300 text-xs h-6 gap-1 group"
+        >
+          {tag}
+          <X
+            className="w-3 h-3 cursor-pointer opacity-50 group-hover:opacity-100 text-red-400"
+            onClick={() => {
+              const idx = tags.indexOf(tag);
+              if (idx >= 0) onRemoveTag(idx);
+            }}
+          />
+        </Badge>
+      ))}
+      {inactiveAutoTags.length > 0 && tags.length > 0 && (
+        <span className="text-[10px] text-zinc-600 w-full sm:w-auto">
+          +{inactiveAutoTags.length} otomatik etiket eklenebilir
+        </span>
+      )}
+      {showInput && (
+        <input
+          type="text"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const input = e.target as HTMLInputElement;
+              const newTag = input.value.trim();
+              if (newTag && !isBlockedShopifyTag(newTag)) {
+                onAddTag(newTag);
+                input.value = "";
+              }
+            }
+          }}
+          placeholder="Manuel etiket ekle (Enter)"
+          className="h-7 min-w-[140px] flex-1 max-w-xs text-xs bg-zinc-950 border border-zinc-800 rounded-md px-2 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+          data-testid={`input-add-tag-${previewId}`}
+        />
+      )}
+    </div>
+  );
+}
+
+function parseTagsFromCsv(csvContent: string): string[] {
+  const lines = csvContent.split("\n").filter((line) => line.trim());
+  if (lines.length < 2) return [];
+
+  const parseLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === "," && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const headers = parseLine(lines[0]).map((h) => h.replace(/^"|"$/g, "").trim());
+  const tagsIndex = headers.findIndex((h) => h.toLowerCase() === "tags");
+  if (tagsIndex < 0) return [];
+
+  const firstRow = parseLine(lines[1]).map((c) => c.replace(/^"|"$/g, "").trim());
+  const raw = firstRow[tagsIndex] ?? "";
+  if (!raw) return [];
+
+  return raw
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
 /** Features / başlıktan gerçek renk adı çıkarır — "Tek Renk" placeholder'ı yerine */
 function resolveScrapedColorName(input: {
   features?: Array<{ key?: string; name?: string; value?: string }>;
@@ -377,6 +509,9 @@ export interface CSVPreviewData {
   description?: string;
   category?: string;
   features?: Array<{ key: string; value: string }>;
+  /** Scrape sırasında üretilen otomatik etiketler */
+  autoTags?: string[];
+  tags?: string[];
   csvPreview?: {
     headers?: string[];
     rows?: string[][];
@@ -415,7 +550,7 @@ export interface ProductPreviewProps {
 export const ProductPreview = memo(function ProductPreview({
   preview,
   imageIndex,
-  tags,
+  tags = [],
   onPrevImage,
   onNextImage,
   onSelectImage,
@@ -561,33 +696,43 @@ export const ProductPreview = memo(function ProductPreview({
       sourceUrl: safePreview.sourceUrl,
     });
     const sanitizedVariants = pickVariantsForPreview(sanitizedFromPayload, sanitizedFromCsv);
+    const safeAllVariants = Array.isArray(sanitizedVariants.allVariants)
+      ? sanitizedVariants.allVariants
+      : [];
+    const safeVariantColors = Array.isArray(sanitizedVariants.colors) ? sanitizedVariants.colors : [];
+    const safeVariantSizes = Array.isArray(sanitizedVariants.sizes) ? sanitizedVariants.sizes : [];
+
     const scrapedColorName = resolveScrapedColorName({
       features: safePreview.features,
       title: safeTitle,
       variantColors: [
-        ...sanitizedVariants.colors,
-        ...sanitizedVariants.allVariants.map((v) => v.color),
+        ...safeVariantColors,
+        ...safeAllVariants.map((v) => v.color),
         ...(Array.isArray(safePreview.variants?.colors) ? safePreview.variants.colors : []),
       ],
     });
 
-    const displayVariants =
+    const displayVariants: {
+      colors: string[];
+      sizes: string[];
+      allVariants: typeof safeAllVariants;
+    } =
       scrapedColorName &&
-      sanitizedVariants.allVariants.every(
+      safeAllVariants.every(
         (v) => !v.color?.trim() || isPlaceholderColor(v.color),
       )
         ? {
-            ...sanitizedVariants,
             colors: [scrapedColorName],
-            allVariants: sanitizedVariants.allVariants.map((v) => ({
+            sizes: safeVariantSizes,
+            allVariants: safeAllVariants.map((v) => ({
               ...v,
               color: scrapedColorName,
             })),
           }
         : {
-            ...sanitizedVariants,
-            colors: sanitizedVariants.colors.filter((c) => !isPlaceholderColor(c)),
-            allVariants: sanitizedVariants.allVariants.map((v) => ({
+            colors: safeVariantColors.filter((c) => !isPlaceholderColor(c)),
+            sizes: safeVariantSizes,
+            allVariants: safeAllVariants.map((v) => ({
               ...v,
               color:
                 v.color && !isPlaceholderColor(v.color)
@@ -596,7 +741,11 @@ export const ProductPreview = memo(function ProductPreview({
             })),
           };
 
-    const stockSummary = summarizeVariantStock(displayVariants);
+    const stockSummary = summarizeVariantStock({
+      colors: displayVariants.colors,
+      sizes: displayVariants.sizes,
+      allVariants: displayVariants.allVariants,
+    });
     useEffect(() => {
       if (!import.meta.env.DEV) return;
       const productId = safePreview.sourceUrl?.match(/-p-(\d+)/i)?.[1] ?? null;
@@ -673,8 +822,9 @@ export const ProductPreview = memo(function ProductPreview({
     };
     
     const trackingId = getTrackingId();
-    
-    // Enhanced price parsing from CSV with multiple strategies
+    const csvTags = parseTagsFromCsv(safeCsvContent);
+    const autoTagsList = preview.autoTags || [];
+    const activeTagCount = tags.length;
     const parsePriceFromCSV = () => {
       const rawPrice = preview.price as
         | { original?: number; withProfit?: number }
@@ -785,12 +935,16 @@ export const ProductPreview = memo(function ProductPreview({
       );
     })();
 
-    const sizeCount = stockSummary.sizes.length;
-    const colorCount = stockSummary.colors.length;
+    const sizeCount = stockSummary.sizes?.length ?? 0;
+    const colorCount = stockSummary.colors?.length ?? 0;
     const variantCount = displayVariants.allVariants.length;
     const imageCount = previewImages.length;
 
-    const hasCsvTable = csvHeaders.length > 0 && csvRows.length > 0;
+    const safeCsvHeaders = Array.isArray(csvHeaders) ? csvHeaders : [];
+    const safeCsvRows = (Array.isArray(csvRows) ? csvRows : []).filter(
+      (row): row is string[] => Array.isArray(row),
+    );
+    const hasCsvTable = safeCsvHeaders.length > 0 && safeCsvRows.length > 0;
 
     const colorEntries = stockSummary.colors.map((entry) => ({
       name: entry.name,
@@ -877,7 +1031,7 @@ export const ProductPreview = memo(function ProductPreview({
                       {preview.brand}
                     </span>
                   )}
-                  <ColorFamilyStatusPanel preview={preview} compact />
+                  <ColorFamilyStatusPanel preview={safePreview} compact />
                   {preview.restoredFromDisk && (
                     <Badge variant="outline" className="border-amber-700/50 text-amber-300 text-[10px] h-5">
                       Diskten geri yüklendi
@@ -991,46 +1145,56 @@ export const ProductPreview = memo(function ProductPreview({
             </div>
           </div>
 
-          {/* Etiketler — her zaman görünür, sade şerit */}
-          <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5 border-t border-zinc-800/60 pt-3 bg-zinc-900/20">
-            <Tag className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-            {tags.map((tag, index) => (
-              <Badge
-                key={`manual-${index}`}
-                variant="outline"
-                className="border-cyan-800/40 text-cyan-300 text-xs h-6 gap-1 group"
-              >
-                {tag}
-                <X
-                  className="w-3 h-3 cursor-pointer opacity-50 group-hover:opacity-100 text-red-400"
-                  onClick={() => onRemoveTag(index)}
-                />
-              </Badge>
-            ))}
-            <input
-              type="text"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const input = e.target as HTMLInputElement;
-                  const newTag = input.value.trim();
-                  if (newTag && !isBlockedShopifyTag(newTag)) {
-                    onAddTag(newTag);
-                    input.value = "";
-                  }
-                }
-              }}
-              placeholder="Etiket ekle (Enter)"
-              className="h-7 min-w-[140px] flex-1 max-w-xs text-xs bg-zinc-950 border border-zinc-800 rounded-md px-2 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
-              data-testid={`input-add-tag-${preview.id}`}
+          {/* Etiketler — otomatik + manuel */}
+          <div className="px-4 pb-3 border-t border-zinc-800/60 pt-3 bg-zinc-900/20">
+            <ProductTagEditor
+              previewId={preview.id}
+              autoTags={autoTagsList}
+              tags={tags}
+              onAddTag={onAddTag}
+              onRemoveTag={onRemoveTag}
             />
           </div>
 
           {/* Genişletilmiş detay */}
           {isExpanded && (
             <div className="border-t border-zinc-800/80 px-4 py-4 space-y-4 bg-zinc-950/50">
-              <ColorFamilyStatusPanel preview={preview} />
+              <ColorFamilyStatusPanel preview={safePreview} />
               <ProductAttributes features={safePreview.features || preview.features || []} />
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                  Etiketler ({activeTagCount})
+                </p>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950/80 p-3">
+                  <ProductTagEditor
+                    previewId={`${preview.id}-drawer`}
+                    autoTags={autoTagsList}
+                    tags={tags}
+                    onAddTag={onAddTag}
+                    onRemoveTag={onRemoveTag}
+                  />
+                  {csvTags.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-zinc-800/80 space-y-1.5">
+                      <p className="text-[10px] uppercase tracking-wide text-zinc-500">
+                        CSV&apos;deki etiketler
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {csvTags.map((tag, index) => (
+                          <Badge
+                            key={`csv-tag-${tag}-${index}`}
+                            variant="outline"
+                            className="border-zinc-700 text-zinc-400 text-xs h-6 font-mono"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
@@ -1038,7 +1202,7 @@ export const ProductPreview = memo(function ProductPreview({
                   </p>
                   <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
                     {stockSummary.colors.length > 0 ? (
-                      stockSummary.colors.map((entry, idx) => (
+                      (stockSummary.colors ?? []).map((entry, idx) => (
                         <Badge
                           key={idx}
                           variant="outline"
@@ -1061,8 +1225,8 @@ export const ProductPreview = memo(function ProductPreview({
                     Bedenler ({sizeCount})
                   </p>
                   <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-                    {stockSummary.sizes.length > 0 ? (
-                      stockSummary.sizes.map((entry, idx) => (
+                    {(stockSummary.sizes ?? []).length > 0 ? (
+                      (stockSummary.sizes ?? []).map((entry, idx) => (
                         <Badge
                           key={idx}
                           variant="outline"
@@ -1087,13 +1251,13 @@ export const ProductPreview = memo(function ProductPreview({
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-xs text-zinc-500">
                     <FileText className="w-3.5 h-3.5" />
-                    CSV önizleme (ilk {csvRows.length} satır)
+                    CSV önizleme (ilk {safeCsvRows.length} satır)
                   </div>
                   <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950">
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-zinc-800 bg-zinc-900/80">
-                          {csvHeaders.slice(0, 8).map((header, index) => (
+                          {safeCsvHeaders.slice(0, 8).map((header, index) => (
                             <th
                               key={index}
                               className="text-left p-2.5 text-zinc-400 font-medium whitespace-nowrap"
@@ -1101,13 +1265,13 @@ export const ProductPreview = memo(function ProductPreview({
                               {header}
                             </th>
                           ))}
-                          {csvHeaders.length > 8 && (
+                          {safeCsvHeaders.length > 8 && (
                             <th className="p-2.5 text-zinc-500">…</th>
                           )}
                         </tr>
                       </thead>
                       <tbody>
-                        {csvRows.map((row, rowIndex) => (
+                        {safeCsvRows.map((row, rowIndex) => (
                           <tr
                             key={rowIndex}
                             className="border-b border-zinc-900 hover:bg-zinc-900/40"
