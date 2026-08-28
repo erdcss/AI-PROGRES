@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { marktGoStockForAvailability } from "@shared/integration-provider";
-import { generateAutoProductTags } from "@shared/auto-product-tags";
+import { generateAutoProductTags, normalizeTagKey } from "@shared/auto-product-tags";
 import { matchWebHookSite } from "@shared/web-hooks-sites";
 import type { LocalProductInput } from "./types";
 import {
@@ -22,6 +22,43 @@ export function poolLocalProductId(product: Record<string, unknown>): string {
   return `tmp_${Date.now()}`;
 }
 
+function autoTagsForPoolProduct(product: Record<string, unknown>, manualTags: string[]): string[] {
+  return generateAutoProductTags({
+    title: String(product.title || ""),
+    brand: product.brand ? String(product.brand) : null,
+    category: product.category ? String(product.category) : null,
+    categoryPath: Array.isArray((product as { categoryPath?: string[] }).categoryPath)
+      ? (product as { categoryPath: string[] }).categoryPath
+      : undefined,
+    features: Array.isArray(product.features)
+      ? (product.features as Array<{ name?: string; key?: string; value?: string }>)
+      : undefined,
+    knownCollectionTags: getKnownMarktGoCollectionTags(),
+    existingTags: manualTags,
+  });
+}
+
+/** Otomatik + uygulanan etiketler (MARKT-GO aktarım raporu) */
+export function resolvePoolProductTagAssignment(product: Record<string, unknown>): {
+  manualTags: string[];
+  autoTags: string[];
+  appliedTags: string[];
+} {
+  const manualTags = Array.isArray(product.tags) ? product.tags.map(String) : [];
+  const mergedAuto = autoTagsForPoolProduct(product, manualTags);
+  const appliedTags = buildExportTags(
+    mergedAuto,
+    product.sourceUrl ? String(product.sourceUrl) : null,
+  );
+  const autoTags = mergedAuto.filter(
+    (tag) =>
+      !manualTags.some((m) => normalizeTagKey(m) === normalizeTagKey(tag)) &&
+      tag !== "urun-havuzu" &&
+      !String(tag).toLowerCase().startsWith(SOURCE_URL_TAG_PREFIX),
+  );
+  return { manualTags, autoTags, appliedTags };
+}
+
 export function mapPoolProductToMarktGoInput(
   product: Record<string, unknown>,
 ): LocalProductInput {
@@ -40,20 +77,7 @@ export function mapPoolProductToMarktGoInput(
     : product.image
       ? [String(product.image)]
       : [];
-  const tags = Array.isArray(product.tags) ? product.tags.map(String) : [];
-  const autoTags = generateAutoProductTags({
-    title: String(product.title || ""),
-    brand: product.brand ? String(product.brand) : null,
-    category: product.category ? String(product.category) : null,
-    categoryPath: Array.isArray((product as { categoryPath?: string[] }).categoryPath)
-      ? (product as { categoryPath: string[] }).categoryPath
-      : undefined,
-    features: Array.isArray(product.features)
-      ? (product.features as Array<{ name?: string; key?: string; value?: string }>)
-      : undefined,
-    knownCollectionTags: getKnownMarktGoCollectionTags(),
-    existingTags: tags,
-  });
+  const { appliedTags: tags } = resolvePoolProductTagAssignment(product);
   const featurePairs = Array.isArray(product.features)
     ? (product.features as Array<{ name?: string; key?: string; value?: string }>)
         .map((f) => {
@@ -107,7 +131,7 @@ export function mapPoolProductToMarktGoInput(
     discountPrice: compare ? sellPrice : null,
     stock: marktGoStockForAvailability(product.inStock !== false),
     images,
-    tags: buildExportTags(autoTags, product.sourceUrl ? String(product.sourceUrl) : null),
+    tags,
     variants,
   };
 }

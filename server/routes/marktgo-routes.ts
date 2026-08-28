@@ -99,7 +99,14 @@ export function registerMarktGoRoutes(app: Express): void {
         ? product
         : mapPoolProductToMarktGoInput(product);
       const result = await syncProductToMarktGo(input, req.body?.connectionId);
-      return res.json({ success: true, ...result });
+      const { buildMarktGoUploadItemReport } = await import(
+        "../services/marktgo/upload-report.service"
+      );
+      const assignment = await buildMarktGoUploadItemReport(product, {
+        success: true,
+        productId: result.externalProductId,
+      });
+      return res.json({ success: true, assignment, ...result });
     } catch (err) {
       return res.status(500).json({ success: false, error: userMessageForMarktGoError(err) });
     }

@@ -21,6 +21,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useDestinationBrand } from "@/hooks/use-destination-brand";
 import { PRODUCT_POOL_SITES, isProductPoolUrl, matchWebHookSite } from "@shared/web-hooks-sites";
 import MarktGoSettingsDialog from "@/components/MarktGoSettingsDialog";
+import { MarktGoUploadReportDrawer } from "@/components/MarktGoUploadReportDrawer";
+import {
+  normalizeUploadReport,
+  type MarktGoBulkUploadReport,
+} from "@/lib/marktgo-upload-report";
 
 /** Ürün Havuzu — @shared/web-hooks-sites ile senkron */
 const SUPPORTED_SITES = PRODUCT_POOL_SITES.map((s) => ({
@@ -785,6 +790,8 @@ export default function UrunHavuzuPage() {
   const [imageIndex, setImageIndex] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sitesDrawerOpen, setSitesDrawerOpen] = useState(false);
+  const [uploadReport, setUploadReport] = useState<MarktGoBulkUploadReport | null>(null);
+  const [uploadReportOpen, setUploadReportOpen] = useState(false);
   const [trackCategoryFilter, setTrackCategoryFilter] = useState<"all" | PoolCategoryId>(
     "all",
   );
@@ -1324,6 +1331,11 @@ export default function UrunHavuzuPage() {
         title: `${brand.destinationName} toplu gönderim`,
         description: `${data.ok || 0} başarılı · ${data.fail || 0} hata`,
       });
+      const report = normalizeUploadReport(data.report);
+      if (report) {
+        setUploadReport(report);
+        setUploadReportOpen(true);
+      }
       setDrawerOpen(true);
     } catch (err) {
       toast({
@@ -2291,6 +2303,12 @@ export default function UrunHavuzuPage() {
           </>
         )}
       </AnimatePresence>
+      <MarktGoUploadReportDrawer
+        open={uploadReportOpen}
+        onOpenChange={setUploadReportOpen}
+        report={uploadReport}
+        destinationName={brand.destinationName}
+      />
     </div>
   );
 }

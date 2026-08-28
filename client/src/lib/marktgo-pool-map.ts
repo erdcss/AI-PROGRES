@@ -86,6 +86,11 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     salePrice,
     brand: input.brand ? String(input.brand) : undefined,
     category: input.category ? String(input.category) : undefined,
+    categoryPath: Array.isArray(input.categoryPath)
+      ? input.categoryPath.map(String)
+      : Array.isArray((input.canonicalProduct as { categoryPath?: string[] } | undefined)?.categoryPath)
+        ? (input.canonicalProduct as { categoryPath: string[] }).categoryPath
+        : undefined,
     sourceUrl: String(input.sourceUrl || input.originalUrl || ""),
     images,
     image: images[0],

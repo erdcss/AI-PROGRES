@@ -53,6 +53,7 @@ type RemoteProduct = {
 };
 
 let lastResult: MarktGoCategorySyncResult | null = null;
+let lastCollections: RemoteCollection[] = [];
 let knownCollectionTags: string[] = [];
 let inFlight: Promise<MarktGoCategorySyncResult> | null = null;
 let lastRunAt = 0;
@@ -60,6 +61,28 @@ const MIN_INTERVAL_MS = 30_000;
 
 export function getLastMarktGoCategorySummary(): MarktGoCategorySyncResult | null {
   return lastResult;
+}
+
+/** Aktarım raporu için önbellekteki MARKT-GO koleksiyonları */
+export function getCachedMarktGoCollections(): RemoteCollection[] {
+  return lastCollections.slice();
+}
+
+/** Ürün etiketlerine göre eşleşen MARKT-GO koleksiyonları */
+export function resolveCollectionsForTags(
+  tags: string[],
+  collections: RemoteCollection[] = lastCollections,
+): Array<{ id: string; title: string }> {
+  const product: RemoteProduct = {
+    id: "preview",
+    title: "",
+    tags: tags.map((t) => String(t || "").trim()).filter(Boolean),
+  };
+  if (!product.tags.length || !collections.length) return [];
+  return collections
+    .filter((c) => productMatchesCollection(product, c))
+    .map((c) => ({ id: c.id, title: c.title }))
+    .sort((a, b) => a.title.localeCompare(b.title, "tr"));
 }
 
 /** Çekim sırasında otomatik etiket eşlemesi için koleksiyon etiketleri. */
@@ -340,6 +363,7 @@ export async function syncMarktGoCategorySummary(force = false): Promise<MarktGo
       );
     }
 
+    lastCollections = collections;
     const summary = buildSummary(collections, products);
     const notes: string[] = [];
     if (collections.length) notes.push(`${collections.length} koleksiyon`);

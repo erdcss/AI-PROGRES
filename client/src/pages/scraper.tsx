@@ -68,6 +68,12 @@ import {
   buildUploadCompleteProgress,
   type MarktGoUploadProgress,
 } from "@/components/MarktGoUploadProgressBanner";
+import { MarktGoUploadReportDrawer } from "@/components/MarktGoUploadReportDrawer";
+import {
+  aggregateMarktGoUploadReport,
+  type MarktGoBulkUploadReport,
+  type MarktGoUploadItemReport,
+} from "@/lib/marktgo-upload-report";
 
 
 const scrapeSchema = z.object({
@@ -301,6 +307,8 @@ function ScraperPage() {
   const bulkStopRequestedRef = useRef(false);
   const bulkActiveUrlsRef = useRef<Set<string>>(new Set());
   const [uploadProgress, setUploadProgress] = useState<ShopifyUploadProgressState | null>(null);
+  const [uploadReport, setUploadReport] = useState<MarktGoBulkUploadReport | null>(null);
+  const [uploadReportOpen, setUploadReportOpen] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [failedUploads, setFailedUploads] = useState<
     { title: string; error: string; previewId: string }[]
@@ -2332,6 +2340,7 @@ function ScraperPage() {
       });
 
       const failedList: { title: string; error: string; previewId: string }[] = [];
+      const reportItems: MarktGoUploadItemReport[] = [];
       const SHOPIFY_UPLOAD_CONCURRENCY = 2;
       let uploadCursor = 0;
       let completedUploads = 0;
@@ -2391,6 +2400,8 @@ function ScraperPage() {
             title: preview.productTitle,
             sourceUrl: preview.sourceUrl,
             tags: item.individualTags || [],
+            categoryPath: (preview.canonicalProduct as { categoryPath?: string[] } | undefined)
+              ?.categoryPath,
           } as Record<string, unknown>);
 
           const response = await fetch("/api/marktgo/products/sync", {
@@ -2401,10 +2412,12 @@ function ScraperPage() {
           });
           const syncResult = await response.json();
           if (!response.ok || !syncResult?.success) {
+            if (syncResult?.assignment) reportItems.push(syncResult.assignment);
             throw new Error(
               syncResult?.error || syncResult?.message || `HTTP ${response.status}`,
             );
           }
+          if (syncResult?.assignment) reportItems.push(syncResult.assignment);
           row = {
             success: true,
             status: syncResult.status || "synced",
@@ -2452,6 +2465,16 @@ function ScraperPage() {
               title: preview.productTitle,
               error: msg,
               previewId: preview.id,
+            });
+            reportItems.push({
+              title: preview.productTitle,
+              success: false,
+              error: msg,
+              manualTags: item.individualTags || [],
+              autoTags: [],
+              appliedTags: [],
+              matchedCollections: [],
+              sourceUrl: preview.sourceUrl,
             });
           }
         } finally {
@@ -2546,6 +2569,11 @@ function ScraperPage() {
       );
 
       setFailedUploads(failedList);
+
+      if (reportItems.length > 0) {
+        setUploadReport(aggregateMarktGoUploadReport(reportItems));
+        setUploadReportOpen(true);
+      }
 
       const lastSuccess = [...outcomes].reverse().find((o) => o.ok && o.adminUrl);
       if (lastSuccess?.adminUrl) {
@@ -3443,6 +3471,12 @@ function ScraperPage() {
                     </div>
         )}
       </div>
+      <MarktGoUploadReportDrawer
+        open={uploadReportOpen}
+        onOpenChange={setUploadReportOpen}
+        report={uploadReport}
+        destinationName={brand.destinationName}
+      />
     </div>
   );
 }

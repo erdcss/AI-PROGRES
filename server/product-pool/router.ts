@@ -325,13 +325,19 @@ router.post("/marktgo-upload", async (req, res) => {
     }
     const { mapPoolProductToMarktGoInput } = await import("../services/marktgo/pool-map");
     const { syncProductToMarktGo } = await import("../services/marktgo/sync.service");
+    const { buildMarktGoUploadItemReport } = await import("../services/marktgo/upload-report.service");
     const input = mapPoolProductToMarktGoInput(product);
     const result = await syncProductToMarktGo(input);
+    const assignment = await buildMarktGoUploadItemReport(product, {
+      success: true,
+      productId: result.externalProductId,
+    });
     return res.json({
       success: true,
       provider: "marktgo",
       productId: result.externalProductId,
       shopifyPrice: input.discountPrice ?? input.price,
+      assignment,
       ...result,
     });
   } catch (err) {
@@ -351,6 +357,10 @@ router.post("/marktgo-upload-bulk", async (req, res) => {
     const { mapPoolProductToMarktGoInput } = await import("../services/marktgo/pool-map");
     const { syncProductToMarktGo } = await import("../services/marktgo/sync.service");
     const { userMessageForMarktGoError } = await import("../services/marktgo/errors");
+    const {
+      buildMarktGoUploadItemReport,
+      aggregateMarktGoUploadReport,
+    } = await import("../services/marktgo/upload-report.service");
 
     const results: Array<{
       sourceUrl?: string;
@@ -358,24 +368,38 @@ router.post("/marktgo-upload-bulk", async (req, res) => {
       success: boolean;
       productId?: string;
       error?: string;
+      assignment?: Awaited<ReturnType<typeof buildMarktGoUploadItemReport>>;
     }> = [];
+    const reportItems: Awaited<ReturnType<typeof buildMarktGoUploadItemReport>>[] = [];
 
     for (const raw of products) {
       try {
         const input = mapPoolProductToMarktGoInput(raw);
         const uploaded = await syncProductToMarktGo(input);
+        const assignment = await buildMarktGoUploadItemReport(raw, {
+          success: true,
+          productId: uploaded.externalProductId,
+        });
+        reportItems.push(assignment);
         results.push({
           sourceUrl: raw?.sourceUrl,
           title: raw?.title,
           success: true,
           productId: uploaded.externalProductId,
+          assignment,
         });
       } catch (err) {
+        const assignment = await buildMarktGoUploadItemReport(raw, {
+          success: false,
+          error: userMessageForMarktGoError(err),
+        });
+        reportItems.push(assignment);
         results.push({
           sourceUrl: raw?.sourceUrl,
           title: raw?.title,
           success: false,
           error: userMessageForMarktGoError(err),
+          assignment,
         });
       }
     }
@@ -387,6 +411,7 @@ router.post("/marktgo-upload-bulk", async (req, res) => {
       ok,
       fail: results.length - ok,
       results,
+      report: aggregateMarktGoUploadReport(reportItems),
     });
   } catch (err) {
     const { userMessageForMarktGoError } = await import("../services/marktgo/errors");
