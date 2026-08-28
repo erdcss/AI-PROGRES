@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useLocation } from 'wouter';
+import { useAppTabNavigation } from '@/components/app-tabs-store';
 import { useQuery } from '@tanstack/react-query';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { 
@@ -70,8 +70,7 @@ const categoryNames = {
 
 export function MobileNavigation() {
   const [isOpen, setIsOpen] = useState(false);
-  const [, setLocation] = useLocation();
-  const [location] = useLocation();
+  const [location, setLocation] = useAppTabNavigation();
   const isMobile = useIsMobile();
 
   const { data: trackingBadge } = useQuery({

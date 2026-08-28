@@ -1,22 +1,7 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Router as WouterRouter } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TrackingStartupNotifier } from "@/components/TrackingStartupNotifier";
-import { useIsMobile } from "@/hooks/use-mobile";
-import ScraperWorkspace from "@/components/ScraperWorkspace";
-import PriceComparisonPage from "@/pages/price-comparison";
-import MarketplaceSelection from "@/pages/marketplace-selection";
-import UrunHavuzuPage from "@/pages/urun-havuzu";
-import WebHooksPage from "@/pages/web-hooks";
-import MainDashboard from "@/pages/main-dashboard";
-import ComingSoon from "@/pages/coming-soon";
-import { TelegramPage } from "@/pages/telegram";
-import EmailSettings from "@/pages/EmailSettings";
-import ArcelikScraper from "@/pages/arcelik-scraper";
-import PttAvmScraper from "@/pages/pttavm-scraper";
-import AIEnhancedScraper from "@/pages/ai-enhanced-scraper";
-import PriceMovementTest from "@/pages/price-movement-test";
-// Removed auto-csv page import
-// Removed bulk-csv page import
+import AppTabWorkspace from "@/components/AppTabWorkspace";
 import { useState, useEffect, useSyncExternalStore, Component, type ReactNode, type ErrorInfo } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
@@ -24,32 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ShieldCheck, AlertCircle, CheckCircle } from "lucide-react";
-import { PageTransition } from "@/components/PageTransition";
 import { AppOpenSplash } from "@/components/AppOpenSplash";
-import ProductDataAnalysisPage from "@/pages/product-data-analysis";
-import SchedulerPage from "@/pages/scheduler";
-import SystemStatusPage from "@/pages/system-status";
-import ReplitAgent from "@/pages/replit-agent-fixed";
-import SOSControl from "@/pages/sos-control";
-import ProductReviews from "@/pages/product-reviews";
-import TrendyolReviewsPage from "@/pages/trendyol-reviews";
-import MemoryTrackingPage from "@/pages/MemoryTrackingPage";
-import SavedUrlsPage from "@/pages/SavedUrlsPage";
-import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
-import TrackingDashboard from "@/pages/tracking-dashboard";
-import ProductPreview from "@/pages/product-preview";
-import TelegramNotifications from "@/pages/TelegramNotifications";
-import BildirimlerPage from "@/pages/bildirimler";
-import ProductTrackingPage from "@/pages/ProductTrackingPage";
-import UrunTakipPage from "@/pages/urun-takip";
-import ControlCenterPage from "@/pages/control-center";
-import TelegramManagementPage from "@/pages/TelegramManagementPage";
-import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { MobileNavigation } from "@/components/MobileNavigation";
-import MemoryDashboard from "@/pages/memory-dashboard";
-import ShopifySystemPage from "@/pages/ShopifySystemPage";
-import BaglantiApiPage from "@/pages/baglanti-api";
-import ShopifyCategoriesPage from "@/pages/shopify-categories";
 import { MatrixBackground } from "@/components/MatrixBackground";
 import {
   ensureAppSessionRestored,
@@ -242,231 +203,18 @@ class AppErrorBoundary extends Component<
   }
 }
 
-function Router() {
-  const isMobile = useIsMobile();
-  
-  return (
-      <Switch>
-      <Route path="/">
-        <PageTransition>
-          <MarketplaceSelection />
-        </PageTransition>
-      </Route>
-      <Route path="/marketplace">
-        <PageTransition>
-          <MarketplaceSelection />
-        </PageTransition>
-      </Route>
-      <Route path="/coming-soon/:platform?">
-        {(params) => (
-          <PageTransition>
-            <ComingSoon platform={params && params.platform} />
-          </PageTransition>
-        )}
-      </Route>
-      {/* Scraper routes */}
-      <Route path="/scraper/:platform?">
-        <PageTransition>
-          <div className={`mx-auto ${isMobile ? "px-4 py-4 max-w-full" : "container px-4 py-4"}`}>
-            <ScraperWorkspace />
-          </div>
-        </PageTransition>
-      </Route>
-      <Route path="/urun-havuzu">
-        <PageTransition>
-          <UrunHavuzuPage />
-        </PageTransition>
-      </Route>
-      <Route path="/web-hooks">
-        <PageTransition>
-          <WebHooksPage />
-        </PageTransition>
-      </Route>
-      <Route path="/web-sitesi-kancalari">
-        <PageTransition>
-          <WebHooksPage />
-        </PageTransition>
-      </Route>
-      <Route path="/trendyol">
-        <PageTransition>
-          <div className={`mx-auto ${isMobile ? "px-4 py-4 max-w-full" : "container px-4 py-4"}`}>
-            <ScraperWorkspace />
-          </div>
-        </PageTransition>
-      </Route>
-      <Route path="/price-comparison">
-        <PageTransition>
-          <PriceComparisonPage />
-        </PageTransition>
-      </Route>
-      <Route path="/telegram">
-        <PageTransition>
-          <TelegramPage />
-        </PageTransition>
-      </Route>
-      <Route path="/email">
-        <PageTransition>
-          <EmailSettings />
-        </PageTransition>
-      </Route>
-      
-      <Route path="/product-data-analysis">
-        <PageTransition>
-          <ProductDataAnalysisPage />
-        </PageTransition>
-      </Route>
-      <Route path="/data-analysis">
-        <PageTransition>
-          <ProductDataAnalysisPage />
-        </PageTransition>
-      </Route>
-      <Route path="/saved-urls">
-        <PageTransition>
-          <SavedUrlsPage />
-        </PageTransition>
-      </Route>
-      <Route path="/scheduler">
-        <PageTransition>
-          <SchedulerPage />
-        </PageTransition>
-      </Route>
-      <Route path="/system-status">
-        <PageTransition>
-          <SystemStatusPage />
-        </PageTransition>
-      </Route>
-      <Route path="/replit-agent">
-        <PageTransition>
-          <ReplitAgent />
-        </PageTransition>
-      </Route>
-      <Route path="/sos-control">
-        <PageTransition>
-          <SOSControl />
-        </PageTransition>
-      </Route>
-      <Route path="/product-reviews">
-        <PageTransition>
-          <ProductReviews />
-        </PageTransition>
-      </Route>
-      <Route path="/trendyol-reviews">
-        <PageTransition>
-          <TrendyolReviewsPage />
-        </PageTransition>
-      </Route>
-      <Route path="/memory-tracking">
-        <PageTransition>
-          <MemoryTrackingPage />
-        </PageTransition>
-      </Route>
-      <Route path="/control-center">
-        <PageTransition>
-          <ControlCenterPage />
-        </PageTransition>
-      </Route>
-      <Route path="/tracking-dashboard">
-        <Redirect to="/control-center?tab=tracking" />
-      </Route>
-      <Route path="/arcelik">
-        <PageTransition>
-          <ArcelikScraper />
-        </PageTransition>
-      </Route>
-      <Route path="/scraper/arcelik">
-        <PageTransition>
-          <ArcelikScraper />
-        </PageTransition>
-      </Route>
-      <Route path="/pttavm">
-        <PageTransition>
-          <PttAvmScraper />
-        </PageTransition>
-      </Route>
-      <Route path="/scraper/pttavm">
-        <PageTransition>
-          <PttAvmScraper />
-        </PageTransition>
-      </Route>
-      <Route path="/ai-enhanced">
-        <PageTransition>
-          <AIEnhancedScraper />
-        </PageTransition>
-      </Route>
-      <Route path="/price-movement-test">
-        <PageTransition>
-          <PriceMovementTest />
-        </PageTransition>
-      </Route>
-      <Route path="/shopify-tracking">
-        <Redirect to="/control-center?tab=shopify" />
-      </Route>
-      <Route path="/product-preview">
-        <PageTransition>
-          <ProductPreview />
-        </PageTransition>
-      </Route>
-      <Route path="/telegram-notifications">
-        <PageTransition>
-          <TelegramNotifications />
-        </PageTransition>
-      </Route>
-      <Route path="/bildirimler">
-        <PageTransition>
-          <BildirimlerPage />
-        </PageTransition>
-      </Route>
-      <Route path="/product-tracking">
-        <Redirect to="/control-center?tab=tracking" />
-      </Route>
-      <Route path="/urun-takip">
-        <PageTransition>
-          <UrunTakipPage />
-        </PageTransition>
-      </Route>
-      <Route path="/kategoriler">
-        <PageTransition>
-          <ShopifyCategoriesPage />
-        </PageTransition>
-      </Route>
-      <Route path="/memory-dashboard">
-        <MemoryDashboard />
-      </Route>
-      <Route path="/shopify-system">
-        <Redirect to="/control-center?tab=shopify" />
-      </Route>
-      <Route path="/baglanti-api">
-        <PageTransition>
-          <BaglantiApiPage />
-        </PageTransition>
-      </Route>
-      <Route path="/telegram-management">
-        <PageTransition>
-          <TelegramManagementPage />
-        </PageTransition>
-      </Route>
-      <Route path="/product-statistics/:id">
-        {(params) => (
-          <PageTransition>
-            <ProductStatisticsPage />
-          </PageTransition>
-        )}
-      </Route>
-      </Switch>
-  );
-}
-
 function AppShell() {
   return (
-    <div className="min-h-screen" style={{ position: "relative" }}>
-      <MatrixBackground />
-      <div style={{ position: "relative", zIndex: 1 }}>
-        <AppErrorBoundary>
-          <MobileNavigation />
-          <Router />
-        </AppErrorBoundary>
+    <WouterRouter>
+      <div className="min-h-screen" style={{ position: "relative" }}>
+        <MatrixBackground />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <AppErrorBoundary>
+            <AppTabWorkspace />
+          </AppErrorBoundary>
+        </div>
       </div>
-    </div>
+    </WouterRouter>
   );
 }
 

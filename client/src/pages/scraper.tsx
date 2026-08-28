@@ -977,7 +977,7 @@ function ScraperPage() {
     csvPreviews[0]?.productTitle?.trim() ||
     (tabBusy ? "Çekiliyor…" : "Yeni çekim");
 
-  // Sekme başlığında ürün çekme / yükleme sayacı
+  // Sekme başlığında ürün çekme / yükleme sayacı (global sekme çubuğu varken atla)
   useEffect(() => {
     if (workspace) return;
     if (isBulkProcessing && bulkProgress && bulkProgress.total > 0) {
@@ -2049,12 +2049,12 @@ function ScraperPage() {
   };
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace?.isActive) return;
     workspace.reportMeta({
       title: tabTitle,
       busy: tabBusy || shopifyTransferMutation.isPending,
     });
-  }, [workspace, tabTitle, tabBusy, shopifyTransferMutation.isPending]);
+  }, [workspace, workspace?.isActive, tabTitle, tabBusy, shopifyTransferMutation.isPending]);
 
 
   // Sürükle-bırak fonksiyonları

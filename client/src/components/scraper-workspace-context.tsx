@@ -1,22 +1,21 @@
-import { createContext, useContext } from "react";
+import {
+  AppTabPanelContext,
+  useAppTabPanel,
+  useScraperWorkspace,
+  type AppTabMeta,
+  type AppTabPanelContextValue,
+} from "@/components/app-tabs-store";
 
-export type ScraperWorkspaceTabMeta = {
-  title: string;
-  busy: boolean;
+export {
+  AppTabPanelContext,
+  useAppTabPanel,
+  useScraperWorkspace,
+  type AppTabMeta,
+  type AppTabPanelContextValue,
 };
 
-export type ScraperWorkspaceContextValue = {
-  tabId: string;
-  isActive: boolean;
-  /** İlk sekme — oturum geri yükleme yalnızca burada yapılır */
-  isPrimaryTab: boolean;
-  reportMeta: (meta: ScraperWorkspaceTabMeta) => void;
-};
+/** @deprecated AppTabPanelContext kullanın */
+export const ScraperWorkspaceContext = AppTabPanelContext;
 
-export const ScraperWorkspaceContext = createContext<ScraperWorkspaceContextValue | null>(
-  null,
-);
-
-export function useScraperWorkspace(): ScraperWorkspaceContextValue | null {
-  return useContext(ScraperWorkspaceContext);
-}
+export type ScraperWorkspaceTabMeta = AppTabMeta;
+export type ScraperWorkspaceContextValue = AppTabPanelContextValue;
