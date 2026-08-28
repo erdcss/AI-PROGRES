@@ -62,6 +62,12 @@ import {
 import { applyTagsToShopifyCsv } from "@shared/shopify-csv-tags";
 import { formatOriginalPrice, formatSalePrice, normalizeTrendyolDisplayPrice } from "@/utils/price-utils";
 import { useScraperWorkspace } from "@/components/scraper-workspace-context";
+import {
+  MarktGoUploadProgressBanner,
+  MARKTGO_UPLOAD_COMPLETE_MS,
+  buildUploadCompleteProgress,
+  type MarktGoUploadProgress,
+} from "@/components/MarktGoUploadProgressBanner";
 
 
 const scrapeSchema = z.object({
@@ -82,28 +88,8 @@ type MultiUrlFormData = z.infer<typeof multiUrlSchema>;
 
 type ScrapingMode = 'single' | 'multi-url';
 
-type ShopifyUploadPhase = "connecting" | "uploading" | "verifying" | "item_done";
-
-interface ShopifyUploadOutcome {
-  title: string;
-  ok: boolean;
-  mode?: string;
-  productId?: string;
-  adminUrl?: string;
-  error?: string;
-}
-
-interface ShopifyUploadProgressState {
-  index: number;
-  total: number;
-  successCount: number;
-  failCount: number;
-  title: string;
-  phase: ShopifyUploadPhase;
-  detail: string;
-  percent: number;
-  outcomes: ShopifyUploadOutcome[];
-}
+type ShopifyUploadOutcome = MarktGoUploadProgress["outcomes"][number];
+type ShopifyUploadProgressState = MarktGoUploadProgress;
 
 function isShopifyUploadNetworkError(err: unknown): boolean {
   if (err instanceof TypeError) return true;
@@ -347,6 +333,7 @@ function ScraperPage() {
   const urlQueueRef = useRef<UrlQueueItem[]>([]);
   const lastUrlIngestRef = useRef<{ fingerprint: string; at: number } | null>(null);
   const shopifyUploadInFlightRef = useRef(false);
+  const uploadCompleteTimerRef = useRef<number | null>(null);
   const csvPreviewSectionRef = useRef<HTMLDivElement | null>(null);
   const previousCsvPreviewCountRef = useRef(0);
   const sessionHydratedRef = useRef(false);
@@ -370,6 +357,11 @@ function ScraperPage() {
 
   useEffect(() => {
     fetchScrapeCapabilities(true).then(setRuntimeCapabilities).catch(() => undefined);
+    return () => {
+      if (uploadCompleteTimerRef.current) {
+        window.clearTimeout(uploadCompleteTimerRef.current);
+      }
+    };
   }, []);
 
   const restoreUrlQueueFromStorage = useCallback(
@@ -2529,7 +2521,30 @@ function ScraperPage() {
         ),
       );
 
-      setUploadProgress(null);
+      const completeDetail =
+        failCount === 0
+          ? `✅ ${successCount} ürün ${brand.destinationName}'ya gönderildi${skippedCount ? ` · ${skippedCount} engelli ürün atlandı` : ""}`
+          : `✅ ${successCount} başarılı · ❌ ${failCount} hatalı${skippedCount ? ` · ⏭ ${skippedCount} atlandı` : ""}`;
+
+      setUploadProgress((prev) =>
+        buildUploadCompleteProgress(prev ?? {
+          index: total,
+          total,
+          successCount,
+          failCount,
+          title: "",
+          phase: "item_done",
+          detail: "",
+          percent: 100,
+          outcomes,
+        }, {
+          successCount,
+          failCount,
+          detail: completeDetail,
+          title: failCount === 0 ? "Tüm ürünler aktarıldı" : "Aktarım tamamlandı",
+        }),
+      );
+
       setFailedUploads(failedList);
 
       const lastSuccess = [...outcomes].reverse().find((o) => o.ok && o.adminUrl);
@@ -2548,6 +2563,14 @@ function ScraperPage() {
             : `✅ ${successCount} başarılı, ❌ ${failCount} hatalı${skippedCount ? `, ⏭ ${skippedCount} atlandı` : ""}`,
         duration: 12000,
       });
+
+      if (uploadCompleteTimerRef.current) {
+        window.clearTimeout(uploadCompleteTimerRef.current);
+      }
+      uploadCompleteTimerRef.current = window.setTimeout(() => {
+        setUploadProgress(null);
+        uploadCompleteTimerRef.current = null;
+      }, MARKTGO_UPLOAD_COMPLETE_MS);
     } catch (err: unknown) {
       setUploadProgress(null);
       const msg = err instanceof Error ? err.message : "Toplu yükleme hatası";
@@ -3310,116 +3333,7 @@ function ScraperPage() {
             />
             
             {/* Toplu Yükleme Progress Banner */}
-            {uploadProgress && (
-              <div className="mt-4 rounded-xl border border-emerald-900/40 bg-zinc-900/90 p-4 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="relative w-11 h-11 shrink-0">
-                    <span className="absolute inset-0 rounded-full border-2 border-emerald-800/50 border-t-emerald-400 animate-spin" />
-                    <ShoppingCart className="absolute inset-0 m-auto w-5 h-5 text-emerald-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-emerald-300 font-medium text-sm">
-                      {uploadProgress.index > 0
-                        ? `${uploadProgress.index} / ${uploadProgress.total} ürün`
-                        : "Hazırlanıyor..."}
-                    </p>
-                    <p className="text-zinc-100 text-sm mt-0.5 truncate font-medium">
-                      {uploadProgress.title || "MARKT-GO aktarımı"}
-                    </p>
-                    <p className="text-zinc-500 text-xs mt-1">
-                      {uploadProgress.detail}
-                    </p>
-                  </div>
-                  <div className="shrink-0 flex gap-4 text-right">
-                    <div>
-                      <span className="text-xl font-bold text-emerald-400">{uploadProgress.successCount}</span>
-                      <span className="text-xs text-zinc-500 block">başarılı</span>
-                    </div>
-                    {uploadProgress.failCount > 0 && (
-                      <div>
-                        <span className="text-xl font-bold text-red-400">{uploadProgress.failCount}</span>
-                        <span className="text-xs text-zinc-500 block">hatalı</span>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-xl font-bold text-zinc-300">{uploadProgress.percent}%</span>
-                      <span className="text-xs text-zinc-500 block">ilerleme</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all duration-500 ease-out"
-                    style={{ width: `${Math.max(uploadProgress.percent, 3)}%` }}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2 text-[11px]">
-                  {(
-                    [
-                      ["connecting", "Bağlantı"],
-                      ["uploading", "Aktarım"],
-                      ["verifying", "Doğrulama"],
-                      ["item_done", "Tamam"],
-                    ] as const
-                  ).map(([phase, label]) => {
-                    const order = ["connecting", "uploading", "verifying", "item_done"];
-                    const active = uploadProgress.phase === phase;
-                    const done = order.indexOf(uploadProgress.phase) > order.indexOf(phase);
-                    return (
-                      <span
-                        key={phase}
-                        className={`px-2 py-0.5 rounded-full border ${
-                          active
-                            ? "border-emerald-500/60 bg-emerald-950/50 text-emerald-300"
-                            : done
-                              ? "border-zinc-600 text-zinc-400"
-                              : "border-zinc-800 text-zinc-600"
-                        }`}
-                      >
-                        {done && !active ? "✓ " : active ? "● " : ""}
-                        {label}
-                      </span>
-                    );
-                  })}
-                </div>
-
-                {uploadProgress.outcomes.length > 0 && (
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto border-t border-zinc-800 pt-2">
-                    {uploadProgress.outcomes.map((outcome, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between gap-2 text-xs bg-zinc-800/40 rounded-lg px-3 py-2"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <span className={outcome.ok ? "text-emerald-400" : "text-red-400"}>
-                            {outcome.ok ? "✓" : "✗"}
-                          </span>{" "}
-                          <span className="text-zinc-300 truncate">{outcome.title}</span>
-                          {outcome.mode && (
-                            <span className="text-zinc-500 ml-1">({outcome.mode})</span>
-                          )}
-                          {outcome.error && (
-                            <p className="text-red-400/80 mt-0.5 truncate">{outcome.error}</p>
-                          )}
-                        </div>
-                        {outcome.adminUrl && (
-                          <a
-                            href={outcome.adminUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="shrink-0 text-emerald-400 hover:text-emerald-300 underline"
-                          >
-                            Admin
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {uploadProgress && <MarktGoUploadProgressBanner progress={uploadProgress} />}
 
             {/* Hatalı Yüklemeler Listesi */}
             {failedUploads.length > 0 && (
