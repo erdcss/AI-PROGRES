@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { marktGoStockForAvailability } from "@shared/integration-provider";
 import { generateAutoProductTags, normalizeTagKey } from "@shared/auto-product-tags";
 import { matchWebHookSite } from "@shared/web-hooks-sites";
-import type { LocalProductInput } from "./types";
+import type { ImportedReviewInput, LocalProductInput } from "./types";
 import {
   extractExternalId,
   extractId,
@@ -59,6 +59,34 @@ export function resolvePoolProductTagAssignment(product: Record<string, unknown>
   return { manualTags, autoTags, appliedTags };
 }
 
+function normalizePoolReviews(value: unknown): ImportedReviewInput[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const seen = new Set<string>();
+  const reviews: ImportedReviewInput[] = [];
+  value.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    const row = item as Record<string, unknown>;
+    const rating = Math.round(Number(row.rating ?? row.rate ?? row.starCount ?? 0));
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) return;
+    const sourceId = String(row.externalReviewId ?? row.id ?? row.reviewId ?? `review-${index + 1}`).trim();
+    const externalReviewId = sourceId.startsWith("trendyol:") ? sourceId : `trendyol:${sourceId}`;
+    if (seen.has(externalReviewId)) return;
+    seen.add(externalReviewId);
+    const rawImages = Array.isArray(row.images) ? row.images : [];
+    reviews.push({
+      externalReviewId,
+      rating,
+      comment: row.comment == null ? undefined : String(row.comment),
+      reviewerName: row.reviewerName == null ? undefined : String(row.reviewerName),
+      createdAt: row.createdAt == null ? undefined : String(row.createdAt),
+      images: rawImages.map(String).filter((url) => /^https?:\/\//i.test(url)),
+      approved: row.approved !== false,
+    });
+  });
+  return reviews.length ? reviews : undefined;
+}
+
+/** Map product-pool shape into Turmarkt external catalog sync input. */
 export function mapPoolProductToMarktGoInput(
   product: Record<string, unknown>,
 ): LocalProductInput {
@@ -120,6 +148,12 @@ export function mapPoolProductToMarktGoInput(
       })
     : [];
 
+  const reviews = normalizePoolReviews(product.reviews);
+  const reviewCountRaw = Number(product.reviewCount ?? product.ratingCount ?? reviews?.length ?? 0);
+  const expectedReviewCount = Number.isFinite(reviewCountRaw) && reviewCountRaw >= 0
+    ? Math.floor(reviewCountRaw)
+    : null;
+
   return {
     localProductId: poolLocalProductId(product),
     title: String(product.title || "Ürün"),
@@ -132,6 +166,8 @@ export function mapPoolProductToMarktGoInput(
     stock: marktGoStockForAvailability(product.inStock !== false),
     images,
     tags,
+    reviews,
+    expectedReviewCount,
     variants,
   };
 }
