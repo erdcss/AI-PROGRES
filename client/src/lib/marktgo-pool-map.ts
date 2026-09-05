@@ -57,6 +57,56 @@ function normalizeReviewDate(value: unknown): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
+function collectReviewImageUrls(row: Record<string, unknown>): string[] {
+  const found: string[] = [];
+  const seenObjects = new Set<object>();
+  const imageKey = /^(url|imageUrl|image_url|original|huge|large|medium|compact|small|path|src)$/i;
+
+  const addString = (value: string) => {
+    const text = value.trim();
+    if (!text) return;
+    for (const part of text.split(/[|\n\r,]+/)) {
+      const url = part.trim();
+      if (/^https?:\/\//i.test(url)) found.push(url);
+    }
+  };
+
+  const walk = (value: unknown, depth = 0) => {
+    if (value == null || depth > 5) return;
+    if (typeof value === "string") {
+      addString(value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => walk(item, depth + 1));
+      return;
+    }
+    if (typeof value !== "object") return;
+    if (seenObjects.has(value as object)) return;
+    seenObjects.add(value as object);
+    const obj = value as Record<string, unknown>;
+    for (const [key, nested] of Object.entries(obj)) {
+      if (typeof nested === "string" && imageKey.test(key)) addString(nested);
+      else if (nested && typeof nested === "object") walk(nested, depth + 1);
+    }
+  };
+
+  for (const key of [
+    "images",
+    "mediaFiles",
+    "imageUrls",
+    "photos",
+    "pictures",
+    "pictureUrls",
+    "picture_urls",
+    "media",
+  ]) {
+    if (row[key] != null) walk(row[key]);
+  }
+
+  return [...new Set(found)];
+}
+
 function normalizeReviews(input: Record<string, unknown>) {
   const rawReviews = Array.isArray(input.reviews) ? input.reviews : [];
   const seen = new Set<string>();
@@ -68,25 +118,14 @@ function normalizeReviews(input: Record<string, unknown>) {
     const externalReviewId = sourceId.startsWith("trendyol:") ? sourceId : `trendyol:${sourceId}`;
     if (seen.has(externalReviewId)) return [];
     seen.add(externalReviewId);
-    const imagesRaw = Array.isArray(row.images)
-      ? row.images
-      : Array.isArray(row.mediaFiles)
-        ? row.mediaFiles
-        : [];
-    const images = imagesRaw
-      .map((image) => {
-        if (typeof image === "string") return image;
-        const imageRow = (image && typeof image === "object" ? image : {}) as Record<string, unknown>;
-        return String(imageRow.url ?? imageRow.imageUrl ?? "");
-      })
-      .filter((url): url is string => Boolean(url && /^https?:\/\//i.test(url)));
+    const images = collectReviewImageUrls(row);
     return [{
       externalReviewId,
       rating,
       comment: String(row.comment ?? row.body ?? row.reviewText ?? "").trim() || undefined,
       reviewerName: String(row.reviewerName ?? row.userFullName ?? row.userName ?? "Anonim").trim() || undefined,
       createdAt: normalizeReviewDate(row.createdAt ?? row.review_date ?? row.createdDate ?? row.lastModifiedAt),
-      images: [...new Set(images)],
+      images,
       approved: row.approved !== false,
     }];
   });
