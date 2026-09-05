@@ -8,6 +8,16 @@ export type MarktGoMe = {
   [key: string]: unknown;
 };
 
+export type ImportedReviewInput = {
+  externalReviewId?: string;
+  rating: number;
+  comment?: string;
+  reviewerName?: string;
+  createdAt?: string;
+  images?: string[];
+  approved?: boolean;
+};
+
 export type MarktGoProductPayload = {
   name: string;
   description?: string;
@@ -20,6 +30,9 @@ export type MarktGoProductPayload = {
   tags?: string[];
   status?: "active" | "draft" | "passive";
   externalId: string;
+  sourceSite?: string;
+  sourceUrl?: string;
+  reviews?: ImportedReviewInput[];
 };
 
 export type MarktGoVariantPayload = {
@@ -62,6 +75,7 @@ export type SyncStep =
   | "variant_images"
   | "inventory"
   | "pricing"
+  | "reviews"
   | "done";
 
 export type SyncProgress = {
@@ -83,6 +97,7 @@ export type LocalProductInput = {
   stock?: number | null;
   images?: string[];
   tags?: string[];
+  reviews?: ImportedReviewInput[];
   variants?: Array<{
     localVariantId: string;
     option1?: string;
