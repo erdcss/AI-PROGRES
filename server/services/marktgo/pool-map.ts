@@ -59,7 +59,33 @@ export function resolvePoolProductTagAssignment(product: Record<string, unknown>
   return { manualTags, autoTags, appliedTags };
 }
 
-function normalizePoolReviews(value: unknown): ImportedReviewInput[] | undefined {
+function stableReviewHash(value: string): number {
+  const digest = createHash("sha1").update(value).digest();
+  return digest.readUInt32BE(0);
+}
+
+function variableReviewTarget(seed: string, available: number): number {
+  if (available <= 50) return available;
+  const upper = Math.min(250, available);
+  return 50 + (stableReviewHash(`${seed}:review-target`) % (upper - 49));
+}
+
+function limitPoolReviews(
+  reviews: ImportedReviewInput[],
+  seed: string,
+): ImportedReviewInput[] {
+  if (reviews.length <= 50) return reviews;
+  const target = variableReviewTarget(seed, reviews.length);
+  return [...reviews]
+    .sort((a, b) => {
+      const ah = stableReviewHash(`${seed}:${a.externalReviewId || ""}`);
+      const bh = stableReviewHash(`${seed}:${b.externalReviewId || ""}`);
+      return ah - bh;
+    })
+    .slice(0, target);
+}
+
+function normalizePoolReviews(value: unknown, seed: string): ImportedReviewInput[] | undefined {
   if (!Array.isArray(value) || value.length === 0) return undefined;
   const seen = new Set<string>();
   const reviews: ImportedReviewInput[] = [];
@@ -83,7 +109,8 @@ function normalizePoolReviews(value: unknown): ImportedReviewInput[] | undefined
       approved: row.approved !== false,
     });
   });
-  return reviews.length ? reviews : undefined;
+  if (!reviews.length) return undefined;
+  return limitPoolReviews(reviews, seed);
 }
 
 /** Map product-pool shape into Turmarkt external catalog sync input. */
@@ -148,7 +175,10 @@ export function mapPoolProductToMarktGoInput(
       })
     : [];
 
-  const reviews = normalizePoolReviews(product.reviews);
+  const reviewSeed = String(
+    product.sourceUrl || product.poolId || product.id || product.title || "product",
+  );
+  const reviews = normalizePoolReviews(product.reviews, reviewSeed);
   const reviewCountRaw = Number(product.reviewCount ?? product.ratingCount ?? reviews?.length ?? 0);
   const expectedReviewCount = Number.isFinite(reviewCountRaw) && reviewCountRaw >= 0
     ? Math.floor(reviewCountRaw)
