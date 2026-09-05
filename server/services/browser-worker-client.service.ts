@@ -470,6 +470,143 @@ export async function fetchHtmlWithBrowserWorker(url: string): Promise<BrowserWo
   }
 }
 
+export type BrowserWorkerTrendyolReviewsResponse = {
+  ok: boolean;
+  url?: string;
+  pageUrl?: string;
+  productId?: string;
+  productTitle?: string;
+  reviews?: Record<string, unknown>[];
+  summary?: Record<string, unknown> | null;
+  totalPages?: number;
+  pagesFetched?: number;
+  reviewCount?: number;
+  durationMs?: number;
+  error?: string;
+  errorCategory?: string;
+};
+
+export type BrowserWorkerTrendyolReviewsResult = {
+  success: boolean;
+  productTitle: string;
+  reviews: Record<string, unknown>[];
+  summary: Record<string, unknown> | null;
+  totalPages: number;
+  pagesFetched: number;
+  durationMs: number;
+  error?: string;
+  errorCategory?: BrowserWorkerErrorCategory;
+};
+
+export async function scrapeTrendyolReviewsWithBrowserWorker(input: {
+  url: string;
+  productId?: string;
+  pageSize?: number;
+  maxPages?: number;
+  timeoutMs?: number;
+}): Promise<BrowserWorkerTrendyolReviewsResult> {
+  const start = Date.now();
+  const { endpoint, token, configured, timeoutMs: defaultTimeout } = getBrowserWorkerConfig();
+
+  if (!configured || !endpoint || !token) {
+    return {
+      success: false,
+      productTitle: "",
+      reviews: [],
+      summary: null,
+      totalPages: 0,
+      pagesFetched: 0,
+      durationMs: Date.now() - start,
+      error: "Browser Worker yapılandırılmamış",
+      errorCategory: "not-configured",
+    };
+  }
+
+  const base = endpoint.replace(/\/$/, "");
+  const timeoutMs =
+    Number(input.timeoutMs) > 0
+      ? Number(input.timeoutMs)
+      : Math.max(defaultTimeout, 120_000);
+
+  logBrowserWorker("request started: scrape/trendyol-reviews");
+
+  try {
+    const response = await axios.post(
+      `${base}/scrape/trendyol-reviews`,
+      {
+        url: input.url,
+        productId: input.productId,
+        pageSize: input.pageSize ?? 50,
+        maxPages: input.maxPages ?? 500,
+      },
+      {
+        timeout: timeoutMs,
+        headers: authHeaders(token),
+        validateStatus: () => true,
+      },
+    );
+
+    const durationMs = Date.now() - start;
+    const data = response.data as BrowserWorkerTrendyolReviewsResponse;
+
+    if (response.status === 401 || data?.errorCategory === "auth") {
+      return {
+        success: false,
+        productTitle: "",
+        reviews: [],
+        summary: null,
+        totalPages: 0,
+        pagesFetched: 0,
+        durationMs,
+        error: "browser-worker-unauthorized",
+        errorCategory: "auth",
+      };
+    }
+
+    if (!data?.ok || !Array.isArray(data.reviews)) {
+      return {
+        success: false,
+        productTitle: data?.productTitle || "",
+        reviews: [],
+        summary: null,
+        totalPages: 0,
+        pagesFetched: 0,
+        durationMs,
+        error: data?.error || "browser-worker-reviews-failed",
+        errorCategory: (data?.errorCategory as BrowserWorkerErrorCategory) || "unknown",
+      };
+    }
+
+    logBrowserWorker(
+      `reviews succeeded (${durationMs}ms, count=${data.reviews.length}, pages=${data.pagesFetched ?? "?"})`,
+    );
+
+    return {
+      success: true,
+      productTitle: data.productTitle || "",
+      reviews: data.reviews,
+      summary: data.summary ?? null,
+      totalPages: Number(data.totalPages) || 1,
+      pagesFetched: Number(data.pagesFetched) || 1,
+      durationMs,
+    };
+  } catch (err) {
+    const categorized = categorizeBrowserWorkerError(err);
+    logBrowserWorker(`reviews failed category: ${categorized.category}`);
+    return {
+      success: false,
+      productTitle: "",
+      reviews: [],
+      summary: null,
+      totalPages: 0,
+      pagesFetched: 0,
+      durationMs: Date.now() - start,
+      error: categorized.message,
+      errorCategory: categorized.category,
+    };
+  }
+}
+
 export async function scrapeTrendyolWithBrowserWorker(
   url: string,
   options?: {

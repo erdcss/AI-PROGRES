@@ -1,5 +1,5 @@
-import { memo, useMemo, useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Package, Tag, X, Download, ShoppingCart, ChevronDown, ChevronUp, Loader2, FileText } from "lucide-react";
+import { memo, useMemo, useState, useEffect, useCallback } from "react";
+import { ChevronLeft, ChevronRight, Package, Tag, X, Download, ShoppingCart, ChevronDown, ChevronUp, Loader2, FileText, MessageSquare, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,13 @@ import { isBlockedShopifyTag } from "@shared/shopify-tag-sanitizer";
 import { useDestinationBrand } from "@/hooks/use-destination-brand";
 import ProductAttributes from "@/components/ProductAttributes";
 import type { CsvStatusResponse } from "@/lib/shopify-csv-download";
+import { ProductReviewsDrawer } from "@/components/ProductReviewsDrawer";
+import {
+  isTrendyolProductUrl,
+  scrapeTrendyolReviewsForProduct,
+  type TrendyolReviewItem,
+  type TrendyolReviewsStats,
+} from "@/lib/trendyol-reviews-client";
 
 function ProductTagEditor({
   previewId,
@@ -603,6 +610,54 @@ export const ProductPreview = memo(function ProductPreview({
       variants: safeVariants,
     };
 
+    const sourceUrl = typeof preview.sourceUrl === "string" ? preview.sourceUrl : "";
+    const canFetchReviews = isTrendyolProductUrl(sourceUrl);
+    const [reviewsOpen, setReviewsOpen] = useState(false);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
+    const [reviewsError, setReviewsError] = useState<string | null>(null);
+    const [reviews, setReviews] = useState<TrendyolReviewItem[]>([]);
+    const [reviewsStats, setReviewsStats] = useState<TrendyolReviewsStats | null>(null);
+    const [reviewsFetched, setReviewsFetched] = useState(false);
+
+    const loadReviews = useCallback(
+      async (signal?: AbortSignal) => {
+        if (!canFetchReviews || !sourceUrl) return;
+        setReviewsLoading(true);
+        setReviewsError(null);
+        try {
+          const result = await scrapeTrendyolReviewsForProduct(sourceUrl, { signal });
+          if (signal?.aborted) return;
+          if (!result.success) {
+            setReviews([]);
+            setReviewsStats(null);
+            setReviewsError(result.error || "Yorumlar çekilemedi");
+            setReviewsFetched(true);
+            return;
+          }
+          setReviews(result.reviews);
+          setReviewsStats(result.stats);
+          setReviewsFetched(true);
+        } catch (err: any) {
+          if (signal?.aborted || err?.name === "AbortError") return;
+          setReviewsError(err?.message || "Yorumlar çekilemedi");
+          setReviewsFetched(true);
+        } finally {
+          if (!signal?.aborted) setReviewsLoading(false);
+        }
+      },
+      [canFetchReviews, sourceUrl],
+    );
+
+    useEffect(() => {
+      if (!canFetchReviews) return;
+      const controller = new AbortController();
+      void loadReviews(controller.signal);
+      return () => controller.abort();
+    }, [canFetchReviews, sourceUrl, preview.id, loadReviews]);
+
+    const reviewCount = reviewsStats?.total ?? reviews.length;
+    const reviewAvg = reviewsStats?.avg ?? 0;
+
     const parseCsvLine = (line: string): string[] => {
       const result: string[] = [];
       let current = "";
@@ -965,6 +1020,7 @@ export const ProductPreview = memo(function ProductPreview({
     ];
 
     return (
+      <>
       <Card className="bg-zinc-950/70 border border-zinc-800/90 rounded-xl overflow-hidden shadow-sm hover:border-zinc-700/80 transition-colors">
         <CardContent className="p-0">
           {/* Üst satır — geniş özet */}
@@ -1064,6 +1120,63 @@ export const ProductPreview = memo(function ProductPreview({
                       />
                     ))}
                 </div>
+
+                {canFetchReviews && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (reviewsError) void loadReviews();
+                      setReviewsOpen(true);
+                    }}
+                    className="group flex w-full max-w-xl items-center gap-3 rounded-lg border border-zinc-800/90 bg-zinc-900/60 px-3 py-2 text-left transition-colors hover:border-zinc-600 hover:bg-zinc-900"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-700/80 bg-zinc-950 text-zinc-300 group-hover:text-zinc-100">
+                      {reviewsLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {reviewsLoading ? (
+                        <p className="truncate text-sm font-medium text-zinc-300">
+                          Yorumlar çekiliyor…
+                        </p>
+                      ) : reviewsError ? (
+                        <p className="truncate text-sm font-medium text-red-300">
+                          Yorumlar alınamadı — tekrar dene
+                        </p>
+                      ) : reviewCount > 0 ? (
+                        <p className="truncate text-sm font-medium text-zinc-100">
+                          <span className="tabular-nums text-amber-300">{reviewCount}</span>
+                          {" "}yorum · değerlendirme çekildi
+                        </p>
+                      ) : reviewsFetched ? (
+                        <p className="truncate text-sm font-medium text-zinc-400">
+                          Yorum bulunamadı
+                        </p>
+                      ) : (
+                        <p className="truncate text-sm font-medium text-zinc-400">
+                          Yorumlar hazırlanıyor…
+                        </p>
+                      )}
+                      <p className="truncate text-[11px] text-zinc-500">
+                        {reviewCount > 0 && reviewAvg > 0
+                          ? `Ortalama ${reviewAvg.toFixed(1)}★ · çekmecede görüntüle`
+                          : "Ürüne bağlı yorum çekmecesini aç"}
+                      </p>
+                    </div>
+                    {reviewCount > 0 && (
+                      <div className="hidden items-center gap-1 sm:flex">
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        <span className="text-xs font-semibold tabular-nums text-amber-300">
+                          {reviewAvg.toFixed(1)}
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                )}
+
                 <ProductAttributes
                   features={safePreview.features || preview.features || []}
                   compact
@@ -1300,5 +1413,22 @@ export const ProductPreview = memo(function ProductPreview({
           )}
         </CardContent>
       </Card>
+
+      {canFetchReviews && (
+        <ProductReviewsDrawer
+          open={reviewsOpen}
+          onOpenChange={setReviewsOpen}
+          productTitle={safeTitle}
+          reviews={reviews}
+          stats={reviewsStats}
+          loading={reviewsLoading}
+          error={reviewsError}
+          onRetry={() => {
+            setReviewsFetched(false);
+            void loadReviews();
+          }}
+        />
+      )}
+      </>
     );
 });

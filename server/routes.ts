@@ -9295,9 +9295,11 @@ setTimeout(check, 1000);
     })();
   });
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  //  TRENDYOL REVIEWS SCRAPER  (direct axios â€” apigw.trendyol.com)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ────────────────────────────────────────────────────────────────────────────
+  //  TRENDYOL REVIEWS SCRAPER
+  //  Primary: Browser Worker (in-page apigw fetch with country cookies)
+  //  Fallback: curl HTML /yorumlar + __review-detail__PROPS (photo reviews partial)
+  // ────────────────────────────────────────────────────────────────────────────
   function parseReviewsFromHtml(html: string): { reviews: any[], totalPages: number, totalElements: number, title: string } {
     const MARKER = 'window["__review-detail__PROPS"]=';
     const idx = html.indexOf(MARKER);
@@ -9328,7 +9330,7 @@ setTimeout(check, 1000);
       }
       return { reviews: Array.from(byReviewId.values()), totalPages: tPages, totalElements: tElements, title };
     } catch (e: any) {
-      console.warn(`âš ï¸ parseReviewsFromHtml parse error: ${e.message}`);
+      console.warn(`⚠️ parseReviewsFromHtml parse error: ${e.message}`);
       return { reviews: [], totalPages: 1, totalElements: 0, title: '' };
     }
   }
@@ -9339,84 +9341,84 @@ setTimeout(check, 1000);
       if (!url) return res.status(400).json({ success: false, error: 'URL gerekli' });
 
       const productIdMatch = url.match(/[/-]p-(\d+)/i);
-      if (!productIdMatch) return res.status(400).json({ success: false, error: 'GeÃ§erli bir Trendyol Ã¼rÃ¼n URL\'si girin (p-XXXXXXX formatÄ±nda Ã¼rÃ¼n ID iÃ§ermeli)' });
+      if (!productIdMatch) {
+        return res.status(400).json({
+          success: false,
+          error: "Geçerli bir Trendyol ürün URL'si girin (p-XXXXXXX formatında ürün ID içermeli)",
+        });
+      }
       const productId = productIdMatch[1];
 
-      const parsedUrl = new URL(url.includes('?') ? url : url + '?');
-      const merchantId = parsedUrl.searchParams.get('merchantId') || '0';
-
-      const baseUrl = url.split('?')[0].replace('/yorumlar', '');
-      const slugMatch = baseUrl.match(/trendyol\.com\/([^/]+\/[^/]+)-p-\d+/) || baseUrl.match(/trendyol\.com\/[^/]+\/([^/]+)-p-\d+/);
+      const baseUrl = url.split('?')[0].replace(/\/yorumlar\/?$/i, '');
+      const slugMatch =
+        baseUrl.match(/trendyol\.com\/([^/]+\/[^/]+)-p-\d+/) ||
+        baseUrl.match(/trendyol\.com\/[^/]+\/([^/]+)-p-\d+/);
       const handleFromUrl = shopifyHandle || (slugMatch ? slugMatch[1] : productId);
 
-      console.log(`ğŸ“ Trendyol yorum Ã§ekimi baÅŸlatÄ±lÄ±yor: productId=${productId}, merchantId=${merchantId}`);
+      console.log(`📝 Trendyol yorum çekimi başlatılıyor: productId=${productId}`);
 
-      // â”€â”€ Strategy: curl via child_process (bypasses Cloudflare TLS fingerprint) â”€â”€
-      // Node.js axios gets 403; system curl passes Cloudflare and returns 200.
-      const { execFile } = await import('child_process');
-      const { promisify } = await import('util');
-      const execFileAsync = promisify(execFile);
-
-      const allReviews: any[] = [];
-      const seenIds = new Set<string>();
+      let allReviews: any[] = [];
       let productTitle = '';
       let totalPages = 1;
-
-      const API_REVIEW_BASE = `https://apigw.trendyol.com/discovery-storefront-trproductgw-service/api/review-read/product-reviews/detailed`;
-      const MAX_API_PAGES = 50;
-
-      const curlFetchPage = async (page: number): Promise<any[]> => {
-        const apiUrl = `${API_REVIEW_BASE}?contentId=${productId}&page=${page}&pageSize=20&order=DESC&orderBy=Score&channelId=1`;
-        try {
-          const { stdout } = await execFileAsync('curl', [
-            '-s', '--max-time', '15',
-            '-H', 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            '-H', 'Accept: application/json, text/plain, */*',
-            '-H', 'Accept-Language: tr-TR,tr;q=0.9',
-            '-H', 'Referer: https://www.trendyol.com/',
-            '-H', 'Origin: https://www.trendyol.com',
-            apiUrl,
-          ], { maxBuffer: 10 * 1024 * 1024 });
-          const data = JSON.parse(stdout);
-          if (!data?.result) return [];
-          if (page === 0) totalPages = data.result?.summary?.totalPages || 1;
-          return data.result?.reviews || [];
-        } catch (_e) {
-          return [];
-        }
-      };
+      let source: 'browser_worker' | 'html_fallback' | 'none' = 'none';
 
       try {
-        // Page 0 first â€” discovers totalPages
-        const firstRevs = await curlFetchPage(0);
-        for (const r of firstRevs) {
-          const key = String(r.id || '').substring(0, 80);
-          if (!seenIds.has(key)) { seenIds.add(key); allReviews.push(r); }
+        const { scrapeTrendyolReviewsWithBrowserWorker } = await import(
+          './services/browser-worker-client.service'
+        );
+        const bw = await scrapeTrendyolReviewsWithBrowserWorker({
+          url,
+          productId,
+          pageSize: 50,
+          maxPages: 500,
+          timeoutMs: 180_000,
+        });
+        if (bw.success && bw.reviews.length > 0) {
+          allReviews = bw.reviews;
+          productTitle = bw.productTitle || productTitle;
+          totalPages = bw.totalPages || 1;
+          source = 'browser_worker';
+          console.log(
+            `✅ Browser Worker: ${allReviews.length} yorum (${totalPages} sayfa, ${bw.durationMs}ms)`,
+          );
+        } else if (bw.success && bw.reviews.length === 0) {
+          // API succeeded but product may truly have zero text reviews.
+          allReviews = [];
+          productTitle = bw.productTitle || productTitle;
+          totalPages = bw.totalPages || 1;
+          source = 'browser_worker';
+          console.log(`ℹ️ Browser Worker: 0 yorum (productTitle=${productTitle || '-'})`);
+        } else {
+          console.warn(`⚠️ Browser Worker reviews failed: ${bw.error || bw.errorCategory}`);
         }
-        console.log(`ğŸ“¥ Sayfa 1/${totalPages}: ${firstRevs.length} yorum`);
-
-        // Remaining pages in parallel batches of 5
-        const BATCH = 5;
-        for (let pgStart = 1; pgStart < Math.min(totalPages, MAX_API_PAGES); pgStart += BATCH) {
-          const pgEnd = Math.min(pgStart + BATCH, totalPages, MAX_API_PAGES);
-          const batch = Array.from({ length: pgEnd - pgStart }, (_, i) => pgStart + i);
-          const results = await Promise.allSettled(batch.map(pg => curlFetchPage(pg)));
-          for (const res of results) {
-            if (res.status === 'fulfilled') {
-              for (const r of res.value) {
-                const key = String(r.id || '').substring(0, 80);
-                if (!seenIds.has(key)) { seenIds.add(key); allReviews.push(r); }
-              }
-            }
-          }
-          console.log(`ğŸ“¥ Sayfalar ${pgStart+1}-${pgEnd}/${totalPages} iÅŸlendi, toplam: ${allReviews.length}`);
-          if (pgEnd < Math.min(totalPages, MAX_API_PAGES)) await new Promise(r => setTimeout(r, 200));
-        }
-      } catch (apiErr: any) {
-        console.warn(`âš ï¸ Trendyol reviews API hatasÄ±: ${apiErr.message}`);
+      } catch (bwErr: any) {
+        console.warn(`⚠️ Browser Worker reviews exception: ${bwErr?.message || bwErr}`);
       }
 
-      console.log(`âœ… Toplam ${allReviews.length} yorum Ã§ekildi (${totalPages} sayfa)`);
+      // HTML fallback only when BW unavailable / failed (not when BW returned empty success).
+      if (source === 'none') {
+        try {
+          const { fetchHtmlWithBrowserWorker } = await import(
+            './services/browser-worker-client.service'
+          );
+          const reviewsUrl = /\/yorumlar(\?|$)/i.test(url)
+            ? url
+            : `${baseUrl}/yorumlar${url.includes('?') ? '?' + url.split('?')[1] : ''}`;
+          const htmlResult = await fetchHtmlWithBrowserWorker(reviewsUrl);
+          if (htmlResult.success && htmlResult.html) {
+            const parsed = parseReviewsFromHtml(htmlResult.html);
+            allReviews = parsed.reviews;
+            productTitle = parsed.title || productTitle;
+            totalPages = parsed.totalPages || 1;
+            source = 'html_fallback';
+            console.log(`✅ HTML fallback: ${allReviews.length} yorum (fotoğraflı set olabilir)`);
+          }
+        } catch (htmlErr: any) {
+          console.warn(`⚠️ HTML fallback failed: ${htmlErr?.message || htmlErr}`);
+        }
+      }
+
+      console.log(`✅ Toplam ${allReviews.length} yorum çekildi (source=${source}, pages=${totalPages})`);
 
       const formatDate = (ts: number | string) => {
         if (!ts) return '';
@@ -9429,12 +9431,14 @@ setTimeout(check, 1000);
       const isValidUrl = (u: string) => /^https?:\/\/.+/.test(u.trim());
 
       const reviews = allReviews.map((r: any, idx: number) => {
-        const rawUrls: string[] = (r.mediaFiles || []).map((m: any) => (m.url || m || '').trim()).filter(isValidUrl);
+        const rawUrls: string[] = (r.mediaFiles || [])
+          .map((m: any) => (typeof m === 'string' ? m : m?.url || '').trim())
+          .filter(isValidUrl);
         const pictureUrls = rawUrls.join(',');
         const emailIndex = String(idx + 1).padStart(4, '0');
         return {
           id: String(r.id || idx),
-          title: r.commentTitle || (r.comment ? r.comment.replace(/\n/g, ' ') : ''),
+          title: r.commentTitle || (r.comment ? String(r.comment).replace(/\n/g, ' ') : ''),
           body: r.comment || r.reviewText || '',
           rating: Number(r.rate || r.starCount || 0),
           review_date: formatDate(r.createdAt || r.createdDate || r.lastModifiedAt || 0),
@@ -9454,12 +9458,13 @@ setTimeout(check, 1000);
         success: true,
         productTitle,
         reviews,
-        stats: { total: reviews.length, avg: Math.round(avg * 10) / 10, dist }
+        stats: { total: reviews.length, avg: Math.round(avg * 10) / 10, dist },
+        meta: { source, totalPages, productId },
       });
 
     } catch (error: any) {
-      console.error('âŒ Reviews scrape error:', error.message);
-      return res.status(500).json({ success: false, error: error.message || 'Yorumlar Ã§ekilemedi' });
+      console.error('❌ Reviews scrape error:', error.message);
+      return res.status(500).json({ success: false, error: error.message || 'Yorumlar çekilemedi' });
     }
   });
 

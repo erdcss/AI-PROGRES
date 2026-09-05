@@ -2915,7 +2915,7 @@ function ScraperPage() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950/80">
+    <div className={`min-h-screen bg-zinc-950/80 ${uploadProgress ? "pb-28" : ""}`}>
       {/* Header */}
       <div className="bg-zinc-950/95 border-b border-zinc-800/80">
         <div className="max-w-6xl mx-auto px-6 py-4">
@@ -3462,17 +3462,19 @@ function ScraperPage() {
                   CSV OLARAK DIŞA AKTAR ({csvPreviews.length})
                 </div>
               </Button>
-              {true ? (
               <Button
                 type="button"
                 onClick={uploadAllCSVsToShopify}
-                disabled={!!uploadProgress || isBulkProcessing}
+                disabled={
+                  (!!uploadProgress && uploadProgress.phase !== "complete") ||
+                  isBulkProcessing
+                }
                 className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-medium px-8 py-3 border border-zinc-700"
               >
-                {uploadProgress ? (
+                {uploadProgress && uploadProgress.phase !== "complete" ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    {uploadProgress.index}/{uploadProgress.total} — %{uploadProgress.percent} ({uploadProgress.detail})
+                    {uploadProgress.index}/{uploadProgress.total} — %{uploadProgress.percent}
                   </div>
                 ) : isBulkProcessing ? (
                   <div className="flex items-center gap-2">
@@ -3485,9 +3487,8 @@ function ScraperPage() {
                     {brand.bulkLabel.toUpperCase()} ({csvPreviews.length})
                   </div>
                 )}
-                        </Button>
-              ) : null}
-                      </div>
+              </Button>
+            </div>
 
               {(shopifyUploadBlockedReason || shopifyUploadWarning) && (
                         <div

@@ -58,7 +58,7 @@ const PORT = Number(process.env.PORT ?? 8080);
 const STARTED_AT = Date.now();
 const NAV_TIMEOUT_MS = Number(process.env.BROWSER_NAV_TIMEOUT_MS ?? 40_000);
 const SCRAPE_DEADLINE_MS = Number(process.env.BROWSER_SCRAPE_DEADLINE_MS ?? 95_000);
-const WORKER_VERSION = "1.2.3";
+const WORKER_VERSION = "1.2.4";
 const CHROME_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const BLOCK_HEAVY_RESOURCES = process.env.BROWSER_BLOCK_HEAVY_RESOURCES !== "false";
@@ -1277,6 +1277,220 @@ app.post("/scrape/html", requireAuth, async (req, res) => {
   }
 });
 
+type TrendyolReviewApiItem = Record<string, unknown>;
+
+async function scrapeTrendyolReviewsInBrowser(input: {
+  pageUrl: string;
+  productId: string;
+  pageSize?: number;
+  maxPages?: number;
+}): Promise<{
+  productTitle: string;
+  reviews: TrendyolReviewApiItem[];
+  summary: Record<string, unknown> | null;
+  totalPages: number;
+  pagesFetched: number;
+}> {
+  const pageSize = Math.min(Math.max(Number(input.pageSize) || 50, 10), 100);
+  const maxPages = Math.min(Math.max(Number(input.maxPages) || 500, 1), 2000);
+  const productId = input.productId.replace(/\D/g, "");
+  if (!productId) {
+    throw new Error("invalid-product-id");
+  }
+
+  return withPage(async (context) => {
+    const page = await context.newPage();
+    try {
+      await page.goto(input.pageUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: NAV_TIMEOUT_MS,
+      });
+      // Let review-detail bundle set cookies / country context for apigw.
+      await page.waitForTimeout(1800);
+
+      const productTitle = await page
+        .evaluate(() => {
+          const marker = 'window["__review-detail__PROPS"]=';
+          const html = document.documentElement?.innerHTML || "";
+          const idx = html.indexOf(marker);
+          if (idx >= 0) {
+            const start = idx + marker.length;
+            const end = html.indexOf("</script>", start);
+            if (end > start) {
+              try {
+                const data = JSON.parse(html.slice(start, end).trim());
+                const name = data?.product?.name;
+                if (typeof name === "string" && name.trim()) return name.trim();
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+          const h1 = document.querySelector("h1")?.textContent?.trim();
+          return h1 || document.title || "";
+        })
+        .catch(() => "");
+
+      const fetchPage = async (pageIndex: number) =>
+        page.evaluate(
+          async ({ pid, pageIndex: pi, size }) => {
+            const apiUrl =
+              `https://apigw.trendyol.com/discovery-storefront-trproductgw-service/api/review-read/product-reviews/detailed` +
+              `?contentId=${encodeURIComponent(pid)}&page=${pi}&pageSize=${size}&order=DESC&orderBy=Score&channelId=1`;
+            const res = await fetch(apiUrl, {
+              credentials: "include",
+              headers: {
+                Accept: "application/json, text/plain, */*",
+                "Accept-Language": "tr-TR,tr;q=0.9",
+              },
+            });
+            const text = await res.text();
+            let json: any = null;
+            try {
+              json = JSON.parse(text);
+            } catch {
+              json = null;
+            }
+            return {
+              ok: res.ok,
+              status: res.status,
+              reviews: Array.isArray(json?.result?.reviews) ? json.result.reviews : [],
+              summary: json?.result?.summary ?? null,
+              errorText: res.ok ? "" : text.slice(0, 240),
+            };
+          },
+          { pid: productId, pageIndex, size: pageSize },
+        );
+
+      const first = await fetchPage(0);
+      if (!first.ok) {
+        throw new Error(
+          `reviews-api-failed:status=${first.status}:${first.errorText || "empty"}`,
+        );
+      }
+
+      const summary =
+        first.summary && typeof first.summary === "object"
+          ? (first.summary as Record<string, unknown>)
+          : null;
+      const totalPagesRaw = Number(summary?.totalPages ?? 1);
+      const totalPages = Math.max(
+        1,
+        Math.min(
+          Number.isFinite(totalPagesRaw) ? totalPagesRaw : 1,
+          maxPages,
+        ),
+      );
+
+      const seen = new Set<string>();
+      const reviews: TrendyolReviewApiItem[] = [];
+      const pushBatch = (batch: unknown[]) => {
+        for (const item of batch) {
+          if (!item || typeof item !== "object") continue;
+          const rec = item as TrendyolReviewApiItem;
+          const key = String(rec.id ?? "").trim();
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          reviews.push(rec);
+        }
+      };
+      pushBatch(first.reviews);
+
+      for (let pageIndex = 1; pageIndex < totalPages; pageIndex++) {
+        const batch = await fetchPage(pageIndex);
+        if (!batch.ok) {
+          console.warn(
+            `[scrape/trendyol-reviews] page ${pageIndex} failed status=${batch.status}`,
+          );
+          continue;
+        }
+        pushBatch(batch.reviews);
+        if (pageIndex % 5 === 0) {
+          await page.waitForTimeout(120);
+        }
+      }
+
+      return {
+        productTitle: productTitle || "",
+        reviews,
+        summary,
+        totalPages,
+        pagesFetched: Math.min(totalPages, maxPages),
+      };
+    } finally {
+      await page.close().catch(() => undefined);
+    }
+  });
+}
+
+app.post("/scrape/trendyol-reviews", requireAuth, async (req, res) => {
+  const start = Date.now();
+  try {
+    const parsed = validatePublicHttpUrl(String(req.body?.url ?? ""));
+    const url = parsed.toString();
+    if (!url.includes("trendyol.com")) {
+      return res.status(400).json({
+        ok: false,
+        error: "Trendyol URL gerekli",
+        errorCategory: "invalid-url" satisfies BrowserWorkerErrorCategory,
+        durationMs: Date.now() - start,
+      });
+    }
+
+    const productIdFromBody = String(req.body?.productId ?? "").replace(/\D/g, "");
+    const productIdFromUrl = (url.match(/[/-]p-(\d+)/i) || [])[1] || "";
+    const productId = productIdFromBody || productIdFromUrl;
+    if (!productId) {
+      return res.status(400).json({
+        ok: false,
+        error: "Ürün ID (p-XXXX) bulunamadı",
+        errorCategory: "invalid-url" satisfies BrowserWorkerErrorCategory,
+        durationMs: Date.now() - start,
+      });
+    }
+
+    // Prefer dedicated /yorumlar URL so review-detail cookies + country context load.
+    let pageUrl = url;
+    if (!/\/yorumlar(\?|$)/i.test(pageUrl)) {
+      pageUrl = pageUrl.split("?")[0].replace(/\/$/, "") + "/yorumlar" + (parsed.search || "");
+    }
+
+    const pageSize = Number(req.body?.pageSize) > 0 ? Number(req.body.pageSize) : 50;
+    const maxPages = Number(req.body?.maxPages) > 0 ? Number(req.body.maxPages) : 500;
+
+    console.log("[scrape/trendyol-reviews] start", { productId, pageSize, maxPages });
+    const result = await scrapeTrendyolReviewsInBrowser({
+      pageUrl,
+      productId,
+      pageSize,
+      maxPages,
+    });
+
+    return res.json({
+      ok: true,
+      url,
+      pageUrl,
+      productId,
+      productTitle: result.productTitle,
+      reviews: result.reviews,
+      summary: result.summary,
+      totalPages: result.totalPages,
+      pagesFetched: result.pagesFetched,
+      reviewCount: result.reviews.length,
+      durationMs: Date.now() - start,
+    });
+  } catch (err) {
+    const category = categorizePlaywrightError(err);
+    const status = category === "invalid-url" ? 400 : category === "auth" ? 401 : 422;
+    return res.status(status).json({
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      errorCategory: category,
+      durationMs: Date.now() - start,
+    });
+  }
+});
+
 app.post("/scrape/trendyol", requireAuth, async (req, res) => {
   const start = Date.now();
   const correlationId =
@@ -1639,6 +1853,7 @@ async function boot() {
     console.log("  GET  /health");
     console.log("  POST /scrape/html");
     console.log("  POST /scrape/trendyol");
+    console.log("  POST /scrape/trendyol-reviews");
   });
 }
 
