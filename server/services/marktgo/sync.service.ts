@@ -130,12 +130,13 @@ function sanitizeProvidedReviews(reviews: ImportedReviewInput[] | undefined): Im
     const externalReviewId = String(review.externalReviewId || `local-${index + 1}`).trim();
     if (seen.has(externalReviewId)) return;
     seen.add(externalReviewId);
+    const normalizedDate = normalizeReviewDate(review.createdAt);
     normalized.push({
       externalReviewId,
       rating,
       ...(review.comment ? { comment: String(review.comment) } : {}),
       ...(review.reviewerName ? { reviewerName: String(review.reviewerName) } : {}),
-      ...(normalizeReviewDate(review.createdAt) ? { createdAt: normalizeReviewDate(review.createdAt) } : {}),
+      ...(normalizedDate ? { createdAt: normalizedDate } : {}),
       images: Array.isArray(review.images)
         ? [...new Set(review.images.map(String).filter((url) => /^https?:\/\//i.test(url)))]
         : [],
@@ -145,19 +146,47 @@ function sanitizeProvidedReviews(reviews: ImportedReviewInput[] | undefined): Im
   return normalized;
 }
 
+function reviewCountHint(input: LocalProductInput, summary?: Record<string, unknown> | null): number {
+  const candidates = [
+    input.expectedReviewCount,
+    summary?.totalElements,
+    summary?.total,
+    summary?.reviewCount,
+    summary?.totalReviewCount,
+    summary?.ratingCount,
+  ];
+  for (const candidate of candidates) {
+    const n = Number(candidate);
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+  }
+  return 0;
+}
+
 async function resolveProductReviews(input: LocalProductInput): Promise<{
   reviews: ImportedReviewInput[];
   attempted: boolean;
+  expectedCount: number;
+  source: "provided" | "browser_worker" | "none";
   error?: string;
 }> {
   const provided = sanitizeProvidedReviews(input.reviews);
-  if (provided.length || Array.isArray(input.reviews)) {
-    return { reviews: provided, attempted: true };
+  if (provided.length > 0) {
+    return {
+      reviews: provided,
+      attempted: true,
+      expectedCount: Math.max(reviewCountHint(input), provided.length),
+      source: "provided",
+    };
   }
 
   const sourceUrl = String(input.sourceUrl || "").trim();
   if (!/trendyol\.com/i.test(sourceUrl) || !/[/-]p-\d+/i.test(sourceUrl)) {
-    return { reviews: [], attempted: false };
+    return {
+      reviews: [],
+      attempted: Array.isArray(input.reviews),
+      expectedCount: reviewCountHint(input),
+      source: "none",
+    };
   }
 
   const productId = (sourceUrl.match(/[/-]p-(\d+)/i) || [])[1] || "";
@@ -173,6 +202,8 @@ async function resolveProductReviews(input: LocalProductInput): Promise<{
       return {
         reviews: [],
         attempted: true,
+        expectedCount: reviewCountHint(input),
+        source: "browser_worker",
         error: result.error || "Trendyol yorumları çekilemedi",
       };
     }
@@ -190,7 +221,7 @@ async function resolveProductReviews(input: LocalProductInput): Promise<{
       const createdAt = normalizeReviewDate(
         raw.createdAt ?? raw.createdDate ?? raw.lastModifiedAt ?? raw.lastModifiedDate,
       );
-      const comment = String(raw.comment ?? raw.reviewText ?? raw.commentText ?? "").trim();
+      const comment = String(raw.comment ?? raw.reviewText ?? raw.commentText ?? raw.body ?? "").trim();
       const reviewerName = String(raw.userFullName ?? raw.userName ?? raw.reviewerName ?? "Anonim").trim();
       reviews.push({
         externalReviewId,
@@ -202,23 +233,72 @@ async function resolveProductReviews(input: LocalProductInput): Promise<{
         approved: true,
       });
     });
-    return { reviews, attempted: true };
+
+    const expectedCount = reviewCountHint(input, result.summary);
+    if (reviews.length === 0 && expectedCount > 0) {
+      return {
+        reviews: [],
+        attempted: true,
+        expectedCount,
+        source: "browser_worker",
+        error: `Trendyol ${expectedCount} değerlendirme bildiriyor fakat 0 gerçek yorum kaydı çekildi`,
+      };
+    }
+
+    return {
+      reviews,
+      attempted: true,
+      expectedCount: Math.max(expectedCount, reviews.length),
+      source: "browser_worker",
+    };
   } catch (err) {
     return {
       reviews: [],
       attempted: true,
+      expectedCount: reviewCountHint(input),
+      source: "browser_worker",
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+type ReviewSyncResponse = {
+  productId?: number | string;
+  inserted?: number;
+  skipped?: number;
+  updated?: number;
+  total?: number;
+  reviews?: unknown[];
+};
+
+async function getRemoteReviewCount(
+  client: Awaited<ReturnType<typeof getMarktGoClientForConnection>>["client"],
+  externalProductId: string,
+): Promise<number> {
+  const raw = await client.get<unknown>(`/products/${externalProductId}/reviews`);
+  const root = asObj(raw);
+  if (Array.isArray(root.reviews)) return root.reviews.length;
+  if (Array.isArray(root.items)) return root.items.length;
+  if (Array.isArray(raw)) return raw.length;
+  const total = Number(root.total);
+  return Number.isFinite(total) && total >= 0 ? Math.floor(total) : 0;
 }
 
 async function syncReviewsToExistingProduct(
   client: Awaited<ReturnType<typeof getMarktGoClientForConnection>>["client"],
   externalProductId: string,
   reviews: ImportedReviewInput[],
-): Promise<void> {
-  if (!reviews.length) return;
-  await client.post(`/products/${externalProductId}/reviews`, { reviews });
+): Promise<{ sent: number; remoteCount: number }> {
+  if (!reviews.length) {
+    const remoteCount = await getRemoteReviewCount(client, externalProductId).catch(() => 0);
+    return { sent: 0, remoteCount };
+  }
+  await client.post<ReviewSyncResponse>(`/products/${externalProductId}/reviews`, { reviews });
+  const remoteCount = await getRemoteReviewCount(client, externalProductId);
+  if (remoteCount < reviews.length) {
+    throw new Error(`Turmarkt yorum doğrulaması başarısız: gönderilen=${reviews.length}, kayıtlı=${remoteCount}`);
+  }
+  return { sent: reviews.length, remoteCount };
 }
 
 async function lookupByExternalId(
@@ -280,8 +360,15 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   if (externalProductId) {
     const stillOnRemote = await verifyRemoteProductExists(client, externalProductId);
     if (stillOnRemote) {
+      let remoteReviewCount = 0;
       if (!reviewResolution.error) {
-        await syncReviewsToExistingProduct(client, externalProductId, reviews);
+        try {
+          const reviewSync = await syncReviewsToExistingProduct(client, externalProductId, reviews);
+          remoteReviewCount = reviewSync.remoteCount;
+        } catch (err) {
+          reviewResolution.error = err instanceof Error ? err.message : String(err);
+          if (!failed.includes("reviews")) failed.push("reviews");
+        }
       }
       steps.push({
         step: "product_lookup",
@@ -294,7 +381,7 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
           step: "reviews",
           label: STEP_LABEL.reviews,
           ok: !reviewResolution.error,
-          detail: reviewResolution.error || `${reviews.length} yorum senkronize edildi`,
+          detail: reviewResolution.error || `${reviews.length} gönderildi / ${remoteReviewCount} kayıtlı`,
         });
       }
       const existingStatus = reviewResolution.error ? "partial_sync" : "already_exists";
@@ -319,7 +406,10 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
         mappingId: mapping.id,
         categoryUnresolved: false,
         reviewCount: reviews.length,
+        remoteReviewCount,
         reviewsSynced: !reviewResolution.error,
+        reviewSource: reviewResolution.source,
+        expectedReviewCount: reviewResolution.expectedCount,
         steps,
         failedSteps: reviewResolution.error ? ["reviews"] : [],
         message: redactSecrets(
@@ -340,8 +430,15 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
     const linkedId = await lookupByExternalId(client, externalId);
     if (linkedId && (await verifyRemoteProductExists(client, linkedId))) {
       externalProductId = linkedId;
+      let remoteReviewCount = 0;
       if (!reviewResolution.error) {
-        await syncReviewsToExistingProduct(client, externalProductId, reviews);
+        try {
+          const reviewSync = await syncReviewsToExistingProduct(client, externalProductId, reviews);
+          remoteReviewCount = reviewSync.remoteCount;
+        } catch (err) {
+          reviewResolution.error = err instanceof Error ? err.message : String(err);
+          if (!failed.includes("reviews")) failed.push("reviews");
+        }
       }
       steps.push({
         step: "product_lookup",
@@ -354,7 +451,7 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
           step: "reviews",
           label: STEP_LABEL.reviews,
           ok: !reviewResolution.error,
-          detail: reviewResolution.error || `${reviews.length} yorum senkronize edildi`,
+          detail: reviewResolution.error || `${reviews.length} gönderildi / ${remoteReviewCount} kayıtlı`,
         });
       }
       const existingStatus = reviewResolution.error ? "partial_sync" : "already_exists";
@@ -379,7 +476,10 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
         mappingId: mapping.id,
         categoryUnresolved: false,
         reviewCount: reviews.length,
+        remoteReviewCount,
         reviewsSynced: !reviewResolution.error,
+        reviewSource: reviewResolution.source,
+        expectedReviewCount: reviewResolution.expectedCount,
         steps,
         failedSteps: reviewResolution.error ? ["reviews"] : [],
         message: redactSecrets(
@@ -409,7 +509,7 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
       ...(input.sourceUrl && /^https?:\/\//i.test(input.sourceUrl)
         ? { sourceUrl: input.sourceUrl }
         : {}),
-      ...(!reviewResolution.error && reviewResolution.attempted ? { reviews } : {}),
+      ...(!reviewResolution.error && reviewResolution.attempted && reviews.length ? { reviews } : {}),
       ...(inline ? { variants: inline } : {}),
     };
   };
@@ -430,7 +530,7 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
         ...(brand ? { brand } : {}),
         images,
         sourceSite: "AI-PROGRES",
-        ...(!reviewResolution.error && reviewResolution.attempted ? { reviews } : {}),
+        ...(!reviewResolution.error && reviewResolution.attempted && reviews.length ? { reviews } : {}),
       });
       steps.push({ step: "product_create", label: "Ürün güncelleniyor", ok: true });
     } catch (err) {
@@ -471,7 +571,12 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
             });
             if (!externalProductId) throw retryErr;
             if (!reviewResolution.error) {
-              await syncReviewsToExistingProduct(client, externalProductId, reviews);
+              try {
+                await syncReviewsToExistingProduct(client, externalProductId, reviews);
+              } catch (reviewErr) {
+                reviewResolution.error = reviewErr instanceof Error ? reviewErr.message : String(reviewErr);
+                if (!failed.includes("reviews")) failed.push("reviews");
+              }
             }
           } else {
             throw retryErr;
@@ -487,7 +592,12 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
         });
         if (!externalProductId) throw err;
         if (!reviewResolution.error) {
-          await syncReviewsToExistingProduct(client, externalProductId, reviews);
+          try {
+            await syncReviewsToExistingProduct(client, externalProductId, reviews);
+          } catch (reviewErr) {
+            reviewResolution.error = reviewErr instanceof Error ? reviewErr.message : String(reviewErr);
+            if (!failed.includes("reviews")) failed.push("reviews");
+          }
         }
       } else {
         throw err;
@@ -497,6 +607,20 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
 
   if (!externalProductId) {
     throw new MarktGoApiError("MARKT-GO ürün ID alınamadı", 0, "no_id");
+  }
+
+  let remoteReviewCount = 0;
+  if (!reviewResolution.error && reviewResolution.attempted && reviews.length > 0) {
+    try {
+      remoteReviewCount = await getRemoteReviewCount(client, externalProductId);
+      if (remoteReviewCount < reviews.length) {
+        reviewResolution.error = `Turmarkt yorum doğrulaması başarısız: gönderilen=${reviews.length}, kayıtlı=${remoteReviewCount}`;
+        if (!failed.includes("reviews")) failed.push("reviews");
+      }
+    } catch (err) {
+      reviewResolution.error = `Turmarkt yorum doğrulaması yapılamadı: ${err instanceof Error ? err.message : String(err)}`;
+      if (!failed.includes("reviews")) failed.push("reviews");
+    }
   }
 
   mapping = await upsertProductMapping({
@@ -563,7 +687,7 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
       step: "reviews",
       label: STEP_LABEL.reviews,
       ok: !reviewResolution.error,
-      detail: reviewResolution.error || `${reviews.length} yorum`,
+      detail: reviewResolution.error || `${reviews.length} gönderildi / ${remoteReviewCount || reviews.length} kayıtlı`,
     });
   }
 
@@ -634,12 +758,15 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
     mappingId: mapping.id,
     categoryUnresolved: false,
     reviewCount: reviews.length,
+    remoteReviewCount,
     reviewsSynced: !reviewResolution.error,
+    reviewSource: reviewResolution.source,
+    expectedReviewCount: reviewResolution.expectedCount,
     steps,
     failedSteps: failed,
     message: redactSecrets(
       failed.length
-        ? `MARKT-GO kısmi senkron: ${failed.join(", ")}`
+        ? `MARKT-GO kısmi senkron: ${failed.join(",")}`
         : `MARKT-GO'ya gönderildi${reviewResolution.attempted ? ` — ${reviews.length} yorum` : ""}`,
     ),
   };
