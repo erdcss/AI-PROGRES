@@ -15,8 +15,9 @@ import {
   deleteProductMapping,
 } from "./mapping.service";
 import { extractId, normalizeMarktGoProduct } from "./normalize";
-import type { LocalProductInput, SyncProgress } from "./types";
+import type { ImportedReviewInput, LocalProductInput, SyncProgress } from "./types";
 import { prepareMarktGoImages } from "./images";
+import { scrapeTrendyolReviewsWithBrowserWorker } from "../browser-worker-client.service";
 
 const STEP_LABEL: Record<string, string> = {
   product_create: "Ürün oluşturuluyor",
@@ -26,6 +27,7 @@ const STEP_LABEL: Record<string, string> = {
   variant_images: "Varyant görselleri bağlanıyor",
   inventory: "Stok senkronize ediliyor",
   pricing: "Fiyat kontrol ediliyor",
+  reviews: "Ürün yorumları aktarılıyor",
   done: "Tamamlandı",
 };
 
@@ -93,6 +95,132 @@ function isDuplicateVariantError(err: unknown): boolean {
   return err instanceof MarktGoApiError && err.code === "duplicate_variant";
 }
 
+function normalizeReviewDate(value: unknown): string | undefined {
+  if (value == null || value === "") return undefined;
+  const numeric = typeof value === "number" ? value : Number(value);
+  const date = Number.isFinite(numeric) && String(value).trim() !== ""
+    ? new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric)
+    : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function normalizeReviewImages(raw: Record<string, unknown>): string[] {
+  const values: unknown[] = [];
+  for (const key of ["mediaFiles", "images", "imageUrls", "photos"]) {
+    const candidate = raw[key];
+    if (Array.isArray(candidate)) values.push(...candidate);
+  }
+  const out = values
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      const row = asObj(item);
+      return String(row.url || row.imageUrl || row.path || "").trim();
+    })
+    .filter((url) => /^https?:\/\//i.test(url));
+  return [...new Set(out)];
+}
+
+function sanitizeProvidedReviews(reviews: ImportedReviewInput[] | undefined): ImportedReviewInput[] {
+  if (!Array.isArray(reviews)) return [];
+  const seen = new Set<string>();
+  const normalized: ImportedReviewInput[] = [];
+  reviews.forEach((review, index) => {
+    const rating = Math.round(Number(review?.rating));
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) return;
+    const externalReviewId = String(review.externalReviewId || `local-${index + 1}`).trim();
+    if (seen.has(externalReviewId)) return;
+    seen.add(externalReviewId);
+    normalized.push({
+      externalReviewId,
+      rating,
+      ...(review.comment ? { comment: String(review.comment) } : {}),
+      ...(review.reviewerName ? { reviewerName: String(review.reviewerName) } : {}),
+      ...(normalizeReviewDate(review.createdAt) ? { createdAt: normalizeReviewDate(review.createdAt) } : {}),
+      images: Array.isArray(review.images)
+        ? [...new Set(review.images.map(String).filter((url) => /^https?:\/\//i.test(url)))]
+        : [],
+      approved: review.approved !== false,
+    });
+  });
+  return normalized;
+}
+
+async function resolveProductReviews(input: LocalProductInput): Promise<{
+  reviews: ImportedReviewInput[];
+  attempted: boolean;
+  error?: string;
+}> {
+  const provided = sanitizeProvidedReviews(input.reviews);
+  if (provided.length || Array.isArray(input.reviews)) {
+    return { reviews: provided, attempted: true };
+  }
+
+  const sourceUrl = String(input.sourceUrl || "").trim();
+  if (!/trendyol\.com/i.test(sourceUrl) || !/[/-]p-\d+/i.test(sourceUrl)) {
+    return { reviews: [], attempted: false };
+  }
+
+  const productId = (sourceUrl.match(/[/-]p-(\d+)/i) || [])[1] || "";
+  try {
+    const result = await scrapeTrendyolReviewsWithBrowserWorker({
+      url: sourceUrl,
+      productId,
+      pageSize: 50,
+      maxPages: 500,
+      timeoutMs: 180_000,
+    });
+    if (!result.success) {
+      return {
+        reviews: [],
+        attempted: true,
+        error: result.error || "Trendyol yorumları çekilemedi",
+      };
+    }
+
+    const seen = new Set<string>();
+    const reviews: ImportedReviewInput[] = [];
+    result.reviews.forEach((item, index) => {
+      const raw = asObj(item);
+      const rating = Math.round(Number(raw.rate ?? raw.starCount ?? raw.rating ?? 0));
+      if (!Number.isFinite(rating) || rating < 1 || rating > 5) return;
+      const sourceId = String(raw.id ?? raw.reviewId ?? `${productId}-${index + 1}`).trim();
+      const externalReviewId = `trendyol:${sourceId}`;
+      if (seen.has(externalReviewId)) return;
+      seen.add(externalReviewId);
+      const createdAt = normalizeReviewDate(
+        raw.createdAt ?? raw.createdDate ?? raw.lastModifiedAt ?? raw.lastModifiedDate,
+      );
+      const comment = String(raw.comment ?? raw.reviewText ?? raw.commentText ?? "").trim();
+      const reviewerName = String(raw.userFullName ?? raw.userName ?? raw.reviewerName ?? "Anonim").trim();
+      reviews.push({
+        externalReviewId,
+        rating,
+        ...(comment ? { comment } : {}),
+        ...(reviewerName ? { reviewerName } : {}),
+        ...(createdAt ? { createdAt } : {}),
+        images: normalizeReviewImages(raw),
+        approved: true,
+      });
+    });
+    return { reviews, attempted: true };
+  } catch (err) {
+    return {
+      reviews: [],
+      attempted: true,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+async function syncReviewsToExistingProduct(
+  client: Awaited<ReturnType<typeof getMarktGoClientForConnection>>["client"],
+  externalProductId: string,
+  reviews: ImportedReviewInput[],
+): Promise<void> {
+  if (!reviews.length) return;
+  await client.post(`/products/${externalProductId}/reviews`, { reviews });
+}
+
 async function lookupByExternalId(
   client: Awaited<ReturnType<typeof getMarktGoClientForConnection>>["client"],
   externalId: string,
@@ -135,6 +263,9 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   const externalId = stableExternalId(localProductId);
   const images = await prepareMarktGoImages(input.images || [], 12);
   const brand = input.brand ? String(input.brand).trim() : "";
+  const reviewResolution = await resolveProductReviews(input);
+  const reviews = reviewResolution.reviews;
+  if (reviewResolution.error) failed.push("reviews");
 
   let mapping = await findProductMapping({
     connectionId: connection.id,
@@ -149,25 +280,37 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   if (externalProductId) {
     const stillOnRemote = await verifyRemoteProductExists(client, externalProductId);
     if (stillOnRemote) {
+      if (!reviewResolution.error) {
+        await syncReviewsToExistingProduct(client, externalProductId, reviews);
+      }
       steps.push({
         step: "product_lookup",
         label: "Ürün zaten MARKT-GO'da",
         ok: true,
-        detail: "aynı benzersiz ID — tekrar gönderilmedi",
+        detail: "aynı benzersiz ID — ürün yeniden oluşturulmadı",
       });
+      if (reviewResolution.attempted) {
+        steps.push({
+          step: "reviews",
+          label: STEP_LABEL.reviews,
+          ok: !reviewResolution.error,
+          detail: reviewResolution.error || `${reviews.length} yorum senkronize edildi`,
+        });
+      }
+      const existingStatus = reviewResolution.error ? "partial_sync" : "already_exists";
       mapping = await upsertProductMapping({
         connectionId: connection.id,
         localProductId,
         externalProductId,
         externalId,
         trackedProductId: input.trackedProductId || mapping?.trackedProductId || undefined,
-        status: "already_exists",
-        lastError: null,
-        failedSteps: [],
+        status: existingStatus,
+        lastError: reviewResolution.error || null,
+        failedSteps: reviewResolution.error ? ["reviews"] : [],
       });
       return {
         success: true,
-        status: "already_exists",
+        status: existingStatus,
         skipped: true,
         provider: "marktgo" as const,
         connectionId: connection.id,
@@ -175,9 +318,15 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
         externalId,
         mappingId: mapping.id,
         categoryUnresolved: false,
+        reviewCount: reviews.length,
+        reviewsSynced: !reviewResolution.error,
         steps,
-        failedSteps: [],
-        message: redactSecrets("Ürün zaten MARKT-GO'da — tekrar gönderilmedi"),
+        failedSteps: reviewResolution.error ? ["reviews"] : [],
+        message: redactSecrets(
+          reviewResolution.error
+            ? `Ürün mevcut; yorum senkronu başarısız: ${reviewResolution.error}`
+            : `Ürün zaten MARKT-GO'da — ${reviews.length} yorum senkronize edildi`,
+        ),
       };
     }
     if (mapping) {
@@ -191,25 +340,37 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
     const linkedId = await lookupByExternalId(client, externalId);
     if (linkedId && (await verifyRemoteProductExists(client, linkedId))) {
       externalProductId = linkedId;
+      if (!reviewResolution.error) {
+        await syncReviewsToExistingProduct(client, externalProductId, reviews);
+      }
       steps.push({
         step: "product_lookup",
         label: "Ürün zaten MARKT-GO'da",
         ok: true,
-        detail: "externalId ile eşleşti — tekrar gönderilmedi",
+        detail: "externalId ile eşleşti — ürün yeniden oluşturulmadı",
       });
+      if (reviewResolution.attempted) {
+        steps.push({
+          step: "reviews",
+          label: STEP_LABEL.reviews,
+          ok: !reviewResolution.error,
+          detail: reviewResolution.error || `${reviews.length} yorum senkronize edildi`,
+        });
+      }
+      const existingStatus = reviewResolution.error ? "partial_sync" : "already_exists";
       mapping = await upsertProductMapping({
         connectionId: connection.id,
         localProductId,
         externalProductId,
         externalId,
         trackedProductId: input.trackedProductId || undefined,
-        status: "already_exists",
-        lastError: null,
-        failedSteps: [],
+        status: existingStatus,
+        lastError: reviewResolution.error || null,
+        failedSteps: reviewResolution.error ? ["reviews"] : [],
       });
       return {
         success: true,
-        status: "already_exists",
+        status: existingStatus,
         skipped: true,
         provider: "marktgo" as const,
         connectionId: connection.id,
@@ -217,9 +378,15 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
         externalId,
         mappingId: mapping.id,
         categoryUnresolved: false,
+        reviewCount: reviews.length,
+        reviewsSynced: !reviewResolution.error,
         steps,
-        failedSteps: [],
-        message: redactSecrets("Ürün zaten MARKT-GO'da — tekrar gönderilmedi"),
+        failedSteps: reviewResolution.error ? ["reviews"] : [],
+        message: redactSecrets(
+          reviewResolution.error
+            ? `Ürün mevcut; yorum senkronu başarısız: ${reviewResolution.error}`
+            : `Ürün zaten MARKT-GO'da — ${reviews.length} yorum senkronize edildi`,
+        ),
       };
     }
     if (linkedId) externalProductId = null;
@@ -238,9 +405,11 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
       tags: input.tags || [],
       status: "active" as const,
       externalId,
+      sourceSite: "AI-PROGRES",
       ...(input.sourceUrl && /^https?:\/\//i.test(input.sourceUrl)
         ? { sourceUrl: input.sourceUrl }
         : {}),
+      ...(!reviewResolution.error && reviewResolution.attempted ? { reviews } : {}),
       ...(inline ? { variants: inline } : {}),
     };
   };
@@ -260,6 +429,8 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
         description: input.description || "",
         ...(brand ? { brand } : {}),
         images,
+        sourceSite: "AI-PROGRES",
+        ...(!reviewResolution.error && reviewResolution.attempted ? { reviews } : {}),
       });
       steps.push({ step: "product_create", label: "Ürün güncelleniyor", ok: true });
     } catch (err) {
@@ -299,6 +470,9 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
               detail: "mevcut ürün yeniden bağlandı",
             });
             if (!externalProductId) throw retryErr;
+            if (!reviewResolution.error) {
+              await syncReviewsToExistingProduct(client, externalProductId, reviews);
+            }
           } else {
             throw retryErr;
           }
@@ -312,6 +486,9 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
           detail: "mevcut ürün yeniden bağlandı",
         });
         if (!externalProductId) throw err;
+        if (!reviewResolution.error) {
+          await syncReviewsToExistingProduct(client, externalProductId, reviews);
+        }
       } else {
         throw err;
       }
@@ -381,6 +558,14 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   });
   steps.push({ step: "inventory", label: STEP_LABEL.inventory, ok: true });
   steps.push({ step: "pricing", label: STEP_LABEL.pricing, ok: true });
+  if (reviewResolution.attempted) {
+    steps.push({
+      step: "reviews",
+      label: STEP_LABEL.reviews,
+      ok: !reviewResolution.error,
+      detail: reviewResolution.error || `${reviews.length} yorum`,
+    });
+  }
 
   const status = failed.length ? "partial_sync" : "synced";
   let trackedProductId = input.trackedProductId ?? null;
@@ -448,12 +633,14 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
     externalId,
     mappingId: mapping.id,
     categoryUnresolved: false,
+    reviewCount: reviews.length,
+    reviewsSynced: !reviewResolution.error,
     steps,
     failedSteps: failed,
     message: redactSecrets(
       failed.length
         ? `MARKT-GO kısmi senkron: ${failed.join(", ")}`
-        : "MARKT-GO'ya gönderildi",
+        : `MARKT-GO'ya gönderildi${reviewResolution.attempted ? ` — ${reviews.length} yorum` : ""}`,
     ),
   };
 }
