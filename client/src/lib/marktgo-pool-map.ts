@@ -18,6 +18,50 @@ export function extractNumericPrice(price: unknown): number | null {
   return null;
 }
 
+function normalizeReviewDate(value: unknown): string | undefined {
+  if (value == null || value === "") return undefined;
+  const numeric = typeof value === "number" ? value : Number(value);
+  const date = Number.isFinite(numeric) && String(value).trim() !== ""
+    ? new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric)
+    : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function normalizeReviews(input: Record<string, unknown>) {
+  const rawReviews = Array.isArray(input.reviews) ? input.reviews : [];
+  const seen = new Set<string>();
+  return rawReviews.flatMap((item, index) => {
+    const row = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    const rating = Math.round(Number(row.rating ?? row.rate ?? row.starCount ?? 0));
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) return [];
+    const sourceId = String(row.externalReviewId ?? row.id ?? row.reviewId ?? `review-${index + 1}`).trim();
+    const externalReviewId = sourceId.startsWith("trendyol:") ? sourceId : `trendyol:${sourceId}`;
+    if (seen.has(externalReviewId)) return [];
+    seen.add(externalReviewId);
+    const imagesRaw = Array.isArray(row.images)
+      ? row.images
+      : Array.isArray(row.mediaFiles)
+        ? row.mediaFiles
+        : [];
+    const images = imagesRaw
+      .map((image) => {
+        if (typeof image === "string") return image;
+        const imageRow = (image && typeof image === "object" ? image : {}) as Record<string, unknown>;
+        return String(imageRow.url ?? imageRow.imageUrl ?? "");
+      })
+      .filter((url): url is string => Boolean(url && /^https?:\/\//i.test(url)));
+    return [{
+      externalReviewId,
+      rating,
+      comment: String(row.comment ?? row.body ?? row.reviewText ?? "").trim() || undefined,
+      reviewerName: String(row.reviewerName ?? row.userFullName ?? row.userName ?? "Anonim").trim() || undefined,
+      createdAt: normalizeReviewDate(row.createdAt ?? row.review_date ?? row.createdDate ?? row.lastModifiedAt),
+      images: [...new Set(images)],
+      approved: row.approved !== false,
+    }];
+  });
+}
+
 export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
   const imagesRaw = Array.isArray(input.images) ? input.images : [];
   const images = imagesRaw
@@ -73,6 +117,21 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     extractNumericPrice(input.price) ??
     0;
 
+  const reviews = normalizeReviews(input);
+  const reviewCountRaw = Number(
+    input.reviewCount ??
+      input.ratingCount ??
+      (input.reviewStats && typeof input.reviewStats === "object"
+        ? (input.reviewStats as Record<string, unknown>).total
+        : undefined) ??
+      (input.reviewsStats && typeof input.reviewsStats === "object"
+        ? (input.reviewsStats as Record<string, unknown>).total
+        : undefined),
+  );
+  const reviewCount = Number.isFinite(reviewCountRaw) && reviewCountRaw >= 0
+    ? Math.floor(reviewCountRaw)
+    : reviews.length || null;
+
   return {
     poolId: String(
       input.poolId ||
@@ -97,6 +156,8 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     tags: Array.isArray(input.tags) ? input.tags.map(String) : [],
     description: input.description ? String(input.description) : undefined,
     features,
+    reviews,
+    reviewCount,
     variants,
     inStock: variants.length ? variants.some((v) => v.inStock) : true,
     stock: marktGoStockForAvailability(
