@@ -18,6 +18,36 @@ export function extractNumericPrice(price: unknown): number | null {
   return null;
 }
 
+function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function reviewImportTarget(seed: string, available: number): number {
+  if (available <= 50) return available;
+  const upper = Math.min(250, available);
+  return 50 + (stableHash(`${seed}:review-target`) % (upper - 49));
+}
+
+function pickVariableReviewSubset<T extends { externalReviewId?: string }>(
+  reviews: T[],
+  seed: string,
+): T[] {
+  if (reviews.length <= 50) return reviews;
+  const target = reviewImportTarget(seed, reviews.length);
+  return [...reviews]
+    .sort((a, b) => {
+      const ah = stableHash(`${seed}:${a.externalReviewId || ""}`);
+      const bh = stableHash(`${seed}:${b.externalReviewId || ""}`);
+      return ah - bh;
+    })
+    .slice(0, target);
+}
+
 function normalizeReviewDate(value: unknown): string | undefined {
   if (value == null || value === "") return undefined;
   const numeric = typeof value === "number" ? value : Number(value);
@@ -30,7 +60,7 @@ function normalizeReviewDate(value: unknown): string | undefined {
 function normalizeReviews(input: Record<string, unknown>) {
   const rawReviews = Array.isArray(input.reviews) ? input.reviews : [];
   const seen = new Set<string>();
-  return rawReviews.flatMap((item, index) => {
+  const normalized = rawReviews.flatMap((item, index) => {
     const row = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
     const rating = Math.round(Number(row.rating ?? row.rate ?? row.starCount ?? 0));
     if (!Number.isFinite(rating) || rating < 1 || rating > 5) return [];
@@ -60,6 +90,16 @@ function normalizeReviews(input: Record<string, unknown>) {
       approved: row.approved !== false,
     }];
   });
+
+  const seed = String(
+    input.sourceUrl ||
+      input.originalUrl ||
+      input.poolId ||
+      input.id ||
+      input.title ||
+      "product",
+  );
+  return pickVariableReviewSubset(normalized, seed);
 }
 
 export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
