@@ -22,6 +22,16 @@ export interface ProductPoolVariant {
   image?: string | null;
 }
 
+export interface ProductPoolReview {
+  externalReviewId?: string;
+  rating: number;
+  comment?: string;
+  reviewerName?: string;
+  createdAt?: string;
+  images?: string[];
+  approved?: boolean;
+}
+
 export interface ProductPoolProduct {
   title: string;
   sourceUrl: string;
@@ -36,6 +46,10 @@ export interface ProductPoolProduct {
   salePrice: number;
   images: string[];
   features: ProductPoolFeature[];
+  /** Kaynak siteden çekilmiş gerçek yorum kayıtları. */
+  reviews?: ProductPoolReview[];
+  /** Kaynak sayfada görülen toplam değerlendirme/yorum adedi. */
+  reviewCount?: number | null;
   /** Renk / beden vb. seçenek eksenleri */
   variantOptions?: ProductPoolVariantOption[];
   /** Seçenek kombinasyonları (Shopify variants) */
