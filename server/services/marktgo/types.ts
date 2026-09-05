@@ -97,7 +97,10 @@ export type LocalProductInput = {
   stock?: number | null;
   images?: string[];
   tags?: string[];
+  /** Scrape aşamasında elde edilmiş gerçek yorum kayıtları. */
   reviews?: ImportedReviewInput[];
+  /** Kaynak ürünün bildirdiği değerlendirme/yorum adedi; 0-yorum sessiz başarısını yakalamak için. */
+  expectedReviewCount?: number | null;
   variants?: Array<{
     localVariantId: string;
     option1?: string;
