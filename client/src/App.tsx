@@ -12,6 +12,7 @@ import { ShieldCheck, AlertCircle, CheckCircle } from "lucide-react";
 import { AppOpenSplash } from "@/components/AppOpenSplash";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import { MatrixBackground } from "@/components/MatrixBackground";
+import { TrendyolCategoryBulkDrawer } from "@/components/TrendyolCategoryBulkDrawer";
 import {
   ensureAppSessionRestored,
   getAppSessionSnapshot,
@@ -211,6 +212,7 @@ function AppShell() {
         <div style={{ position: "relative", zIndex: 1 }}>
           <AppErrorBoundary>
             <AppTabWorkspace />
+            <TrendyolCategoryBulkDrawer />
           </AppErrorBoundary>
         </div>
       </div>
