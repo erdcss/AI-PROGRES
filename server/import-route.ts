@@ -5,6 +5,41 @@ const router = Router();
 
 console.log('📊 Import routes initialized');
 
+// Trendyol kategori / arama URL'sinden ürün URL'lerini keşfet.
+// Asıl ürün verisi bu endpoint'te çekilmez; bulunan URL'ler mevcut scenario scraper kuyruğuna verilir.
+router.post('/api/trendyol/category/discover', async (req, res) => {
+  try {
+    const { url, maxProducts } = req.body || {};
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: "Kategori URL'si gerekli",
+      });
+    }
+
+    const { discoverTrendyolCategoryProducts } = await import('./trendyol-category-discovery');
+    const result = await discoverTrendyolCategoryProducts({
+      url,
+      maxProducts: Number(maxProducts) || 50,
+    });
+
+    if (!result.success) {
+      return res.status(422).json({
+        ...result,
+        message: result.warnings[0] || 'Kategori ürünleri bulunamadı',
+      });
+    }
+
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Trendyol kategori keşif hatası:', error);
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Kategori tarama işlemi başarısız',
+    });
+  }
+});
+
 // Process CSV data sent from external script
 router.post('/api/import/process-csv', async (req, res) => {
   try {
