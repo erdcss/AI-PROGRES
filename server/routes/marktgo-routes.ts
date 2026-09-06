@@ -12,15 +12,30 @@ import { mapPoolProductToMarktGoInput } from "../services/marktgo/pool-map";
 import { userMessageForMarktGoError } from "../services/marktgo/errors";
 import { runMarktGoMigration } from "../migrations/run-marktgo-migration";
 
+const MARKTGO_CONNECTION_READY_TTL_MS = 30_000;
+let marktGoConnectionReadyAt = 0;
+let marktGoConnectionPromise: Promise<void> | null = null;
+
 async function ensureRuntimeMarktGoConnection(): Promise<void> {
-  try {
-    await ensureMarktGoConnectionFromEnv();
-  } catch (err) {
-    console.warn(
-      "[marktgo] env bağlantısı hazırlanamadı:",
-      err instanceof Error ? err.message : String(err),
-    );
-  }
+  if (Date.now() - marktGoConnectionReadyAt < MARKTGO_CONNECTION_READY_TTL_MS) return;
+  if (marktGoConnectionPromise) return marktGoConnectionPromise;
+
+  marktGoConnectionPromise = (async () => {
+    try {
+      await ensureMarktGoConnectionFromEnv();
+      marktGoConnectionReadyAt = Date.now();
+    } catch (err) {
+      console.warn(
+        "[marktgo] env bağlantısı hazırlanamadı:",
+        err instanceof Error ? err.message : String(err),
+      );
+      throw err;
+    } finally {
+      marktGoConnectionPromise = null;
+    }
+  })();
+
+  return marktGoConnectionPromise;
 }
 
 function normalizeTrendyolPoolIdentity(product: Record<string, unknown>): Record<string, unknown> {
@@ -46,7 +61,7 @@ function isRetryableMarktGoError(err: unknown): boolean {
 }
 
 async function syncProductToMarktGoWithRetry(input: any, connectionId?: number) {
-  const delays = [0, 250, 700];
+  const delays = [0, 350, 900];
   let lastError: unknown;
   for (let attempt = 0; attempt < delays.length; attempt += 1) {
     if (delays[attempt] > 0) {
@@ -57,7 +72,10 @@ async function syncProductToMarktGoWithRetry(input: any, connectionId?: number) 
     } catch (err) {
       lastError = err;
       if (!isRetryableMarktGoError(err) || attempt === delays.length - 1) throw err;
-      console.warn(`[marktgo] geçici hata, hızlı retry ${attempt + 1}/${delays.length - 1}:`, userMessageForMarktGoError(err));
+      console.warn(
+        `[marktgo] geçici hata, kontrollü retry ${attempt + 1}/${delays.length - 1}:`,
+        userMessageForMarktGoError(err),
+      );
     }
   }
   throw lastError;
@@ -66,7 +84,7 @@ async function syncProductToMarktGoWithRetry(input: any, connectionId?: number) 
 export function registerMarktGoRoutes(app: Express): void {
   void runMarktGoMigration(false);
   void migrateMisplacedMarktGoTokenFromShopify()
-    .then(() => ensureMarktGoConnectionFromEnv())
+    .then(() => ensureRuntimeMarktGoConnection())
     .catch(() => undefined);
 
   app.get("/api/marktgo/connections", async (_req, res) => {
@@ -89,6 +107,7 @@ export function registerMarktGoRoutes(app: Express): void {
         environment: req.body?.environment,
         webhookUrl: req.body?.webhookUrl,
       });
+      marktGoConnectionReadyAt = 0;
       return res.json({ success: true, connection: saved });
     } catch (err) {
       return res.status(400).json({ success: false, error: userMessageForMarktGoError(err) });
