@@ -1,6 +1,7 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { getInternalSourceAccessSecrets } from "./config/source-access.config";
+import { fetchHtmlWithBrowserWorker } from "./services/browser-worker-client.service";
 
 export type TrendyolCategoryProduct = {
   productId: string;
@@ -16,7 +17,7 @@ export type TrendyolCategoryDiscoveryResult = {
   foundCount: number;
   pagesScanned: number;
   products: TrendyolCategoryProduct[];
-  source: "public-api" | "direct" | "local-agent" | "mixed";
+  source: "public-api" | "browser-worker" | "direct" | "local-agent" | "mixed";
   warnings: string[];
 };
 
@@ -84,7 +85,10 @@ function canonicalProductUrl(href: string, base: string): TrendyolCategoryProduc
   };
 }
 
-function extractProducts(html: string, currentPageUrl: string): TrendyolCategoryProduct[] {
+export function extractTrendyolCategoryProducts(
+  html: string,
+  currentPageUrl: string,
+): TrendyolCategoryProduct[] {
   const byId = new Map<string, TrendyolCategoryProduct>();
   const $ = cheerio.load(html || "");
 
@@ -96,20 +100,34 @@ function extractProducts(html: string, currentPageUrl: string): TrendyolCategory
     const title =
       $(element).attr("title")?.trim() ||
       $(element).find("[title]").first().attr("title")?.trim() ||
-      $(element).find(".prdct-desc-cntnr-name, .prdct-desc-cntnr-ttl, [class*='product-name']").first().text().trim() ||
+      $(element)
+        .find(
+          ".prdct-desc-cntnr-name, .prdct-desc-cntnr-ttl, [class*='product-name'], [class*='product-title']",
+        )
+        .first()
+        .text()
+        .trim() ||
       $(element).text().replace(/\s+/g, " ").trim().slice(0, 180) ||
       undefined;
 
     const image =
       $(element).find("img").first().attr("src") ||
       $(element).find("img").first().attr("data-src") ||
+      $(element).find("img").first().attr("data-original") ||
       undefined;
 
     byId.set(product.productId, { ...product, title, image });
   });
 
-  const normalized = String(html || "").replace(/\\u002F/g, "/").replace(/\\\//g, "/");
-  const linkRegex = /(?:https?:\/\/www\.trendyol\.com)?(\/[a-z0-9ğüşöçıİĞÜŞÖÇ._~!$&'()*+,;=:@%\/-]+-p-\d+)(?:[?"'\\<\s]|$)/giu;
+  // SSR / embedded JSON içinde bulunan canonical ürün bağlantılarını da tara.
+  // Query parametresi, HTML escape ve mutlak/relative URL biçimlerinin tümünü kabul eder.
+  const normalized = String(html || "")
+    .replace(/&amp;/g, "&")
+    .replace(/\\u002F/gi, "/")
+    .replace(/\\u0026/gi, "&")
+    .replace(/\\\//g, "/");
+  const linkRegex =
+    /(?:https?:\/\/(?:www\.)?trendyol\.com)?(\/[a-z0-9ğüşöçıİĞÜŞÖÇ._~!$&'()*+,;=:@%\/-]+-p-\d+)(?=[/?#&\"'\\<\s]|$)/giu;
   let match: RegExpExecArray | null;
   while ((match = linkRegex.exec(normalized))) {
     const product = canonicalProductUrl(match[1], currentPageUrl);
@@ -134,13 +152,14 @@ function productFromPublicApiRow(row: any, baseUrl: string): TrendyolCategoryPro
   let canonical = rawUrl ? canonicalProductUrl(String(rawUrl), baseUrl) : null;
 
   if (!canonical && id && /^\d+$/.test(id)) {
-    const slug = String(row?.name || row?.title || "urun")
-      .toLocaleLowerCase("tr-TR")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/ı/g, "i")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "urun";
+    const slug =
+      String(row?.name || row?.title || "urun")
+        .toLocaleLowerCase("tr-TR")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/ı/g, "i")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "urun";
     canonical = {
       productId: id,
       url: `https://www.trendyol.com/${slug}-p-${id}`,
@@ -181,16 +200,34 @@ function buildPublicDiscoveryUrl(base: URL, page: number): string {
   endpoint.searchParams.set("userGenderId", endpoint.searchParams.get("userGenderId") || "1");
   endpoint.searchParams.set("pId", endpoint.searchParams.get("pId") || "0");
   endpoint.searchParams.set("scoringAlgorithmId", endpoint.searchParams.get("scoringAlgorithmId") || "2");
-  endpoint.searchParams.set("categoryRelevancyEnabled", endpoint.searchParams.get("categoryRelevancyEnabled") || "false");
-  endpoint.searchParams.set("isLegalRequirementConfirmed", endpoint.searchParams.get("isLegalRequirementConfirmed") || "false");
-  endpoint.searchParams.set("searchStrategyType", endpoint.searchParams.get("searchStrategyType") || "DEFAULT");
-  endpoint.searchParams.set("productStampType", endpoint.searchParams.get("productStampType") || "TypeA");
-  endpoint.searchParams.set("fixSlotProductAdsIncluded", endpoint.searchParams.get("fixSlotProductAdsIncluded") || "true");
+  endpoint.searchParams.set(
+    "categoryRelevancyEnabled",
+    endpoint.searchParams.get("categoryRelevancyEnabled") || "false",
+  );
+  endpoint.searchParams.set(
+    "isLegalRequirementConfirmed",
+    endpoint.searchParams.get("isLegalRequirementConfirmed") || "false",
+  );
+  endpoint.searchParams.set(
+    "searchStrategyType",
+    endpoint.searchParams.get("searchStrategyType") || "DEFAULT",
+  );
+  endpoint.searchParams.set(
+    "productStampType",
+    endpoint.searchParams.get("productStampType") || "TypeA",
+  );
+  endpoint.searchParams.set(
+    "fixSlotProductAdsIncluded",
+    endpoint.searchParams.get("fixSlotProductAdsIncluded") || "true",
+  );
 
   return endpoint.toString();
 }
 
-async function fetchViaPublicDiscoveryApi(base: URL, page: number): Promise<TrendyolCategoryProduct[]> {
+async function fetchViaPublicDiscoveryApi(
+  base: URL,
+  page: number,
+): Promise<TrendyolCategoryProduct[]> {
   const url = buildPublicDiscoveryUrl(base, page);
   try {
     const response = await axios.get(url, {
@@ -210,8 +247,10 @@ async function fetchViaPublicDiscoveryApi(base: URL, page: number): Promise<Tren
     const rows =
       data?.result?.products ||
       data?.result?.contents ||
+      data?.result?.content ||
       data?.products ||
       data?.contents ||
+      data?.content ||
       [];
     if (!Array.isArray(rows)) return [];
 
@@ -238,18 +277,45 @@ async function fetchDirect(url: string): Promise<string | null> {
       validateStatus: () => true,
       headers: {
         "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.7,en;q=0.6",
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
         Referer: "https://www.trendyol.com/",
       },
     });
-    if (response.status >= 200 && response.status < 400 && typeof response.data === "string") {
+    if (
+      response.status >= 200 &&
+      response.status < 400 &&
+      typeof response.data === "string"
+    ) {
       return response.data;
     }
   } catch (error) {
-    console.warn("[CategoryDiscovery] direct fetch failed", error instanceof Error ? error.message : error);
+    console.warn(
+      "[CategoryDiscovery] direct fetch failed",
+      error instanceof Error ? error.message : error,
+    );
+  }
+  return null;
+}
+
+async function fetchViaBrowserWorker(url: string): Promise<string | null> {
+  try {
+    const result = await fetchHtmlWithBrowserWorker(url);
+    if (result.success && typeof result.html === "string" && result.html.length > 500) {
+      return result.html;
+    }
+    console.warn(
+      "[CategoryDiscovery] browser-worker returned no usable html",
+      result.stageError || result.error || result.errorCategory || "unknown",
+    );
+  } catch (error) {
+    console.warn(
+      "[CategoryDiscovery] browser-worker failed",
+      error instanceof Error ? error.message : error,
+    );
   }
   return null;
 }
@@ -276,7 +342,10 @@ async function fetchViaLocalAgent(url: string): Promise<string | null> {
     const html = response.data?.html;
     return typeof html === "string" && html.length > 500 ? html : null;
   } catch (error) {
-    console.warn("[CategoryDiscovery] local-agent failed", error instanceof Error ? error.message : error);
+    console.warn(
+      "[CategoryDiscovery] local-agent failed",
+      error instanceof Error ? error.message : error,
+    );
     return null;
   }
 }
@@ -292,6 +361,7 @@ export async function discoverTrendyolCategoryProducts(input: {
   const warnings: string[] = [];
   let pagesScanned = 0;
   let usedPublicApi = false;
+  let usedBrowserWorker = false;
   let usedDirect = false;
   let usedAgent = false;
   let consecutiveEmpty = 0;
@@ -303,16 +373,28 @@ export async function discoverTrendyolCategoryProducts(input: {
     if (extracted.length > 0) usedPublicApi = true;
 
     if (extracted.length === 0) {
-      let html = await fetchDirect(target);
-      if (html) usedDirect = true;
-      extracted = html ? extractProducts(html, target) : [];
+      const directHtml = await fetchDirect(target);
+      if (directHtml) usedDirect = true;
+      extracted = directHtml ? extractTrendyolCategoryProducts(directHtml, target) : [];
+    }
 
-      if (extracted.length === 0) {
-        const agentHtml = await fetchViaLocalAgent(target);
-        if (agentHtml) {
-          usedAgent = true;
-          extracted = extractProducts(agentHtml, target);
-        }
+    // Trendyol kategori kartları güncel sitede client-side hydrate edilebildiği için
+    // raw HTTP HTML'de ürün URL'si bulunmazsa gerçek Chromium DOM'unu kullan.
+    if (extracted.length === 0) {
+      const browserHtml = await fetchViaBrowserWorker(target);
+      if (browserHtml) {
+        usedBrowserWorker = true;
+        extracted = extractTrendyolCategoryProducts(browserHtml, target);
+      }
+    }
+
+    // Eski Local Agent yalnız son fallback. Category URL'lerinde product-validity
+    // kontrolü nedeniyle HTML vermeyebilir; bu yüzden Browser Worker önceliklidir.
+    if (extracted.length === 0) {
+      const agentHtml = await fetchViaLocalAgent(target);
+      if (agentHtml) {
+        usedAgent = true;
+        extracted = extractTrendyolCategoryProducts(agentHtml, target);
       }
     }
 
@@ -335,23 +417,32 @@ export async function discoverTrendyolCategoryProducts(input: {
   }
 
   if (products.size < requestedCount) {
-    warnings.push(`${requestedCount} ürün istendi, ${products.size} benzersiz ürün bağlantısı bulunabildi.`);
+    warnings.push(
+      `${requestedCount} ürün istendi, ${products.size} benzersiz ürün bağlantısı bulunabildi.`,
+    );
   }
   if (products.size === 0) {
     warnings.push(
-      "Kategori sayfasından ürün bağlantısı çıkarılamadı. Trendyol kategori keşif API'si, doğrudan HTML erişimi ve Local Agent denendi.",
+      "Kategori sayfasında ürünler canlı olarak mevcut ancak uygulama kaynaklarından ürün URL'si çıkarılamadı. Public discovery API, direct HTML, Browser Worker Chromium DOM ve Local Agent denendi. Browser Worker bağlantı/health ayarını kontrol edin.",
     );
   }
 
-  const activeSources = [usedPublicApi, usedDirect, usedAgent].filter(Boolean).length;
+  const activeSources = [
+    usedPublicApi,
+    usedBrowserWorker,
+    usedDirect,
+    usedAgent,
+  ].filter(Boolean).length;
   const source: TrendyolCategoryDiscoveryResult["source"] =
     activeSources > 1
       ? "mixed"
       : usedPublicApi
         ? "public-api"
-        : usedAgent
-          ? "local-agent"
-          : "direct";
+        : usedBrowserWorker
+          ? "browser-worker"
+          : usedAgent
+            ? "local-agent"
+            : "direct";
 
   return {
     success: products.size > 0,
