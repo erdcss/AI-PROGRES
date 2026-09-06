@@ -16,12 +16,13 @@ export type TrendyolCategoryDiscoveryResult = {
   foundCount: number;
   pagesScanned: number;
   products: TrendyolCategoryProduct[];
-  source: "direct" | "local-agent" | "mixed";
+  source: "public-api" | "direct" | "local-agent" | "mixed";
   warnings: string[];
 };
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+const PAGE_SIZE = 24;
 
 function normalizeCategoryUrl(raw: string): URL {
   const value = String(raw || "").trim();
@@ -107,7 +108,6 @@ function extractProducts(html: string, currentPageUrl: string): TrendyolCategory
     byId.set(product.productId, { ...product, title, image });
   });
 
-  // Trendyol bazı render sürümlerinde ürün linklerini yalnız gömülü JSON içinde bırakabiliyor.
   const normalized = String(html || "").replace(/\\u002F/g, "/").replace(/\\\//g, "/");
   const linkRegex = /(?:https?:\/\/www\.trendyol\.com)?(\/[a-z0-9ğüşöçıİĞÜŞÖÇ._~!$&'()*+,;=:@%\/-]+-p-\d+)(?:[?"'\\<\s]|$)/giu;
   let match: RegExpExecArray | null;
@@ -117,6 +117,117 @@ function extractProducts(html: string, currentPageUrl: string): TrendyolCategory
   }
 
   return [...byId.values()];
+}
+
+function normalizeImage(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const image = value.trim();
+  if (image.startsWith("http://") || image.startsWith("https://")) return image;
+  if (image.startsWith("//")) return `https:${image}`;
+  if (image.startsWith("/")) return `https://cdn.dsmcdn.com${image}`;
+  return image;
+}
+
+function productFromPublicApiRow(row: any, baseUrl: string): TrendyolCategoryProduct | null {
+  const id = String(row?.id ?? row?.productId ?? row?.contentId ?? "").trim();
+  const rawUrl = row?.url || row?.productUrl || row?.link || row?.webUrl || "";
+  let canonical = rawUrl ? canonicalProductUrl(String(rawUrl), baseUrl) : null;
+
+  if (!canonical && id && /^\d+$/.test(id)) {
+    const slug = String(row?.name || row?.title || "urun")
+      .toLocaleLowerCase("tr-TR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/ı/g, "i")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "urun";
+    canonical = {
+      productId: id,
+      url: `https://www.trendyol.com/${slug}-p-${id}`,
+    };
+  }
+
+  if (!canonical) return null;
+
+  const imageCandidates = [
+    row?.image,
+    row?.imageUrl,
+    row?.imageUrls?.[0],
+    row?.images?.[0],
+    row?.media?.images?.[0]?.url,
+  ];
+  const image = imageCandidates.map(normalizeImage).find(Boolean);
+
+  return {
+    ...canonical,
+    title: String(row?.name || row?.title || "").trim() || undefined,
+    image,
+  };
+}
+
+function buildPublicDiscoveryUrl(base: URL, page: number): string {
+  const path = base.pathname.replace(/^\/+/, "");
+  const endpoint = new URL(
+    `https://public.trendyol.com/discovery-web-searchgw-service/v2/api/infinite-scroll/${path}`,
+  );
+
+  for (const [key, value] of base.searchParams.entries()) {
+    if (key !== "pi" && key !== "offset") endpoint.searchParams.set(key, value);
+  }
+
+  endpoint.searchParams.set("pi", String(page));
+  endpoint.searchParams.set("offset", String((page - 1) * PAGE_SIZE));
+  endpoint.searchParams.set("culture", endpoint.searchParams.get("culture") || "tr-TR");
+  endpoint.searchParams.set("userGenderId", endpoint.searchParams.get("userGenderId") || "1");
+  endpoint.searchParams.set("pId", endpoint.searchParams.get("pId") || "0");
+  endpoint.searchParams.set("scoringAlgorithmId", endpoint.searchParams.get("scoringAlgorithmId") || "2");
+  endpoint.searchParams.set("categoryRelevancyEnabled", endpoint.searchParams.get("categoryRelevancyEnabled") || "false");
+  endpoint.searchParams.set("isLegalRequirementConfirmed", endpoint.searchParams.get("isLegalRequirementConfirmed") || "false");
+  endpoint.searchParams.set("searchStrategyType", endpoint.searchParams.get("searchStrategyType") || "DEFAULT");
+  endpoint.searchParams.set("productStampType", endpoint.searchParams.get("productStampType") || "TypeA");
+  endpoint.searchParams.set("fixSlotProductAdsIncluded", endpoint.searchParams.get("fixSlotProductAdsIncluded") || "true");
+
+  return endpoint.toString();
+}
+
+async function fetchViaPublicDiscoveryApi(base: URL, page: number): Promise<TrendyolCategoryProduct[]> {
+  const url = buildPublicDiscoveryUrl(base, page);
+  try {
+    const response = await axios.get(url, {
+      timeout: 25_000,
+      validateStatus: () => true,
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "application/json,text/plain,*/*",
+        "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.7,en;q=0.6",
+        Referer: pageUrl(base, page),
+        Origin: "https://www.trendyol.com",
+      },
+    });
+
+    if (response.status < 200 || response.status >= 400) return [];
+    const data = response.data;
+    const rows =
+      data?.result?.products ||
+      data?.result?.contents ||
+      data?.products ||
+      data?.contents ||
+      [];
+    if (!Array.isArray(rows)) return [];
+
+    const byId = new Map<string, TrendyolCategoryProduct>();
+    for (const row of rows) {
+      const product = productFromPublicApiRow(row, base.toString());
+      if (product && !byId.has(product.productId)) byId.set(product.productId, product);
+    }
+    return [...byId.values()];
+  } catch (error) {
+    console.warn(
+      "[CategoryDiscovery] public discovery api failed",
+      error instanceof Error ? error.message : error,
+    );
+    return [];
+  }
 }
 
 async function fetchDirect(url: string): Promise<string | null> {
@@ -176,27 +287,32 @@ export async function discoverTrendyolCategoryProducts(input: {
 }): Promise<TrendyolCategoryDiscoveryResult> {
   const base = normalizeCategoryUrl(input.url);
   const requestedCount = Math.max(1, Math.min(500, Number(input.maxProducts) || 50));
-  // Trendyol kategori sayfalarında ürün adedi değişebildiği için sayfa başına 20 varsayımıyla güvenli üst sınır.
-  const maxPages = Math.min(40, Math.max(1, Math.ceil(requestedCount / 20) + 2));
+  const maxPages = Math.min(40, Math.max(1, Math.ceil(requestedCount / PAGE_SIZE) + 2));
   const products = new Map<string, TrendyolCategoryProduct>();
   const warnings: string[] = [];
   let pagesScanned = 0;
+  let usedPublicApi = false;
   let usedDirect = false;
   let usedAgent = false;
   let consecutiveEmpty = 0;
 
   for (let page = 1; page <= maxPages && products.size < requestedCount; page++) {
     const target = pageUrl(base, page);
-    let html = await fetchDirect(target);
-    if (html) usedDirect = true;
 
-    let extracted = html ? extractProducts(html, target) : [];
+    let extracted = await fetchViaPublicDiscoveryApi(base, page);
+    if (extracted.length > 0) usedPublicApi = true;
+
     if (extracted.length === 0) {
-      const agentHtml = await fetchViaLocalAgent(target);
-      if (agentHtml) {
-        usedAgent = true;
-        html = agentHtml;
-        extracted = extractProducts(agentHtml, target);
+      let html = await fetchDirect(target);
+      if (html) usedDirect = true;
+      extracted = html ? extractProducts(html, target) : [];
+
+      if (extracted.length === 0) {
+        const agentHtml = await fetchViaLocalAgent(target);
+        if (agentHtml) {
+          usedAgent = true;
+          extracted = extractProducts(agentHtml, target);
+        }
       }
     }
 
@@ -214,7 +330,7 @@ export async function discoverTrendyolCategoryProducts(input: {
     }
 
     if (page < maxPages && products.size < requestedCount) {
-      await new Promise((resolve) => setTimeout(resolve, 350));
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
 
@@ -222,8 +338,20 @@ export async function discoverTrendyolCategoryProducts(input: {
     warnings.push(`${requestedCount} ürün istendi, ${products.size} benzersiz ürün bağlantısı bulunabildi.`);
   }
   if (products.size === 0) {
-    warnings.push("Kategori sayfasından ürün bağlantısı çıkarılamadı. Trendyol erişimi veya Local Agent bağlantısını kontrol edin.");
+    warnings.push(
+      "Kategori sayfasından ürün bağlantısı çıkarılamadı. Trendyol kategori keşif API'si, doğrudan HTML erişimi ve Local Agent denendi.",
+    );
   }
+
+  const activeSources = [usedPublicApi, usedDirect, usedAgent].filter(Boolean).length;
+  const source: TrendyolCategoryDiscoveryResult["source"] =
+    activeSources > 1
+      ? "mixed"
+      : usedPublicApi
+        ? "public-api"
+        : usedAgent
+          ? "local-agent"
+          : "direct";
 
   return {
     success: products.size > 0,
@@ -232,7 +360,7 @@ export async function discoverTrendyolCategoryProducts(input: {
     foundCount: products.size,
     pagesScanned,
     products: [...products.values()].slice(0, requestedCount),
-    source: usedDirect && usedAgent ? "mixed" : usedAgent ? "local-agent" : "direct",
+    source,
     warnings,
   };
 }
