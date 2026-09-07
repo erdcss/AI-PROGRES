@@ -107,6 +107,29 @@ assert(withPath.filter((t) => t === "Banyo Düzenleyici").length >= 1, "leaf cat
 assert(!withPath.some((t) => /trendyol/i.test(t)), "auto tags never trendyol");
 assert(withPath.length >= 4, "multiple tags from category path");
 
+const womenRing = generateAutoProductTags({
+  title: "Kadın Altın Yüzük Zarif",
+});
+assert(womenRing.includes("kadın"), "women ring gender");
+assert(womenRing.includes("aksesuar"), "women ring mid category");
+assert(womenRing.includes("yüzük"), "women ring type");
+assert(
+  womenRing.includes("kadın yüzük") || womenRing.some((t) => /kadın.*yüzük/i.test(t)),
+  "women ring composite",
+);
+assert(!womenRing.includes("erkek yüzük"), "women ring no male composite");
+
+const plainRing = generateAutoProductTags({
+  title: "Altın Kaplama Yüzük",
+});
+assert(plainRing.includes("erkek"), "genderless ring includes erkek");
+assert(plainRing.includes("kadın"), "genderless ring includes kadın");
+assert(plainRing.includes("erkek aksesuar"), "genderless erkek aksesuar");
+assert(plainRing.includes("kadın aksesuar"), "genderless kadın aksesuar");
+assert(plainRing.includes("erkek yüzük"), "genderless erkek yüzük");
+assert(plainRing.includes("kadın yüzük"), "genderless kadın yüzük");
+assert(plainRing.includes("Moda") || plainRing.includes("moda"), "main category present");
+
 const htmlLd = `
 <script type="application/ld+json">
 {"@type":"BreadcrumbList","itemListElement":[

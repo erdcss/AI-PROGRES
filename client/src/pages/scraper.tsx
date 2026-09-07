@@ -3454,11 +3454,10 @@ function ScraperPage() {
               </div>
             )}
 
-            {/* Toplu İşlem Butonları — kaydırırken viewport altında sabit */}
+            {/* Toplu İşlem Butonları — kaydırırken viewport altında sabit (aktarım sırasında gizle) */}
+            {!(uploadProgress && uploadProgress.phase !== "complete") ? (
             <div
-              className={`fixed inset-x-0 z-40 border-t border-zinc-800/90 bg-zinc-950/95 backdrop-blur-md px-4 py-3 ${
-                uploadProgress && uploadProgress.phase !== "complete" ? "bottom-24" : "bottom-0"
-              }`}
+              className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-800/90 bg-zinc-950/95 backdrop-blur-md px-4 py-3"
             >
               <div className="mx-auto flex max-w-6xl flex-wrap justify-center gap-3">
               <Button
@@ -3499,6 +3498,7 @@ function ScraperPage() {
               </Button>
               </div>
             </div>
+            ) : null}
 
               {(shopifyUploadBlockedReason || shopifyUploadWarning) && (
                         <div
@@ -3521,11 +3521,19 @@ function ScraperPage() {
         destinationName={brand.destinationName}
       />
       {uploadProgress ? (
-        <MarktGoUploadProgressBanner
-          progress={uploadProgress}
-          onStop={stopMarktGoUpload}
-          fixed
-        />
+        <>
+          {/* Aktarım sırasında arka planı karart / etkileşimi kes */}
+          <div
+            className="fixed inset-0 z-[65] bg-zinc-950/80 backdrop-blur-[2px]"
+            aria-hidden
+          />
+          <MarktGoUploadProgressBanner
+            progress={uploadProgress}
+            onStop={stopMarktGoUpload}
+            fixed
+            draggable
+          />
+        </>
       ) : null}
     </div>
   );

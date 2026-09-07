@@ -1,4 +1,5 @@
-import { CheckCircle2, ShoppingCart, Square } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle2, GripVertical, ShoppingCart, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type MarktGoUploadPhase =
@@ -53,10 +54,13 @@ export function MarktGoUploadProgressBanner({
   progress,
   onStop,
   fixed = false,
+  draggable = false,
 }: {
   progress: MarktGoUploadProgress;
   onStop?: () => void;
   fixed?: boolean;
+  /** fixed iken sürükle-bırak konum */
+  draggable?: boolean;
 }) {
   const isComplete = progress.phase === "complete";
   const isActive = !isComplete;
@@ -65,9 +69,68 @@ export function MarktGoUploadProgressBanner({
   const wasStopped = Boolean(progress.stopped);
   const detailText = stripEmojiNoise(progress.detail || "");
 
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!fixed || !draggable || pos) return;
+    // Varsayılan: alt orta
+    const w = typeof window !== "undefined" ? window.innerWidth : 800;
+    setPos({ x: Math.max(12, (w - 720) / 2), y: Math.max(12, window.innerHeight - 200) });
+  }, [fixed, draggable, pos]);
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggable || !pos) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("button, a, input")) return;
+      e.preventDefault();
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origX: pos.x,
+        origY: pos.y,
+      };
+    },
+    [draggable, pos],
+  );
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    const panel = panelRef.current;
+    const pw = panel?.offsetWidth ?? 640;
+    const ph = panel?.offsetHeight ?? 160;
+    const maxX = Math.max(8, window.innerWidth - pw - 8);
+    const maxY = Math.max(8, window.innerHeight - ph - 8);
+    setPos({
+      x: Math.min(maxX, Math.max(8, dragRef.current.origX + dx)),
+      y: Math.min(maxY, Math.max(8, dragRef.current.origY + dy)),
+    });
+  }, []);
+
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    dragRef.current = null;
+  }, []);
+
   const shell = (
     <div
-      className={`rounded-xl border px-4 py-3 transition-colors duration-500 ${
+      ref={panelRef}
+      className={`rounded-xl border px-4 py-3 transition-colors duration-500 select-none ${
         isComplete
           ? allSucceeded
             ? "border-emerald-500/50 bg-zinc-950/95"
@@ -77,9 +140,16 @@ export function MarktGoUploadProgressBanner({
                 ? "border-amber-500/40 bg-zinc-950/95"
                 : "border-emerald-500/40 bg-zinc-950/95"
           : "border-emerald-900/40 bg-zinc-950/95 backdrop-blur-sm"
-      }`}
+      } ${draggable ? "cursor-grab active:cursor-grabbing shadow-2xl shadow-black/50" : ""}`}
+      onPointerDown={draggable ? onPointerDown : undefined}
+      onPointerMove={draggable ? onPointerMove : undefined}
+      onPointerUp={draggable ? onPointerUp : undefined}
+      onPointerCancel={draggable ? onPointerUp : undefined}
     >
       <div className="flex items-center gap-3">
+        {draggable ? (
+          <GripVertical className="h-4 w-4 shrink-0 text-zinc-500" aria-hidden />
+        ) : null}
         <div className="relative h-9 w-9 shrink-0">
           {isComplete ? (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -261,6 +331,17 @@ export function MarktGoUploadProgressBanner({
       ) : null}
     </div>
   );
+
+  if (fixed && draggable && pos) {
+    return (
+      <div
+        className="pointer-events-auto fixed z-[70] w-[min(48rem,calc(100vw-1.5rem))]"
+        style={{ left: pos.x, top: pos.y }}
+      >
+        {shell}
+      </div>
+    );
+  }
 
   if (fixed) {
     return (
