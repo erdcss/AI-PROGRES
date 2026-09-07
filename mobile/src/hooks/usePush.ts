@@ -72,7 +72,7 @@ export async function ensureAndroidChannel(): Promise<void> {
   try {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
       name: "Bildirimler",
-      description: "Fiyat, stok ve varyant uyarıları",
+      description: "Çekim, yükleme, fiyat, stok ve varyant uyarıları",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FFFFFF",

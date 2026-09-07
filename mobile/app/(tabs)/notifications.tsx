@@ -25,14 +25,17 @@ import { useOnline } from "../../src/hooks/useOnline";
 function typeLabel(type?: string) {
   const t = String(type || "").toUpperCase();
   if (t === "TEST") return "Test";
-  if (t === "NEW_PRODUCT") return "Yeni ürün";
+  if (t === "NEW_PRODUCT" || t === "SCRAPE_SUCCESS") return "Çekim";
+  if (t === "SCRAPE_FAILED") return "Çekim hatası";
+  if (t === "UPLOAD_FAILED") return "Yükleme hatası";
+  if (t === "UPLOAD_BATCH") return "Toplu yükleme";
   if (t.includes("REMOVED")) return "Kaldırıldı";
   if (t.includes("TRANSFERRED")) return "Aktarım";
   if (t.includes("PRICE")) return "Fiyat";
   if (t.includes("STOCK")) return "Stok";
   if (t.includes("VARIANT")) return "Varyant";
   if (t.includes("PRODUCT")) return "Ürün";
-  if (t.includes("SHOPIFY")) return "Shopify";
+  if (t.includes("SHOPIFY") || t.includes("MARKT")) return "Aktarım";
   return "Bildirim";
 }
 

@@ -68,8 +68,8 @@ export function useRealtimeProducts() {
   useRealtimeTable(
     "rt-products",
     "mobile_products",
-    [["scraped-products"], ["tracked-products"], ["memory-products"]],
-    "UPDATE",
+    [["scraped-products"], ["tracked-products"], ["memory-products"], ["dashboard"]],
+    "*",
   );
 }
 

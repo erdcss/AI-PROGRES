@@ -28,7 +28,13 @@ export type MobilePushEventType =
   | "PRODUCT_TRANSFERRED"
   | "NEW_PRODUCT"
   | "VARIANT_REMOVED"
+  | "SCRAPE_SUCCESS"
+  | "SCRAPE_FAILED"
+  | "UPLOAD_FAILED"
+  | "UPLOAD_BATCH"
   | "TEST";
+
+export type MobileUploadProvider = "shopify" | "marktgo";
 
 export type RegisterMobilePushInput = {
   deviceId: string;
@@ -44,6 +50,7 @@ export type MobilePushPayload = {
     type: MobilePushEventType;
     productId: string;
     changeId: string;
+    provider?: MobileUploadProvider | string;
   };
 };
 
@@ -139,9 +146,13 @@ export function buildPushPayload(
     TRACKING_ERROR: "Takip hatası",
     SHOPIFY_SYNC_ERROR: "Shopify senkron hatası",
     TITLE_CHANGED: "Başlık değişti",
-    PRODUCT_TRANSFERRED: "Shopify'a aktarıldı",
+    PRODUCT_TRANSFERRED: "Ürün aktarıldı",
     NEW_PRODUCT: "Yeni ürün",
     VARIANT_REMOVED: "Varyant kaldırıldı",
+    SCRAPE_SUCCESS: "Ürün çekildi",
+    SCRAPE_FAILED: "Ürün çekilemedi",
+    UPLOAD_FAILED: "Yükleme başarısız",
+    UPLOAD_BATCH: "Toplu yükleme",
     TEST: "Test bildirimi",
   };
   const tagPrefix = watchTagLabel(watchTag);
@@ -224,8 +235,23 @@ const WEB_TYPE_TO_PUSH: Record<string, { event: MobilePushEventType; title: stri
   price_change: { event: "PRICE_CHANGED", title: "Fiyat değişti" },
   stock_update: { event: "STOCK_CHANGED", title: "Stok değişti" },
   shopify_upload: { event: "PRODUCT_TRANSFERRED", title: "Shopify'a aktarıldı" },
+  marktgo_upload: { event: "PRODUCT_TRANSFERRED", title: "MARKT-GO'ya aktarıldı" },
+  scrape_success: { event: "SCRAPE_SUCCESS", title: "Ürün çekildi" },
+  scrape_failed: { event: "SCRAPE_FAILED", title: "Ürün çekilemedi" },
+  upload_failed: { event: "UPLOAD_FAILED", title: "Yükleme başarısız" },
   test: { event: "TEST", title: "Test bildirimi" },
 };
+
+function providerLabel(provider?: MobileUploadProvider | string | null): string {
+  const p = String(provider || "").toLowerCase();
+  if (p === "marktgo") return "MARKT-GO";
+  if (p === "shopify") return "Shopify";
+  return p ? p.toUpperCase() : "Hedef";
+}
+
+function uploadSettingKey(provider?: MobileUploadProvider | string | null): string {
+  return String(provider || "").toLowerCase() === "marktgo" ? "marktgo_upload" : "shopify_upload";
+}
 
 export async function isWebNotificationEnabled(notificationType: string): Promise<boolean> {
   try {
@@ -276,27 +302,166 @@ export async function notifyMobileProductTransferred(input: {
   title: string;
   memoryProductId?: number | null;
   shopifyProductId?: string | null;
+  externalProductId?: string | null;
   sourceLabel?: string;
+  provider?: MobileUploadProvider;
 }): Promise<void> {
   try {
-    if (!(await isWebNotificationEnabled("shopify_upload"))) return;
+    const provider = input.provider || "shopify";
+    const settingKey = uploadSettingKey(provider);
+    // Geriye uyumluluk: marktgo_upload yoksa shopify_upload ayarını kullan
+    const enabled =
+      (await isWebNotificationEnabled(settingKey)) ||
+      (settingKey === "marktgo_upload" && (await isWebNotificationEnabled("shopify_upload")));
+    if (!enabled) return;
     await ensureTable();
     const name = String(input.title || "Ürün").trim() || "Ürün";
-    const source = String(input.sourceLabel || "Shopify").trim();
+    const dest = providerLabel(provider);
+    const source = String(input.sourceLabel || dest).trim();
     await deliverPayloadToAndroidDevices({
-      title: "Shopify'a aktarıldı",
+      title: `${dest}'ya aktarıldı`,
       body: `${name}\n${source}`,
       data: {
         type: "PRODUCT_TRANSFERRED",
         productId: input.memoryProductId
           ? `memory-${input.memoryProductId}`
-          : String(input.shopifyProductId || ""),
+          : String(input.externalProductId || input.shopifyProductId || ""),
         changeId: "",
+        provider,
       },
     });
   } catch (err) {
     console.warn(
       "[mobile-push] notifyMobileProductTransferred:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+/** Ürün çekme (scrape) sonucu — başarı / hata. Tracking akışını bozmaz. */
+export async function notifyMobileScrapeResult(input: {
+  ok: boolean;
+  title?: string | null;
+  productId?: string | number | null;
+  sourceLabel?: string;
+  error?: string | null;
+  url?: string | null;
+}): Promise<void> {
+  try {
+    const settingKey = input.ok ? "new_product" : "scrape_failed";
+    if (!(await isWebNotificationEnabled(settingKey))) return;
+    await ensureTable();
+    const name = String(input.title || "").trim() || "Ürün";
+    const source = String(input.sourceLabel || "Çekim").trim();
+    const errText = stripNotifyText(input.error).slice(0, 160);
+    if (input.ok) {
+      await deliverPayloadToAndroidDevices({
+        title: "Ürün çekildi",
+        body: `${name}\n${source}`,
+        data: {
+          type: "SCRAPE_SUCCESS",
+          productId: String(input.productId || ""),
+          changeId: "",
+        },
+      });
+      return;
+    }
+    await deliverPayloadToAndroidDevices({
+      title: "Ürün çekilemedi",
+      body: errText ? `${name}\n${errText}` : `${name}\n${source}`,
+      data: {
+        type: "SCRAPE_FAILED",
+        productId: String(input.productId || input.url || ""),
+        changeId: "",
+      },
+    });
+  } catch (err) {
+    console.warn(
+      "[mobile-push] notifyMobileScrapeResult:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+/** Shopify / MARKT-GO yükleme sonucu. */
+export async function notifyMobileUploadResult(input: {
+  ok: boolean;
+  provider: MobileUploadProvider;
+  title?: string | null;
+  productId?: string | number | null;
+  memoryProductId?: number | null;
+  sourceLabel?: string;
+  error?: string | null;
+}): Promise<void> {
+  try {
+    if (input.ok) {
+      await notifyMobileProductTransferred({
+        title: String(input.title || "Ürün"),
+        memoryProductId: input.memoryProductId,
+        shopifyProductId: input.provider === "shopify" ? String(input.productId || "") : null,
+        externalProductId: input.provider === "marktgo" ? String(input.productId || "") : null,
+        sourceLabel: input.sourceLabel,
+        provider: input.provider,
+      });
+      return;
+    }
+    const settingKey = "upload_failed";
+    const enabled =
+      (await isWebNotificationEnabled(settingKey)) ||
+      (await isWebNotificationEnabled(uploadSettingKey(input.provider)));
+    if (!enabled) return;
+    await ensureTable();
+    const dest = providerLabel(input.provider);
+    const name = String(input.title || "Ürün").trim() || "Ürün";
+    const errText = stripNotifyText(input.error).slice(0, 160);
+    await deliverPayloadToAndroidDevices({
+      title: `${dest} yükleme başarısız`,
+      body: errText ? `${name}\n${errText}` : name,
+      data: {
+        type: "UPLOAD_FAILED",
+        productId: String(input.productId || ""),
+        changeId: "",
+        provider: input.provider,
+      },
+    });
+  } catch (err) {
+    console.warn(
+      "[mobile-push] notifyMobileUploadResult:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+/** Toplu yükleme özeti (tek bildirim). */
+export async function notifyMobileUploadBatch(input: {
+  provider: MobileUploadProvider;
+  ok: number;
+  fail: number;
+  sourceLabel?: string;
+}): Promise<void> {
+  try {
+    const settingKey = uploadSettingKey(input.provider);
+    const enabled =
+      (await isWebNotificationEnabled(settingKey)) ||
+      (settingKey === "marktgo_upload" && (await isWebNotificationEnabled("shopify_upload")));
+    if (!enabled) return;
+    await ensureTable();
+    const dest = providerLabel(input.provider);
+    const total = input.ok + input.fail;
+    const source = String(input.sourceLabel || "Toplu yükleme").trim();
+    await deliverPayloadToAndroidDevices({
+      title: `${dest} toplu yükleme`,
+      body: `${source}\n${input.ok}/${total} başarılı${input.fail ? ` · ${input.fail} hata` : ""}`,
+      data: {
+        type: "UPLOAD_BATCH",
+        productId: "",
+        changeId: "",
+        provider: input.provider,
+      },
+    });
+  } catch (err) {
+    console.warn(
+      "[mobile-push] notifyMobileUploadBatch:",
       err instanceof Error ? err.message : String(err),
     );
   }
@@ -316,6 +481,10 @@ const DEDUP_WINDOW_MS: Record<string, number> = {
   OUT_OF_STOCK: 60 * 60 * 1000,
   BACK_IN_STOCK: 60 * 60 * 1000,
   PRODUCT_TRANSFERRED: 30 * 60 * 1000,
+  SCRAPE_SUCCESS: 5 * 60 * 1000,
+  SCRAPE_FAILED: 2 * 60 * 1000,
+  UPLOAD_FAILED: 5 * 60 * 1000,
+  UPLOAD_BATCH: 2 * 60 * 1000,
   DEFAULT: 30 * 60 * 1000,
 };
 

@@ -36,6 +36,32 @@ export function useLocalChangeAlerts(): void {
         const fresh = await pollInboxAndPresent();
         if (!fresh.length) return;
 
+        const syncTypes = new Set([
+          "NEW_PRODUCT",
+          "SCRAPE_SUCCESS",
+          "SCRAPE_FAILED",
+          "PRODUCT_TRANSFERRED",
+          "UPLOAD_FAILED",
+          "UPLOAD_BATCH",
+          "PRICE_CHANGED",
+          "STOCK_CHANGED",
+          "OUT_OF_STOCK",
+          "BACK_IN_STOCK",
+          "VARIANT_CHANGED",
+          "PRODUCT_REMOVED",
+        ]);
+        const shouldSyncCatalog = fresh.some((item) =>
+          syncTypes.has(String(item.data?.type || "").toUpperCase()),
+        );
+        if (shouldSyncCatalog) {
+          void qc.invalidateQueries({ queryKey: ["scraped-products"] });
+          void qc.invalidateQueries({ queryKey: ["memory-products"] });
+          void qc.invalidateQueries({ queryKey: ["tracked-products"] });
+          void qc.invalidateQueries({ queryKey: ["dashboard"] });
+          void qc.invalidateQueries({ queryKey: ["webo-products"] });
+          void qc.invalidateQueries({ queryKey: ["changes-all"] });
+        }
+
         const alreadyOpen =
           isAppInForeground() && activeSince > 0 && Date.now() - activeSince > 1500;
         if (alreadyOpen) {

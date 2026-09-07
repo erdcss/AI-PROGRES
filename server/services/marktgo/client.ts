@@ -243,3 +243,21 @@ export class MarktGoClient {
 export function createMarktGoClient(opts: MarktGoClientOptions): MarktGoClient {
   return new MarktGoClient(opts);
 }
+
+/** Auth gerektirmeyen mutlak URL (ör. /api/public/web-site-settings). */
+export async function fetchMarktGoAbsoluteJson<T = unknown>(
+  url: string,
+  timeoutMs = 20_000,
+): Promise<T> {
+  const res = await marktGoHttp(url, "GET", { Accept: "application/json" }, undefined, timeoutMs);
+  let json: unknown = null;
+  try {
+    json = res.text ? JSON.parse(res.text) : null;
+  } catch {
+    json = null;
+  }
+  if (res.status >= 200 && res.status < 300) {
+    return (json ?? ({} as T)) as T;
+  }
+  throw normalizeMarktGoHttpError(res.status, res.text);
+}

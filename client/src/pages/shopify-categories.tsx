@@ -43,12 +43,102 @@ type CategorySummary = {
   }>;
 };
 
+type MegaMenuSubItem = {
+  label: string;
+  categoryId: number | null;
+  href: string;
+};
+
+type MegaMenuGroup = {
+  title: string;
+  items: MegaMenuSubItem[];
+};
+
+type MegaMenuTop = {
+  label: string;
+  categoryId: number | null;
+  href: string;
+  groups: MegaMenuGroup[];
+};
+
+type MegaMenuSummary = {
+  syncedAt: string;
+  tops: MegaMenuTop[];
+  message?: string;
+};
+
 const POOL_HANDLES = new Set(["urun-havuzu", "ürün-havuzu", "product-pool"]);
 
 function isPoolCollection(row: { title: string; handle?: string | null }): boolean {
   const handle = String(row.handle || "").toLocaleLowerCase("tr-TR");
   const title = String(row.title || "").toLocaleLowerCase("tr-TR");
   return POOL_HANDLES.has(handle) || title === "urun-havuzu" || title === "ürün havuzu";
+}
+
+function normalizeMegaLabelKey(value: string): string {
+  return String(value || "")
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFC")
+    .replace(/&/g, " ")
+    .replace(/[+_/|,.-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function resolveMegaMenuForTag(
+  tops: MegaMenuTop[],
+  tag: string,
+): {
+  matchType: "top" | "group" | "item" | "none";
+  title: string;
+  tops: Array<{ label: string; groups: MegaMenuGroup[] }>;
+} {
+  const key = normalizeMegaLabelKey(tag);
+  if (!key || !tops.length) return { matchType: "none", title: tag, tops: [] };
+
+  const topHits = tops.filter((t) => normalizeMegaLabelKey(t.label) === key);
+  if (topHits.length) {
+    return {
+      matchType: "top",
+      title: topHits[0].label,
+      tops: topHits.map((t) => ({ label: t.label, groups: t.groups })),
+    };
+  }
+
+  const groupHits: Array<{ label: string; groups: MegaMenuGroup[] }> = [];
+  for (const top of tops) {
+    const groups = top.groups.filter((g) => normalizeMegaLabelKey(g.title) === key);
+    if (groups.length) groupHits.push({ label: top.label, groups });
+  }
+  if (groupHits.length) return { matchType: "group", title: tag, tops: groupHits };
+
+  const itemHits: Array<{ label: string; groups: MegaMenuGroup[] }> = [];
+  for (const top of tops) {
+    const groups: MegaMenuGroup[] = [];
+    for (const group of top.groups) {
+      if (group.items.some((i) => normalizeMegaLabelKey(i.label) === key)) {
+        groups.push(group);
+      }
+    }
+    if (groups.length) itemHits.push({ label: top.label, groups });
+  }
+  if (itemHits.length) return { matchType: "item", title: tag, tops: itemHits };
+
+  const softHits: Array<{ label: string; groups: MegaMenuGroup[] }> = [];
+  for (const top of tops) {
+    const groups: MegaMenuGroup[] = [];
+    for (const group of top.groups) {
+      const hit = group.items.some((i) => {
+        const lk = normalizeMegaLabelKey(i.label);
+        return lk.includes(key) || key.includes(lk);
+      });
+      if (hit) groups.push(group);
+    }
+    if (groups.length) softHits.push({ label: top.label, groups });
+  }
+  if (softHits.length) return { matchType: "item", title: tag, tops: softHits };
+
+  return { matchType: "none", title: tag, tops: [] };
 }
 
 async function fetchCategorySummary(): Promise<CategorySummary> {
@@ -68,6 +158,15 @@ async function syncCategorySummary(): Promise<CategorySummary> {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(body.error || "MARKT-GO senkronizasyonu başarısız");
+  }
+  return body;
+}
+
+async function fetchMegaMenu(): Promise<MegaMenuSummary> {
+  const response = await fetch("/api/marktgo/mega-menu", { cache: "no-store" });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.error || "MARKT-GO kategori sekmesi (mega menü) alınamadı");
   }
   return body;
 }
@@ -102,12 +201,14 @@ function CategoryRow({
   title,
   productCount,
   tags,
+  tagCounts,
   conditionMatch,
   defaultOpen = false,
 }: {
   title: string;
   productCount: number;
   tags: string[];
+  tagCounts: Map<string, number>;
   conditionMatch?: string;
   defaultOpen?: boolean;
 }) {
@@ -156,15 +257,21 @@ function CategoryRow({
               <p className="text-xs text-zinc-600">Bu kategoriye etiket atanmamış.</p>
             ) : (
               <ul className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                {tagList.map((tag) => (
-                  <li
-                    key={tag}
-                    className="flex items-center gap-2 rounded-lg border border-zinc-800/80 bg-zinc-950/60 px-2.5 py-1.5 text-xs text-zinc-300"
-                  >
-                    <Tags className="h-3 w-3 shrink-0 text-zinc-600" />
-                    <span className="truncate">{tag}</span>
-                  </li>
-                ))}
+                {tagList.map((tag) => {
+                  const count = tagCounts.get(normalizeMegaLabelKey(tag)) ?? 0;
+                  return (
+                    <li
+                      key={tag}
+                      className="flex items-center gap-2 rounded-lg border border-zinc-800/80 bg-zinc-950/60 px-2.5 py-1.5 text-xs text-zinc-300"
+                    >
+                      <Tags className="h-3 w-3 shrink-0 text-zinc-600" />
+                      <span className="min-w-0 flex-1 truncate">{tag}</span>
+                      <span className="shrink-0 tabular-nums text-zinc-500">
+                        {count.toLocaleString("tr-TR")}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -182,6 +289,7 @@ export default function ShopifyCategoriesPage() {
   const [search, setSearch] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["marktgo-category-summary"],
@@ -190,7 +298,23 @@ export default function ShopifyCategoriesPage() {
     refetchInterval: 5 * 60_000,
   });
 
+  const megaQuery = useQuery({
+    queryKey: ["marktgo-mega-menu"],
+    queryFn: fetchMegaMenu,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+
   const normalizedSearch = search.trim().toLocaleLowerCase("tr-TR");
+
+  const tagCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of query.data?.tags ?? []) {
+      map.set(normalizeMegaLabelKey(row.tag), row.productCount);
+      map.set(row.tag, row.productCount);
+    }
+    return map;
+  }, [query.data?.tags]);
 
   const { categoryRows, poolRows } = useMemo(() => {
     const all = [...(query.data?.collections ?? [])].sort(
@@ -225,11 +349,22 @@ export default function ShopifyCategoriesPage() {
     );
   }, [normalizedSearch, query.data?.tags]);
 
+  const selectedMatch = useMemo(() => {
+    if (!selectedTag) return null;
+    return resolveMegaMenuForTag(megaQuery.data?.tops ?? [], selectedTag);
+  }, [megaQuery.data?.tops, selectedTag]);
+
   const handleSync = async () => {
     setSyncing(true);
     setSyncError(null);
     try {
-      const summary = await syncCategorySummary();
+      const [summary] = await Promise.all([
+        syncCategorySummary(),
+        fetchMegaMenu().then((mega) => {
+          qc.setQueryData(["marktgo-mega-menu"], mega);
+          return mega;
+        }),
+      ]);
       qc.setQueryData(["marktgo-category-summary"], summary);
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : "Senkronizasyon başarısız");
@@ -258,18 +393,21 @@ export default function ShopifyCategoriesPage() {
                 Kategoriler
               </h1>
               <p className="text-xs text-zinc-500">
-                {dest} koleksiyonları · ürün sayıları · atanan etiketler
+                {dest} koleksiyonları · etiket kullanımı · kategori sekmesi alt ağacı
               </p>
             </div>
           </div>
           <Button
             type="button"
             onClick={() => void handleSync()}
-            disabled={syncing || query.isFetching}
+            disabled={syncing || query.isFetching || megaQuery.isFetching}
             className="bg-zinc-100 text-zinc-900 hover:bg-white"
           >
             <RefreshCw
-              className={cn("mr-2 h-4 w-4", syncing || query.isFetching ? "animate-spin" : "")}
+              className={cn(
+                "mr-2 h-4 w-4",
+                syncing || query.isFetching || megaQuery.isFetching ? "animate-spin" : "",
+              )}
             />
             {dest} ile Senkronize Et
           </Button>
@@ -277,12 +415,14 @@ export default function ShopifyCategoriesPage() {
       </div>
 
       <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
-        {(syncError || query.error) && (
+        {(syncError || query.error || megaQuery.error) && (
           <div className="rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
             {syncError ||
               (query.error instanceof Error
                 ? query.error.message
-                : "Kategori verileri alınamadı")}
+                : megaQuery.error instanceof Error
+                  ? megaQuery.error.message
+                  : "Kategori verileri alınamadı")}
           </div>
         )}
 
@@ -314,7 +454,7 @@ export default function ShopifyCategoriesPage() {
             <div>
               <h2 className="text-sm font-semibold text-zinc-200">Kategoriler</h2>
               <p className="text-xs text-zinc-500">
-                Her satırda ürün adedi ve o kategoriye atanan etiketler
+                Çekmeceler kapalı — açmak için satıra tıklayın
               </p>
             </div>
             <p className="text-xs tabular-nums text-zinc-500">
@@ -332,18 +472,160 @@ export default function ShopifyCategoriesPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {categoryRows.map((row, index) => (
+              {categoryRows.map((row) => (
                 <CategoryRow
                   key={row.id}
                   title={row.title}
                   productCount={row.taggedProductCount}
                   tags={row.tags}
+                  tagCounts={tagCountMap}
                   conditionMatch={row.conditionMatch}
-                  defaultOpen={index < 3}
+                  defaultOpen={false}
                 />
               ))}
             </div>
           )}
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-200">Etiketler</h2>
+              <p className="text-xs text-zinc-500">
+                Kullanım adedi · tıklayınca {dest} kategori sekmesindeki alt kategoriler
+              </p>
+            </div>
+            <p className="text-xs tabular-nums text-zinc-500">
+              {tagRows.length.toLocaleString("tr-TR")} etiket
+            </p>
+          </div>
+
+          {query.isLoading ? (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center text-sm text-zinc-500">
+              Etiketler yükleniyor…
+            </div>
+          ) : tagRows.length === 0 ? (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center text-sm text-zinc-500">
+              Etiket yok.
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+              {tagRows.map((row) => {
+                const active = selectedTag === row.tag;
+                return (
+                  <button
+                    key={row.tag}
+                    type="button"
+                    onClick={() =>
+                      setSelectedTag((prev) => (prev === row.tag ? null : row.tag))
+                    }
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                      active
+                        ? "border-zinc-400 bg-zinc-100 text-zinc-900"
+                        : "border-zinc-800 bg-zinc-950/70 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900",
+                    )}
+                  >
+                    <Tags className={cn("h-3 w-3", active ? "text-zinc-600" : "text-zinc-600")} />
+                    <span className="max-w-[10rem] truncate">{row.tag}</span>
+                    <span
+                      className={cn(
+                        "tabular-nums",
+                        active ? "text-zinc-600" : "text-zinc-500",
+                      )}
+                    >
+                      {row.productCount.toLocaleString("tr-TR")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedTag ? (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-zinc-100">
+                    Alt kategoriler · {selectedTag}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {megaQuery.isLoading
+                      ? "Kategori sekmesi yükleniyor…"
+                      : selectedMatch?.matchType === "none"
+                        ? "Bu etiket kategori sekmesinde eşleşmedi"
+                        : selectedMatch?.matchType === "top"
+                          ? "Üst kategori menüsü"
+                          : selectedMatch?.matchType === "group"
+                            ? "Grup başlığı eşleşmesi"
+                            : "Yaprak etiket eşleşmesi"}
+                    {megaQuery.data?.message ? ` · ${megaQuery.data.message}` : ""}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 border-zinc-700 bg-transparent px-3 text-xs text-zinc-300"
+                  onClick={() => setSelectedTag(null)}
+                >
+                  Kapat
+                </Button>
+              </div>
+
+              {megaQuery.isLoading ? (
+                <p className="text-sm text-zinc-500">Alt kategoriler getiriliyor…</p>
+              ) : !selectedMatch || selectedMatch.matchType === "none" ? (
+                <p className="text-sm text-zinc-500">
+                  Eşleşen alt kategori yok. Etiketi kategori sekmesindeki bir başlık veya
+                  öğe ile aynı yazmayı deneyin (ör. kadın, giyim, elbise).
+                </p>
+              ) : (
+                <div className="space-y-5">
+                  {selectedMatch.tops.map((top) => (
+                    <div key={top.label} className="space-y-3">
+                      {selectedMatch.tops.length > 1 || selectedMatch.matchType !== "top" ? (
+                        <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                          {top.label}
+                        </p>
+                      ) : null}
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {top.groups.map((group) => (
+                          <div
+                            key={`${top.label}-${group.title}`}
+                            className="rounded-lg border border-zinc-800/80 bg-zinc-950/50 p-3"
+                          >
+                            <p className="mb-2 text-sm font-semibold text-sky-400">
+                              {group.title}
+                            </p>
+                            <ul className="space-y-1">
+                              {group.items.map((item) => {
+                                const highlight =
+                                  normalizeMegaLabelKey(item.label) ===
+                                  normalizeMegaLabelKey(selectedTag);
+                                return (
+                                  <li
+                                    key={`${item.label}-${item.categoryId ?? item.href}`}
+                                    className={cn(
+                                      "text-xs",
+                                      highlight
+                                        ? "font-medium text-zinc-100"
+                                        : "text-zinc-400",
+                                    )}
+                                  >
+                                    {item.label}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
         </section>
 
         {poolRows.length > 0 ? (
@@ -360,6 +642,7 @@ export default function ShopifyCategoriesPage() {
                 title={row.title}
                 productCount={row.taggedProductCount}
                 tags={row.tags}
+                tagCounts={tagCountMap}
                 conditionMatch={row.conditionMatch}
                 defaultOpen={false}
               />
@@ -367,52 +650,13 @@ export default function ShopifyCategoriesPage() {
           </section>
         ) : null}
 
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-200">Etiket → ürün</h2>
-            <p className="text-xs text-zinc-500">
-              Her etiketin kaç üründe geçtiği ve hangi kategorilerde göründüğü
-            </p>
-          </div>
-          <div className="overflow-hidden rounded-xl border border-zinc-800">
-            <div className="grid grid-cols-[minmax(0,1.2fr)_5.5rem_minmax(0,1.5fr)] gap-2 border-b border-zinc-800 bg-zinc-900/80 px-4 py-2 text-[11px] uppercase tracking-wide text-zinc-500">
-              <span>Etiket</span>
-              <span className="text-right">Ürün</span>
-              <span>Kategoriler</span>
-            </div>
-            {query.isLoading ? (
-              <p className="px-4 py-8 text-center text-sm text-zinc-500">Yükleniyor…</p>
-            ) : tagRows.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-zinc-500">Etiket yok.</p>
-            ) : (
-              <ul className="max-h-[28rem] divide-y divide-zinc-800/80 overflow-y-auto">
-                {tagRows.map((row) => (
-                  <li
-                    key={row.tag}
-                    className="grid grid-cols-[minmax(0,1.2fr)_5.5rem_minmax(0,1.5fr)] gap-2 px-4 py-2.5 text-sm"
-                  >
-                    <span className="truncate text-zinc-200">{row.tag}</span>
-                    <span className="text-right tabular-nums text-zinc-300">
-                      {row.productCount.toLocaleString("tr-TR")}
-                    </span>
-                    <span className="truncate text-xs text-zinc-500">
-                      {row.collections.length
-                        ? row.collections
-                            .map((c) => `${c.title} (${c.productCount})`)
-                            .join(" · ")
-                        : "—"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
-
         {query.data?.syncedAt ? (
           <p className="text-xs text-zinc-600">
             Son {dest} senkronu: {new Date(query.data.syncedAt).toLocaleString("tr-TR")}
             {query.data.message ? ` · ${query.data.message}` : ""}
+            {megaQuery.data?.syncedAt
+              ? ` · Mega menü: ${new Date(megaQuery.data.syncedAt).toLocaleString("tr-TR")}`
+              : ""}
           </p>
         ) : null}
       </main>

@@ -264,8 +264,15 @@ export function TelegramPage() {
               <div className="flex items-center gap-3 p-3 border rounded-lg">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
                 <div>
-                  <p className="font-medium text-sm">Shopify Senkronizasyonu</p>
-                  <p className="text-xs text-gray-600">Shopify güncellemeleri tamamlandığında</p>
+                  <p className="font-medium text-sm">Shopify / MARKT-GO yükleme</p>
+                  <p className="text-xs text-gray-600">Ürün aktarımı başarılı veya başarısız olduğunda (ORVIAN mobil dahil)</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 border rounded-lg">
+                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                <div>
+                  <p className="font-medium text-sm">Ürün çekme</p>
+                  <p className="text-xs text-gray-600">Çekim tamamlandığında veya başarısız olduğunda mobil bildirim</p>
                 </div>
               </div>
             </div>

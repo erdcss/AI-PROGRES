@@ -239,10 +239,25 @@ router.post("/scrape", async (req, res) => {
         ),
       )
       .catch((err) => console.warn("[ProductPool] mobil bildirim atlandı:", err));
+    void import("../services/mobile-dashboard.service")
+      .then(({ scheduleDashboardRefresh }) => scheduleDashboardRefresh())
+      .catch(() => undefined);
     return res.json({ success: true, product });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn("[ProductPool] scrape failed:", message);
+    const url = String(req.body?.url || "").trim();
+    void import("../services/mobile-push.service")
+      .then(({ notifyMobileScrapeResult }) =>
+        notifyMobileScrapeResult({
+          ok: false,
+          title: url || "Ürün",
+          url,
+          error: message,
+          sourceLabel: "Ürün havuzu",
+        }),
+      )
+      .catch(() => undefined);
     return res.status(422).json({ success: false, error: message });
   }
 });
@@ -258,6 +273,17 @@ router.post("/shopify-upload", async (req, res) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn("[ProductPool] shopify upload failed:", message);
+    void import("../services/mobile-push.service")
+      .then(({ notifyMobileUploadResult }) =>
+        notifyMobileUploadResult({
+          ok: false,
+          provider: "shopify",
+          title: String(req.body?.product?.title || "Ürün"),
+          error: message,
+          sourceLabel: "Ürün havuzu",
+        }),
+      )
+      .catch(() => undefined);
     return res.status(500).json({ success: false, error: message });
   }
 });
@@ -304,6 +330,16 @@ router.post("/shopify-upload-bulk", async (req, res) => {
     }
 
     const ok = results.filter((r) => r.success).length;
+    void import("../services/mobile-push.service")
+      .then(({ notifyMobileUploadBatch }) =>
+        notifyMobileUploadBatch({
+          provider: "shopify",
+          ok,
+          fail: results.length - ok,
+          sourceLabel: "Ürün havuzu",
+        }),
+      )
+      .catch(() => undefined);
     return res.json({
       success: ok > 0,
       ok,
@@ -332,6 +368,20 @@ router.post("/marktgo-upload", async (req, res) => {
       success: true,
       productId: result.externalProductId,
     });
+    void import("../services/mobile-push.service")
+      .then(({ notifyMobileUploadResult }) =>
+        notifyMobileUploadResult({
+          ok: true,
+          provider: "marktgo",
+          title: String(product.title || "Ürün"),
+          productId: result.externalProductId,
+          sourceLabel: "Ürün havuzu",
+        }),
+      )
+      .catch(() => undefined);
+    void import("../services/mobile-dashboard.service")
+      .then(({ scheduleDashboardRefresh }) => scheduleDashboardRefresh())
+      .catch(() => undefined);
     return res.json({
       success: true,
       provider: "marktgo",
@@ -344,6 +394,17 @@ router.post("/marktgo-upload", async (req, res) => {
     const { userMessageForMarktGoError } = await import("../services/marktgo/errors");
     const message = userMessageForMarktGoError(err);
     console.warn("[ProductPool] marktgo upload failed:", message);
+    void import("../services/mobile-push.service")
+      .then(({ notifyMobileUploadResult }) =>
+        notifyMobileUploadResult({
+          ok: false,
+          provider: "marktgo",
+          title: String(req.body?.product?.title || "Ürün"),
+          error: message,
+          sourceLabel: "Ürün havuzu",
+        }),
+      )
+      .catch(() => undefined);
     return res.status(500).json({ success: false, error: message });
   }
 });
@@ -405,6 +466,19 @@ router.post("/marktgo-upload-bulk", async (req, res) => {
     }
 
     const ok = results.filter((r) => r.success).length;
+    void import("../services/mobile-push.service")
+      .then(({ notifyMobileUploadBatch }) =>
+        notifyMobileUploadBatch({
+          provider: "marktgo",
+          ok,
+          fail: results.length - ok,
+          sourceLabel: "Ürün havuzu",
+        }),
+      )
+      .catch(() => undefined);
+    void import("../services/mobile-dashboard.service")
+      .then(({ scheduleDashboardRefresh }) => scheduleDashboardRefresh())
+      .catch(() => undefined);
     return res.json({
       success: ok > 0,
       provider: "marktgo",

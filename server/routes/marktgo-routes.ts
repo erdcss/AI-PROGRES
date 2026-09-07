@@ -170,12 +170,38 @@ export function registerMarktGoRoutes(app: Express): void {
         sourceUrl: String(product.sourceUrl || "").slice(0, 180),
         elapsedMs: Date.now() - startedAt,
       });
+      void import("../services/mobile-push.service")
+        .then(({ notifyMobileUploadResult }) =>
+          notifyMobileUploadResult({
+            ok: true,
+            provider: "marktgo",
+            title: String(product.title || "Ürün"),
+            productId: result.externalProductId,
+            sourceLabel: "Trendyol çekim",
+          }),
+        )
+        .catch(() => undefined);
+      void import("../services/mobile-dashboard.service")
+        .then(({ scheduleDashboardRefresh }) => scheduleDashboardRefresh())
+        .catch(() => undefined);
       return res.json({ success: true, assignment, elapsedMs: Date.now() - startedAt, ...result });
     } catch (err) {
       console.error("[marktgo] product sync failed", {
         elapsedMs: Date.now() - startedAt,
         error: userMessageForMarktGoError(err),
       });
+      const rawProduct = (req.body?.product || req.body || {}) as Record<string, unknown>;
+      void import("../services/mobile-push.service")
+        .then(({ notifyMobileUploadResult }) =>
+          notifyMobileUploadResult({
+            ok: false,
+            provider: "marktgo",
+            title: String(rawProduct?.title || "Ürün"),
+            error: userMessageForMarktGoError(err),
+            sourceLabel: "Trendyol çekim",
+          }),
+        )
+        .catch(() => undefined);
       return res.status(500).json({ success: false, error: userMessageForMarktGoError(err) });
     }
   });
@@ -248,6 +274,22 @@ export function registerMarktGoRoutes(app: Express): void {
         "../services/marktgo/collections-sync.service"
       );
       const summary = await syncMarktGoCategorySummary(true);
+      return res.json({ success: true, ...summary });
+    } catch (err) {
+      return res.status(502).json({
+        success: false,
+        provider: DESTINATION_PROVIDER.MARKTGO,
+        error: userMessageForMarktGoError(err),
+      });
+    }
+  });
+
+  /** Kategori sekmesi (mega menü) — public web-site-settings */
+  app.get("/api/marktgo/mega-menu", async (_req, res) => {
+    try {
+      await ensureRuntimeMarktGoConnection();
+      const { syncMarktGoMegaMenu } = await import("../services/marktgo/mega-menu.service");
+      const summary = await syncMarktGoMegaMenu(true);
       return res.json({ success: true, ...summary });
     } catch (err) {
       return res.status(502).json({

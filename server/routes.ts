@@ -2660,6 +2660,34 @@ setTimeout(check, 1000);
                 telegramIntegration.sendNotification(message, 'new_product', undefined, result.title, { url }),
               )
               .catch((error) => console.error('Telegram/mobil bildirim hatası:', error));
+            void import('./services/mobile-sync.service')
+              .then(({ upsertMobileProduct }) => {
+                const sourceKey =
+                  result.productId ||
+                  String(url).match(/-p-(\d{5,})/i)?.[1] ||
+                  url;
+                return upsertMobileProduct({
+                  sourceProductId: String(sourceKey),
+                  source: "trendyol",
+                  title: String(result.title || "Ürün"),
+                  imageUrl: Array.isArray(result.images)
+                    ? typeof result.images[0] === "string"
+                      ? result.images[0]
+                      : (result.images[0] as { url?: string })?.url || null
+                    : null,
+                  sourceUrl: url,
+                  price: Number(result.price?.original) || null,
+                  currency: "TRY",
+                  variantCount: variantCount || 0,
+                  stockStatus: "in_stock",
+                  shopifyStatus: "none",
+                  scrapedAt: new Date().toISOString(),
+                });
+              })
+              .catch((err) => console.warn("[mobile-sync] trendyol scrape upsert skipped:", err));
+            void import('./services/mobile-dashboard.service')
+              .then(({ scheduleDashboardRefresh }) => scheduleDashboardRefresh())
+              .catch(() => undefined);
           }
           
           // âœ… Sadece Shopify transfer modunda Shopify tracking kaydÄ± oluÅŸtur
@@ -2928,15 +2956,28 @@ setTimeout(check, 1000);
         } else {
           console.log("âŒ Scenario-based extraction failed");
           const statusCode = result.extractionDetails?.scenario === 'blocked' ? 503 : 500;
+          const failMessage =
+            result.extractionDetails?.scenario === 'blocked'
+              ? 'Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyin.'
+              : 'Scenario-based extraction failed';
+          void import('./services/mobile-push.service')
+            .then(({ notifyMobileScrapeResult }) =>
+              notifyMobileScrapeResult({
+                ok: false,
+                title: String(result.title || url || "Ürün"),
+                url,
+                error: failMessage,
+                sourceLabel: "Trendyol çekim",
+              }),
+            )
+            .catch(() => undefined);
           scrapeJobs.set(jobId, {
             status: 'done' as const,
             startedAt: scrapeJobs.get(jobId)!.startedAt,
             result: {
               success: false,
               statusCode,
-              message: result.extractionDetails?.scenario === 'blocked'
-                ? 'Trendyol tarafÄ±ndan engellendiniz. LÃ¼tfen birkaÃ§ dakika bekleyin.'
-                : 'Scenario-based extraction failed',
+              message: failMessage,
               details: result.extractionDetails
             }
           });
@@ -2944,6 +2985,17 @@ setTimeout(check, 1000);
         }
           } catch (bgErr: any) {
             console.error('âŒ Background scrape error:', bgErr);
+            void import('./services/mobile-push.service')
+              .then(({ notifyMobileScrapeResult }) =>
+                notifyMobileScrapeResult({
+                  ok: false,
+                  title: String(url || "Ürün"),
+                  url,
+                  error: bgErr?.message || String(bgErr),
+                  sourceLabel: "Trendyol çekim",
+                }),
+              )
+              .catch(() => undefined);
             const _entry = scrapeJobs.get(jobId);
             if (_entry && _entry.status === 'processing') {
               scrapeJobs.set(jobId, { ..._entry, status: 'error' as const, error: bgErr.message });
@@ -7584,12 +7636,15 @@ setTimeout(check, 1000);
       // EÄŸer ayar yoksa, varsayÄ±lan ayarlarÄ± oluÅŸtur
       if (settings.length === 0) {
         const defaultSettings = [
-          { notificationType: 'new_product', enabled: true, description: 'Yeni Ã¼rÃ¼n eklendiÄŸinde bildirim gÃ¶nder' },
-          { notificationType: 'variant_change', enabled: true, description: 'ÃœrÃ¼n varyantlarÄ± deÄŸiÅŸtiÄŸinde bildirim gÃ¶nder' },
-          { notificationType: 'variant_removed', enabled: false, description: 'Varyant kaldÄ±rÄ±ldÄ±ÄŸÄ±nda bildirim gÃ¶nder' },
-          { notificationType: 'price_change', enabled: true, description: 'Fiyat deÄŸiÅŸikliklerinde bildirim gÃ¶nder' },
-          { notificationType: 'stock_update', enabled: true, description: 'Stok gÃ¼ncellemelerinde bildirim gÃ¶nder' },
-          { notificationType: 'shopify_upload', enabled: true, description: 'Shopify\'a Ã¼rÃ¼n yÃ¼klendiÄŸinde bildirim gÃ¶nder' }
+          { notificationType: 'new_product', enabled: true, description: 'Yeni ürün eklendiğinde bildirim gönder' },
+          { notificationType: 'variant_change', enabled: true, description: 'Ürün varyantları değiştiğinde bildirim gönder' },
+          { notificationType: 'variant_removed', enabled: false, description: 'Varyant kaldırıldığında bildirim gönder' },
+          { notificationType: 'price_change', enabled: true, description: 'Fiyat değişikliklerinde bildirim gönder' },
+          { notificationType: 'stock_update', enabled: true, description: 'Stok güncellemelerinde bildirim gönder' },
+          { notificationType: 'shopify_upload', enabled: true, description: "Shopify'a ürün yüklendiğinde bildirim gönder" },
+          { notificationType: 'marktgo_upload', enabled: true, description: "MARKT-GO'ya ürün yüklendiğinde bildirim gönder" },
+          { notificationType: 'scrape_failed', enabled: true, description: 'Ürün çekme başarısız olduğunda bildirim gönder' },
+          { notificationType: 'upload_failed', enabled: true, description: 'Ürün yükleme başarısız olduğunda bildirim gönder' },
         ];
         
         for (const setting of defaultSettings) {
@@ -7599,8 +7654,24 @@ setTimeout(check, 1000);
         const newSettings = await db.select().from(telegramNotificationSettings);
         return res.json({ success: true, settings: newSettings });
       }
-      
-      res.json({ success: true, settings });
+
+      // Mevcut kurulumlara yeni bildirim tiplerini ekle (yoksa)
+      const extras = [
+        { notificationType: 'marktgo_upload', enabled: true, description: "MARKT-GO'ya ürün yüklendiğinde bildirim gönder" },
+        { notificationType: 'scrape_failed', enabled: true, description: 'Ürün çekme başarısız olduğunda bildirim gönder' },
+        { notificationType: 'upload_failed', enabled: true, description: 'Ürün yükleme başarısız olduğunda bildirim gönder' },
+      ];
+      const existingTypes = new Set(settings.map((s) => s.notificationType));
+      for (const extra of extras) {
+        if (existingTypes.has(extra.notificationType)) continue;
+        try {
+          await db.insert(telegramNotificationSettings).values(extra);
+        } catch {
+          /* unique race */
+        }
+      }
+      const refreshed = await db.select().from(telegramNotificationSettings);
+      res.json({ success: true, settings: refreshed });
     } catch (error) {
       console.error('âŒ Telegram ayarlarÄ± getirme hatasÄ±:', error);
       res.status(500).json({ 

@@ -150,5 +150,46 @@ assert(unregErr, "unregister requires deviceId or pushToken");
 
 setMobilePushFcmSender(null);
 
+// Lifecycle helpers must not throw without DB/devices
+const {
+  notifyMobileScrapeResult,
+  notifyMobileUploadResult,
+  notifyMobileUploadBatch,
+} = await import("../services/mobile-push.service");
+
+threw = false;
+try {
+  await notifyMobileScrapeResult({
+    ok: false,
+    title: "Test ürün",
+    error: "timeout",
+    sourceLabel: "unit",
+  });
+} catch {
+  threw = true;
+}
+assert(!threw, "notifyMobileScrapeResult does not throw");
+
+threw = false;
+try {
+  await notifyMobileUploadResult({
+    ok: true,
+    provider: "marktgo",
+    title: "Test ürün",
+    productId: "ext-1",
+  });
+} catch {
+  threw = true;
+}
+assert(!threw, "notifyMobileUploadResult success does not throw");
+
+threw = false;
+try {
+  await notifyMobileUploadBatch({ provider: "marktgo", ok: 2, fail: 1 });
+} catch {
+  threw = true;
+}
+assert(!threw, "notifyMobileUploadBatch does not throw");
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);
