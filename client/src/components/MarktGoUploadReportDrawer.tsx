@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, FolderTree, Tag, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, FolderTree, Tag, XCircle } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/sheet";
 import { MarktGoCategoryDistributionDrawer } from "@/components/MarktGoCategoryDistributionDrawer";
 import type { MarktGoBulkUploadReport } from "@/lib/marktgo-upload-report";
+import { cn } from "@/lib/utils";
 
 function TagPills({ tags, tone }: { tags: string[]; tone: "auto" | "manual" | "all" }) {
   if (!tags.length) return <span className="text-zinc-500 text-xs">—</span>;
@@ -40,16 +41,50 @@ export function MarktGoUploadReportDrawer({
   report: MarktGoBulkUploadReport | null;
   destinationName?: string;
 }) {
-  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(true);
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
 
   if (!report) return null;
 
+  const tagCount =
+    report.items.reduce((n, item) => n + item.autoTags.length + item.manualTags.length, 0) ||
+    report.successCount;
+
   return (
     <>
+      {/* Sağ kenar: etiket / rapor paneli aç-kapa */}
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        aria-expanded={open}
+        aria-label={open ? "Etiket raporunu kapat" : "Etiket raporunu aç"}
+        className={cn(
+          "fixed top-1/2 z-[60] flex -translate-y-1/2 flex-col items-center gap-2 rounded-l-xl border border-r-0 border-zinc-700/80 bg-zinc-950/95 px-2 py-4 shadow-lg backdrop-blur-md transition-all duration-500 ease-out hover:bg-zinc-900",
+          open
+            ? "right-[min(32rem,100vw)] text-emerald-300"
+            : "right-0 text-zinc-200",
+        )}
+      >
+        {open ? (
+          <ChevronRight className="h-4 w-4 transition-transform duration-500" />
+        ) : (
+          <ChevronLeft className="h-4 w-4 animate-pulse transition-transform duration-500" />
+        )}
+        <Tag className="h-4 w-4" />
+        <span
+          className="select-none text-[10px] font-semibold uppercase tracking-wider"
+          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+        >
+          Etiketler
+        </span>
+        <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
+          {tagCount}
+        </span>
+      </button>
+
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="right"
-          className="flex w-full flex-col border-zinc-800 bg-zinc-950 p-0 sm:max-w-lg"
+          className="flex w-full flex-col border-zinc-800 bg-zinc-950 p-0 sm:max-w-lg data-[state=open]:duration-500 data-[state=closed]:duration-300"
         >
           <SheetHeader className="border-b border-zinc-800 px-5 py-4 text-left">
             <SheetTitle className="flex items-center gap-2 text-zinc-100">
@@ -138,7 +173,7 @@ export function MarktGoUploadReportDrawer({
           rows={report.categorySummary}
           open={categoryDrawerOpen}
           onOpenChange={setCategoryDrawerOpen}
-          defaultOpen
+          defaultOpen={false}
           className="sm:right-[min(32rem,100vw)]"
         />
       ) : null}

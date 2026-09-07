@@ -1577,8 +1577,8 @@ function ScraperPage() {
     let outOfStockVariants = 0;
     let unknownStockVariants = 0;
 
-    const BULK_SCRAPE_RETRY_DELAY_MS = 2500;
-    const BULK_SCRAPE_CONCURRENCY_START = 2;
+    const BULK_SCRAPE_RETRY_DELAY_MS = 1200;
+    const BULK_SCRAPE_CONCURRENCY_START = 3;
     let activeConcurrency = BULK_SCRAPE_CONCURRENCY_START;
     let scrapeCursor = 0;
     let completedScrapes = 0;
@@ -2357,7 +2357,7 @@ function ScraperPage() {
 
       const failedList: { title: string; error: string; previewId: string }[] = [];
       const reportItems: MarktGoUploadItemReport[] = [];
-      const SHOPIFY_UPLOAD_CONCURRENCY = 2;
+      const SHOPIFY_UPLOAD_CONCURRENCY = 3;
       let uploadCursor = 0;
       let completedUploads = 0;
 
@@ -2915,7 +2915,11 @@ function ScraperPage() {
   );
 
   return (
-    <div className={`min-h-screen bg-zinc-950/80 ${uploadProgress ? "pb-28" : ""}`}>
+    <div
+      className={`min-h-screen bg-zinc-950/80 ${
+        uploadProgress ? "pb-28" : csvPreviews.length > 0 ? "pb-24" : ""
+      }`}
+    >
       {/* Header */}
       <div className="bg-zinc-950/95 border-b border-zinc-800/80">
         <div className="max-w-6xl mx-auto px-6 py-4">
@@ -3450,8 +3454,13 @@ function ScraperPage() {
               </div>
             )}
 
-            {/* Toplu İşlem Butonları */}
-            <div className="mt-4 flex flex-wrap justify-center gap-3">
+            {/* Toplu İşlem Butonları — kaydırırken viewport altında sabit */}
+            <div
+              className={`fixed inset-x-0 z-40 border-t border-zinc-800/90 bg-zinc-950/95 backdrop-blur-md px-4 py-3 ${
+                uploadProgress && uploadProgress.phase !== "complete" ? "bottom-24" : "bottom-0"
+              }`}
+            >
+              <div className="mx-auto flex max-w-6xl flex-wrap justify-center gap-3">
               <Button
                 type="button"
                 onClick={handleExportAllCSV}
@@ -3488,6 +3497,7 @@ function ScraperPage() {
                   </div>
                 )}
               </Button>
+              </div>
             </div>
 
               {(shopifyUploadBlockedReason || shopifyUploadWarning) && (

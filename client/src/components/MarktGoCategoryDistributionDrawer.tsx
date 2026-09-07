@@ -67,6 +67,25 @@ export function MarktGoCategoryDistributionDrawer({
         className,
       )}
     >
+      {/* Dikey kenar butonu — kategori panelini animasyonla aç/kapa */}
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={isOpen}
+        aria-label={isOpen ? "Kategori dağılımını kapat" : "Kategori dağılımını aç"}
+        className={cn(
+          "pointer-events-auto absolute bottom-14 right-3 z-[46] flex h-11 w-11 items-center justify-center rounded-full border border-violet-700/60 bg-zinc-950/95 text-violet-300 shadow-lg backdrop-blur-md transition-all duration-500 ease-out hover:scale-105 hover:bg-violet-950/80",
+          isOpen ? "translate-y-0 opacity-100" : "translate-y-1 opacity-100",
+        )}
+      >
+        <ChevronUp
+          className={cn(
+            "h-5 w-5 transition-transform duration-500",
+            isOpen ? "rotate-0" : "rotate-180",
+          )}
+        />
+      </button>
+
       <div
         className={cn(
           "pointer-events-auto border-t border-zinc-700/80 bg-zinc-950/98 backdrop-blur-md shadow-[0_-12px_40px_rgba(0,0,0,0.45)] transition-all duration-500 ease-out",
