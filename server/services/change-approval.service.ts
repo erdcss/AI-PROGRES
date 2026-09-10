@@ -94,6 +94,15 @@ function changePatch(fields: Partial<InsertDetectedChange>): Partial<InsertDetec
   return fields;
 }
 
+async function hasMarktGoTarget(trackedProductId: number): Promise<boolean> {
+  try {
+    const { trackedProductHasMarktGoMapping } = await import("./marktgo/apply-change.service");
+    return await trackedProductHasMarktGoMapping(trackedProductId);
+  } catch {
+    return false;
+  }
+}
+
 export async function approveChange(id: number, actor = "user") {
   const row = await getChangeOrThrow(id);
   assertTransition(row.status, "approved");
@@ -185,6 +194,7 @@ export type ApplyDryRunItem = {
   action: string;
   safeToApply: boolean;
   warnings: string[];
+  target?: "marktgo" | "shopify";
 };
 
 export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDryRunItem> {
@@ -195,6 +205,7 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
     .where(eq(trackedProducts.id, change.trackedProductId))
     .limit(1);
   const warnings: string[] = [];
+  const marktgoTarget = await hasMarktGoTarget(change.trackedProductId);
   let variantShopifyId: string | null = null;
   let resolvedVariantId = change.trackedVariantId;
 
@@ -209,7 +220,7 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
       .where(eq(trackedVariants.id, change.trackedVariantId))
       .limit(1);
     variantShopifyId = variant?.shopifyVariantId ?? null;
-    if (!variantShopifyId) warnings.push("Shopify varyant eşleşmesi yok");
+    if (!marktgoTarget && !variantShopifyId) warnings.push("Shopify varyant eşleşmesi yok");
   } else if (needsVariant) {
     const rows = await db
       .select()
@@ -230,27 +241,29 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
           })
         : null);
     const matched = key ? matchTrackedVariantByKey(rows, key) : null;
-    if (matched?.shopifyVariantId) {
+    if (matched) {
       resolvedVariantId = matched.id;
-      variantShopifyId = matched.shopifyVariantId;
-    } else {
+      variantShopifyId = matched.shopifyVariantId ?? null;
+    } else if (!marktgoTarget) {
       warnings.push("Shopify varyant eşleşmesi yok — beden/renk bağlantısı kurulamadı");
     }
   }
 
   if (change.changeType === "price_changed") {
-    const mapped = await db
-      .select({ id: trackedVariants.id })
-      .from(trackedVariants)
-      .where(
-        and(
-          eq(trackedVariants.trackedProductId, change.trackedProductId),
-          isNotNull(trackedVariants.shopifyVariantId),
-        ),
-      )
-      .limit(1);
-    if (mapped.length === 0) {
-      warnings.push("Shopify varyant eşleşmesi yok");
+    if (!marktgoTarget) {
+      const mapped = await db
+        .select({ id: trackedVariants.id })
+        .from(trackedVariants)
+        .where(
+          and(
+            eq(trackedVariants.trackedProductId, change.trackedProductId),
+            isNotNull(trackedVariants.shopifyVariantId),
+          ),
+        )
+        .limit(1);
+      if (mapped.length === 0) {
+        warnings.push("Shopify varyant eşleşmesi yok");
+      }
     }
     const cost = extractSourceCostFromChangeValue(change.newValue);
     if (cost == null || cost <= 0) {
@@ -258,7 +271,7 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
     }
   }
 
-  if (!product[0]?.shopifyProductId) {
+  if (!marktgoTarget && !product[0]?.shopifyProductId) {
     warnings.push("Shopify ürün ID kayıtlı değil");
   }
   if (!product[0]?.trackingUid) {
@@ -271,7 +284,7 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
       change.newValue,
     )
   ) {
-    warnings.push("Bu değişiklik Shopify'da doğrudan düzeltilemez");
+    warnings.push(`Bu değişiklik ${marktgoTarget ? "MARKT-GO'da" : "Shopify'da"} doğrudan düzeltilemez`);
   }
 
   const safeToApply =
@@ -290,10 +303,11 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
     action: change.changeType,
     safeToApply,
     warnings,
+    target: marktgoTarget ? "marktgo" : "shopify",
   };
 }
 
-/** Marks change as applied after validation; Shopify sync delegated to apply worker when configured. */
+/** Marks change as applied after validation; target sync is delegated to the correct worker. */
 export async function applyChange(changeId: number, actor = "user", dryRun = false) {
   const change = await getChangeOrThrow(changeId);
   if (change.status === "applied") {
@@ -450,12 +464,17 @@ export async function bulkChangeAction(
       else if (action === "ignore") await ignoreChange(id, actor);
       else if (action === "shopify-sync") {
         const syncResult = await shopifySyncChange(id, actor);
+        const targetResult = syncResult as {
+          marktgo?: { message?: string } | null;
+          shopify?: { message?: string } | null;
+        };
         results.push({
           id,
           success: true,
           message:
-            (syncResult as { shopify?: { message?: string } })?.shopify?.message ||
-            "Shopify güncellendi",
+            targetResult.marktgo?.message ||
+            targetResult.shopify?.message ||
+            "Hedef ürün güncellendi",
         });
         continue;
       } else await applyChange(id, actor, false);
@@ -467,11 +486,17 @@ export async function bulkChangeAction(
   return results;
 }
 
-/** Onayla + Shopify'da uygula (tek adım) */
+/**
+ * Geriye dönük uyum için fonksiyon/endpoint adı shopifySyncChange olarak korunur.
+ * MARKT-GO mapping'i olan üründe işlem doğrudan MARKT-GO'ya uygulanır.
+ */
 export async function shopifySyncChange(id: number, actor = "user") {
   const row = await getChangeOrThrow(id);
+  const marktgoTarget = await hasMarktGoTarget(row.trackedProductId);
+  const targetLabel = marktgoTarget ? "MARKT-GO" : "Shopify";
+
   if (row.status === "applied") {
-    throw new Error("Bu değişiklik zaten Shopify'a uygulanmış");
+    throw new Error(`Bu değişiklik zaten ${targetLabel}'a uygulanmış`);
   }
   if (row.status === "superseded") {
     throw new Error(
@@ -479,17 +504,20 @@ export async function shopifySyncChange(id: number, actor = "user") {
     );
   }
   if (row.status === "ignored" || row.status === "rejected") {
-    throw new Error(`Bu değişiklik '${row.status}' durumunda; Shopify'da düzeltilemez`);
+    throw new Error(`Bu değişiklik '${row.status}' durumunda; ${targetLabel}'da düzeltilemez`);
   }
   if (row.status === "applying") {
     throw new Error("Bu değişiklik zaten uygulanıyor — birkaç saniye bekleyin");
   }
   if (!isDirectlyApplicableTrackingChange(row.changeType, row.fieldName, row.newValue)) {
-    throw new Error("Bu değişiklik Shopify'da doğrudan düzeltilemez");
+    throw new Error(`Bu değişiklik ${targetLabel}'da doğrudan düzeltilemez`);
   }
 
-  // Eşleşmeyen varyant kayıtları toplu senkronu 1/2 hatasına düşürmesin
+  // Shopify hedefinde eşleşmeyen varyant kayıtları toplu senkronu hata durumuna düşürmesin.
+  // MARKT-GO hedefinde kendi integration_variant_mappings tablosu kullanıldığı için
+  // Shopify varyant ID'si şart koşulmaz.
   if (
+    !marktgoTarget &&
     (row.changeType === "variant_stock_changed" ||
       row.changeType === "variant_price_changed") &&
     !row.trackedVariantId
