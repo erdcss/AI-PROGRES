@@ -2185,7 +2185,7 @@ setTimeout(check, 1000);
         });
       }
 
-      const { url: rawUrl, onlyExtractData = false } = req.body;
+      const { url: rawUrl, onlyExtractData = false, autoTagEnabled = true } = req.body;
       
       // URL'i normalize et
       const url = normalizeUrl(rawUrl);
@@ -2518,6 +2518,11 @@ setTimeout(check, 1000);
             url,
             result.id ?? result.productId ?? result.contentId,
           );
+          if (!autoTagEnabled) {
+            // Kullanıcı otomatik etiketlemeyi kapattı — sadece manuel etiketler geçerli
+            result.tags = Array.isArray(result.tags) ? result.tags : [];
+            console.log("🏷️ Otomatik etiketleme kapalı — etiket ataması atlandı");
+          } else {
           const { generateAutoProductTags } = await import("@shared/auto-product-tags");
           const { extractTrendyolCategoryPath } = await import("@shared/trendyol-category-path");
           let knownTags: string[] = [];
@@ -2564,6 +2569,7 @@ setTimeout(check, 1000);
           });
           result.tags = autoTags;
           console.log(`🏷️ Otomatik etiketler (${autoTags.length}): ${autoTags.join(", ")}`);
+          }
           result.scrapeRunId = scrapeRunId;
           result.sourceUrl = url;
           result.urlProductId = sourceIds.urlProductId;

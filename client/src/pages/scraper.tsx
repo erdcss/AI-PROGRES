@@ -3,10 +3,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt, Bell, ChevronDown, ChevronUp, ArrowLeft, Download, Square } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt, Bell, ChevronDown, ChevronUp, ArrowLeft, Download, Square, Tag } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CSVPreview } from "@/components/CSVPreview";
 import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
@@ -96,6 +97,25 @@ type ScrapingMode = 'single' | 'multi-url';
 
 type ShopifyUploadOutcome = MarktGoUploadProgress["outcomes"][number];
 type ShopifyUploadProgressState = MarktGoUploadProgress;
+
+const AUTO_TAG_STORAGE_KEY = "turmarkt_auto_tag_enabled";
+
+function loadAutoTagEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem(AUTO_TAG_STORAGE_KEY);
+    return raw === null ? true : raw === "true";
+  } catch {
+    return true;
+  }
+}
+
+function saveAutoTagEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(AUTO_TAG_STORAGE_KEY, String(enabled));
+  } catch {
+    /* localStorage kullanılamıyor */
+  }
+}
 
 function isShopifyUploadNetworkError(err: unknown): boolean {
   if (err instanceof TypeError) return true;
@@ -299,6 +319,7 @@ function ScraperPage() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [csvPreviews, setCsvPreviews] = useState<CSVPreviewData[]>([]);
   const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
+  const [autoTagEnabled, setAutoTagEnabled] = useState<boolean>(() => loadAutoTagEnabled());
   const extractAllColors = true; // Always extract all colors automatically
   const [isVariantsOpen, setIsVariantsOpen] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
@@ -636,7 +657,7 @@ function ScraperPage() {
       }
       
       // Toplu çekim ile aynı normalize + poll mantığı
-      return fetchScenarioScrapeResult(scrapeUrl, data.onlyExtractData ?? true);
+      return fetchScenarioScrapeResult(scrapeUrl, data.onlyExtractData ?? true, autoTagEnabled);
     },
     onSuccess: async (data: ScrapedUrlPayload | Record<string, unknown>) => {
       // Shopify CSV yolu farklı payload döner
@@ -1643,7 +1664,7 @@ function ScraperPage() {
           await runMaybeSerial(async () => {
             let scraped: Awaited<ReturnType<typeof fetchScenarioScrapeResult>>;
             try {
-              scraped = await fetchScenarioScrapeResult(url, true);
+              scraped = await fetchScenarioScrapeResult(url, true, autoTagEnabled);
             } catch (firstError) {
               if (bulkStopRequestedRef.current) throw firstError;
               const rateLimited = looksLikeRateLimit(firstError);
@@ -1658,7 +1679,7 @@ function ScraperPage() {
                 await new Promise((resolve) => setTimeout(resolve, BULK_SCRAPE_RETRY_DELAY_MS));
               }
               if (bulkStopRequestedRef.current) throw firstError;
-              scraped = await fetchScenarioScrapeResult(url, true);
+              scraped = await fetchScenarioScrapeResult(url, true, autoTagEnabled);
             }
 
             if (bulkStopRequestedRef.current) {
@@ -2186,6 +2207,17 @@ function ScraperPage() {
     lastUrlIngestRef.current = null;
     singleForm.setValue("url", "");
   }, [singleForm]);
+
+  const handleAutoTagToggle = useCallback((checked: boolean) => {
+    setAutoTagEnabled(checked);
+    saveAutoTagEnabled(checked);
+    toast({
+      title: checked ? "Otomatik etiketleme açık" : "Otomatik etiketleme kapalı",
+      description: checked
+        ? "Yeni çekilen ürünlere otomatik etiketler atanacak"
+        : "Yeni çekilen ürünlere etiket atanmayacak — sadece manuel etiket ekleyebilirsiniz",
+    });
+  }, []);
 
   const clearScraperWorkspace = useCallback(() => {
     if (import.meta.env.DEV) {
@@ -2946,6 +2978,23 @@ function ScraperPage() {
                 Telegram Bildirimleri
               </Button>
               <MarktGoSettingsDialog />
+              <div
+                className="flex items-center gap-2 bg-zinc-800/40 border border-zinc-700/60 rounded-md px-3 py-2"
+                data-testid="toggle-auto-tag"
+                title={
+                  autoTagEnabled
+                    ? "Otomatik etiketleme açık — kapatmak için tıklayın"
+                    : "Otomatik etiketleme kapalı — sadece manuel etiket eklenebilir"
+                }
+              >
+                <Tag className="w-4 h-4 text-zinc-400" />
+                <span className="text-sm text-zinc-400 whitespace-nowrap">Otomatik Etiket</span>
+                <Switch
+                  checked={autoTagEnabled}
+                  onCheckedChange={handleAutoTagToggle}
+                  data-testid="switch-auto-tag"
+                />
+              </div>
               <Button
                 type="button"
                 onClick={clearScraperWorkspace}

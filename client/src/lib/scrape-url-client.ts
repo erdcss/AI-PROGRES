@@ -359,6 +359,7 @@ export function normalizeScrapedPayload(
 export async function fetchScenarioScrapeResult(
   url: string,
   onlyExtractData = true,
+  autoTagEnabled = true,
 ): Promise<ScrapedUrlPayload> {
   const startResp = await fetch("/api/trendyol-scrape", {
     method: "POST",
@@ -368,6 +369,7 @@ export async function fetchScenarioScrapeResult(
       mode: "single",
       onlyExtractData,
       scrapeMode: "auto-fast",
+      autoTagEnabled,
     }),
   });
 
