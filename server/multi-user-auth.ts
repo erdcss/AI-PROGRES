@@ -233,6 +233,39 @@ export function registerMultiUserAuthRoutes(app: Express) {
     }
   });
 
+  app.post("/auth/change-password", requireAppAuth, async (req, res) => {
+    try {
+      const currentPassword = String(req.body?.currentPassword || "");
+      const newPassword = String(req.body?.newPassword || "");
+      if (newPassword.length < 10) return res.status(400).json({ success: false, message: "Yeni şifre en az 10 karakter olmalı" });
+      if (newPassword === currentPassword) return res.status(400).json({ success: false, message: "Yeni şifre mevcut şifreden farklı olmalı" });
+      const db = getDb();
+      const userResult = await db.query("SELECT password_hash FROM app_users WHERE id=$1 AND is_active=TRUE LIMIT 1", [req.appAuth!.userId]);
+      const user = userResult.rows[0];
+      if (!user || !(await verifyPassword(currentPassword, user.password_hash))) {
+        return res.status(401).json({ success: false, message: "Mevcut şifre hatalı" });
+      }
+      const passwordHash = await hashPassword(newPassword);
+      const client = await db.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("UPDATE app_users SET password_hash=$2, updated_at=NOW() WHERE id=$1", [req.appAuth!.userId, passwordHash]);
+        await client.query("DELETE FROM app_sessions WHERE user_id=$1", [req.appAuth!.userId]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+      await createSession(req.appAuth!.userId, req.appAuth!.workspaceId, res);
+      return res.json({ success: true, message: "Şifre değiştirildi ve diğer oturumlar kapatıldı" });
+    } catch (error) {
+      console.error("[auth/change-password]", error);
+      return res.status(500).json({ success: false, message: "Şifre değiştirilemedi" });
+    }
+  });
+
   app.post("/auth/logout", async (req, res) => {
     try {
       const token = parseCookies(req.headers.cookie)[COOKIE_NAME];
