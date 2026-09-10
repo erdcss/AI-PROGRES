@@ -107,19 +107,36 @@ function normalizeBaseUrl(raw: string): string {
   return value;
 }
 
-function directMarktGoConfig(): { baseUrl: string; token: string } {
+function directMarktGoConfig(): { baseUrl: string; token: string } | null {
   const token = String(process.env.MARKTGO_ACCESS_TOKEN || "").trim();
-  if (!token) {
-    throw new Error(
-      "MARKTGO_ACCESS_TOKEN tanımlı değil. Duplicate riski nedeniyle kategori toplu çekimi durduruldu.",
-    );
-  }
+  if (!token) return null;
   return {
     token,
     baseUrl: normalizeBaseUrl(
       process.env.MARKTGO_API_BASE_URL || "https://api.turmarkt.com/api/v1/external",
     ),
   };
+}
+
+class CatalogHttpError extends Error {
+  status: number;
+  body: string;
+
+  constructor(status: number, body: string) {
+    super(`HTTP ${status}${body ? `: ${body.slice(0, 300)}` : ""}`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+function isExpiredOrInvalidToken(error: unknown): boolean {
+  const status = Number((error as { status?: unknown })?.status || 0);
+  const text = String(
+    (error as { body?: unknown })?.body ||
+      (error as { message?: unknown })?.message ||
+      "",
+  ).toLowerCase();
+  return status === 401 || text.includes("invalid_token") || text.includes("expired token");
 }
 
 async function fetchCatalogPage(baseUrl: string, token: string, page: number): Promise<unknown> {
@@ -136,11 +153,9 @@ async function fetchCatalogPage(baseUrl: string, token: string, page: number): P
     });
 
     const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}${text ? `: ${text.slice(0, 300)}` : ""}`);
-    }
-
+    if (!response.ok) throw new CatalogHttpError(response.status, text);
     if (!text) return {};
+
     try {
       return JSON.parse(text);
     } catch {
@@ -151,31 +166,13 @@ async function fetchCatalogPage(baseUrl: string, token: string, page: number): P
   }
 }
 
-/**
- * Strict/fail-closed duplicate guard for Trendyol category bulk import.
- * This module has ZERO imports on purpose: no db.ts, no connection.service,
- * no reconcile.service, no MARKT-GO client module. It talks directly to the
- * live MARKT-GO catalog using only MARKTGO_API_BASE_URL + MARKTGO_ACCESS_TOKEN.
- */
-export async function loadExistingTrendyolProductsFromMarktGo(): Promise<
-  Map<string, ExistingTrendyolProduct>
-> {
-  const { baseUrl, token } = directMarktGoConfig();
+async function loadCatalogWithFetchConfig(baseUrl: string, token: string): Promise<Map<string, ExistingTrendyolProduct>> {
   const existing = new Map<string, ExistingTrendyolProduct>();
 
   for (let page = 1; page <= MAX_PAGES; page += 1) {
-    let payload: unknown;
-    try {
-      payload = await fetchCatalogPage(baseUrl, token, page);
-    } catch (error) {
-      throw new Error(
-        `MARKT-GO canlı katalog kontrolü başarısız. Duplicate riski nedeniyle işlem durduruldu: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
-
+    const payload = await fetchCatalogPage(baseUrl, token, page);
     const items = listItems(payload);
+
     for (const item of items) {
       const parsed = parseRemoteProduct(item);
       if (!parsed || existing.has(parsed.productId)) continue;
@@ -185,6 +182,73 @@ export async function loadExistingTrendyolProductsFromMarktGo(): Promise<
     if (items.length === 0 || !hasMorePages(payload, items.length)) break;
   }
 
-  console.info(`[marktgo-dedupe] canlı katalog tamamen DB'siz tarandı, trendyol ürünleri=${existing.size}`);
   return existing;
+}
+
+async function loadCatalogWithActiveConnection(): Promise<Map<string, ExistingTrendyolProduct>> {
+  if (!String(process.env.DATABASE_URL || "").trim()) {
+    throw new Error(
+      "MARKT-GO access token süresi dolmuş. Yerel .env içindeki MARKTGO_ACCESS_TOKEN değerini güncelleyin veya DATABASE_URL ile kayıtlı aktif MARKT-GO bağlantısını kullanılabilir hale getirin.",
+    );
+  }
+
+  const { getMarktGoClientForConnection } = await import("./connection.service");
+  const { client } = await getMarktGoClientForConnection();
+  const existing = new Map<string, ExistingTrendyolProduct>();
+
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const payload = await client.get<unknown>(`/products?page=${page}&limit=${PAGE_LIMIT}`);
+    const items = listItems(payload);
+
+    for (const item of items) {
+      const parsed = parseRemoteProduct(item);
+      if (!parsed || existing.has(parsed.productId)) continue;
+      existing.set(parsed.productId, parsed);
+    }
+
+    if (items.length === 0 || !hasMorePages(payload, items.length)) break;
+  }
+
+  return existing;
+}
+
+/**
+ * Strict/fail-closed duplicate guard for Trendyol category bulk import.
+ * 1) Prefer MARKTGO_ACCESS_TOKEN from env for the fastest path.
+ * 2) If that token is missing/expired/invalid and DATABASE_URL exists, fall back
+ *    to the program's active MARKT-GO connection stored in the database.
+ * 3) If neither credential source is usable, stop instead of risking duplicates.
+ */
+export async function loadExistingTrendyolProductsFromMarktGo(): Promise<
+  Map<string, ExistingTrendyolProduct>
+> {
+  const direct = directMarktGoConfig();
+
+  if (direct) {
+    try {
+      const existing = await loadCatalogWithFetchConfig(direct.baseUrl, direct.token);
+      console.info(`[marktgo-dedupe] canlı katalog env token ile tarandı, trendyol ürünleri=${existing.size}`);
+      return existing;
+    } catch (error) {
+      if (!isExpiredOrInvalidToken(error)) {
+        throw new Error(
+          `MARKT-GO canlı katalog kontrolü başarısız. Duplicate riski nedeniyle işlem durduruldu: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      console.warn("[marktgo-dedupe] MARKTGO_ACCESS_TOKEN geçersiz/süresi dolmuş, aktif bağlantıya fallback deneniyor");
+    }
+  }
+
+  try {
+    const existing = await loadCatalogWithActiveConnection();
+    console.info(`[marktgo-dedupe] canlı katalog aktif MARKT-GO bağlantısı ile tarandı, trendyol ürünleri=${existing.size}`);
+    return existing;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `MARKT-GO duplicate kontrolü için geçerli kimlik bilgisi bulunamadı. ${message}`,
+    );
+  }
 }
