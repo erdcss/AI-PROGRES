@@ -1,4 +1,4 @@
-import { getMarktGoClientForConnection } from "./connection.service";
+import { createMarktGoClient } from "./client";
 
 export type ExistingTrendyolProduct = {
   productId: string;
@@ -42,9 +42,7 @@ function extractSourceUrlFromTags(value: unknown): string {
   if (!Array.isArray(value)) return "";
   for (const raw of value) {
     const tag = String(raw || "").trim();
-    if (tag.toLowerCase().startsWith("src:")) {
-      return tag.slice(4).trim();
-    }
+    if (tag.toLowerCase().startsWith("src:")) return tag.slice(4).trim();
   }
   return "";
 }
@@ -99,16 +97,40 @@ function hasMorePages(payload: unknown, itemCount: number): boolean {
   return itemCount >= PAGE_LIMIT;
 }
 
+function normalizeBaseUrl(raw: string): string {
+  let value = String(raw || "").trim().replace(/\/+$/, "");
+  if (!value) value = "https://api.turmarkt.com/api/v1/external";
+  if (!/^https?:\/\//i.test(value)) value = `https://${value}`;
+  if (!/\/api\/v1\/external$/i.test(value)) {
+    value = `${value.replace(/\/api\/v1\/external.*$/i, "")}/api/v1/external`;
+    value = value.replace(/([^:]\/)\/+/g, "$1");
+  }
+  return value;
+}
+
+function getDirectMarktGoClient() {
+  const token = String(process.env.MARKTGO_ACCESS_TOKEN || "").trim();
+  if (!token) {
+    throw new Error(
+      "MARKTGO_ACCESS_TOKEN tanımlı değil. Duplicate riski nedeniyle kategori toplu çekimi durduruldu.",
+    );
+  }
+  const baseUrl = normalizeBaseUrl(
+    process.env.MARKTGO_API_BASE_URL || "https://api.turmarkt.com/api/v1/external",
+  );
+  return createMarktGoClient({ baseUrl, accessToken: token, timeoutMs: 15_000 });
+}
+
 /**
  * Strict/fail-closed duplicate guard.
- * IMPORTANT: this path intentionally does NOT import reconcile.service or db.ts.
- * Category discovery only needs the live MARKT-GO catalog, so it reads /products
- * directly and remains independent from DATABASE_URL.
+ * IMPORTANT: this path intentionally imports neither connection.service,
+ * reconcile.service nor db.ts. Category discovery reads the live MARKT-GO
+ * catalog directly using environment credentials.
  */
 export async function loadExistingTrendyolProductsFromMarktGo(): Promise<
   Map<string, ExistingTrendyolProduct>
 > {
-  const { client } = await getMarktGoClientForConnection();
+  const client = getDirectMarktGoClient();
   const existing = new Map<string, ExistingTrendyolProduct>();
 
   for (let page = 1; page <= MAX_PAGES; page += 1) {
@@ -133,6 +155,6 @@ export async function loadExistingTrendyolProductsFromMarktGo(): Promise<
     if (items.length === 0 || !hasMorePages(payload, items.length)) break;
   }
 
-  console.info(`[marktgo-dedupe] canlı katalog tarandı, trendyol ürünleri=${existing.size}`);
+  console.info(`[marktgo-dedupe] canlı katalog DB'siz tarandı, trendyol ürünleri=${existing.size}`);
   return existing;
 }
