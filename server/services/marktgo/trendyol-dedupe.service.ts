@@ -1,4 +1,3 @@
-import { triggerMarktGoCatalogReconcile } from "./reconcile.service";
 import { getMarktGoClientForConnection } from "./connection.service";
 
 export type ExistingTrendyolProduct = {
@@ -7,12 +6,15 @@ export type ExistingTrendyolProduct = {
   sourceUrl: string;
 };
 
+const MAX_PAGES = 50;
+const PAGE_LIMIT = 100;
+
 export function extractTrendyolProductId(value: unknown): string | null {
   const text = String(value || "").trim();
   if (!text) return null;
   const urlMatch = text.match(/-p-(\d+)/i);
   if (urlMatch?.[1]) return urlMatch[1];
-  const idMatch = text.match(/^trendyol[_:-](\d+)$/i);
+  const idMatch = text.match(/^(?:aip[_:-])?trendyol[_:-](\d+)$/i);
   return idMatch?.[1] || null;
 }
 
@@ -21,39 +23,116 @@ export function trendyolStableLocalProductId(productId: unknown): string | null 
   return id ? `trendyol_${id}` : null;
 }
 
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function listItems(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  const root = asObject(payload);
+  if (Array.isArray(root.items)) return root.items;
+  if (Array.isArray(root.data)) return root.data;
+  const data = asObject(root.data);
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(root.products)) return root.products;
+  return [];
+}
+
+function extractSourceUrlFromTags(value: unknown): string {
+  if (!Array.isArray(value)) return "";
+  for (const raw of value) {
+    const tag = String(raw || "").trim();
+    if (tag.toLowerCase().startsWith("src:")) {
+      return tag.slice(4).trim();
+    }
+  }
+  return "";
+}
+
+function parseRemoteProduct(raw: unknown): ExistingTrendyolProduct | null {
+  const root = asObject(raw);
+  const nested = asObject(root.product);
+  const data = asObject(root.data);
+  const row = Object.keys(nested).length ? nested : Object.keys(data).length ? data : root;
+
+  const sourceUrl = String(
+    row.sourceUrl ||
+      row.source_url ||
+      root.sourceUrl ||
+      root.source_url ||
+      extractSourceUrlFromTags(row.tags) ||
+      extractSourceUrlFromTags(root.tags) ||
+      "",
+  ).trim();
+
+  const identityCandidates = [
+    sourceUrl,
+    row.poolId,
+    row.pool_id,
+    row.localProductId,
+    row.local_product_id,
+    row.externalId,
+    row.external_id,
+    root.poolId,
+    root.localProductId,
+    root.externalId,
+    root.external_id,
+  ];
+
+  let productId: string | null = null;
+  for (const candidate of identityCandidates) {
+    productId = extractTrendyolProductId(candidate);
+    if (productId) break;
+  }
+  if (!productId) return null;
+
+  const externalProductId = String(row.id || root.id || row.productId || root.productId || "").trim();
+  return { productId, externalProductId, sourceUrl };
+}
+
+function hasMorePages(payload: unknown, itemCount: number): boolean {
+  const root = asObject(payload);
+  const pagination = asObject(root.pagination);
+  const meta = asObject(root.meta);
+  if (pagination.hasMore === true || pagination.has_more === true) return true;
+  if (meta.hasMore === true || meta.has_more === true) return true;
+  return itemCount >= PAGE_LIMIT;
+}
+
 /**
  * Strict/fail-closed duplicate guard.
- * We verify MARKT-GO is reachable, then read the live catalog and build a set of
- * Trendyol product ids already present there. If the check cannot be completed,
- * callers must stop rather than risk creating duplicates.
+ * IMPORTANT: this path intentionally does NOT import reconcile.service or db.ts.
+ * Category discovery only needs the live MARKT-GO catalog, so it reads /products
+ * directly and remains independent from DATABASE_URL.
  */
 export async function loadExistingTrendyolProductsFromMarktGo(): Promise<
   Map<string, ExistingTrendyolProduct>
 > {
-  // Throws when connection/config/auth is unavailable. This is intentional:
-  // duplicate protection is strict and must never silently fail open.
-  await getMarktGoClientForConnection();
-
-  const reconcile = await triggerMarktGoCatalogReconcile(true);
-  if (!reconcile || !reconcile.success) {
-    throw new Error(
-      reconcile?.message ||
-        "MARKT-GO katalog kontrolü yapılamadı. Tekrar ürün ekleme riski nedeniyle işlem durduruldu.",
-    );
-  }
-
+  const { client } = await getMarktGoClientForConnection();
   const existing = new Map<string, ExistingTrendyolProduct>();
-  for (const product of reconcile.products || []) {
-    const fromSource = extractTrendyolProductId(product.sourceUrl);
-    const fromPoolId = extractTrendyolProductId(product.poolId);
-    const productId = fromSource || fromPoolId;
-    if (!productId || existing.has(productId)) continue;
-    existing.set(productId, {
-      productId,
-      externalProductId: String(product.externalProductId || ""),
-      sourceUrl: String(product.sourceUrl || ""),
-    });
+
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    let payload: unknown;
+    try {
+      payload = await client.get<unknown>(`/products?page=${page}&limit=${PAGE_LIMIT}`);
+    } catch (error) {
+      throw new Error(
+        `MARKT-GO canlı katalog kontrolü başarısız. Duplicate riski nedeniyle işlem durduruldu: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
+    const items = listItems(payload);
+    for (const item of items) {
+      const parsed = parseRemoteProduct(item);
+      if (!parsed || existing.has(parsed.productId)) continue;
+      existing.set(parsed.productId, parsed);
+    }
+
+    if (items.length === 0 || !hasMorePages(payload, items.length)) break;
   }
 
+  console.info(`[marktgo-dedupe] canlı katalog tarandı, trendyol ürünleri=${existing.size}`);
   return existing;
 }
