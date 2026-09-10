@@ -37,14 +37,62 @@ function findDropZone(manualRow: HTMLElement): HTMLElement | null {
   if (!container) return null;
   const candidates = Array.from(container.querySelectorAll<HTMLElement>("div"));
   return (
-    candidates.find((el) => el.className.includes("border-dashed") && el.textContent?.toLowerCase().includes("url sürükle")) ||
-    null
+    candidates.find(
+      (el) =>
+        el.className.includes("border-dashed") &&
+        el.textContent?.toLocaleLowerCase("tr-TR").includes("url sürükle"),
+    ) || null
   );
 }
 
-function queueUrlsViaExistingDropFlow(urls: string[], manualRow: HTMLElement): boolean {
+function trendyolProductId(value: string): string | null {
+  return value.match(/-p-(\d+)/i)?.[1] || null;
+}
+
+function queuedProductIds(manualRow: HTMLElement): Set<string> {
+  const root = manualRow.parentElement || document.body;
+  const ids = new Set<string>();
+  for (const element of Array.from(root.querySelectorAll<HTMLElement>("[title]"))) {
+    const title = element.getAttribute("title") || "";
+    if (!title.includes("trendyol.com")) continue;
+    const id = trendyolProductId(title);
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+async function waitForQueuedProductIds(
+  manualRow: HTMLElement,
+  expectedIds: string[],
+  timeoutMs = 1_500,
+): Promise<string[]> {
+  const uniqueIds = [...new Set(expectedIds.filter(Boolean))];
+  if (!uniqueIds.length) return [];
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const present = queuedProductIds(manualRow);
+    const missing = uniqueIds.filter((id) => !present.has(id));
+    if (missing.length === 0) return [];
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  }
+
+  const present = queuedProductIds(manualRow);
+  return uniqueIds.filter((id) => !present.has(id));
+}
+
+/**
+ * Hızlı yol: mevcut scraper'ın gerçek drop handler'ını tek sefer çağırır.
+ * Önceki sürüm sadece dispatchEvent sonucuna bakıyordu. Artık URL'lerin gerçekten
+ * React kuyruğuna girdiğini ürün ID'leri üzerinden doğrulamadan başarılı sayılmaz.
+ */
+async function queueUrlsViaExistingDropFlow(
+  urls: string[],
+  manualRow: HTMLElement,
+): Promise<string[]> {
   const dropZone = findDropZone(manualRow);
-  if (!dropZone || urls.length === 0) return false;
+  const expectedIds = urls.map(trendyolProductId).filter((id): id is string => Boolean(id));
+  if (!dropZone || urls.length === 0 || expectedIds.length === 0) return urls;
 
   try {
     const transfer = new DataTransfer();
@@ -56,10 +104,18 @@ function queueUrlsViaExistingDropFlow(urls: string[], manualRow: HTMLElement): b
       dataTransfer: transfer,
     });
     dropZone.dispatchEvent(event);
-    return true;
+
+    const missingIds = await waitForQueuedProductIds(manualRow, expectedIds, 1_500);
+    if (missingIds.length === 0) return [];
+
+    const missingSet = new Set(missingIds);
+    return urls.filter((url) => {
+      const id = trendyolProductId(url);
+      return !id || missingSet.has(id);
+    });
   } catch (error) {
     console.warn("[CategoryBulk] drop injection failed", error);
-    return false;
+    return urls;
   }
 }
 
@@ -73,20 +129,78 @@ function setReactInputValue(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+async function waitForSingleQueuedId(
+  manualRow: HTMLElement,
+  productId: string,
+  timeoutMs = 900,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (queuedProductIds(manualRow).has(productId)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return queuedProductIds(manualRow).has(productId);
+}
+
+/**
+ * Güvenli fallback: eksik URL'leri ana scraper'ın kendi input + Ekle handler'ından
+ * geçirir ve her satırın gerçekten listede oluştuğunu doğrular. Bir URL iki denemede
+ * de kuyruğa girmiyorsa toplu çekim başlatılmaz; sessiz veri kaybına izin verilmez.
+ */
 async function queueUrlsViaManualFlow(urls: string[], manualRow: HTMLElement) {
   const input = manualRow.querySelector<HTMLInputElement>("[data-testid='input-product-url']");
   const addButton = manualRow.querySelector<HTMLButtonElement>("[data-testid='button-add-url']");
   if (!input || !addButton) throw new Error("Mevcut URL ekleme alanı bulunamadı");
 
   for (const url of urls) {
-    setReactInputValue(input, url);
-    addButton.click();
-    await new Promise((resolve) => setTimeout(resolve, 35));
+    const productId = trendyolProductId(url);
+    if (productId && queuedProductIds(manualRow).has(productId)) continue;
+
+    let queued = false;
+    for (let attempt = 0; attempt < 2 && !queued; attempt += 1) {
+      setReactInputValue(input, url);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      addButton.click();
+
+      if (productId) {
+        queued = await waitForSingleQueuedId(manualRow, productId, 900);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        queued = input.value.trim() === "";
+      }
+    }
+
+    if (!queued) {
+      throw new Error(`Ürün URL'si ana çekim listesine eklenemedi: ${url}`);
+    }
+  }
+}
+
+async function ensureUrlsAreQueued(urls: string[], manualRow: HTMLElement) {
+  const expectedIds = urls.map(trendyolProductId).filter((id): id is string => Boolean(id));
+  let missingUrls = await queueUrlsViaExistingDropFlow(urls, manualRow);
+
+  if (missingUrls.length > 0) {
+    console.warn(`[CategoryBulk] drop akışında ${missingUrls.length} URL eksik kaldı; manual fallback çalışıyor`);
+    await queueUrlsViaManualFlow(missingUrls, manualRow);
+  }
+
+  const stillMissingIds = await waitForQueuedProductIds(manualRow, expectedIds, 1_500);
+  if (stillMissingIds.length > 0) {
+    missingUrls = urls.filter((url) => {
+      const id = trendyolProductId(url);
+      return id ? stillMissingIds.includes(id) : false;
+    });
+    throw new Error(
+      `${stillMissingIds.length} ürün URL'si listeye eklenemedi. Çekim güvenlik için başlatılmadı.${
+        missingUrls[0] ? ` İlk eksik: ${missingUrls[0]}` : ""
+      }`,
+    );
   }
 }
 
 async function clickExistingFetchButton(): Promise<boolean> {
-  const deadline = Date.now() + 5000;
+  const deadline = Date.now() + 8_000;
   while (Date.now() < deadline) {
     const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button"));
     const button = buttons.find((item) => {
@@ -97,7 +211,7 @@ async function clickExistingFetchButton(): Promise<boolean> {
       button.click();
       return true;
     }
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
   return false;
 }
@@ -180,9 +294,6 @@ export function TrendyolCategoryBulkDrawer() {
     };
   }, []);
 
-  // Trendyol sayfasındaki ana “Tümünü Sil” butonu artık gerçek bir tam sıfırlamadır.
-  // Mevcut scraper handler'ının state temizliğini tamamlamasına izin verip ardından
-  // sayfayı yenileyerek kalan tüm React state/ref/timer/çekmece verilerini de sıfırlarız.
   useEffect(() => {
     const handleClearWorkspace = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
@@ -248,31 +359,33 @@ export function TrendyolCategoryBulkDrawer() {
         throw new Error(data.message || data.warnings?.[0] || "Kategori ürünleri bulunamadı");
       }
 
-      const urls = (data.products || []).map((product) => product.url).filter(Boolean);
+      const uniqueById = new Map<string, string>();
+      for (const product of data.products || []) {
+        const productUrl = String(product.url || "").trim();
+        const id = String(product.productId || trendyolProductId(productUrl) || "").trim();
+        if (!productUrl || !id || uniqueById.has(id)) continue;
+        uniqueById.set(id, productUrl);
+      }
+      const urls = [...uniqueById.values()].slice(0, selectedCount);
       if (urls.length === 0) throw new Error("Kategori içinde ürün bağlantısı bulunamadı");
 
       setLastFound(urls.length);
-
-      const injected = queueUrlsViaExistingDropFlow(urls, manualRow);
-      if (!injected) {
-        await queueUrlsViaManualFlow(urls, manualRow);
-      }
+      await ensureUrlsAreQueued(urls, manualRow);
 
       toast({
-        title: `${urls.length} ürün bulundu`,
-        description: "Ürün URL'leri mevcut Trendyol kuyruğuna eklendi. Çekim başlatılıyor...",
+        title: `${urls.length} ürün bulundu ve listelendi`,
+        description: "URL listesi doğrulandı. Ürün çekimi başlatılıyor...",
         duration: 5000,
       });
 
       const started = await clickExistingFetchButton();
       if (!started) {
-        toast({
-          title: "Ürünler kuyruğa eklendi",
-          description: "Otomatik başlatılamadı. ÜRÜN VERİLERİNİ ÇEK butonuna basabilirsiniz.",
-        });
-      } else {
-        setOpen(false);
+        throw new Error(
+          "Ürün URL'leri listeye eklendi ancak ana ürün çekme butonu otomatik başlatılamadı.",
+        );
       }
+
+      setOpen(false);
     } catch (error) {
       toast({
         title: "Toplu ürün ekleme başarısız",
@@ -403,7 +516,7 @@ export function TrendyolCategoryBulkDrawer() {
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Kategori taranıyor...
+                      Kategori taranıyor ve URL'ler hazırlanıyor...
                     </>
                   ) : (
                     <>
