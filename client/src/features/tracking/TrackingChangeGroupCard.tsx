@@ -78,8 +78,9 @@ function canSyncChange(change: TrackingChangeItem): boolean {
 }
 
 /**
- * Anlık "Shopify'da düzelt": ürün fiyatı varsa yalnızca en yenisi +
+ * Anlık "MARKT-GO'da düzelt": ürün fiyatı varsa yalnızca en yenisi +
  * gerçekten uygulanabilir yan kayıtlar (bağlı OOS / başlık).
+ * İç isimler geriye dönük uyumluluk nedeniyle shopify-sync olarak kalabilir.
  */
 export function selectInstantShopifySyncIds(changes: TrackingChangeItem[]): number[] {
   const syncable = changes.filter(canSyncChange);
@@ -290,7 +291,7 @@ function ProductMovementsDialog({
                   <th className="px-3 py-2 font-medium">Detay</th>
                   <th className="px-3 py-2 font-medium">Durum</th>
                   <th className="px-3 py-2 font-medium tabular-nums">Tespit</th>
-                  <th className="px-3 py-2 font-medium tabular-nums">Shopify</th>
+                  <th className="px-3 py-2 font-medium tabular-nums">MARKT-GO</th>
                   <th className="px-3 py-2 font-medium w-[1%]" />
                 </tr>
               </thead>
@@ -442,6 +443,11 @@ export function TrackingChangeGroupCard({
   const needsReview = approvable.length > 0;
   const reviewCount = sorted.filter((c) => c.status === "manual_review").length;
   const syncBusy = Boolean(busy);
+  const targetProductId = String(product.shopifyProductId || "");
+  const isMarktGoProduct = targetProductId.startsWith("marktgo:");
+  const displayTargetProductId = isMarktGoProduct
+    ? targetProductId.slice("marktgo:".length)
+    : targetProductId;
 
   return (
     <article
@@ -502,15 +508,15 @@ export function TrackingChangeGroupCard({
               {instantSyncIds.length > 0 ? (
                 <Button
                   size="sm"
-                  className="shrink-0 min-w-[9.5rem]"
+                  className="shrink-0 min-w-[10.5rem]"
                   disabled={syncBusy || rechecking}
                   onClick={() => onShopifySyncMany(instantSyncIds)}
                 >
                   {syncBusy
-                    ? "Güncelleniyor…"
+                    ? "MARKT-GO güncelleniyor…"
                     : instantSyncIds.length > 1
-                      ? `Shopify'da düzelt (${instantSyncIds.length})`
-                      : "Shopify'da düzelt"}
+                      ? `MARKT-GO'da düzelt (${instantSyncIds.length})`
+                      : "MARKT-GO'da düzelt"}
                 </Button>
               ) : approvable.length > 0 ? (
                 <Button
@@ -538,7 +544,9 @@ export function TrackingChangeGroupCard({
                 Kaynak <ExternalLink className="w-3 h-3" />
               </a>
             )}
-            {product.shopifyProductId && <span>Shopify #{product.shopifyProductId}</span>}
+            {displayTargetProductId && (
+              <span>{isMarktGoProduct ? "MARKT-GO" : "Hedef"} #{displayTargetProductId}</span>
+            )}
             {approvable.length > 0 && syncable.length > 0 && (
               <button
                 type="button"
