@@ -20,24 +20,28 @@ export type TrendyolCategoryDiscoveryResult = {
   existingCatalogCount: number;
   pagesScanned: number;
   products: TrendyolCategoryProduct[];
-  source: "direct" | "browser-worker" | "local-agent" | "mixed";
+  source: "public-api" | "direct" | "browser-worker" | "local-agent" | "mixed";
   warnings: string[];
 };
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 const PAGE_SIZE = 24;
-// Aynı kategoriden tekrar toplu çekimde ilk yüzlerce/ binlerce ürün MARKT-GO'da
-// mevcut olabilir. 40 sayfalık eski limit yeni ürünlere ulaşmadan taramayı kesiyordu.
-// Üst sınır sadece güvenlik amaçlıdır; normalde kategori tükenince veya hedefe ulaşınca durur.
 const MAX_CATEGORY_PAGES = 500;
-const MAX_CONSECUTIVE_NO_UNSEEN_PAGES = 4;
+const MAX_CONSECUTIVE_EMPTY_PAGES = 4;
+const MAX_CONSECUTIVE_REPEAT_PAGES = 6;
 
 function normalizeCategoryUrl(raw: string): URL {
   const value = String(raw || "").trim();
   if (!value) throw new Error("Kategori URL'si gerekli");
 
-  const parsed = new URL(value);
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("Geçerli bir Trendyol kategori URL'si girin");
+  }
+
   const host = parsed.hostname.toLowerCase();
   if (host !== "trendyol.com" && host !== "www.trendyol.com") {
     throw new Error("Sadece trendyol.com kategori URL'leri desteklenmektedir");
@@ -105,7 +109,7 @@ export function extractTrendyolCategoryProducts(
       $(element).attr("title")?.trim() ||
       $(element).find("[title]").first().attr("title")?.trim() ||
       $(element)
-        .find(".prdct-desc-cntnr-name, .prdct-desc-cntnr-ttl, [class*='product-name']")
+        .find(".prdct-desc-cntnr-name, .prdct-desc-cntnr-ttl, [class*='product-name'], [class*='product-title']")
         .first()
         .text()
         .trim() ||
@@ -113,12 +117,14 @@ export function extractTrendyolCategoryProducts(
     const image =
       $(element).find("img").first().attr("src") ||
       $(element).find("img").first().attr("data-src") ||
+      $(element).find("img").first().attr("data-original") ||
       undefined;
 
     byId.set(product.productId, { ...product, title, image });
   });
 
   const normalized = raw
+    .replace(/&amp;/gi, "&")
     .replace(/\\u002F/gi, "/")
     .replace(/\\u0026/gi, "&")
     .replace(/\\\//g, "/");
@@ -126,18 +132,139 @@ export function extractTrendyolCategoryProducts(
   let match: RegExpExecArray | null;
   while ((match = linkRegex.exec(normalized))) {
     const product = canonicalProductUrl(match[1], currentPageUrl);
-    if (product && !byId.has(product.productId)) {
-      byId.set(product.productId, product);
-    }
+    if (product && !byId.has(product.productId)) byId.set(product.productId, product);
   }
 
   return [...byId.values()];
 }
 
+function normalizeImage(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const image = value.trim();
+  if (/^https?:\/\//i.test(image)) return image;
+  if (image.startsWith("//")) return `https:${image}`;
+  if (image.startsWith("/")) return `https://cdn.dsmcdn.com${image}`;
+  return image;
+}
+
+function slugifyProductName(value: unknown): string {
+  return (
+    String(value || "urun")
+      .toLocaleLowerCase("tr-TR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/ı/g, "i")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "urun"
+  );
+}
+
+function productFromPublicApiRow(row: any, baseUrl: string): TrendyolCategoryProduct | null {
+  const id = String(row?.id ?? row?.productId ?? row?.contentId ?? "").trim();
+  const rawUrl = row?.url || row?.productUrl || row?.link || row?.webUrl || "";
+  let canonical = rawUrl ? canonicalProductUrl(String(rawUrl), baseUrl) : null;
+
+  if (!canonical && /^\d+$/.test(id)) {
+    canonical = {
+      productId: id,
+      url: `https://www.trendyol.com/${slugifyProductName(row?.name || row?.title)}-p-${id}`,
+    };
+  }
+  if (!canonical) return null;
+
+  const imageCandidates = [
+    row?.image,
+    row?.imageUrl,
+    row?.imageUrls?.[0],
+    row?.images?.[0],
+    row?.media?.images?.[0]?.url,
+  ];
+  const image = imageCandidates.map(normalizeImage).find(Boolean);
+
+  return {
+    ...canonical,
+    title: String(row?.name || row?.title || "").trim() || undefined,
+    image,
+  };
+}
+
+function buildPublicDiscoveryUrl(base: URL, page: number): string {
+  const path = base.pathname.replace(/^\/+/, "");
+  const endpoint = new URL(
+    `https://public.trendyol.com/discovery-web-searchgw-service/v2/api/infinite-scroll/${path}`,
+  );
+
+  for (const [key, value] of base.searchParams.entries()) {
+    if (key !== "pi" && key !== "offset") endpoint.searchParams.set(key, value);
+  }
+
+  endpoint.searchParams.set("pi", String(page));
+  endpoint.searchParams.set("offset", String((page - 1) * PAGE_SIZE));
+  endpoint.searchParams.set("culture", endpoint.searchParams.get("culture") || "tr-TR");
+  endpoint.searchParams.set("userGenderId", endpoint.searchParams.get("userGenderId") || "1");
+  endpoint.searchParams.set("pId", endpoint.searchParams.get("pId") || "0");
+  endpoint.searchParams.set("scoringAlgorithmId", endpoint.searchParams.get("scoringAlgorithmId") || "2");
+  endpoint.searchParams.set("categoryRelevancyEnabled", endpoint.searchParams.get("categoryRelevancyEnabled") || "false");
+  endpoint.searchParams.set("isLegalRequirementConfirmed", endpoint.searchParams.get("isLegalRequirementConfirmed") || "false");
+  endpoint.searchParams.set("searchStrategyType", endpoint.searchParams.get("searchStrategyType") || "DEFAULT");
+  endpoint.searchParams.set("productStampType", endpoint.searchParams.get("productStampType") || "TypeA");
+  endpoint.searchParams.set("fixSlotProductAdsIncluded", endpoint.searchParams.get("fixSlotProductAdsIncluded") || "true");
+  return endpoint.toString();
+}
+
+async function fetchViaPublicDiscoveryApi(
+  base: URL,
+  page: number,
+): Promise<TrendyolCategoryProduct[]> {
+  const url = buildPublicDiscoveryUrl(base, page);
+  try {
+    const response = await axios.get(url, {
+      timeout: 20_000,
+      validateStatus: () => true,
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "application/json,text/plain,*/*",
+        "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.7,en;q=0.6",
+        Referer: pageUrl(base, page),
+        Origin: "https://www.trendyol.com",
+      },
+    });
+
+    if (response.status < 200 || response.status >= 400) {
+      console.warn(`[CategoryDiscoveryV2] public api page=${page} HTTP ${response.status}`);
+      return [];
+    }
+
+    const data = response.data;
+    const rows =
+      data?.result?.products ||
+      data?.result?.contents ||
+      data?.result?.content ||
+      data?.products ||
+      data?.contents ||
+      data?.content ||
+      [];
+    if (!Array.isArray(rows)) return [];
+
+    const byId = new Map<string, TrendyolCategoryProduct>();
+    for (const row of rows) {
+      const product = productFromPublicApiRow(row, base.toString());
+      if (product && !byId.has(product.productId)) byId.set(product.productId, product);
+    }
+    return [...byId.values()];
+  } catch (error) {
+    console.warn(
+      `[CategoryDiscoveryV2] public api page=${page} failed`,
+      error instanceof Error ? error.message : error,
+    );
+    return [];
+  }
+}
+
 async function fetchDirect(url: string): Promise<string | null> {
   try {
     const response = await axios.get<string>(url, {
-      timeout: 25_000,
+      timeout: 20_000,
       responseType: "text",
       validateStatus: () => true,
       headers: {
@@ -208,8 +335,7 @@ export async function discoverTrendyolCategoryProducts(input: {
   const base = normalizeCategoryUrl(input.url);
   const requestedCount = Math.max(1, Math.min(500, Number(input.maxProducts) || 50));
 
-  // KATI KURAL: MARKT-GO canlı kataloğu doğrulanmadan kategori toplu çekimi başlamaz.
-  // Böylece katalog kontrolü başarısız olduğunda sistem fail-open davranıp duplicate oluşturamaz.
+  // Fail-closed duplicate guard: MARKT-GO katalog doğrulanmadan yeni ürün seçilmez.
   const existingOnMarktGo = await loadExistingTrendyolProductsFromMarktGo();
 
   const products = new Map<string, TrendyolCategoryProduct>();
@@ -217,23 +343,27 @@ export async function discoverTrendyolCategoryProducts(input: {
   const skippedExistingIds = new Set<string>();
   const warnings: string[] = [];
   let pagesScanned = 0;
+  let usedPublicApi = false;
   let usedDirect = false;
   let usedBrowserWorker = false;
   let usedLocalAgent = false;
   let consecutiveEmpty = 0;
-  let consecutiveNoUnseenProducts = 0;
+  let consecutiveRepeatOnly = 0;
 
-  // requestedCount = bulunması gereken YENİ ürün sayısıdır. Önceden MARKT-GO'ya
-  // gönderilen ürünler sayıya dahil edilmez; sistem sonraki kategori sayfalarına
-  // ilerlemeye devam eder. Bu özellikle aynı kategori URL'sinin tekrar kullanımında kritiktir.
   for (let page = 1; page <= MAX_CATEGORY_PAGES && products.size < requestedCount; page++) {
     const target = pageUrl(base, page);
-    let extracted: TrendyolCategoryProduct[] = [];
 
-    const directHtml = await fetchDirect(target);
-    if (directHtml) {
-      usedDirect = true;
-      extracted = extractTrendyolCategoryProducts(directHtml, target);
+    // Birincil kaynak: Trendyol kategori sayfasının kendi infinite-scroll JSON servisi.
+    let extracted = await fetchViaPublicDiscoveryApi(base, page);
+    if (extracted.length > 0) usedPublicApi = true;
+
+    // API geçici olarak boş/engelli ise HTML yollarına düş.
+    if (extracted.length === 0) {
+      const directHtml = await fetchDirect(target);
+      if (directHtml) {
+        usedDirect = true;
+        extracted = extractTrendyolCategoryProducts(directHtml, target);
+      }
     }
 
     if (extracted.length === 0) {
@@ -256,12 +386,14 @@ export async function discoverTrendyolCategoryProducts(input: {
 
     if (extracted.length === 0) {
       consecutiveEmpty++;
-      if (consecutiveEmpty >= 2) break;
+      console.warn(`[CategoryDiscoveryV2] page=${page} empty (${consecutiveEmpty}/${MAX_CONSECUTIVE_EMPTY_PAGES})`);
+      if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY_PAGES) break;
       continue;
     }
     consecutiveEmpty = 0;
 
     let unseenOnThisPage = 0;
+    let newOnThisPage = 0;
     for (const item of extracted) {
       if (seenCategoryProductIds.has(item.productId)) continue;
       seenCategoryProductIds.add(item.productId);
@@ -273,33 +405,28 @@ export async function discoverTrendyolCategoryProducts(input: {
       }
 
       products.set(item.productId, item);
+      newOnThisPage++;
       if (products.size >= requestedCount) break;
     }
 
-    // Trendyol bazı durumlarda pi parametresine rağmen aynı HTML'i tekrar döndürebilir.
-    // Sadece bu durumda güvenli şekilde kesiyoruz. Sayfada yeni kategori productId'leri
-    // görülüyorsa hepsi MARKT-GO'da mevcut olsa bile taramaya devam edilir.
+    // API/HTML gerçekten aynı ürünleri tekrar döndürürse sonsuz döngüyü önle.
     if (unseenOnThisPage === 0) {
-      consecutiveNoUnseenProducts++;
-      if (consecutiveNoUnseenProducts >= MAX_CONSECUTIVE_NO_UNSEEN_PAGES) {
-        warnings.push(
-          "Trendyol art arda aynı ürün sayfalarını döndürdüğü için tarama güvenli şekilde durduruldu.",
-        );
+      consecutiveRepeatOnly++;
+      if (consecutiveRepeatOnly >= MAX_CONSECUTIVE_REPEAT_PAGES) {
+        warnings.push("Trendyol art arda aynı ürün grubunu döndürdüğü için tarama durduruldu.");
         break;
       }
     } else {
-      consecutiveNoUnseenProducts = 0;
+      consecutiveRepeatOnly = 0;
     }
 
     console.log(
-      `[CategoryDiscoveryV2] page=${page} extracted=${extracted.length} unseen=${unseenOnThisPage} new=${products.size}/${requestedCount} skippedExisting=${skippedExistingIds.size}`,
+      `[CategoryDiscoveryV2] page=${page} extracted=${extracted.length} unseen=${unseenOnThisPage} newPage=${newOnThisPage} newTotal=${products.size}/${requestedCount} skippedExisting=${skippedExistingIds.size}`,
     );
   }
 
   if (skippedExistingIds.size > 0) {
-    warnings.push(
-      `${skippedExistingIds.size} ürün zaten MARKT-GO'da bulundu ve tekrar eklenmedi.`,
-    );
+    warnings.push(`${skippedExistingIds.size} ürün zaten MARKT-GO'da bulundu ve tekrar eklenmedi.`);
   }
   if (products.size < requestedCount) {
     warnings.push(
@@ -307,24 +434,24 @@ export async function discoverTrendyolCategoryProducts(input: {
     );
   }
   if (products.size === 0 && skippedExistingIds.size > 0) {
-    warnings.push(
-      `Taranan ${seenCategoryProductIds.size} benzersiz kategori ürününün tamamı zaten MARKT-GO'da.`,
-    );
+    warnings.push(`Taranan ${seenCategoryProductIds.size} benzersiz ürünün tamamı zaten MARKT-GO'da.`);
   } else if (products.size === 0) {
     warnings.push(
-      "Kategori sayfasından ürün bağlantısı çıkarılamadı. Direct HTML, Browser Worker ve Local Agent yolları denendi.",
+      "Kategori ürünleri alınamadı. Public API, Direct HTML, Browser Worker ve Local Agent yolları denendi.",
     );
   }
 
-  const sourceCount = [usedDirect, usedBrowserWorker, usedLocalAgent].filter(Boolean).length;
+  const sourceCount = [usedPublicApi, usedDirect, usedBrowserWorker, usedLocalAgent].filter(Boolean).length;
   const source: TrendyolCategoryDiscoveryResult["source"] =
     sourceCount > 1
       ? "mixed"
-      : usedBrowserWorker
-        ? "browser-worker"
-        : usedLocalAgent
-          ? "local-agent"
-          : "direct";
+      : usedPublicApi
+        ? "public-api"
+        : usedBrowserWorker
+          ? "browser-worker"
+          : usedLocalAgent
+            ? "local-agent"
+            : "direct";
 
   return {
     success: products.size > 0,
