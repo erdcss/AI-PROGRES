@@ -102,6 +102,35 @@ async function clickExistingFetchButton(): Promise<boolean> {
   return false;
 }
 
+function clearTrendyolWorkspaceStorage() {
+  const exactKeys = [
+    "turmarkt_scraper_state_v1",
+    "turmarkt_scraper_queue",
+    "turmarkt_scraper_previews",
+    "turmarkt_last_scraped_product",
+    "turmarkt_scraper_last_url",
+  ];
+  const prefixes = [
+    "turmarkt_scraper_",
+    "trendyol_bulk_",
+    "trendyol_category_",
+  ];
+
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    try {
+      for (const key of exactKeys) storage.removeItem(key);
+      const toRemove: string[] = [];
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (key && prefixes.some((prefix) => key.startsWith(prefix))) toRemove.push(key);
+      }
+      toRemove.forEach((key) => storage.removeItem(key));
+    } catch {
+      // Storage erişimi engelliyse UI reset yine devam eder.
+    }
+  }
+}
+
 export function TrendyolCategoryBulkDrawer() {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [manualRow, setManualRow] = useState<HTMLElement | null>(null);
@@ -149,6 +178,33 @@ export function TrendyolCategoryBulkDrawer() {
       window.clearInterval(timer);
       portalHost?.remove();
     };
+  }, []);
+
+  // Trendyol sayfasındaki ana “Tümünü Sil” butonu artık gerçek bir tam sıfırlamadır.
+  // Mevcut scraper handler'ının state temizliğini tamamlamasına izin verip ardından
+  // sayfayı yenileyerek kalan tüm React state/ref/timer/çekmece verilerini de sıfırlarız.
+  useEffect(() => {
+    const handleClearWorkspace = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const clearButton = target?.closest<HTMLButtonElement>("[data-testid='button-clear-workspace']");
+      if (!clearButton || clearButton.disabled) return;
+
+      setOpen(false);
+      setUrl("");
+      setCount(50);
+      setCustomCount("");
+      setLoading(false);
+      setLastFound(null);
+      clearTrendyolWorkspaceStorage();
+
+      window.setTimeout(() => {
+        clearTrendyolWorkspaceStorage();
+        window.location.reload();
+      }, 120);
+    };
+
+    document.addEventListener("click", handleClearWorkspace, true);
+    return () => document.removeEventListener("click", handleClearWorkspace, true);
   }, []);
 
   const selectedCount = useMemo(() => {
