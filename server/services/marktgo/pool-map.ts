@@ -117,6 +117,8 @@ function normalizePoolReviews(value: unknown, seed: string): ImportedReviewInput
 export function mapPoolProductToMarktGoInput(
   product: Record<string, unknown>,
 ): LocalProductInput {
+  // Scraper'daki salePrice kaynak pazaryeri alış maliyetidir.
+  // MARKT-GO satış fiyatı bu maliyetin üzerine kâr marjı uygulanarak oluşturulur.
   const cost = Number(product.salePrice);
   const sale = Number.isFinite(cost) ? cost : 0;
   const compare =
@@ -193,6 +195,7 @@ export function mapPoolProductToMarktGoInput(
     sourceUrl: product.sourceUrl ? String(product.sourceUrl) : null,
     price: regular,
     discountPrice: compare ? sellPrice : null,
+    purchasePrice: sale > 0 ? sale : null,
     stock: marktGoStockForAvailability(product.inStock !== false),
     images,
     tags,
