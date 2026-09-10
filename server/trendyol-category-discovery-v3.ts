@@ -16,12 +16,19 @@ export type TrendyolCategoryDiscoveryResult = {
   existingCatalogCount: number;
   pagesScanned: number;
   products: TrendyolCategoryProduct[];
-  source: "public-api" | "direct" | "browser-worker" | "local-agent" | "mixed";
+  source:
+    | "seo-ssr"
+    | "public-api"
+    | "direct"
+    | "browser-worker"
+    | "local-agent"
+    | "mixed";
   warnings: string[];
 };
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+const SEO_USER_AGENTS = ["Twitterbot/1.0", "Google-InspectionTool/1.0"] as const;
 const PAGE_SIZE = 24;
 const MAX_CATEGORY_PAGES = 500;
 const MAX_CONSECUTIVE_EMPTY_PAGES = 8;
@@ -267,6 +274,55 @@ async function fetchPublicProducts(
   return mergeProducts(groups);
 }
 
+/**
+ * Trendyol cloud/datacenter IP'lerinde normal browser isteğini /en/select-country
+ * sayfasına yönlendirebiliyor. Kategori sayfasının sosyal/SEO önizleme sürümü ise
+ * aynı canonical kategori için server-render edilmiş gerçek ürün linklerini döndürüyor.
+ * Bu yol yalnız kategori URL keşfinde kullanılır; ürün detay scraping pipeline'ını
+ * değiştirmez.
+ */
+async function fetchSeoRenderedProducts(target: string): Promise<TrendyolCategoryProduct[]> {
+  for (const userAgent of SEO_USER_AGENTS) {
+    try {
+      const response = await axios.get<string>(target, {
+        timeout: 20_000,
+        responseType: "text",
+        maxRedirects: 4,
+        validateStatus: () => true,
+        headers: {
+          "User-Agent": userAgent,
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "tr-TR,tr;q=0.9",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+
+      if (
+        response.status >= 200 &&
+        response.status < 400 &&
+        typeof response.data === "string" &&
+        response.data.length > 10_000
+      ) {
+        const products = extractTrendyolCategoryProducts(response.data, target);
+        if (products.length > 0) {
+          console.log(
+            `[CategoryDiscoveryV3] seo-ssr ua=${userAgent} products=${products.length} target=${target}`,
+          );
+          return products;
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `[CategoryDiscoveryV3] seo-ssr ua=${userAgent} failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+  return [];
+}
+
 async function fetchDirectProducts(target: string): Promise<TrendyolCategoryProduct[]> {
   try {
     const response = await axios.get<string>(target, {
@@ -287,7 +343,7 @@ async function fetchDirectProducts(target: string): Promise<TrendyolCategoryProd
       return extractTrendyolCategoryProducts(response.data, target);
     }
   } catch {
-    // Browser Worker fallback aşağıda devreye girebilir.
+    // Diğer kaynaklar aşağıda devreye girer.
   }
   return [];
 }
@@ -339,13 +395,14 @@ async function loadExistingMarktGoProductsBestEffort(
     const timeout = new Promise<never>((_, reject) => {
       const timer = setTimeout(() => {
         clearTimeout(timer);
-        reject(new Error(`MARKT-GO duplicate kontrolü ${MARKTGO_DEDUPE_TIMEOUT_MS / 1000} saniyede yanıt vermedi`));
+        reject(
+          new Error(
+            `MARKT-GO duplicate kontrolü ${MARKTGO_DEDUPE_TIMEOUT_MS / 1000} saniyede yanıt vermedi`,
+          ),
+        );
       }, MARKTGO_DEDUPE_TIMEOUT_MS);
     });
-    return await Promise.race([
-      loadExistingTrendyolProductsFromMarktGo(),
-      timeout,
-    ]);
+    return await Promise.race([loadExistingTrendyolProductsFromMarktGo(), timeout]);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.warn(`[CategoryDiscoveryV3] MARKT-GO duplicate kontrolü atlandı: ${detail}`);
@@ -372,7 +429,9 @@ export async function discoverTrendyolCategoryProducts(input: {
   const selected = new Map<string, TrendyolCategoryProduct>();
   const seenCategoryIds = new Set<string>();
   const skippedExistingIds = new Set<string>();
-  const usedSources = new Set<"public-api" | "direct" | "browser-worker" | "local-agent">();
+  const usedSources = new Set<
+    "seo-ssr" | "public-api" | "direct" | "browser-worker" | "local-agent"
+  >();
 
   let pagesScanned = 0;
   let consecutiveEmptyPages = 0;
@@ -385,8 +444,19 @@ export async function discoverTrendyolCategoryProducts(input: {
   ) {
     const target = categoryPageUrl(base, logicalPage);
 
-    let candidates = await fetchPublicProducts(base, logicalPage);
-    if (candidates.length > 0) usedSources.add("public-api");
+    // Production'da kanıtlanmış en hızlı ve geo-redirect'ten etkilenmeyen yol.
+    let candidates = await fetchSeoRenderedProducts(target);
+    if (candidates.length > 0) usedSources.add("seo-ssr");
+
+    // SEO SSR yolu yeterli değilse eski kaynaklar fallback olarak korunur.
+    if (
+      candidates.length === 0 ||
+      countUnseen(candidates, seenCategoryIds) < MIN_HEALTHY_UNSEEN_PER_PAGE
+    ) {
+      const publicProducts = await fetchPublicProducts(base, logicalPage);
+      if (publicProducts.length > 0) usedSources.add("public-api");
+      candidates = mergeProducts([candidates, publicProducts]);
+    }
 
     if (
       candidates.length === 0 ||
@@ -479,20 +549,22 @@ export async function discoverTrendyolCategoryProducts(input: {
 
   if (selected.size === 0 && seenCategoryIds.size === 0) {
     warnings.push(
-      "Kategori ürünleri alınamadı. Public API, Direct HTML, Browser Worker ve Local Agent yolları denendi.",
+      "Kategori ürünleri alınamadı. SEO SSR, Public API, Direct HTML, Browser Worker ve Local Agent yolları denendi.",
     );
   }
 
   const source: TrendyolCategoryDiscoveryResult["source"] =
     usedSources.size > 1
       ? "mixed"
-      : usedSources.has("public-api")
-        ? "public-api"
-        : usedSources.has("browser-worker")
-          ? "browser-worker"
-          : usedSources.has("local-agent")
-            ? "local-agent"
-            : "direct";
+      : usedSources.has("seo-ssr")
+        ? "seo-ssr"
+        : usedSources.has("public-api")
+          ? "public-api"
+          : usedSources.has("browser-worker")
+            ? "browser-worker"
+            : usedSources.has("local-agent")
+              ? "local-agent"
+              : "direct";
 
   return {
     success: selected.size > 0,
