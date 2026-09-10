@@ -30,7 +30,7 @@ function now() {
 }
 
 function getAppPassword() {
-  return String(import.meta.env.VITE_APP_PASSWORD || "4434").trim();
+  return String(import.meta.env.VITE_APP_PASSWORD || "").trim();
 }
 
 function writeSession(session: SessionData) {
@@ -145,7 +145,8 @@ if (typeof window !== "undefined") {
 }
 
 export function verifyAppPassword(password: string) {
-  return String(password || "").trim() === getAppPassword();
+  const configured = getAppPassword();
+  return configured.length > 0 && String(password || "").trim() === configured;
 }
 
 export function saveAppSession() {

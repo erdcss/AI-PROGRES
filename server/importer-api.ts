@@ -13,8 +13,12 @@ import { getShopifyConfig, saveShopifyAccessToken } from './shopify-credentials'
 import { uploadProductToShopify } from './shopify-api-uploader';
 import { getValidShopifyAccessToken } from './shopify-token-manager';
 import { resolveDeployRevision } from './deploy-revision';
+import { multiUserApiRouter } from './multi-user-api';
 
 const router = Router();
+
+// Çok kullanıcılı production API: /api/auth/* ve /api/workspace/*
+router.use(multiUserApiRouter);
 
 // ── Token yönetimi ────────────────────────────────────────────────────────────
 
@@ -22,7 +26,7 @@ interface TokenStatus {
   valid: boolean;
   shopDomain?: string;
   lastChecked: Date;
-  expiresAt?: Date;    // Shopify token süresi dolmuyor ama yine de takip edelim
+  expiresAt?: Date;
   checkCount: number;
 }
 
@@ -32,10 +36,6 @@ let tokenStatus: TokenStatus = {
   checkCount: 0,
 };
 
-/**
- * Shopify token'ının geçerliliğini test eder (istek anında).
- * Periyodik yenileme shopify-token-manager.warmUpShopifyToken tarafından yönetilir.
- */
 async function validateShopifyToken(): Promise<boolean> {
   try {
     const { shopifyAdminFetch } = await import('./shopify-token-manager');
@@ -70,8 +70,6 @@ async function validateShopifyToken(): Promise<boolean> {
   }
 }
 
-// ── IMPORT_KEY middleware ─────────────────────────────────────────────────────
-
 function requireImportKey(req: Request, res: Response, next: NextFunction): void {
   const importKey = process.env.IMPORT_KEY;
   if (!importKey) {
@@ -79,8 +77,6 @@ function requireImportKey(req: Request, res: Response, next: NextFunction): void
     return;
   }
 
-  // Header: Authorization: Bearer <key>  veya  X-Import-Key: <key>
-  // Query:  ?key=<key>
   const provided =
     req.headers['x-import-key'] as string ||
     (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '') ||
@@ -93,14 +89,10 @@ function requireImportKey(req: Request, res: Response, next: NextFunction): void
   next();
 }
 
-// ── GET /api/health ───────────────────────────────────────────────────────────
-
 router.get('/health', async (_req: Request, res: Response) => {
   const shopifyOk = tokenStatus.valid;
   const shopifyConfig = await getShopifyConfig().catch(() => null);
 
-  // Always 200: Railway / load-balancer healthchecks treat 5xx as a failed deploy.
-  // Shopify being stopped must not block new releases from going live.
   res.status(200).json({
     status: shopifyOk ? 'ok' : 'degraded',
     service: 'trendyol-scraper',
@@ -115,8 +107,6 @@ router.get('/health', async (_req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-// ── POST /api/import ──────────────────────────────────────────────────────────
 
 interface ImportResult {
   success: boolean;
@@ -133,9 +123,6 @@ router.post('/import', requireImportKey, async (req: Request, res: Response) => 
     let csvContent: string;
     let productTitle: string;
 
-    // İki mod desteklenir:
-    // 1. application/json  → { csv: "...", title: "..." }
-    // 2. text/csv veya text/plain → ham CSV body, title header'dan gelir
     if (contentType.includes('application/json')) {
       const body = req.body as { csv?: string; title?: string };
       if (!body.csv) {
@@ -145,7 +132,6 @@ router.post('/import', requireImportKey, async (req: Request, res: Response) => 
       csvContent = body.csv;
       productTitle = body.title || 'İçe Aktarılan Ürün';
     } else {
-      // Raw CSV body
       csvContent = typeof req.body === 'string' ? req.body : req.body?.toString?.() || '';
       productTitle =
         (req.headers['x-product-title'] as string) ||
@@ -158,7 +144,6 @@ router.post('/import', requireImportKey, async (req: Request, res: Response) => 
       return;
     }
 
-    // CSV formatını hızlıca doğrula
     let records: any[];
     try {
       records = parse(csvContent, { columns: true, skip_empty_lines: true });
@@ -172,7 +157,6 @@ router.post('/import', requireImportKey, async (req: Request, res: Response) => 
       return;
     }
 
-    // Başlık CSV'den al (Handle sütunundan türet)
     const firstRow = records[0] as Record<string, string>;
     if (!productTitle || productTitle === 'İçe Aktarılan Ürün') {
       productTitle = firstRow['Title'] || firstRow['title'] || 'İçe Aktarılan Ürün';
@@ -180,7 +164,6 @@ router.post('/import', requireImportKey, async (req: Request, res: Response) => 
 
     console.log(`📥 [Importer] İçe aktarma başlıyor: "${productTitle}" (${records.length} satır)`);
 
-    // Token geçerliyse devam et, değilse son bir kontrol yap
     if (!tokenStatus.valid) {
       const ok = await validateShopifyToken();
       if (!ok) {
@@ -191,7 +174,6 @@ router.post('/import', requireImportKey, async (req: Request, res: Response) => 
       }
     }
 
-    // Shopify'a yükle
     const result = await uploadProductToShopify(csvContent, productTitle);
 
     if (result.success && result.productId) {
@@ -228,9 +210,6 @@ router.post('/import', requireImportKey, async (req: Request, res: Response) => 
     res.status(500).json({ error: err.message || 'Beklenmeyen hata' });
   }
 });
-
-// ── POST /api/import/validate-token ──────────────────────────────────────────
-// Zorla token doğrulama tetikler (IMPORT_KEY korumalı)
 
 router.post('/import/validate-token', requireImportKey, async (_req: Request, res: Response) => {
   const valid = await validateShopifyToken();

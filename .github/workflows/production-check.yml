@@ -1,0 +1,31 @@
+name: Production Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feat/multi-user-production]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Production build (blocking)
+        run: npm run build
+      - name: TypeScript debt report (non-blocking)
+        continue-on-error: true
+        run: npm run check
+      - name: Production dependency audit (non-blocking report)
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=critical
