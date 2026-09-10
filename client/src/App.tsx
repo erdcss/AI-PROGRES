@@ -13,6 +13,7 @@ import { AppOpenSplash } from "@/components/AppOpenSplash";
 import { MatrixBackground } from "@/components/MatrixBackground";
 import { TrendyolCategoryBulkDrawer } from "@/components/TrendyolCategoryBulkDrawer";
 import { TenantWorkspace } from "@/components/TenantWorkspace";
+import { AccountSecurityButton } from "@/components/AccountSecurityButton";
 import {
   getAccountAuthServerSnapshot,
   getAccountAuthSnapshot,
@@ -151,7 +152,8 @@ function AdminAppShell() {
     <WouterRouter>
       <div className="min-h-screen" style={{ position: "relative" }}>
         <MatrixBackground />
-        <div className="fixed right-4 top-4 z-[9000]">
+        <div className="fixed right-4 top-4 z-[9000] flex items-center gap-2">
+          <AccountSecurityButton />
           <Button type="button" size="sm" variant="outline" onClick={() => void logoutAccount()}>
             <LogOut className="mr-2 h-4 w-4" /> Çıkış
           </Button>

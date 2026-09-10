@@ -74,6 +74,15 @@ export async function registerAccount(displayName: string, email: string, passwo
   await refreshAccountSession();
 }
 
+export async function changeAccountPassword(currentPassword: string, newPassword: string) {
+  const payload = await jsonRequest("/api/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  await refreshAccountSession();
+  return payload;
+}
+
 export async function logoutAccount() {
   await jsonRequest("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => undefined);
   emit({ loading: false, user: null });
