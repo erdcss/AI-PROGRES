@@ -492,6 +492,10 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
     if (linkedId) externalProductId = null;
   }
 
+  const purchasePrice = Number(input.purchasePrice);
+  const validPurchasePrice = Number.isFinite(purchasePrice) && purchasePrice > 0 ? money(purchasePrice) : null;
+  const arrivedAt = new Date().toISOString();
+
   const buildProductBody = (withVariants: boolean): Record<string, unknown> => {
     const inline = withVariants ? buildInlineVariants(input) : undefined;
     return {
@@ -500,12 +504,14 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
       ...(brand ? { brand } : {}),
       price: money(input.price),
       discountPrice: input.discountPrice != null ? money(input.discountPrice) : null,
+      ...(validPurchasePrice != null ? { purchasePrice: validPurchasePrice } : {}),
       stock: intStock(input.stock, MARKTGO_FIXED_STOCK),
       images,
       tags: input.tags || [],
       status: "active" as const,
       externalId,
       sourceSite: "AI-PROGRES",
+      arrivedAt,
       ...(input.sourceUrl && /^https?:\/\//i.test(input.sourceUrl)
         ? { sourceUrl: input.sourceUrl }
         : {}),
@@ -681,7 +687,12 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
     ok: true,
   });
   steps.push({ step: "inventory", label: STEP_LABEL.inventory, ok: true });
-  steps.push({ step: "pricing", label: STEP_LABEL.pricing, ok: true });
+  steps.push({
+    step: "pricing",
+    label: STEP_LABEL.pricing,
+    ok: true,
+    detail: validPurchasePrice != null ? `alış ${validPurchasePrice.toFixed(2)} ₺ gönderildi` : "alış fiyatı yok",
+  });
   if (reviewResolution.attempted) {
     steps.push({
       step: "reviews",
@@ -697,12 +708,18 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   if (input.sourceUrl && status !== "partial_sync") {
     try {
       const { trackingService } = await import("../tracking.service");
-      const sell = Number(input.discountPrice ?? input.price);
-      if (Number.isFinite(sell) && sell > 0) {
+      const liveSell = Number(input.discountPrice ?? input.price);
+      const trackedSourceCost =
+        validPurchasePrice != null
+          ? validPurchasePrice
+          : Number.isFinite(liveSell) && liveSell > 0
+            ? money(liveSell / 1.1)
+            : 0;
+      if (trackedSourceCost > 0) {
         const tracked = await trackingService.registerFromDestinationUpload({
           sourceUrl: String(input.sourceUrl),
           title: input.title,
-          price: sell,
+          price: trackedSourceCost,
           destinationProductId: externalProductId,
           variants: (input.variants || []).map((v) => ({
             color: v.option1,
@@ -757,6 +774,7 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
     externalId,
     mappingId: mapping.id,
     categoryUnresolved: false,
+    purchasePriceSent: validPurchasePrice,
     reviewCount: reviews.length,
     remoteReviewCount,
     reviewsSynced: !reviewResolution.error,
@@ -767,7 +785,7 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
     message: redactSecrets(
       failed.length
         ? `MARKT-GO kısmi senkron: ${failed.join(",")}`
-        : `MARKT-GO'ya gönderildi${reviewResolution.attempted ? ` — ${reviews.length} yorum` : ""}`,
+        : `MARKT-GO'ya gönderildi${validPurchasePrice != null ? ` — alış ${validPurchasePrice.toFixed(2)} ₺` : ""}${reviewResolution.attempted ? ` — ${reviews.length} yorum` : ""}`,
     ),
   };
 }
