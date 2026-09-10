@@ -1,5 +1,3 @@
-import { createMarktGoClient } from "./client";
-
 export type ExistingTrendyolProduct = {
   productId: string;
   externalProductId: string;
@@ -8,6 +6,7 @@ export type ExistingTrendyolProduct = {
 
 const MAX_PAGES = 50;
 const PAGE_LIMIT = 100;
+const REQUEST_TIMEOUT_MS = 15_000;
 
 export function extractTrendyolProductId(value: unknown): string | null {
   const text = String(value || "").trim();
@@ -108,35 +107,66 @@ function normalizeBaseUrl(raw: string): string {
   return value;
 }
 
-function getDirectMarktGoClient() {
+function directMarktGoConfig(): { baseUrl: string; token: string } {
   const token = String(process.env.MARKTGO_ACCESS_TOKEN || "").trim();
   if (!token) {
     throw new Error(
       "MARKTGO_ACCESS_TOKEN tanımlı değil. Duplicate riski nedeniyle kategori toplu çekimi durduruldu.",
     );
   }
-  const baseUrl = normalizeBaseUrl(
-    process.env.MARKTGO_API_BASE_URL || "https://api.turmarkt.com/api/v1/external",
-  );
-  return createMarktGoClient({ baseUrl, accessToken: token, timeoutMs: 15_000 });
+  return {
+    token,
+    baseUrl: normalizeBaseUrl(
+      process.env.MARKTGO_API_BASE_URL || "https://api.turmarkt.com/api/v1/external",
+    ),
+  };
+}
+
+async function fetchCatalogPage(baseUrl: string, token: string, page: number): Promise<unknown> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${baseUrl}/products?page=${page}&limit=${PAGE_LIMIT}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}${text ? `: ${text.slice(0, 300)}` : ""}`);
+    }
+
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error("MARKT-GO ürün kataloğu geçersiz JSON döndürdü");
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**
- * Strict/fail-closed duplicate guard.
- * IMPORTANT: this path intentionally imports neither connection.service,
- * reconcile.service nor db.ts. Category discovery reads the live MARKT-GO
- * catalog directly using environment credentials.
+ * Strict/fail-closed duplicate guard for Trendyol category bulk import.
+ * This module has ZERO imports on purpose: no db.ts, no connection.service,
+ * no reconcile.service, no MARKT-GO client module. It talks directly to the
+ * live MARKT-GO catalog using only MARKTGO_API_BASE_URL + MARKTGO_ACCESS_TOKEN.
  */
 export async function loadExistingTrendyolProductsFromMarktGo(): Promise<
   Map<string, ExistingTrendyolProduct>
 > {
-  const client = getDirectMarktGoClient();
+  const { baseUrl, token } = directMarktGoConfig();
   const existing = new Map<string, ExistingTrendyolProduct>();
 
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     let payload: unknown;
     try {
-      payload = await client.get<unknown>(`/products?page=${page}&limit=${PAGE_LIMIT}`);
+      payload = await fetchCatalogPage(baseUrl, token, page);
     } catch (error) {
       throw new Error(
         `MARKT-GO canlı katalog kontrolü başarısız. Duplicate riski nedeniyle işlem durduruldu: ${
@@ -155,6 +185,6 @@ export async function loadExistingTrendyolProductsFromMarktGo(): Promise<
     if (items.length === 0 || !hasMorePages(payload, items.length)) break;
   }
 
-  console.info(`[marktgo-dedupe] canlı katalog DB'siz tarandı, trendyol ürünleri=${existing.size}`);
+  console.info(`[marktgo-dedupe] canlı katalog tamamen DB'siz tarandı, trendyol ürünleri=${existing.size}`);
   return existing;
 }
