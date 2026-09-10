@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { LogOut, Plus, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import type { AccountUser } from "@/lib/account-auth";
 import { logoutAccount } from "@/lib/account-auth";
+import { AccountSecurityButton } from "@/components/AccountSecurityButton";
 
 type Job = {
   id: string;
@@ -111,9 +112,12 @@ export function TenantWorkspace({ user }: { user: AccountUser }) {
             <div className="text-lg font-semibold">Turmarkt Veri Platformu</div>
             <div className="text-xs text-slate-400">{summary?.workspace?.name || user.email}</div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => void logoutAccount()}>
-            <LogOut className="mr-2 h-4 w-4" /> Çıkış
-          </Button>
+          <div className="flex items-center gap-2">
+            <AccountSecurityButton />
+            <Button variant="outline" size="sm" onClick={() => void logoutAccount()}>
+              <LogOut className="mr-2 h-4 w-4" /> Çıkış
+            </Button>
+          </div>
         </div>
       </header>
 
