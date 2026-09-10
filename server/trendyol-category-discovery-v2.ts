@@ -27,7 +27,11 @@ export type TrendyolCategoryDiscoveryResult = {
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 const PAGE_SIZE = 24;
-const MAX_CATEGORY_PAGES = 40;
+// Aynı kategoriden tekrar toplu çekimde ilk yüzlerce/ binlerce ürün MARKT-GO'da
+// mevcut olabilir. 40 sayfalık eski limit yeni ürünlere ulaşmadan taramayı kesiyordu.
+// Üst sınır sadece güvenlik amaçlıdır; normalde kategori tükenince veya hedefe ulaşınca durur.
+const MAX_CATEGORY_PAGES = 500;
+const MAX_CONSECUTIVE_NO_UNSEEN_PAGES = 4;
 
 function normalizeCategoryUrl(raw: string): URL {
   const value = String(raw || "").trim();
@@ -217,9 +221,11 @@ export async function discoverTrendyolCategoryProducts(input: {
   let usedBrowserWorker = false;
   let usedLocalAgent = false;
   let consecutiveEmpty = 0;
+  let consecutiveNoUnseenProducts = 0;
 
-  // İstenen sayı artık "yeni ürün" sayısıdır. İlk sayfalardaki ürünler daha önce
-  // MARKT-GO'ya eklenmişse sonraki sayfalara devam edilir; 20 istenince mümkünse 20 yeni ürün döner.
+  // requestedCount = bulunması gereken YENİ ürün sayısıdır. Önceden MARKT-GO'ya
+  // gönderilen ürünler sayıya dahil edilmez; sistem sonraki kategori sayfalarına
+  // ilerlemeye devam eder. Bu özellikle aynı kategori URL'sinin tekrar kullanımında kritiktir.
   for (let page = 1; page <= MAX_CATEGORY_PAGES && products.size < requestedCount; page++) {
     const target = pageUrl(base, page);
     let extracted: TrendyolCategoryProduct[] = [];
@@ -247,9 +253,6 @@ export async function discoverTrendyolCategoryProducts(input: {
     }
 
     pagesScanned++;
-    console.log(
-      `[CategoryDiscoveryV2] page=${page} extracted=${extracted.length} new=${products.size} skippedExisting=${skippedExistingIds.size}`,
-    );
 
     if (extracted.length === 0) {
       consecutiveEmpty++;
@@ -258,9 +261,11 @@ export async function discoverTrendyolCategoryProducts(input: {
     }
     consecutiveEmpty = 0;
 
+    let unseenOnThisPage = 0;
     for (const item of extracted) {
       if (seenCategoryProductIds.has(item.productId)) continue;
       seenCategoryProductIds.add(item.productId);
+      unseenOnThisPage++;
 
       if (existingOnMarktGo.has(item.productId)) {
         skippedExistingIds.add(item.productId);
@@ -270,6 +275,25 @@ export async function discoverTrendyolCategoryProducts(input: {
       products.set(item.productId, item);
       if (products.size >= requestedCount) break;
     }
+
+    // Trendyol bazı durumlarda pi parametresine rağmen aynı HTML'i tekrar döndürebilir.
+    // Sadece bu durumda güvenli şekilde kesiyoruz. Sayfada yeni kategori productId'leri
+    // görülüyorsa hepsi MARKT-GO'da mevcut olsa bile taramaya devam edilir.
+    if (unseenOnThisPage === 0) {
+      consecutiveNoUnseenProducts++;
+      if (consecutiveNoUnseenProducts >= MAX_CONSECUTIVE_NO_UNSEEN_PAGES) {
+        warnings.push(
+          "Trendyol art arda aynı ürün sayfalarını döndürdüğü için tarama güvenli şekilde durduruldu.",
+        );
+        break;
+      }
+    } else {
+      consecutiveNoUnseenProducts = 0;
+    }
+
+    console.log(
+      `[CategoryDiscoveryV2] page=${page} extracted=${extracted.length} unseen=${unseenOnThisPage} new=${products.size}/${requestedCount} skippedExisting=${skippedExistingIds.size}`,
+    );
   }
 
   if (skippedExistingIds.size > 0) {
@@ -279,11 +303,13 @@ export async function discoverTrendyolCategoryProducts(input: {
   }
   if (products.size < requestedCount) {
     warnings.push(
-      `${requestedCount} yeni ürün istendi, kategori içinde ${products.size} eklenmemiş ürün bulunabildi.`,
+      `${requestedCount} yeni ürün istendi; ${pagesScanned} sayfa tarandı ve ${products.size} eklenmemiş ürün bulunabildi.`,
     );
   }
   if (products.size === 0 && skippedExistingIds.size > 0) {
-    warnings.push("Taranan ürünlerin tamamı zaten MARKT-GO'da. Yeni ürün bulunamadı.");
+    warnings.push(
+      `Taranan ${seenCategoryProductIds.size} benzersiz kategori ürününün tamamı zaten MARKT-GO'da.`,
+    );
   } else if (products.size === 0) {
     warnings.push(
       "Kategori sayfasından ürün bağlantısı çıkarılamadı. Direct HTML, Browser Worker ve Local Agent yolları denendi.",
