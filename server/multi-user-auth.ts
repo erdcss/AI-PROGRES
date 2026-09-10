@@ -189,7 +189,7 @@ export async function ensureBootstrapAdmin() {
 }
 
 export function registerMultiUserAuthRoutes(app: Express) {
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/auth/register", async (req, res) => {
     try {
       const allowPublic = process.env.ALLOW_PUBLIC_REGISTRATION === "true" || process.env.NODE_ENV !== "production";
       if (!allowPublic) return res.status(403).json({ success: false, message: "Yeni kullanıcı kaydı şu anda kapalı" });
@@ -208,7 +208,7 @@ export function registerMultiUserAuthRoutes(app: Express) {
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/auth/login", async (req, res) => {
     try {
       const db = getDb();
       const email = String(req.body?.email || "").trim().toLowerCase();
@@ -233,7 +233,7 @@ export function registerMultiUserAuthRoutes(app: Express) {
     }
   });
 
-  app.post("/api/auth/logout", async (req, res) => {
+  app.post("/auth/logout", async (req, res) => {
     try {
       const token = parseCookies(req.headers.cookie)[COOKIE_NAME];
       if (token && pool) await pool.query("DELETE FROM app_sessions WHERE token_hash=$1", [tokenHash(token)]);
@@ -244,7 +244,7 @@ export function registerMultiUserAuthRoutes(app: Express) {
     return res.status(204).end();
   });
 
-  app.get("/api/auth/me", requireAppAuth, (req, res) => {
+  app.get("/auth/me", requireAppAuth, (req, res) => {
     return res.json({ success: true, user: req.appAuth });
   });
 }
