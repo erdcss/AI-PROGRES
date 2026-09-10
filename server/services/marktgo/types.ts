@@ -25,6 +25,8 @@ export type MarktGoProductPayload = {
   brand?: string;
   price: number;
   discountPrice?: number | null;
+  /** Kaynak/alış fiyatı. MARKT-GO hareket kaydında ayrı tutulur. */
+  purchasePrice?: number | null;
   stock?: number;
   images?: string[];
   tags?: string[];
@@ -32,6 +34,7 @@ export type MarktGoProductPayload = {
   externalId: string;
   sourceSite?: string;
   sourceUrl?: string;
+  arrivedAt?: string | null;
   reviews?: ImportedReviewInput[];
 };
 
@@ -92,8 +95,11 @@ export type LocalProductInput = {
   brand?: string | null;
   category?: string | null;
   sourceUrl?: string | null;
+  /** MARKT-GO satış/listing fiyatı. */
   price: number;
   discountPrice?: number | null;
+  /** Kaynak pazaryerinden çekilen gerçek alış maliyeti. */
+  purchasePrice?: number | null;
   stock?: number | null;
   images?: string[];
   tags?: string[];
