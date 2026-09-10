@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/co
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle, ShieldCheck } from "lucide-react";
+import { AlertCircle, CheckCircle, LogOut, ShieldCheck } from "lucide-react";
 import { AppOpenSplash } from "@/components/AppOpenSplash";
 import { MatrixBackground } from "@/components/MatrixBackground";
 import { TrendyolCategoryBulkDrawer } from "@/components/TrendyolCategoryBulkDrawer";
@@ -17,6 +17,7 @@ import {
   getAccountAuthServerSnapshot,
   getAccountAuthSnapshot,
   loginAccount,
+  logoutAccount,
   refreshAccountSession,
   registerAccount,
   subscribeAccountAuth,
@@ -150,6 +151,11 @@ function AdminAppShell() {
     <WouterRouter>
       <div className="min-h-screen" style={{ position: "relative" }}>
         <MatrixBackground />
+        <div className="fixed right-4 top-4 z-[9000]">
+          <Button type="button" size="sm" variant="outline" onClick={() => void logoutAccount()}>
+            <LogOut className="mr-2 h-4 w-4" /> Çıkış
+          </Button>
+        </div>
         <div style={{ position: "relative", zIndex: 1 }}>
           <AppErrorBoundary>
             <AppTabWorkspace />
