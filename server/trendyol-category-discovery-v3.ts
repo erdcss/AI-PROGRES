@@ -27,6 +27,7 @@ const MAX_CATEGORY_PAGES = 500;
 const MAX_CONSECUTIVE_EMPTY_PAGES = 8;
 const MAX_CONSECUTIVE_REPEAT_PAGES = 30;
 const MIN_HEALTHY_UNSEEN_PER_PAGE = 8;
+const MARKTGO_DEDUPE_TIMEOUT_MS = 5_000;
 
 function normalizeCategoryUrl(raw: string): URL {
   const value = String(raw || "").trim();
@@ -107,8 +108,6 @@ function productFromApiRow(row: any, baseUrl: string): TrendyolCategoryProduct |
     }
   }
 
-  // result.products içindeki satır zaten gerçek ürün kaydıdır. URL alanı gelmezse
-  // Trendyol productId'si ile güvenli canonical URL üretilebilir.
   if (!url) {
     const title = row.name ?? row.title ?? "urun";
     url = `https://www.trendyol.com/${slugify(title)}-p-${productId}`;
@@ -142,6 +141,14 @@ function strictProductRows(payload: any): any[] {
     payload?.data?.result?.products,
     payload?.data?.products,
     payload?.products,
+    payload?.result?.contents,
+    payload?.data?.result?.contents,
+    payload?.data?.contents,
+    payload?.contents,
+    payload?.result?.content,
+    payload?.data?.result?.content,
+    payload?.data?.content,
+    payload?.content,
   ];
 
   for (const candidate of candidates) {
@@ -165,7 +172,6 @@ function buildApiUrl(base: URL, params: { pi: number; offset?: number }): string
     endpoint.searchParams.set("offset", String(Math.max(0, params.offset)));
   }
 
-  // Trendyol kategori infinite-scroll isteklerinde görülen temel parametreler.
   endpoint.searchParams.set("culture", endpoint.searchParams.get("culture") || "tr-TR");
   endpoint.searchParams.set("userGenderId", endpoint.searchParams.get("userGenderId") || "1");
   endpoint.searchParams.set("pId", endpoint.searchParams.get("pId") || "0");
@@ -181,11 +187,6 @@ function buildApiUrl(base: URL, params: { pi: number; offset?: number }): string
   return endpoint.toString();
 }
 
-/**
- * Trendyol farklı kategori/listing türlerinde pi+offset kombinasyonunu farklı
- * yorumlayabiliyor. Tek varsayıma bağlanmak yerine güvenli varyantları birlikte
- * deneyip gerçek result.products kümelerini birleştiriyoruz.
- */
 function buildApiVariants(base: URL, logicalPage: number): string[] {
   const offsetA = Math.max(0, (logicalPage - 1) * PAGE_SIZE);
   const offsetB = Math.max(0, (logicalPage - 2) * PAGE_SIZE);
@@ -331,20 +332,46 @@ async function fetchLocalAgentProducts(target: string): Promise<TrendyolCategory
   }
 }
 
+async function loadExistingMarktGoProductsBestEffort(
+  warnings: string[],
+): Promise<Map<string, { productId: string; externalProductId: string; sourceUrl: string }>> {
+  try {
+    const timeout = new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => {
+        clearTimeout(timer);
+        reject(new Error(`MARKT-GO duplicate kontrolü ${MARKTGO_DEDUPE_TIMEOUT_MS / 1000} saniyede yanıt vermedi`));
+      }, MARKTGO_DEDUPE_TIMEOUT_MS);
+    });
+    return await Promise.race([
+      loadExistingTrendyolProductsFromMarktGo(),
+      timeout,
+    ]);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[CategoryDiscoveryV3] MARKT-GO duplicate kontrolü atlandı: ${detail}`);
+    warnings.push(
+      "MARKT-GO tekrar kontrolü şu anda kullanılamıyor; Trendyol ürün URL'leri yine de toplandı. Gerçek gönderim sırasında MARKT-GO externalId/idempotency kontrolü tekrar yapılacaktır.",
+    );
+    return new Map();
+  }
+}
+
 export async function discoverTrendyolCategoryProducts(input: {
   url: string;
   maxProducts?: number;
 }): Promise<TrendyolCategoryDiscoveryResult> {
   const base = normalizeCategoryUrl(input.url);
   const requestedCount = Math.max(1, Math.min(500, Number(input.maxProducts) || 50));
+  const warnings: string[] = [];
 
-  // Katı duplicate kuralı korunur: MARKT-GO kataloğu doğrulanmadan seçim başlamaz.
-  const existingOnMarktGo = await loadExistingTrendyolProductsFromMarktGo();
+  // Kategori keşfi, hedef sistem bağlantısından bağımsız olmalıdır. MARKT-GO
+  // duplicate kontrolü best-effort yapılır; token/bağlantı sorunu ürün URL'si
+  // keşfini asla durdurmaz.
+  const existingOnMarktGo = await loadExistingMarktGoProductsBestEffort(warnings);
 
   const selected = new Map<string, TrendyolCategoryProduct>();
   const seenCategoryIds = new Set<string>();
   const skippedExistingIds = new Set<string>();
-  const warnings: string[] = [];
   const usedSources = new Set<"public-api" | "direct" | "browser-worker" | "local-agent">();
 
   let pagesScanned = 0;
@@ -361,8 +388,6 @@ export async function discoverTrendyolCategoryProducts(input: {
     let candidates = await fetchPublicProducts(base, logicalPage);
     if (candidates.length > 0) usedSources.add("public-api");
 
-    // Public API yalnız birkaç yeni ürün veriyorsa sayfalama varyantı tekrar ediyor olabilir.
-    // Bu durumda gerçek kategori HTML'ini de kontrol et.
     if (
       candidates.length === 0 ||
       countUnseen(candidates, seenCategoryIds) < MIN_HEALTHY_UNSEEN_PER_PAGE
@@ -372,7 +397,6 @@ export async function discoverTrendyolCategoryProducts(input: {
       candidates = mergeProducts([candidates, direct]);
     }
 
-    // Hâlâ sağlıklı sayıda yeni ID yoksa gerçek Chromium DOM'una geç.
     if (
       candidates.length === 0 ||
       countUnseen(candidates, seenCategoryIds) < MIN_HEALTHY_UNSEEN_PER_PAGE
@@ -382,7 +406,6 @@ export async function discoverTrendyolCategoryProducts(input: {
       candidates = mergeProducts([candidates, worker]);
     }
 
-    // Son fallback yalnız hiç yeni ürün görünmüyorsa Local Agent.
     if (countUnseen(candidates, seenCategoryIds) === 0) {
       const local = await fetchLocalAgentProducts(target);
       if (local.length > 0) usedSources.add("local-agent");
