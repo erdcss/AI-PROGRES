@@ -603,11 +603,11 @@ function ScraperPage() {
   const handleBanCleared = useCallback((info: { waitedMs: number; lastKind?: string }) => {
     const waitedMin = Math.max(1, Math.round(info.waitedMs / 60_000));
     toast({
-      title: "Trendyol ban kalktı ✓",
-      description: `Erişim yeniden açıldı (~${waitedMin} dk beklendi). Ürün çekimine devam edebilirsiniz.`,
+      title: "Trendyol yeniden denemeye hazır",
+      description: `Bekleme koruması aktif değil (~${waitedMin} dk beklendi). Kaynak erişimi yeni çekimde kontrol edilecek.`,
       duration: 10_000,
     });
-    setWorkflowStep("Ban kalktı — tekrar deneyebilirsiniz");
+    setWorkflowStep("Bekleme koruması aktif değil — tekrar deneyebilirsiniz");
   }, []);
 
   const singleScrapeMutation = useMutation({

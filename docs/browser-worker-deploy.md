@@ -107,6 +107,24 @@ Log:
 
 ## Sorun giderme
 
+### Ürün yerine `/en/select-country` açılıyorsa
+
+Türkiye dışındaki sunucular ülke seçimi ekranına yönlenebilir. Worker ürün, renk
+kardeşi ve yorum navigasyonlarında `storefrontId=1`, `countryCode=TR`, `language=tr`
+parametrelerini ekler; ürün/satıcı/varyant parametrelerini korur. Gerekirse aynı
+oturumda görünen Türkiye mağazası bağlantısını bir kez seçip ürüne döner. Ülke
+seçimi tamamlanamazsa `browser-worker-country-selection` hatası döner; sayfa ürün
+verisi veya IP engeli olarak kabul edilmez.
+
+Yayın sonrası iki ürüne kadar tek seferlik kontrol için worker ortamında
+`BROWSER_WORKER_SMOKE_URLS` değerine HTTPS Trendyol ürün URL'lerinden oluşan JSON
+dizisi verilebilir. Açılışta mevcut worker kimliğiyle yerel kontrol yapılır;
+`[trendyol-smoke] result` satırları ürün kimliği, başlık, fiyat ve görsel sayılarını
+doğrular. Kontrol bitince değişkeni boşaltın. Token ve HTML loglanmaz.
+
+Arayüzde bekleme korumasının bitmesi, Trendyol erişiminin düzeldiği anlamına gelmez.
+Erişim yalnızca yeniden çekilen, doğrulanmış ürün verisiyle anlaşılır.
+
 | Belirti | Kategori | Çözüm |
 |---------|----------|--------|
 | `token uyuşmuyor` | auth | `BROWSER_WORKER_TOKEN` ana app = worker |

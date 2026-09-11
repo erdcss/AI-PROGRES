@@ -1,5 +1,6 @@
 import axios, { type AxiosError } from "axios";
 import { isCloudRuntime } from "@shared/deploy-runtime";
+import { isTrendyolCountrySelection } from "@shared/trendyol-storefront";
 
 export type BrowserWorkerErrorCategory =
   | "not-configured"
@@ -664,6 +665,7 @@ export async function scrapeTrendyolWithBrowserWorker(
         includeColorFamily,
         includeSiblingHtml: options?.includeSiblingHtml === true,
         correlationId,
+        deadlineMs: Math.max(1_000, requestTimeoutMs - 1_000),
       },
       {
         timeout: requestTimeoutMs,
@@ -753,7 +755,10 @@ export async function scrapeTrendyolWithBrowserWorker(
         : ((data.errorCategory as BrowserWorkerErrorCategory) ||
           (response.status === 429 ? "timeout" : "unknown"));
       const stageError =
-        category === "blocked"
+        category !== "blocked" && (data.diagnostics?.contentClass === "country-selection" ||
+          isTrendyolCountrySelection(data.finalUrl))
+          ? "browser-worker-country-selection"
+          : category === "blocked"
           ? "browser-worker-blocked"
           : mapBrowserWorkerStageError(category) === "browser-worker-failed" && !hasHtml && !hasRaw
             ? "browser-worker-invalid-response"

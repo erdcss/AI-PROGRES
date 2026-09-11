@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertTriangle,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   RefreshCw,
@@ -30,7 +29,7 @@ type Props = {
   details?: string;
   meta?: ScrapeErrorMeta;
   onRetry?: () => void;
-  /** Ban kalkınca (canlı polling) */
+  /** Sunucu yeniden denemeye izin verdiğinde; kaynak erişimi doğrulanmış değildir. */
   onBanCleared?: (info: { waitedMs: number; lastKind?: string }) => void;
 };
 
@@ -43,6 +42,7 @@ const STAGE_ERROR_LABELS: Record<string, string> = {
   "browser-worker-unhealthy": "Tarayıcı Worker sağlıksız veya yapılandırılmamış",
   "browser-worker-not-configured": "Tarayıcı Worker yapılandırılmamış",
   "browser-worker-blocked": "Tarayıcı Worker engellendi (WAF/IP)",
+  "browser-worker-country-selection": "Trendyol Türkiye mağazası seçimi tamamlanamadı",
   "api-null-response": "Trendyol API boş yanıt döndü",
   "image-proxy-timeout": "Görsel proxy zaman aşımı (ürün verisi etkilenmeyebilir)",
   "image-fallback-timeout": "Görsel yedek indirme zaman aşımı",
@@ -60,6 +60,8 @@ const STAGE_ERROR_LABELS: Record<string, string> = {
 function isBanMeta(meta?: ScrapeErrorMeta): boolean {
   const stages = meta?.stageErrors ?? [];
   const reason = meta?.reason || "";
+  if (stages.includes("browser-worker-country-selection") &&
+      !stages.includes("trendyol-circuit-open")) return false;
   return (
     stages.some((e) =>
       ["trendyol-blocked", "trendyol-circuit-open", "upstream-556", "browser-worker-blocked"].includes(
@@ -126,15 +128,15 @@ function notifyBrowserBanCleared() {
   try {
     if (typeof window === "undefined" || !("Notification" in window)) return;
     if (Notification.permission === "granted") {
-      new Notification("Trendyol ban kalktı", {
-        body: "Erişim yeniden açıldı — ürün çekimine devam edebilirsiniz.",
+      new Notification("Trendyol yeniden denemeye hazır", {
+        body: "Bekleme koruması aktif değil. Kaynak erişimi yeni çekimde kontrol edilecek.",
         tag: "trendyol-ban-cleared",
       });
     } else if (Notification.permission === "default") {
       void Notification.requestPermission().then((p) => {
         if (p === "granted") {
-          new Notification("Trendyol ban kalktı", {
-            body: "Erişim yeniden açıldı — ürün çekimine devam edebilirsiniz.",
+          new Notification("Trendyol yeniden denemeye hazır", {
+            body: "Bekleme koruması aktif değil. Kaynak erişimi yeni çekimde kontrol edilecek.",
             tag: "trendyol-ban-cleared",
           });
         }
@@ -219,23 +221,9 @@ export function ScrapeSourceErrorAlert({
       if (endsAt) {
         const rem = Math.max(0, endsAt - Date.now());
         setRemainingMs(rem);
-        if (rem <= 0) {
-          // Yerel süre bitti — sunucuyu doğrula (aşağıdaki poll de yakalar)
-          void fetchBlockStatus().then((s) => {
-            if (!s || s.open === false) markCleared(s?.lastKind || meta?.blockKind);
-            else if (typeof s.openUntil === "number" && s.openUntil > Date.now()) {
-              setEndsAt(s.openUntil);
-              setRemainingMs(Math.max(0, s.openUntil - Date.now()));
-              if (typeof s.cooldownMs === "number" && s.cooldownMs > 0) {
-                setTotalCooldownMs(s.cooldownMs);
-              }
-            } else if (typeof s.remainingMs === "number" && s.remainingMs > 0) {
-              const next = Date.now() + s.remainingMs;
-              setEndsAt(next);
-              setRemainingMs(s.remainingMs);
-            }
-          });
-        }
+        // Only the independent server poll may enable retry. A timer expiring
+        // or a network error does not mean that access has recovered.
+        if (rem <= 0) setServerOpen(false);
       }
     };
     tick();
@@ -286,13 +274,13 @@ export function ScrapeSourceErrorAlert({
       <Card className="border-emerald-500/50 bg-emerald-950/25">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2 text-emerald-300">
-            <CheckCircle2 className="w-5 h-5" />
-            Trendyol erişimi yeniden açıldı
+            <RefreshCw className="w-5 h-5" />
+            Yeniden deneyebilirsiniz
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-zinc-200">
-            Ban koruması süresi doldu. Ürün çekimine güvenle devam edebilirsiniz.
+            Bekleme koruması şu an aktif değil. Trendyol bağlantısı yeni çekimde kontrol edilecek.
           </p>
           <div className="flex flex-wrap gap-2">
             {onRetry && (

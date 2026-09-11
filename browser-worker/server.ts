@@ -1,5 +1,7 @@
 import "dotenv/config";
 import express from "express";
+import { gotoTrendyolPage } from "./trendyol-navigation";
+import { runConfiguredTrendyolSmokeCheck } from "./smoke-check";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import {
   COLOR_FAMILY_CONCURRENCY,
@@ -58,7 +60,7 @@ const PORT = Number(process.env.PORT ?? 8080);
 const STARTED_AT = Date.now();
 const NAV_TIMEOUT_MS = Number(process.env.BROWSER_NAV_TIMEOUT_MS ?? 40_000);
 const SCRAPE_DEADLINE_MS = Number(process.env.BROWSER_SCRAPE_DEADLINE_MS ?? 95_000);
-const WORKER_VERSION = "1.2.4";
+const WORKER_VERSION = "1.2.5";
 const CHROME_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const BLOCK_HEAVY_RESOURCES = process.env.BROWSER_BLOCK_HEAVY_RESOURCES !== "false";
@@ -591,10 +593,7 @@ async function buildHydratedMemberSnapshot(input: {
 
   page.on("response", onResponse);
   try {
-    const response = await page.goto(requestedUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: navTimeoutMs,
-    });
+    const response = await gotoTrendyolPage(page, requestedUrl, navTimeoutMs);
     const navStatus = response?.status() ?? 0;
     let htmlEarly = await page.content();
     let pageDiagnostics = await collectSafePageSignals(page, response, htmlEarly);
@@ -602,6 +601,8 @@ async function buildHydratedMemberSnapshot(input: {
     // Boş/challenge/HTTP hata sayfada uzun hydration beklemeyi kes.
     const earlyFail =
       pageDiagnostics.contentClass === "empty-body" ||
+      pageDiagnostics.contentClass === "country-selection" ||
+      pageDiagnostics.contentClass === "product-redirect" ||
       pageDiagnostics.contentClass === "about-blank" ||
       pageDiagnostics.challengeBlocked ||
       pageDiagnostics.htmlBytes < 80 ||
@@ -1166,10 +1167,7 @@ async function gotoAndRead(
   url: string,
   timeoutMs: number,
 ): Promise<{ html: string; finalUrl: string; status: number; diagnostics: SafePageDiagnostics }> {
-  const response = await page.goto(url, {
-    waitUntil: "domcontentloaded",
-    timeout: timeoutMs,
-  });
+  const response = await gotoTrendyolPage(page, url, timeoutMs);
   await page.waitForTimeout(1200);
   const html = await page.content();
   const diagnostics = await collectSafePageSignals(page, response, html);
@@ -1301,10 +1299,7 @@ async function scrapeTrendyolReviewsInBrowser(input: {
   return withPage(async (context) => {
     const page = await context.newPage();
     try {
-      await page.goto(input.pageUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: NAV_TIMEOUT_MS,
-      });
+      await gotoTrendyolPage(page, input.pageUrl, NAV_TIMEOUT_MS);
       // Let review-detail bundle set cookies / country context for apigw.
       await page.waitForTimeout(1800);
 
@@ -1683,10 +1678,7 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
         const page = await context.newPage();
         const hydratedRoot = rootMember;
         try {
-          await page.goto(url, {
-            waitUntil: "domcontentloaded",
-            timeout: Math.min(NAV_TIMEOUT_MS, 20_000),
-          });
+          await gotoTrendyolPage(page, url, Math.min(NAV_TIMEOUT_MS, 20_000));
           await waitForMemberHydration(
             page,
             rootProductId,
@@ -1854,6 +1846,9 @@ async function boot() {
     console.log("  POST /scrape/html");
     console.log("  POST /scrape/trendyol");
     console.log("  POST /scrape/trendyol-reviews");
+    void runConfiguredTrendyolSmokeCheck(PORT, TOKEN!).catch((error) => {
+      console.warn("[trendyol-smoke] configuration error:", error.message);
+    });
   });
 }
 

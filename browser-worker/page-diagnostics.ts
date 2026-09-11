@@ -1,8 +1,10 @@
 /**
  * Browser Worker — güvenli sayfa tanılama (HTML/cookie/token loglanmaz).
  */
+import { isTrendyolCountrySelection } from "../shared/trendyol-storefront";
 
 export type PageBlockReason =
+  | "country-selection"
   | "empty-body"
   | "empty-document"
   | "about-blank"
@@ -23,6 +25,7 @@ export type PageBlockReason =
   | null;
 
 export type PageContentClass =
+  | "country-selection"
   | "empty-body"
   | "empty-document"
   | "about-blank"
@@ -164,6 +167,9 @@ export function classifyPageContent(input: {
   } else if (status && status >= 400) {
     contentClass = "navigation-error";
     blockReason = "http-error";
+  } else if (isTrendyolCountrySelection(input.finalUrl)) {
+    contentClass = "country-selection";
+    blockReason = "country-selection";
   } else if (
     input.finalUrl &&
     !urlParts.isProductPath &&
@@ -270,6 +276,7 @@ export function workerErrorCategoryFromDiagnostics(
     return "blocked";
   }
   if (
+    diag.blockReason === "country-selection" ||
     diag.blockReason === "redirect-off-product" ||
     diag.blockReason === "product-redirect" ||
     diag.blockReason === "navigation-error" ||

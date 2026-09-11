@@ -35,6 +35,7 @@ export type ScrapeStageErrorCode =
   | "source-access-no-usable-data"
   | "local-agent-failed"
   | "browser-worker-failed"
+  | "browser-worker-country-selection"
   | "browser-worker-not-configured"
   | "browser-worker-unhealthy"
   | "browser-worker-timeout"
@@ -266,6 +267,10 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
     return "Trendyol erişimi geçici olarak durduruldu (ban koruması). Birkaç dakika bekleyip tekrar deneyin; hemen denemek engeli uzatabilir.";
   }
 
+  if (errors.includes("browser-worker-country-selection")) {
+    return "Trendyol ürün sayfası yerine ülke seçimi ekranını açtı. Tarayıcı servisinde Türkiye mağazası seçimi tamamlanamadığı için ürün verisi alınamadı.";
+  }
+
   if (errors.includes("upstream-556") || errors.includes("trendyol-blocked")) {
     return "Trendyol erişimi engelledi (Cloudflare/556/bot koruması). Kısa süre bekleyin; tekrar denemek engeli uzatabilir.";
   }
@@ -390,6 +395,7 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "source-access-no-usable-data": "Geçerli ürün verisi yok",
     "local-agent-failed": "Yerel agent başarısız",
     "browser-worker-failed": "Tarayıcı Worker başarısız",
+    "browser-worker-country-selection": "Trendyol Türkiye mağazası seçimi tamamlanamadı",
     "browser-worker-not-configured": "Tarayıcı Worker yapılandırılmamış",
     "browser-worker-unhealthy": "Tarayıcı Worker sağlıksız",
     "browser-worker-timeout": "Tarayıcı Worker zaman aşımı",
