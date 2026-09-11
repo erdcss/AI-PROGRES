@@ -11,7 +11,7 @@ import {
 } from "@/components/app-tabs-store";
 import { AppRoutes } from "@/components/AppRoutes";
 import { defaultTitleForPath } from "@/lib/app-tab-paths";
-import { MobileNavigation } from "@/components/MobileNavigation";
+import { OrvianProgramShell } from "@/components/OrvianProgramShell";
 
 const MAX_TABS = 6;
 const DEFAULT_DOCUMENT_TITLE = "Turmarkt - Ürün Çekme Uygulaması";
@@ -26,7 +26,7 @@ function AppTabBar() {
   const { tabs, activeId, busyCount, selectTab, addTab, closeTab } = useAppTabsStore();
 
   return (
-    <div className="sticky top-0 z-40 border-b border-zinc-800/90 bg-zinc-950/95 backdrop-blur-sm">
+    <div className="sticky top-12 z-40 border-b border-[#1d1d1d] bg-[#0b0b0b]/95 backdrop-blur-sm">
       <div className="flex items-center gap-1 overflow-x-auto px-1 py-1.5 scrollbar-thin">
         {tabs.map((tab, index) => {
           const active = tab.id === activeId;
@@ -35,8 +35,8 @@ function AppTabBar() {
               key={tab.id}
               className={`group flex min-w-0 max-w-[220px] shrink-0 items-center rounded-md border px-1.5 py-1 ${
                 active
-                  ? "border-zinc-600 bg-zinc-800 text-zinc-100"
-                  : "border-transparent bg-transparent text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                  ? "border-[#353535] bg-[#181818] text-[#ededed]"
+                  : "border-transparent bg-transparent text-[#777] hover:bg-[#131313] hover:text-[#cfcfcf]"
               }`}
             >
               <button
@@ -47,20 +47,16 @@ function AppTabBar() {
                 data-testid={`app-tab-${index}`}
               >
                 {tab.busy ? (
-                  <Loader2 className="h-3 w-3 shrink-0 animate-spin text-amber-400" />
+                  <Loader2 className="h-3 w-3 shrink-0 animate-spin text-[#b8f171]" />
                 ) : (
-                  <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                      active ? "bg-emerald-400" : "bg-zinc-600"
-                    }`}
-                  />
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "bg-[#b8f171]" : "bg-[#454545]"}`} />
                 )}
                 <span className="truncate">{labelFor(tab, index)}</span>
               </button>
               {tabs.length > 1 ? (
                 <button
                   type="button"
-                  className="rounded p-0.5 text-zinc-500 opacity-70 hover:bg-zinc-700 hover:text-zinc-100 group-hover:opacity-100"
+                  className="rounded p-0.5 text-[#555] opacity-70 hover:bg-[#252525] hover:text-[#ddd] group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
                     closeTab(tab.id);
@@ -78,19 +74,15 @@ function AppTabBar() {
           type="button"
           onClick={addTab}
           disabled={tabs.length >= MAX_TABS}
-          className="ml-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
-          title={
-            tabs.length >= MAX_TABS
-              ? `En fazla ${MAX_TABS} sekme`
-              : "Yeni sekme — Ana Sayfa açılır"
-          }
+          className="ml-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[#252525] text-[#777] hover:border-[#3b3b3b] hover:bg-[#181818] hover:text-[#ddd] disabled:cursor-not-allowed disabled:opacity-40"
+          title={tabs.length >= MAX_TABS ? `En fazla ${MAX_TABS} sekme` : "Yeni sekme — Ana Sayfa açılır"}
           data-testid="app-tab-add"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
       {busyCount > 0 && tabs.some((t) => t.id !== activeId && t.busy) ? (
-        <p className="px-3 pb-1.5 text-[11px] text-amber-400/90">
+        <p className="px-3 pb-1.5 text-[11px] text-[#a4cf73]">
           {busyCount} işlem arka planda devam ediyor — sekmeler arasında geçiş güvenli.
         </p>
       ) : null}
@@ -215,9 +207,10 @@ export default function AppTabWorkspace() {
     >
       <GlobalLocationSync activeId={currentActiveId} setTabs={setTabs} />
       <DocumentTitleSync />
-      <AppTabBar />
-      <MobileNavigation />
-      <AppTabPanels />
+      <OrvianProgramShell>
+        <AppTabBar />
+        <AppTabPanels />
+      </OrvianProgramShell>
     </AppTabsStoreProvider>
   );
 }
