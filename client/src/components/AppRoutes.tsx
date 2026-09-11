@@ -5,7 +5,6 @@ import { PageTransition } from "@/components/PageTransition";
 import ScraperPage from "@/pages/scraper";
 import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
-import MainDashboard from "@/pages/main-dashboard";
 import UrunHavuzuPage from "@/pages/urun-havuzu";
 import WebHooksPage from "@/pages/web-hooks";
 import ComingSoon from "@/pages/coming-soon";
@@ -48,7 +47,7 @@ export function AppRoutes() {
     <Switch>
       <Route path="/">
         <PageTransition>
-          <MainDashboard />
+          <MarketplaceSelection />
         </PageTransition>
       </Route>
       <Route path="/marketplace">
