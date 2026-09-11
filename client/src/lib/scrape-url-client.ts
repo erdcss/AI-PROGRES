@@ -368,7 +368,7 @@ export async function fetchScenarioScrapeResult(
       url,
       mode: "single",
       onlyExtractData,
-      scrapeMode: "auto-fast",
+      scrapeMode: "direct-html",
       autoTagEnabled,
     }),
   });
