@@ -4,23 +4,29 @@ import { TrackingStartupNotifier } from "@/components/TrackingStartupNotifier";
 import AppTabWorkspace from "@/components/AppTabWorkspace";
 import { Component, type ErrorInfo, type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { AnimatePresence } from "framer-motion";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle, ShieldCheck } from "lucide-react";
+import { AlertCircle, CheckCircle, LogOut, ShieldCheck } from "lucide-react";
 import { AppOpenSplash } from "@/components/AppOpenSplash";
+import { MatrixBackground } from "@/components/MatrixBackground";
 import { TrendyolCategoryBulkDrawer } from "@/components/TrendyolCategoryBulkDrawer";
 import { TenantWorkspace } from "@/components/TenantWorkspace";
 import {
   getAccountAuthServerSnapshot,
   getAccountAuthSnapshot,
   loginAccount,
+  logoutAccount,
   refreshAccountSession,
+  registerAccount,
   subscribeAccountAuth,
 } from "@/lib/account-auth";
 import { markUserInitiatedReload } from "@/lib/dev-stability";
 
 function LoginScreen() {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,82 +38,84 @@ function LoginScreen() {
     setBusy(true);
     setError(null);
     try {
-      await loginAccount(email.trim(), password);
+      if (mode === "register") {
+        await registerAccount(displayName.trim(), email.trim(), password);
+      } else {
+        await loginAccount(email.trim(), password);
+      }
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Giriş yapılamadı");
+      setError(err instanceof Error ? err.message : "İşlem başarısız");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] grid min-h-screen place-items-center bg-[#090909] px-4 py-8 text-[#f5f5f5]">
-      <div className="w-full max-w-[420px] rounded-[10px] border border-[#252525] bg-[#101010] p-6 shadow-2xl shadow-black/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-7 w-7 place-items-center rounded-[7px] border border-[#343434] bg-[#151515] text-[11px] font-semibold">O</span>
-            <span className="text-[13px] font-semibold tracking-[-0.02em]">ORVIAN <span className="text-[#b8f171]">AI</span></span>
+    <div className="fixed inset-0 z-[10000] flex min-h-screen items-center justify-center bg-slate-950 px-4">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950/40 to-slate-950" aria-hidden />
+      <Card className="relative z-10 w-full max-w-md border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-md md:max-w-lg">
+        <CardHeader className="space-y-4 px-4 text-center md:px-8">
+          <img src="/orvian-logo.png" alt="Turmarkt Veri Platformu" className="mx-auto h-10 w-auto object-contain md:h-12" />
+          <div>
+            <div className="text-xl font-bold text-white">Turmarkt Veri Platformu</div>
+            <CardDescription className="mt-2 text-slate-300">
+              {mode === "login" ? "Hesabınızla güvenli giriş yapın" : "Kendi çalışma alanınızı oluşturun"}
+            </CardDescription>
           </div>
-          <span className="text-[9px] uppercase tracking-[0.1em] text-[#555]">Turmarkt</span>
-        </div>
-
-        <div className="mb-5 mt-7">
-          <div className="text-[10px] uppercase tracking-[0.09em] text-[#666]">Güvenli yönetici erişimi</div>
-          <h1 className="mb-2 mt-1 text-2xl font-medium tracking-[-0.03em]">Veri Programına Giriş</h1>
-          <p className="m-0 text-[12px] leading-5 text-[#888]">Orvian arayüzü ile ürün aktarımı, takip ve bildirim sistemine tek hesabınızla erişin.</p>
-        </div>
-
-        {success ? (
-          <div className="mb-4 flex items-center gap-2 rounded-[7px] border border-[#b8f171]/20 bg-[#b8f171]/[0.06] px-3 py-2.5 text-[11px] text-[#b8f171]">
-            <CheckCircle className="h-4 w-4" /> Giriş başarılı
-          </div>
-        ) : null}
-
+          {success ? (
+            <div className="rounded-xl border border-green-500/30 bg-green-900/30 p-4 text-green-400">
+              <span className="flex items-center justify-center gap-2 font-semibold"><CheckCircle className="h-5 w-5" /> Giriş başarılı</span>
+            </div>
+          ) : null}
+        </CardHeader>
         {!success ? (
-          <div className="grid gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="email" className="text-[11px] font-normal text-[#b3b3b3]">E-posta</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                className="h-10 rounded-[8px] border-[#292929] bg-[#151515] px-3 text-[12px] text-[#ededed] placeholder:text-[#555] focus-visible:ring-[#b8f171]/40"
-                placeholder="Yönetici e-postası"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="password" className="text-[11px] font-normal text-[#b3b3b3]">Şifre</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                className="h-10 rounded-[8px] border-[#292929] bg-[#151515] px-3 text-[12px] text-[#ededed] focus-visible:ring-[#b8f171]/40"
-                onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
-              />
-            </div>
-
-            {error ? (
-              <div className="flex items-center gap-2 rounded-[7px] border border-red-400/20 bg-red-400/[0.06] px-3 py-2.5 text-[11px] text-red-300">
-                <AlertCircle className="h-4 w-4 shrink-0" /><span>{error}</span>
+          <>
+            <CardContent className="space-y-4 px-4 md:px-8">
+              {mode === "register" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="display-name" className="text-white">Ad / işletme adı</Label>
+                  <Input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoComplete="name" />
+                </div>
+              ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-white">E-posta</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
               </div>
-            ) : null}
-
-            <Button
-              onClick={() => void submit()}
-              disabled={busy || !email.trim() || !password}
-              className="mt-1 h-10 rounded-[8px] border border-[#b8f171] bg-[#b8f171] text-[11px] font-semibold text-[#080808] hover:bg-[#c5f58e] disabled:opacity-40"
-            >
-              <ShieldCheck className="mr-2 h-4 w-4" /> {busy ? "Doğrulanıyor..." : "Giriş Yap"}
-            </Button>
-            <div className="pt-1 text-center text-[9px] text-[#555]">Hesap ve oturum bilgileri Turmarkt Veri Programı ile senkronize edilir.</div>
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-white">Şifre</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
+                />
+                {mode === "register" ? <div className="text-xs text-slate-500">En az 10 karakter.</div> : null}
+              </div>
+              {error ? (
+                <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-900/20 p-3 text-sm text-red-400">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" /><span>{error}</span>
+                </div>
+              ) : null}
+            </CardContent>
+            <CardFooter className="flex flex-col gap-3 px-4 pb-6 md:px-8 md:pb-8">
+              <Button onClick={() => void submit()} disabled={busy || !email.trim() || !password} className="h-12 w-full">
+                <ShieldCheck className="mr-2 h-4 w-4" /> {busy ? "İşleniyor..." : mode === "login" ? "Giriş Yap" : "Hesap Oluştur"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-slate-300"
+                onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}
+              >
+                {mode === "login" ? "Yeni hesap oluştur" : "Zaten hesabım var"}
+              </Button>
+            </CardFooter>
+          </>
         ) : null}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -122,10 +130,10 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
   render() {
     if (this.state.error) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[#090909] p-6 text-white">
+        <div className="flex min-h-screen items-center justify-center bg-slate-900 p-6 text-white">
           <div className="max-w-lg space-y-4 text-center">
             <h1 className="text-xl font-semibold">Sayfa yüklenemedi</h1>
-            <p className="text-sm text-[#777]">{this.state.error.message}</p>
+            <p className="text-sm text-slate-400">{this.state.error.message}</p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button type="button" onClick={this.resetError}>Tekrar Dene</Button>
               <Button type="button" variant="outline" onClick={() => { markUserInitiatedReload(); window.location.reload(); }}>Sayfayı Yenile</Button>
@@ -141,10 +149,20 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
 function AdminAppShell() {
   return (
     <WouterRouter>
-      <AppErrorBoundary>
-        <AppTabWorkspace />
-        <TrendyolCategoryBulkDrawer />
-      </AppErrorBoundary>
+      <div className="min-h-screen" style={{ position: "relative" }}>
+        <MatrixBackground />
+        <div className="fixed right-4 top-4 z-[9000]">
+          <Button type="button" size="sm" variant="outline" onClick={() => void logoutAccount()}>
+            <LogOut className="mr-2 h-4 w-4" /> Çıkış
+          </Button>
+        </div>
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <AppErrorBoundary>
+            <AppTabWorkspace />
+            <TrendyolCategoryBulkDrawer />
+          </AppErrorBoundary>
+        </div>
+      </div>
     </WouterRouter>
   );
 }
@@ -156,7 +174,7 @@ function App() {
   useEffect(() => { void refreshAccountSession(); }, []);
 
   if (auth.loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-[#090909] text-sm text-[#777]">Oturum doğrulanıyor...</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">Oturum doğrulanıyor...</div>;
   }
 
   if (!auth.user) {
