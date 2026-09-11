@@ -174,15 +174,35 @@ export async function ensureBootstrapAdmin() {
   const email = String(process.env.BOOTSTRAP_ADMIN_EMAIL || "").trim().toLowerCase();
   const password = String(process.env.BOOTSTRAP_ADMIN_PASSWORD || "");
   if (!email || !password || !pool) return;
-  if (password.length < 12) {
-    console.warn("[multi-user-auth] BOOTSTRAP_ADMIN_PASSWORD en az 12 karakter olmalı");
+  if (password.length < 8) {
+    console.warn("[multi-user-auth] BOOTSTRAP_ADMIN_PASSWORD en az 8 karakter olmalı");
     return;
   }
-  const exists = await pool.query("SELECT id FROM app_users WHERE email=$1 LIMIT 1", [email]);
+
+  const exists = await pool.query(
+    "SELECT id,password_hash FROM app_users WHERE email=$1 LIMIT 1",
+    [email],
+  );
   if (exists.rows[0]) {
-    await pool.query("UPDATE app_users SET system_role='admin', is_active=TRUE WHERE email=$1", [email]);
+    const user = exists.rows[0];
+    const passwordMatches = await verifyPassword(password, user.password_hash);
+    if (!passwordMatches) {
+      const passwordHash = await hashPassword(password);
+      await pool.query(
+        "UPDATE app_users SET password_hash=$2, system_role='admin', is_active=TRUE, updated_at=NOW() WHERE id=$1",
+        [user.id, passwordHash],
+      );
+      await pool.query("DELETE FROM app_sessions WHERE user_id=$1", [user.id]);
+      console.log(`[multi-user-auth] bootstrap admin şifresi sunucu ayarıyla eşitlendi: ${email}`);
+    } else {
+      await pool.query(
+        "UPDATE app_users SET system_role='admin', is_active=TRUE, updated_at=NOW() WHERE id=$1",
+        [user.id],
+      );
+    }
     return;
   }
+
   const created = await registerUser(email, password, "Turmarkt Yönetici");
   await pool.query("UPDATE app_users SET system_role='admin' WHERE id=$1", [created.user.id]);
   console.log(`[multi-user-auth] bootstrap admin oluşturuldu: ${email}`);
