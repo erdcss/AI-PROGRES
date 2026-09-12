@@ -57,7 +57,7 @@ function BannerCard({
       ]).start(({ finished }) => {
         if (finished) onDone(item.id);
       });
-    }, 2400);
+    }, 3000);
     return () => clearTimeout(hold);
   }, [item.id, onDone, opacity, x]);
 
@@ -121,7 +121,7 @@ export function InAppBannerProvider({ children }: { children: React.ReactNode })
       {children}
       <View pointerEvents="box-none" style={styles.host}>
         {items.map((item, i) => (
-          <BannerCard key={item.id} item={item} top={top + i * 44} onDone={onDone} />
+          <BannerCard key={item.id} item={item} top={top + i * 86} onDone={onDone} />
         ))}
       </View>
     </BannerCtx.Provider>
@@ -137,9 +137,10 @@ const styles = StyleSheet.create({
   card: {
     position: "absolute",
     right: 10,
-    width: "72%",
-    maxWidth: 280,
-    borderRadius: 10,
+    width: "78%",
+    maxWidth: 320,
+    minHeight: 68,
+    borderRadius: 12,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
@@ -152,6 +153,8 @@ const styles = StyleSheet.create({
     borderColor: colors.negative,
   },
   inner: {
+    minHeight: 68,
+    justifyContent: "center",
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
@@ -164,5 +167,5 @@ const styles = StyleSheet.create({
   },
   textCol: { flex: 1, minWidth: 0 },
   title: { color: colors.text, fontSize: 12, fontWeight: "700" },
-  body: { color: colors.textSecondary, fontSize: 11, marginTop: 2, lineHeight: 15 },
+  body: { color: colors.textSecondary, fontSize: 11, marginTop: 3, lineHeight: 15 },
 });
