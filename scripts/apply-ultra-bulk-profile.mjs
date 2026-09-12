@@ -35,6 +35,12 @@ if (!src.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 1200;")) {
 fs.writeFileSync(target, src);
 console.log("[ultra-bulk-profile] paced bulk scrape concurrency=1, upload concurrency=3, retry delay=1200ms");
 
+const banFlowFix = path.join(root, "scripts/fix-trendyol-ban-and-marktgo-flow.mjs");
+if (!fs.existsSync(banFlowFix)) {
+  throw new Error("[ultra-bulk-profile] Trendyol ban/MARKT-GO flow fix bulunamadı");
+}
+execFileSync(process.execPath, [banFlowFix], { cwd: root, stdio: "inherit" });
+
 const category500Injector = path.join(root, "scripts/enable-trendyol-category-500.mjs");
 if (!fs.existsSync(category500Injector)) {
   throw new Error("[ultra-bulk-profile] Trendyol category 500 injector bulunamadı");
