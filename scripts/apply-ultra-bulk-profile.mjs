@@ -15,52 +15,22 @@ const replacements = [
   ["const SHOPIFY_UPLOAD_CONCURRENCY = 2;", "const SHOPIFY_UPLOAD_CONCURRENCY = 3;"],
   ["const SHOPIFY_UPLOAD_CONCURRENCY = 6;", "const SHOPIFY_UPLOAD_CONCURRENCY = 3;"],
 ];
-
-for (const [from, to] of replacements) {
-  if (src.includes(from)) {
-    src = src.split(from).join(to);
-  }
-}
-
-if (!src.includes("const BULK_SCRAPE_CONCURRENCY_START = 1;")) {
-  throw new Error("[ultra-bulk-profile] bulk scrape concurrency uygulanamadı");
-}
-if (!src.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 3;")) {
-  throw new Error("[ultra-bulk-profile] upload concurrency uygulanamadı");
-}
-if (!src.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 1200;")) {
-  throw new Error("[ultra-bulk-profile] retry delay uygulanamadı");
-}
-
+for (const [from, to] of replacements) if (src.includes(from)) src = src.split(from).join(to);
+if (!src.includes("const BULK_SCRAPE_CONCURRENCY_START = 1;")) throw new Error("[ultra-bulk-profile] bulk scrape concurrency uygulanamadı");
+if (!src.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 3;")) throw new Error("[ultra-bulk-profile] upload concurrency uygulanamadı");
+if (!src.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 1200;")) throw new Error("[ultra-bulk-profile] retry delay uygulanamadı");
 fs.writeFileSync(target, src);
 console.log("[ultra-bulk-profile] paced bulk scrape concurrency=1, upload concurrency=3, retry delay=1200ms");
 
-const banFlowFix = path.join(root, "scripts/fix-trendyol-ban-and-marktgo-flow.mjs");
-if (!fs.existsSync(banFlowFix)) {
-  throw new Error("[ultra-bulk-profile] Trendyol ban/MARKT-GO flow fix bulunamadı");
+for (const [file, label] of [
+  ["scripts/fix-trendyol-ban-and-marktgo-flow.mjs", "Trendyol ban/MARKT-GO flow fix"],
+  ["scripts/fix-browser-worker-provider-cache.mjs", "Browser Worker provider cache fix"],
+  ["scripts/fix-marktgo-env-token-sync.mjs", "MARKT-GO env token sync fix"],
+  ["scripts/enable-trendyol-category-500.mjs", "Trendyol category 500 injector"],
+  ["scripts/inject-trendyol-reviews.mjs", "Trendyol review injector"],
+  ["scripts/enable-inline-trendyol-reviews.mjs", "Inline Trendyol reviews + MARKT-GO payload"],
+]) {
+  const full = path.join(root, file);
+  if (!fs.existsSync(full)) throw new Error(`[ultra-bulk-profile] ${label} bulunamadı`);
+  execFileSync(process.execPath, [full], { cwd: root, stdio: "inherit" });
 }
-execFileSync(process.execPath, [banFlowFix], { cwd: root, stdio: "inherit" });
-
-const browserWorkerCacheFix = path.join(root, "scripts/fix-browser-worker-provider-cache.mjs");
-if (!fs.existsSync(browserWorkerCacheFix)) {
-  throw new Error("[ultra-bulk-profile] Browser Worker provider cache fix bulunamadı");
-}
-execFileSync(process.execPath, [browserWorkerCacheFix], { cwd: root, stdio: "inherit" });
-
-const marktGoEnvTokenSyncFix = path.join(root, "scripts/fix-marktgo-env-token-sync.mjs");
-if (!fs.existsSync(marktGoEnvTokenSyncFix)) {
-  throw new Error("[ultra-bulk-profile] MARKT-GO env token sync fix bulunamadı");
-}
-execFileSync(process.execPath, [marktGoEnvTokenSyncFix], { cwd: root, stdio: "inherit" });
-
-const category500Injector = path.join(root, "scripts/enable-trendyol-category-500.mjs");
-if (!fs.existsSync(category500Injector)) {
-  throw new Error("[ultra-bulk-profile] Trendyol category 500 injector bulunamadı");
-}
-execFileSync(process.execPath, [category500Injector], { cwd: root, stdio: "inherit" });
-
-const reviewInjector = path.join(root, "scripts/inject-trendyol-reviews.mjs");
-if (!fs.existsSync(reviewInjector)) {
-  throw new Error("[ultra-bulk-profile] Trendyol review injector bulunamadı");
-}
-execFileSync(process.execPath, [reviewInjector], { cwd: root, stdio: "inherit" });
