@@ -32,6 +32,7 @@ for (const [file, label] of [
   ["scripts/fix-marktgo-health-fallback.mjs", "MARKT-GO health fallback fix"],
   ["scripts/prefer-latest-marktgo-token.mjs", "MARKT-GO latest token priority"],
   ["scripts/enable-strict-marktgo-tracking-sync.mjs", "Strict MARKT-GO tracking/catalog sync"],
+  ["scripts/add-full-tracking-scan-button.mjs", "Full tracking scan button + MARKT-GO/source audit"],
   ["scripts/enable-trendyol-category-500.mjs", "Trendyol category 500 injector"],
   ["scripts/add-trendyol-category-paste-button.mjs", "Trendyol category paste button"],
   ["scripts/inject-trendyol-reviews.mjs", "Trendyol review injector"],
