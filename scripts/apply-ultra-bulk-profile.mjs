@@ -24,6 +24,7 @@ console.log("[ultra-bulk-profile] paced bulk scrape concurrency=1, upload concur
 
 for (const [file, label] of [
   ["scripts/restore-legacy-home.mjs", "Legacy home dashboard restore"],
+  ["scripts/hide-scraper-runtime-panel.mjs", "Scraper runtime/provider panel remover"],
   ["scripts/fix-trendyol-ban-and-marktgo-flow.mjs", "Trendyol ban/MARKT-GO flow fix"],
   ["scripts/fix-browser-worker-provider-cache.mjs", "Browser Worker provider cache fix"],
   ["scripts/fix-marktgo-env-token-sync.mjs", "MARKT-GO env token sync fix"],
