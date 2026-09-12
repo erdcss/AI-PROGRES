@@ -4,6 +4,7 @@
 import { isTrendyolCountrySelection } from "../shared/trendyol-storefront";
 
 export type PageBlockReason =
+  | "rate-limit"
   | "country-selection"
   | "empty-body"
   | "empty-document"
@@ -25,6 +26,7 @@ export type PageBlockReason =
   | null;
 
 export type PageContentClass =
+  | "rate-limit"
   | "country-selection"
   | "empty-body"
   | "empty-document"
@@ -149,6 +151,9 @@ export function classifyPageContent(input: {
   if (urlParts.isAboutBlank) {
     contentClass = "about-blank";
     blockReason = "about-blank";
+  } else if (status === 429) {
+    contentClass = "rate-limit";
+    blockReason = "rate-limit";
   } else if (status === 556) {
     contentClass = "upstream-556";
     blockReason = "upstream-556";
@@ -253,7 +258,8 @@ export function shouldRetryNavigation(diag: SafePageDiagnostics): boolean {
 
 export function workerErrorCategoryFromDiagnostics(
   diag: SafePageDiagnostics,
-): "blocked" | "navigation" | "timeout" | "unknown" {
+): "rate-limit" | "blocked" | "navigation" | "timeout" | "unknown" {
+  if (diag.navigationStatus === 429 || diag.contentClass === "rate-limit") return "rate-limit";
   if (
     diag.challengeBlocked ||
     diag.blockReason === "upstream-556" ||

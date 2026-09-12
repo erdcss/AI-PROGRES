@@ -7,6 +7,7 @@ import { filterValidProductImages, prioritizeProductImagesForPreview } from "@sh
 import { mergeProductFeaturePairs } from "@shared/product-attributes";
 
 export class ScrapeFetchError extends Error {
+  retryAfterMs?: number;
   reason?: string;
   userMessage?: string;
   stageErrors?: string[];
@@ -16,6 +17,7 @@ export class ScrapeFetchError extends Error {
   constructor(
     message: string,
     meta?: {
+      retryAfterMs?: number;
       reason?: string;
       userMessage?: string;
       stageErrors?: string[];
@@ -463,6 +465,7 @@ export async function fetchScenarioScrapeResult(
             "Scraping başarısız",
         );
         throw new ScrapeFetchError(msg, {
+          retryAfterMs: pollData.retryAfterMs,
           reason: pollData.finalSuccessReason || pollData.code,
           userMessage: pollData.userMessage,
           stageErrors: pollData.stageErrors,

@@ -1,5 +1,8 @@
 import "dotenv/config";
 import express from "express";
+import { trendyolPacer } from "./request-pacing";
+import { collectReviewPages } from "./review-pagination";
+import { isTrendyolCountrySelection, isTrendyolStorefrontHost } from "../shared/trendyol-storefront";
 import { gotoTrendyolPage } from "./trendyol-navigation";
 import { runConfiguredTrendyolSmokeCheck } from "./smoke-check";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
@@ -34,6 +37,7 @@ import {
 } from "./page-diagnostics";
 
 export type BrowserWorkerErrorCategory =
+  | "rate-limit"
   | "timeout"
   | "blocked"
   | "navigation"
@@ -60,7 +64,7 @@ const PORT = Number(process.env.PORT ?? 8080);
 const STARTED_AT = Date.now();
 const NAV_TIMEOUT_MS = Number(process.env.BROWSER_NAV_TIMEOUT_MS ?? 40_000);
 const SCRAPE_DEADLINE_MS = Number(process.env.BROWSER_SCRAPE_DEADLINE_MS ?? 95_000);
-const WORKER_VERSION = "1.2.5";
+const WORKER_VERSION = "1.2.6";
 const CHROME_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const BLOCK_HEAVY_RESOURCES = process.env.BROWSER_BLOCK_HEAVY_RESOURCES !== "false";
@@ -1203,6 +1207,7 @@ async function fetchPageHtml(url: string): Promise<{
 function categorizePlaywrightError(err: unknown): BrowserWorkerErrorCategory {
   const message = err instanceof Error ? err.message : String(err ?? "");
   const lower = message.toLowerCase();
+  if ((err as any)?.status === 429 || /HTTP 429|rate.limit/i.test(message)) return "rate-limit";
   if (lower.includes("timeout") || lower.includes("timed out")) return "timeout";
   if (lower.includes("net::err_blocked") || lower.includes("access denied")) return "blocked";
   if (lower.includes("navigation") || lower.includes("err_name_not_resolved")) return "navigation";
@@ -1265,11 +1270,13 @@ app.post("/scrape/html", requireAuth, async (req, res) => {
     });
   } catch (err) {
     const category = categorizePlaywrightError(err);
-    const status = category === "invalid-url" ? 400 : category === "auth" ? 401 : 422;
+    const status = category === "rate-limit" ? 429 : category === "invalid-url" ? 400 : category === "auth" ? 401 : 422;
     return res.status(status).json({
       ok: false,
       error: err instanceof Error ? err.message : String(err),
       errorCategory: category,
+      status: (err as any)?.status,
+      retryAfterMs: category === "rate-limit" ? Math.max(60_000, trendyolPacer.retryAfterMs) : undefined,
       durationMs: Date.now() - start,
     });
   }
@@ -1278,143 +1285,53 @@ app.post("/scrape/html", requireAuth, async (req, res) => {
 type TrendyolReviewApiItem = Record<string, unknown>;
 
 async function scrapeTrendyolReviewsInBrowser(input: {
-  pageUrl: string;
-  productId: string;
-  pageSize?: number;
-  maxPages?: number;
-}): Promise<{
-  productTitle: string;
-  reviews: TrendyolReviewApiItem[];
-  summary: Record<string, unknown> | null;
-  totalPages: number;
-  pagesFetched: number;
-}> {
+  pageUrl: string; productId: string; pageSize?: number; maxPages?: number;
+  startPage?: number; deadlineMs?: number;
+}) {
   const pageSize = Math.min(Math.max(Number(input.pageSize) || 50, 10), 100);
-  const maxPages = Math.min(Math.max(Number(input.maxPages) || 500, 1), 2000);
+  const maxPages = Math.min(Math.max(Number(input.maxPages) || 50, 1), 500);
+  const deadline = Date.now() + Math.min(Math.max(Number(input.deadlineMs) || 165_000, 5_000), 170_000);
   const productId = input.productId.replace(/\D/g, "");
-  if (!productId) {
-    throw new Error("invalid-product-id");
-  }
-
-  return withPage(async (context) => {
+  if (!productId) throw new Error("invalid-product-id");
+  return withPage(async context => {
     const page = await context.newPage();
     try {
-      await gotoTrendyolPage(page, input.pageUrl, NAV_TIMEOUT_MS);
-      // Let review-detail bundle set cookies / country context for apigw.
-      await page.waitForTimeout(1800);
-
-      const productTitle = await page
-        .evaluate(() => {
-          const marker = 'window["__review-detail__PROPS"]=';
-          const html = document.documentElement?.innerHTML || "";
-          const idx = html.indexOf(marker);
-          if (idx >= 0) {
-            const start = idx + marker.length;
-            const end = html.indexOf("</script>", start);
-            if (end > start) {
-              try {
-                const data = JSON.parse(html.slice(start, end).trim());
-                const name = data?.product?.name;
-                if (typeof name === "string" && name.trim()) return name.trim();
-              } catch {
-                /* ignore */
-              }
-            }
-          }
-          const h1 = document.querySelector("h1")?.textContent?.trim();
-          return h1 || document.title || "";
-        })
-        .catch(() => "");
-
-      const fetchPage = async (pageIndex: number) =>
-        page.evaluate(
-          async ({ pid, pageIndex: pi, size }) => {
-            const apiUrl =
-              `https://apigw.trendyol.com/discovery-storefront-trproductgw-service/api/review-read/product-reviews/detailed` +
-              `?contentId=${encodeURIComponent(pid)}&page=${pi}&pageSize=${size}&order=DESC&orderBy=Score&channelId=1`;
-            const res = await fetch(apiUrl, {
-              credentials: "include",
-              headers: {
-                Accept: "application/json, text/plain, */*",
-                "Accept-Language": "tr-TR,tr;q=0.9",
-              },
-            });
-            const text = await res.text();
-            let json: any = null;
-            try {
-              json = JSON.parse(text);
-            } catch {
-              json = null;
-            }
-            return {
-              ok: res.ok,
-              status: res.status,
-              reviews: Array.isArray(json?.result?.reviews) ? json.result.reviews : [],
-              summary: json?.result?.summary ?? null,
-              errorText: res.ok ? "" : text.slice(0, 240),
-            };
-          },
-          { pid: productId, pageIndex, size: pageSize },
-        );
-
-      const first = await fetchPage(0);
-      if (!first.ok) {
-        throw new Error(
-          `reviews-api-failed:status=${first.status}:${first.errorText || "empty"}`,
-        );
+      const navigation = await gotoTrendyolPage(page, input.pageUrl, Math.min(NAV_TIMEOUT_MS, deadline - Date.now()));
+      const status = navigation?.status() || 0;
+      if (status >= 400) throw Object.assign(new Error(`Yorum sayfası açılamadı (HTTP ${status}).`),
+        { status, retryAfterMs: status === 429 ? trendyolPacer.retryAfterMs : undefined });
+      if (isTrendyolCountrySelection(page.url())) throw new Error("Trendyol Türkiye mağazası seçimi tamamlanamadı.");
+      const final = new URL(page.url());
+      if (!isTrendyolStorefrontHost(final.hostname) || !final.pathname.includes(`-p-${productId}/yorumlar`)) {
+        throw new Error("Trendyol istenen ürünün yorum sayfasını açmadı.");
       }
-
-      const summary =
-        first.summary && typeof first.summary === "object"
-          ? (first.summary as Record<string, unknown>)
-          : null;
-      const totalPagesRaw = Number(summary?.totalPages ?? 1);
-      const totalPages = Math.max(
-        1,
-        Math.min(
-          Number.isFinite(totalPagesRaw) ? totalPagesRaw : 1,
-          maxPages,
-        ),
-      );
-
-      const seen = new Set<string>();
-      const reviews: TrendyolReviewApiItem[] = [];
-      const pushBatch = (batch: unknown[]) => {
-        for (const item of batch) {
-          if (!item || typeof item !== "object") continue;
-          const rec = item as TrendyolReviewApiItem;
-          const key = String(rec.id ?? "").trim();
-          if (!key || seen.has(key)) continue;
-          seen.add(key);
-          reviews.push(rec);
-        }
-      };
-      pushBatch(first.reviews);
-
-      for (let pageIndex = 1; pageIndex < totalPages; pageIndex++) {
-        const batch = await fetchPage(pageIndex);
-        if (!batch.ok) {
-          console.warn(
-            `[scrape/trendyol-reviews] page ${pageIndex} failed status=${batch.status}`,
-          );
-          continue;
-        }
-        pushBatch(batch.reviews);
-        if (pageIndex % 5 === 0) {
-          await page.waitForTimeout(120);
-        }
-      }
-
-      return {
-        productTitle: productTitle || "",
-        reviews,
-        summary,
-        totalPages,
-        pagesFetched: Math.min(totalPages, maxPages),
-      };
-    } finally {
-      await page.close().catch(() => undefined);
-    }
+      const productTitle = await page.evaluate(() => {
+        const props = (window as any)["__review-detail__PROPS"];
+        return props?.product?.name || document.querySelector("h1")?.textContent?.trim() || document.title || "";
+      }).catch(() => "");
+      const fetchPage = (pageIndex: number) => trendyolPacer.run(async () => {
+        const batch = await page.evaluate(async ({ pid, index, size, timeout }) => {
+          const apiUrl = new URL("https://apigw.trendyol.com/discovery-storefront-trproductgw-service/api/review-read/product-reviews/detailed");
+          Object.entries({ contentId: pid, page: String(index), pageSize: String(size), order: "DESC",
+            orderBy: "Score", channelId: "1", storefrontId: "1", countryCode: "TR", language: "tr" })
+            .forEach(([key, value]) => apiUrl.searchParams.set(key, value));
+          const res = await fetch(apiUrl.toString(), { credentials: "include",
+            headers: { Accept: "application/json, text/plain, */*", "Accept-Language": "tr-TR,tr;q=0.9" },
+            signal: AbortSignal.timeout(timeout) });
+          const json = await res.json().catch(() => null);
+          const result = json?.result;
+          const valid = res.ok && json?.isSuccess !== false && Array.isArray(result?.reviews);
+          return { ok: valid, status: res.status, reviews: valid ? result.reviews : [],
+            summary: result?.summary ?? null, retryAfter: res.headers.get("retry-after"),
+            errorText: valid ? "" : `Yorum API yanıtı doğrulanamadı (HTTP ${res.status}).` };
+        }, { pid: productId, index: pageIndex, size: pageSize, timeout: Math.max(1, Math.min(20_000, deadline - Date.now())) });
+        return { ...batch, retryAfterMs: batch.status === 429 ? trendyolPacer.pause(batch.retryAfter) : undefined };
+      });
+      const result = await collectReviewPages({ fetchPage, startPage: input.startPage, maxPages, deadline });
+      console.log("[scrape/trendyol-reviews] done", { productId, count: result.reviews.length,
+        pagesFetched: result.pagesFetched, totalPages: result.totalPages, partial: result.partial, nextPage: result.nextPage });
+      return { productTitle, ...result };
+    } finally { await page.close().catch(() => undefined); }
   });
 }
 
@@ -1423,7 +1340,7 @@ app.post("/scrape/trendyol-reviews", requireAuth, async (req, res) => {
   try {
     const parsed = validatePublicHttpUrl(String(req.body?.url ?? ""));
     const url = parsed.toString();
-    if (!url.includes("trendyol.com")) {
+    if (!isTrendyolStorefrontHost(parsed.hostname)) {
       return res.status(400).json({
         ok: false,
         error: "Trendyol URL gerekli",
@@ -1459,6 +1376,8 @@ app.post("/scrape/trendyol-reviews", requireAuth, async (req, res) => {
       productId,
       pageSize,
       maxPages,
+      startPage: Math.max(0, Math.trunc(Number(req.body?.startPage) || 0)),
+      deadlineMs: Number(req.body?.deadlineMs),
     });
 
     return res.json({
@@ -1472,15 +1391,21 @@ app.post("/scrape/trendyol-reviews", requireAuth, async (req, res) => {
       totalPages: result.totalPages,
       pagesFetched: result.pagesFetched,
       reviewCount: result.reviews.length,
+      partial: result.partial,
+      nextPage: result.nextPage,
+      warning: result.warning,
+      retryAfterMs: result.retryAfterMs,
       durationMs: Date.now() - start,
     });
   } catch (err) {
     const category = categorizePlaywrightError(err);
-    const status = category === "invalid-url" ? 400 : category === "auth" ? 401 : 422;
+    const status = category === "rate-limit" ? 429 : category === "invalid-url" ? 400 : category === "auth" ? 401 : 422;
     return res.status(status).json({
       ok: false,
       error: err instanceof Error ? err.message : String(err),
       errorCategory: category,
+      status: (err as any)?.status,
+      retryAfterMs: category === "rate-limit" ? Math.max(60_000, trendyolPacer.retryAfterMs) : undefined,
       durationMs: Date.now() - start,
     });
   }
@@ -1495,7 +1420,7 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
   try {
     const parsed = validatePublicHttpUrl(String(req.body?.url ?? ""));
     const url = parsed.toString();
-    if (!url.includes("trendyol.com")) {
+    if (!isTrendyolStorefrontHost(parsed.hostname)) {
       return res.status(400).json({
         ok: false,
         error: "Trendyol URL gerekli",
@@ -1621,11 +1546,12 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
         hasProductStateJson: rootDiagnostics?.hasProductStateJson,
         errorCategory: category,
       });
-      return res.status(category === "blocked" ? 403 : 422).json({
+      return res.status(category === "rate-limit" ? 429 : category === "blocked" ? 403 : 422).json({
         ok: false,
         url,
         finalUrl,
-        status: statusCode,
+        status: category === "rate-limit" ? 429 : statusCode,
+        retryAfterMs: category === "rate-limit" ? Math.max(60_000, trendyolPacer.retryAfterMs) : undefined,
         html: pageHtml,
         jsonLd: [],
         rawProductJson: null,
@@ -1814,7 +1740,7 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
     });
   } catch (err) {
     const category = categorizePlaywrightError(err);
-    const status = category === "invalid-url" ? 400 : category === "auth" ? 401 : 422;
+    const status = category === "rate-limit" ? 429 : category === "invalid-url" ? 400 : category === "auth" ? 401 : 422;
     console.warn("[scrape/trendyol] failed", {
       correlationId,
       category,
@@ -1825,6 +1751,8 @@ app.post("/scrape/trendyol", requireAuth, async (req, res) => {
       ok: false,
       error: err instanceof Error ? err.message : String(err),
       errorCategory: category,
+      status: (err as any)?.status,
+      retryAfterMs: category === "rate-limit" ? Math.max(60_000, trendyolPacer.retryAfterMs) : undefined,
       durationMs: Date.now() - start,
       correlationId,
     });

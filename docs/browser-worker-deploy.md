@@ -156,3 +156,19 @@ Root:
 ```bash
 npm run browser-worker:dev
 ```
+
+
+### Toplu ürün ve yorum çekimi
+
+Ürün navigasyonu ve yorum API sayfaları aynı sıra üzerinden en az 2,5 saniye arayla başlatılır.
+HTTP 429, bot engelinden ayrı iletilir; `Retry-After` boyunca (başlık yoksa en az 60 saniye)
+worker yeni istek göndermez. Ana pipeline bu yanıtın ardından başka sağlayıcıları çağırmaz.
+Toplu ürün çekimi tek sıra halinde ilerler; kartların otomatik yorum çekimi ürün kuyruğu bitince başlar.
+Yorum kartları da tek sıra kullanır. Aynı kartın eşzamanlı istekleri birleştirilir ve başarılı
+sonuçlar tarayıcıda 10 dakika tutulur.
+
+`POST /api/reviews/scrape-trendyol` isteği `startPage` (varsayılan 0) kabul eder.
+Her istek en çok 10 sayfa çeker. `meta.partial`, `meta.nextPage`, `meta.pagesFetched`,
+`meta.totalPages` ve gerekiyorsa `meta.retryAfterMs` döner. İstemci başarılı sayfaları koruyup
+sonraki sayfadan devam eder. Kaynak hatası doğrulanmış sıfır yorum sonucu olarak gösterilmez.
+Yalnız fotoğraflı yorum içeren HTML yedeği kısmi sonuç olarak işaretlenir.

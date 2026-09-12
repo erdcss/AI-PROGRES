@@ -8,6 +8,7 @@ export type BrowserWorkerErrorCategory =
   | "timeout"
   | "auth"
   | "connection"
+  | "rate-limit"
   | "blocked"
   | "navigation"
   | "unknown";
@@ -52,6 +53,7 @@ export type BrowserWorkerTrendyolResponse = {
   url?: string;
   finalUrl?: string;
   status?: number;
+  retryAfterMs?: number;
   html?: string;
   jsonLd?: unknown[];
   rawProductJson?: Record<string, unknown>;
@@ -73,6 +75,7 @@ export type BrowserWorkerTrendyolResponse = {
 export function inferBrowserWorkerBlocked(
   data: Pick<BrowserWorkerTrendyolResponse, "html" | "rawProductJson" | "errorCategory" | "diagnostics">,
 ): boolean {
+  if (data.errorCategory === "rate-limit" || data.diagnostics?.navigationStatus === 429 || data.diagnostics?.contentClass === "rate-limit") return false;
   if (data.errorCategory === "blocked") return true;
   if (data.diagnostics?.challengeBlocked === true) return true;
   const cls = data.diagnostics?.contentClass || "";
@@ -113,6 +116,7 @@ export type BrowserWorkerScrapeResult = {
   jsonLd: unknown[];
   finalUrl: string | null;
   status: number | null;
+  retryAfterMs?: number;
   durationMs: number;
   colorSiblingCandidates?: BrowserWorkerColorSiblingCandidate[];
   colorFamilyMembers?: BrowserWorkerColorFamilyMember[];
@@ -184,6 +188,8 @@ export function mapBrowserWorkerStageError(
       return "browser-worker-timeout";
     case "not-configured":
       return "browser-worker-not-configured";
+    case "rate-limit":
+      return "trendyol-rate-limited";
     case "blocked":
       return "browser-worker-blocked";
     case "dns":
@@ -483,6 +489,10 @@ export type BrowserWorkerTrendyolReviewsResponse = {
   pagesFetched?: number;
   reviewCount?: number;
   durationMs?: number;
+  partial?: boolean;
+  nextPage?: number | null;
+  warning?: string;
+  retryAfterMs?: number;
   error?: string;
   errorCategory?: string;
 };
@@ -495,6 +505,10 @@ export type BrowserWorkerTrendyolReviewsResult = {
   totalPages: number;
   pagesFetched: number;
   durationMs: number;
+  partial?: boolean;
+  nextPage?: number | null;
+  warning?: string;
+  retryAfterMs?: number;
   error?: string;
   errorCategory?: BrowserWorkerErrorCategory;
 };
@@ -505,6 +519,7 @@ export async function scrapeTrendyolReviewsWithBrowserWorker(input: {
   pageSize?: number;
   maxPages?: number;
   timeoutMs?: number;
+  startPage?: number;
 }): Promise<BrowserWorkerTrendyolReviewsResult> {
   const start = Date.now();
   const { endpoint, token, configured, timeoutMs: defaultTimeout } = getBrowserWorkerConfig();
@@ -538,7 +553,9 @@ export async function scrapeTrendyolReviewsWithBrowserWorker(input: {
         url: input.url,
         productId: input.productId,
         pageSize: input.pageSize ?? 50,
-        maxPages: input.maxPages ?? 500,
+        maxPages: input.maxPages ?? 10,
+        startPage: input.startPage ?? 0,
+        deadlineMs: Math.min(165_000, timeoutMs - 1000),
       },
       {
         timeout: timeoutMs,
@@ -573,6 +590,7 @@ export async function scrapeTrendyolReviewsWithBrowserWorker(input: {
         totalPages: 0,
         pagesFetched: 0,
         durationMs,
+        retryAfterMs: data?.retryAfterMs,
         error: data?.error || "browser-worker-reviews-failed",
         errorCategory: (data?.errorCategory as BrowserWorkerErrorCategory) || "unknown",
       };
@@ -587,6 +605,10 @@ export async function scrapeTrendyolReviewsWithBrowserWorker(input: {
       productTitle: data.productTitle || "",
       reviews: data.reviews,
       summary: data.summary ?? null,
+      partial: data.partial === true,
+      nextPage: data.nextPage,
+      warning: data.warning,
+      retryAfterMs: data.retryAfterMs,
       totalPages: Number(data.totalPages) || 1,
       pagesFetched: Number(data.pagesFetched) || 1,
       durationMs,
@@ -748,6 +770,12 @@ export async function scrapeTrendyolWithBrowserWorker(
       };
     }
 
+    if (response.status === 429 || data?.status === 429 || data?.errorCategory === "rate-limit") {
+      return { success: false, html: null, rawProductJson: null, jsonLd: [], finalUrl: data?.finalUrl ?? null,
+        status: 429, durationMs, error: "Trendyol HTTP 429 — istek sınırı nedeniyle bekleniyor.",
+        errorCategory: "rate-limit", stageError: "trendyol-rate-limited",
+        retryAfterMs: Math.max(60_000, Number(data?.retryAfterMs) || 0) };
+    }
     if (!data?.ok || (!hasHtml && !hasRaw)) {
       const inferredBlocked = inferBrowserWorkerBlocked(data);
       const category: BrowserWorkerErrorCategory = inferredBlocked

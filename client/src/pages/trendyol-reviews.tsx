@@ -1,3 +1,4 @@
+import { scrapeTrendyolReviewsForProduct } from "@/lib/trendyol-reviews-client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
@@ -59,23 +60,14 @@ export default function TrendyolReviewsPage() {
     setReviews([]);
     setStats(null);
     try {
-      const response = await fetch("/api/reviews/scrape-trendyol", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: url.trim(),
-          shopifyProductId: shopifyProductId.trim(),
-          shopifyHandle: shopifyHandle.trim()
-        })
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || "Yorumlar çekilemedi");
+      const data = await scrapeTrendyolReviewsForProduct(url, { shopifyProductId, shopifyHandle });
+      if (!data.success) throw new Error(data.error || "Yorumlar çekilemedi");
       setReviews(data.reviews || []);
       setProductTitle(data.productTitle || "");
       setStats(data.stats || null);
       toast({
-        title: "Yorumlar Çekildi ✅",
-        description: `${data.reviews?.length || 0} yorum başarıyla çekildi`
+        title: data.partial ? "Yorumlar kısmen alındı" : "Yorumlar Çekildi ✅",
+        description: data.partial ? data.error : `${data.reviews?.length || 0} yorum başarıyla çekildi`
       });
     } catch (err: any) {
       toast({ title: "Hata", description: err.message, variant: "destructive" });

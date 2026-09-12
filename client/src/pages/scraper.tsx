@@ -1599,7 +1599,7 @@ function ScraperPage() {
     let unknownStockVariants = 0;
 
     const BULK_SCRAPE_RETRY_DELAY_MS = 1200;
-    const BULK_SCRAPE_CONCURRENCY_START = 3;
+    const BULK_SCRAPE_CONCURRENCY_START = 1;
     let activeConcurrency = BULK_SCRAPE_CONCURRENCY_START;
     let scrapeCursor = 0;
     let completedScrapes = 0;
@@ -1621,11 +1621,12 @@ function ScraperPage() {
     const waitIfCooling = async () => {
       const left = globalCooldownUntil - Date.now();
       if (left > 0) {
-        setWorkflowStep(`Trendyol 429 — ${Math.ceil(left / 1000)}s bekleniyor...`);
-        if (!workspace) {
+        setWorkflowStep(`${rateLimitHits > 0 ? "Trendyol 429 — " : ""}${Math.ceil(left / 1000)}s bekleniyor...`);
+        if (!workspace && rateLimitHits > 0) {
           document.title = `(429) ${Math.ceil(left / 1000)}s bekle · Turmarkt`;
         }
-        await new Promise((r) => setTimeout(r, left));
+        await new Promise((r) => setTimeout(r, Math.min(left, 1000)));
+        if (!bulkStopRequestedRef.current) await waitIfCooling();
       }
     };
 
@@ -1671,7 +1672,7 @@ function ScraperPage() {
               if (rateLimited) {
                 rateLimitHits++;
                 activeConcurrency = 1;
-                const backoff = Math.min(90_000, 4000 * Math.pow(2, Math.min(rateLimitHits, 4)));
+                const backoff = Math.max(60_000, Number((firstError as ScrapeFetchError)?.retryAfterMs) || 0);
                 const jitter = Math.floor(Math.random() * 1500);
                 globalCooldownUntil = Date.now() + backoff + jitter;
                 await waitIfCooling();
@@ -1680,15 +1681,6 @@ function ScraperPage() {
               }
               if (bulkStopRequestedRef.current) throw firstError;
               scraped = await fetchScenarioScrapeResult(url, true, autoTagEnabled);
-            }
-
-            if (bulkStopRequestedRef.current) {
-              cancelledCount++;
-              updateUrlQueueItem(url, {
-                status: "pending",
-                error: "Durduruldu — tamamlanmadan iptal",
-              });
-              return;
             }
 
             const newPreview = buildCsvPreviewEntry(scraped, url, "bulk");
@@ -1739,7 +1731,7 @@ function ScraperPage() {
             if (looksLikeRateLimit(error)) {
               rateLimitHits++;
               activeConcurrency = 1;
-              const backoff = Math.min(90_000, 5000 * Math.pow(2, Math.min(rateLimitHits, 4)));
+              const backoff = Math.max(60_000, Number((error as ScrapeFetchError)?.retryAfterMs) || 0);
               globalCooldownUntil = Date.now() + backoff + Math.floor(Math.random() * 1500);
               toast({
                 title: "Trendyol 429 engeli",
@@ -1778,6 +1770,7 @@ function ScraperPage() {
             });
           }
         } finally {
+          globalCooldownUntil = Math.max(globalCooldownUntil, Date.now() + 2_500);
           bulkActiveUrlsRef.current.delete(url);
           completedScrapes++;
           setBulkProgress({ current: completedScrapes, total: queue.length });
@@ -3439,6 +3432,7 @@ function ScraperPage() {
             )}
             <CSVDrawerPreview 
               csvPreviews={csvPreviews}
+              reviewsPaused={isBulkProcessing}
               onDownload={handleCSVDownload}
               onShopifyUpload={handleCSVShopifyUpload}
               individualTags={individualTags}

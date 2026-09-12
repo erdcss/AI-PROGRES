@@ -796,8 +796,7 @@ export async function runTrendyolScrapePipeline(
 
     if (
       providers.includes("browser_worker") &&
-      policy.preferBrowserWorker &&
-      !autoFastCloud
+      policy.preferBrowserWorker
     ) {
       diagnostics.gatewayStarted = true;
       const correlationId = `scrape-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -835,6 +834,12 @@ export async function runTrendyolScrapePipeline(
           "browser-worker-timeout",
         );
 
+        if (bw.status === 429 || bw.stageError === "trendyol-rate-limited") {
+          diagnostics.gatewayError = "trendyol-rate-limited";
+          diagnostics.retryAfterMs = bw.retryAfterMs || 60_000;
+          pushStageError(diagnostics, "trendyol-rate-limited");
+          return finalizeOutcome(result, url, diagnostics, pipelineStart, false);
+        }
         const usableHtml = Boolean(bw.html && bw.html.length >= 500);
         const usableRaw = Boolean(
           bw.rawProductJson && Object.keys(bw.rawProductJson).length > 0,
@@ -859,7 +864,7 @@ export async function runTrendyolScrapePipeline(
                 "./trendyol-html-extractor"
               );
               const htmlProduct = await withStageTimeout(
-                () =>
+                async () =>
                   parseTrendyolProductFromHtmlContent(
                     directHtml!,
                     url,
@@ -1017,6 +1022,7 @@ export async function runTrendyolScrapePipeline(
 
     if (
       autoFastCloud &&
+      !diagnostics.gatewayStarted &&
       needsCoreData() &&
       providers.includes("browser_worker") &&
       policy.preferBrowserWorker &&
@@ -1045,6 +1051,12 @@ export async function runTrendyolScrapePipeline(
           bwBudgetMs,
           "browser-worker-timeout",
         );
+        if (bw.status === 429 || bw.stageError === "trendyol-rate-limited") {
+          diagnostics.gatewayError = "trendyol-rate-limited";
+          diagnostics.retryAfterMs = bw.retryAfterMs || 60_000;
+          pushStageError(diagnostics, "trendyol-rate-limited");
+          return finalizeOutcome(result, url, diagnostics, pipelineStart, false);
+        }
         const usableHtml = Boolean(bw.html && bw.html.length >= 500);
         const usableRaw = Boolean(
           bw.rawProductJson && Object.keys(bw.rawProductJson).length > 0,

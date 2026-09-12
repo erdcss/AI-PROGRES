@@ -13,6 +13,7 @@ interface CSVDrawerPreviewProps {
   individualTags: {[key: string]: string[]};
   setIndividualTags: React.Dispatch<React.SetStateAction<{[key: string]: string[]}>>;
   uploadingId?: string | null;
+  reviewsPaused?: boolean;
 }
 
 export const CSVDrawerPreview = memo(function CSVDrawerPreview({
@@ -22,6 +23,7 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({
   individualTags,
   setIndividualTags,
   uploadingId,
+  reviewsPaused,
 }: CSVDrawerPreviewProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedImageIndex, setSelectedImageIndex] = useState<{[key: string]: number}>({});
@@ -167,6 +169,7 @@ export const CSVDrawerPreview = memo(function CSVDrawerPreview({
             <ProductPreview
               key={preview.id}
               preview={preview}
+              reviewsPaused={reviewsPaused}
               imageIndex={selectedImageIndex[preview.id] || 0}
               tags={
                 activeTags.length

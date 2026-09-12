@@ -16,6 +16,7 @@ export type ScrapeStageErrorCode =
   | "chromium-not-found"
   | "chromium-launch-failed"
   | "navigation-timeout"
+  | "trendyol-rate-limited"
   | "trendyol-blocked"
   | "page-empty"
   | "unknown-scenario-error"
@@ -112,6 +113,7 @@ export type ScrapeDiagnostics = {
     isLaunchFailure: boolean;
     isNavigationFailure: boolean;
   };
+  retryAfterMs?: number;
   stageErrors: ScrapeStageErrorCode[];
   finalSuccessReason?: FinalSuccessReason | string;
   partialSuccess?: boolean;
@@ -267,6 +269,10 @@ export function formatScrapeDeployUserMessage(diagnostics: ScrapeDiagnostics): s
     return "Trendyol erişimi geçici olarak durduruldu (ban koruması). Birkaç dakika bekleyip tekrar deneyin; hemen denemek engeli uzatabilir.";
   }
 
+  if (errors.includes("trendyol-rate-limited")) {
+    return "Trendyol HTTP 429 — istek sınırına ulaşıldı. Bekleme süresinden sonra çekime daha yavaş devam edilecek.";
+  }
+
   if (errors.includes("browser-worker-country-selection")) {
     return "Trendyol ürün sayfası yerine ülke seçimi ekranını açtı. Tarayıcı servisinde Türkiye mağazası seçimi tamamlanamadığı için ürün verisi alınamadı.";
   }
@@ -402,6 +408,7 @@ export function formatStageErrorsForUser(stageErrors: ScrapeStageErrorCode[]): s
     "browser-worker-unauthorized": "Tarayıcı Worker yetkisiz (token uyuşmazlığı)",
     "browser-worker-invalid-response": "Tarayıcı Worker geçersiz yanıt",
     "browser-worker-blocked": "Tarayıcı Worker engellendi",
+    "trendyol-rate-limited": "Trendyol istek sınırı (HTTP 429)",
     "trendyol-blocked": "Trendyol erişimi engellendi",
     "trendyol-circuit-open": "Trendyol ban koruması aktif (beklemede)",
     "upstream-556": "Trendyol upstream 556 engeli",

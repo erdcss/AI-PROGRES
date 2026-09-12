@@ -5,6 +5,8 @@ import {
   withTrendyolTurkeyStorefront,
 } from "../shared/trendyol-storefront";
 
+import { trendyolPacer } from "./request-pacing";
+
 /** Use the Turkish storefront even when the worker runs outside Türkiye. */
 export async function gotoTrendyolPage(
   page: Page,
@@ -14,10 +16,12 @@ export async function gotoTrendyolPage(
   const target = withTrendyolTurkeyStorefront(requestedUrl);
   const deadline = Date.now() + timeoutMs;
   const remaining = () => Math.max(1, deadline - Date.now());
-  let response = await page.goto(target, {
-    waitUntil: "domcontentloaded",
-    timeout: remaining(),
+  const navigate = () => trendyolPacer.run(async () => {
+    const response = await page.goto(target, { waitUntil: "domcontentloaded", timeout: remaining() });
+    if (response?.status() === 429) trendyolPacer.pause(response.headers?.()["retry-after"]);
+    return response;
   });
+  let response = await navigate();
   if (!isTrendyolCountrySelection(page.url()) || (response?.status() ?? 200) >= 400) {
     return response;
   }
@@ -35,9 +39,6 @@ export async function gotoTrendyolPage(
 
   await turkeyLink.click({ timeout: Math.min(5_000, remaining()) });
   if (remaining() < 1_000) return response;
-  response = await page.goto(target, {
-    waitUntil: "domcontentloaded",
-    timeout: remaining(),
-  });
+  response = await navigate();
   return response;
 }

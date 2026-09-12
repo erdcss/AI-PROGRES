@@ -45,7 +45,7 @@
     "test:non-apparel-size": "tsx server/__tests__/trendyol-non-apparel-size-guard.test.ts",
     "test:color-family": "tsx server/__tests__/trendyol-color-family.test.ts && tsx server/__tests__/trendyol-hydrated-member.test.ts && tsx client/src/lib/color-family-ui-status.test.ts",
     "test:block-guard": "tsx server/__tests__/trendyol-block-guard.test.ts",
-    "test:browser-worker": "tsx server/__tests__/browser-worker-client.test.ts && tsx server/__tests__/browser-worker-page-diagnostics.test.ts && tsx server/__tests__/trendyol-storefront.test.ts",
+    "test:browser-worker": "tsx server/__tests__/browser-worker-client.test.ts && tsx server/__tests__/browser-worker-page-diagnostics.test.ts && tsx server/__tests__/trendyol-storefront.test.ts && tsx server/__tests__/trendyol-pacing-reviews.test.ts",
     "debug:color-family": "tsx scripts/debug-trendyol-color-family.mjs",
     "test": "npm run test:color-family && npm run test:variant-flow && npm run test:shopify-upsert && npm run test:combo-size && npm run test:price-variant && npm run test:stock",
     "typecheck": "tsc",

@@ -533,6 +533,7 @@ export interface CSVPreviewData {
 }
 
 export interface ProductPreviewProps {
+  reviewsPaused?: boolean;
   preview: CSVPreviewData;
   imageIndex: number;
   tags: string[];
@@ -555,6 +556,7 @@ export interface ProductPreviewProps {
 }
 
 export const ProductPreview = memo(function ProductPreview({
+  reviewsPaused = false,
   preview,
   imageIndex,
   tags = [],
@@ -621,7 +623,7 @@ export const ProductPreview = memo(function ProductPreview({
 
     const loadReviews = useCallback(
       async (signal?: AbortSignal) => {
-        if (!canFetchReviews || !sourceUrl) return;
+        if (!canFetchReviews || !sourceUrl || reviewsPaused) return;
         setReviewsLoading(true);
         setReviewsError(null);
         try {
@@ -635,6 +637,7 @@ export const ProductPreview = memo(function ProductPreview({
             return;
           }
           setReviews(result.reviews);
+          setReviewsError(result.partial ? result.error || "Yorumların bir bölümü alındı; devam etmek için tekrar deneyin." : null);
           setReviewsStats(result.stats);
           setReviewsFetched(true);
         } catch (err: any) {
@@ -645,15 +648,15 @@ export const ProductPreview = memo(function ProductPreview({
           if (!signal?.aborted) setReviewsLoading(false);
         }
       },
-      [canFetchReviews, sourceUrl],
+      [canFetchReviews, sourceUrl, reviewsPaused],
     );
 
     useEffect(() => {
-      if (!canFetchReviews) return;
+      if (!canFetchReviews || reviewsPaused) return;
       const controller = new AbortController();
       void loadReviews(controller.signal);
       return () => controller.abort();
-    }, [canFetchReviews, sourceUrl, preview.id, loadReviews]);
+    }, [canFetchReviews, sourceUrl, preview.id, loadReviews, reviewsPaused]);
 
     const reviewCount = reviewsStats?.total ?? reviews.length;
     const reviewAvg = reviewsStats?.avg ?? 0;
@@ -1125,7 +1128,7 @@ export const ProductPreview = memo(function ProductPreview({
                   <button
                     type="button"
                     onClick={() => {
-                      if (reviewsError) void loadReviews();
+                      if ((reviewsError || !reviewsFetched) && !reviewsLoading) void loadReviews();
                       setReviewsOpen(true);
                     }}
                     className="group flex w-full max-w-xl items-center gap-3 rounded-lg border border-zinc-800/90 bg-zinc-900/60 px-3 py-2 text-left transition-colors hover:border-zinc-600 hover:bg-zinc-900"
@@ -1144,7 +1147,7 @@ export const ProductPreview = memo(function ProductPreview({
                         </p>
                       ) : reviewsError ? (
                         <p className="truncate text-sm font-medium text-red-300">
-                          Yorumlar alınamadı — tekrar dene
+                          {reviewCount > 0 ? `${reviewCount} yorum alındı — devamını çek` : "Yorumlar alınamadı — tekrar dene"}
                         </p>
                       ) : reviewCount > 0 ? (
                         <p className="truncate text-sm font-medium text-zinc-100">
@@ -1157,7 +1160,7 @@ export const ProductPreview = memo(function ProductPreview({
                         </p>
                       ) : (
                         <p className="truncate text-sm font-medium text-zinc-400">
-                          Yorumlar hazırlanıyor…
+                          {reviewsPaused ? "Yorumlar ürün çekimi bittikten sonra alınacak" : "Yorumlar sırada…"}
                         </p>
                       )}
                       <p className="truncate text-[11px] text-zinc-500">

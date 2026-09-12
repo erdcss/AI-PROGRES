@@ -23,11 +23,14 @@ export async function runConfiguredTrendyolSmokeCheck(port: number, token: strin
         signal: AbortSignal.timeout(35_000),
       });
       const data = await response.json() as any;
-      const product = data.rawProductJson?.product || data.rawProductJson || {};
+      const jsonLd = (data.jsonLd || []).flatMap((value: any) => Array.isArray(value) ? value : value?.["@graph"] || [value]);
+      const product = data.rawProductJson?.product || data.rawProductJson ||
+        jsonLd.find((value: any) => value?.["@type"] === "Product") || {};
+      const offers = Array.isArray(product.offers) ? product.offers[0] : product.offers;
       const price = Number(product.price?.discountedPrice?.value ?? product.price?.sellingPrice?.value ??
-        product.price?.discountedPrice ?? product.price?.sellingPrice ?? 0);
-      const images = filterValidProductImages(normalizeTrendyolImages(product.images || []));
-      const resolvedProductId = String(product.id ?? product.contentId ?? "");
+        product.price?.discountedPrice ?? product.price?.sellingPrice ?? offers?.price ?? offers?.lowPrice ?? 0);
+      const images = filterValidProductImages(normalizeTrendyolImages(product.images || (Array.isArray(product.image) ? product.image : product.image ? [product.image] : [])));
+      const resolvedProductId = String(product.id ?? product.contentId ?? (data.finalUrl ? new URL(data.finalUrl).pathname.match(/-p-(\d+)/)?.[1] : "") ?? "");
       const title = String(product.name || product.title || "");
       const ok = response.ok && data.ok === true && resolvedProductId === productId &&
         title.length > 5 && price > 0 && images.length > 0;
