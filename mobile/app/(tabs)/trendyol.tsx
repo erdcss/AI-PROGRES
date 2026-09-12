@@ -12,8 +12,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../src/theme/colors";
 import {
+  fetchLiveTrendyolScrapeJobs,
   fetchMarktGoHealth,
   fetchTrendyolScrapeJob,
   normalizeScrapeProduct,
@@ -40,6 +42,15 @@ export default function TrendyolMobileScreen() {
   const [product, setProduct] = useState<Record<string, any> | null>(null);
   const [lines, setLines] = useState<LiveLine[]>([]);
   const cancelled = useRef(false);
+
+  const liveJobs = useQuery({
+    queryKey: ["mobile-live-trendyol-jobs"],
+    queryFn: fetchLiveTrendyolScrapeJobs,
+    refetchInterval: 1000,
+    refetchIntervalInBackground: true,
+    retry: 1,
+  });
+  const webJobs = (liveJobs.data?.jobs || []).slice(0, 6);
 
   const addLine = (label: string, detail?: string, ok?: boolean) => {
     setLines((prev) => [
@@ -106,6 +117,7 @@ export default function TrendyolMobileScreen() {
           setStatus("Ürün hazır");
           addLine("Ürün çekildi", normalized.title, true);
           showBanner("Trendyol ürünü çekildi", normalized.title);
+          void liveJobs.refetch();
           return;
         }
         if (["error", "failed", "cancelled"].includes(jobStatus)) {
@@ -147,7 +159,7 @@ export default function TrendyolMobileScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <View>
+          <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={styles.kicker}>ÜRÜN ÇIKARMA</Text>
             <Text style={styles.title}>Trendyol</Text>
             <Text style={styles.caption}>Canlı çekim · anlık durum · MARKT-GO aktarımı</Text>
@@ -175,13 +187,42 @@ export default function TrendyolMobileScreen() {
 
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Canlı işlem</Text>
+            <Text style={styles.sectionTitle}>Canlı sistem çekimleri</Text>
+            <Text style={styles.percent}>{webJobs.filter((j) => j.status === "processing").length} aktif</Text>
+          </View>
+          <Text style={styles.status}>Web ve mobilde başlatılan Trendyol işlemleri aynı listede anlık güncellenir.</Text>
+          <View style={styles.jobList}>
+            {webJobs.length === 0 ? (
+              <Text style={styles.empty}>Şu anda aktif veya yeni tamamlanmış çekim yok.</Text>
+            ) : webJobs.map((job) => {
+              const ok = job.status === "success";
+              const bad = job.status === "error";
+              return (
+                <View key={job.jobId} style={styles.jobRow}>
+                  <View style={[styles.jobIcon, ok && styles.jobIconOk, bad && styles.jobIconBad]}>
+                    {job.status === "processing" ? <ActivityIndicator size="small" color={colors.text} /> : <Ionicons name={ok ? "checkmark" : "alert"} size={14} color={colors.text} />}
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.timelineTitle} numberOfLines={1}>{job.title || (job.status === "processing" ? "Trendyol ürünü çekiliyor" : "Trendyol çekimi")}</Text>
+                    <Text style={styles.timelineDetail} numberOfLines={1}>{job.error || job.sourceUrl || job.jobId}</Text>
+                    <View style={styles.smallTrack}><View style={[styles.smallFill, { width: `${Math.max(3, job.progress)}%` }]} /></View>
+                  </View>
+                  <Text style={styles.jobProgress}>%{job.progress}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.sectionTitle}>Bu cihazdaki işlem</Text>
             <Text style={styles.percent}>%{progress}</Text>
           </View>
           <View style={styles.track}><View style={[styles.fill, { width: `${Math.max(2, progress)}%` }]} /></View>
           <Text style={styles.status}>{status}</Text>
           <View style={styles.timeline}>
-            {lines.length === 0 ? <Text style={styles.empty}>İşlem başladığında tüm adımlar burada canlı görünecek.</Text> : lines.map((line) => (
+            {lines.length === 0 ? <Text style={styles.empty}>İşlem başladığında adımlar burada canlı görünecek.</Text> : lines.map((line) => (
               <View key={line.id} style={styles.timelineRow}>
                 <View style={[styles.timelineDot, line.ok === true && styles.dotOk, line.ok === false && styles.dotBad]} />
                 <View style={{ flex: 1 }}>
@@ -237,19 +278,27 @@ const styles = StyleSheet.create({
   primaryText: { color: "#000", fontSize: 14, fontWeight: "800" },
   disabled: { opacity: 0.35 },
   sectionTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   percent: { color: colors.textSecondary, fontSize: 12, fontWeight: "700" },
   track: { height: 4, backgroundColor: colors.surfaceElevated, borderRadius: 4, overflow: "hidden", marginTop: 12 },
   fill: { height: 4, backgroundColor: colors.text, borderRadius: 4 },
-  status: { color: colors.textSecondary, fontSize: 12, marginTop: 9 },
+  status: { color: colors.textSecondary, fontSize: 12, marginTop: 9, lineHeight: 17 },
   timeline: { marginTop: 12, gap: 10 },
   timelineRow: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   timelineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.textMuted, marginTop: 5 },
   dotOk: { backgroundColor: colors.positive },
   dotBad: { backgroundColor: colors.negative },
   timelineTitle: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  timelineDetail: { color: colors.textSecondary, fontSize: 11, marginTop: 2 },
+  timelineDetail: { color: colors.textSecondary, fontSize: 10, marginTop: 2 },
   empty: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
+  jobList: { marginTop: 12, gap: 8 },
+  jobRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  jobIcon: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  jobIconOk: { borderColor: colors.positive },
+  jobIconBad: { borderColor: colors.negative },
+  jobProgress: { color: colors.textSecondary, fontSize: 11, width: 34, textAlign: "right" },
+  smallTrack: { marginTop: 6, height: 2, backgroundColor: colors.surfaceElevated, overflow: "hidden", borderRadius: 2 },
+  smallFill: { height: 2, backgroundColor: colors.textSecondary },
   productRow: { flexDirection: "row", gap: 12, marginTop: 12 },
   image: { width: 82, height: 82, borderRadius: 10, backgroundColor: colors.surfaceElevated },
   productTitle: { color: colors.text, fontSize: 13, fontWeight: "700", lineHeight: 18 },
@@ -259,6 +308,6 @@ const styles = StyleSheet.create({
   mini: { flex: 1, backgroundColor: colors.bg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 10, padding: 10 },
   miniValue: { color: colors.text, fontSize: 16, fontWeight: "800" },
   miniLabel: { color: colors.textSecondary, fontSize: 10, marginTop: 2 },
-  secondary: { marginTop: 12, height: 48, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surfaceElevated, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  secondaryText: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  secondary: { marginTop: 12, minHeight: 48, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surfaceElevated, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 12 },
+  secondaryText: { color: colors.text, fontSize: 13, fontWeight: "700", textAlign: "center" },
 });
