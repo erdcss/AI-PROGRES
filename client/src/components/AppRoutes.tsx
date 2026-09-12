@@ -33,9 +33,25 @@ import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import MemoryDashboard from "@/pages/memory-dashboard";
 import BaglantiApiPage from "@/pages/baglanti-api";
 import ShopifyCategoriesPage from "@/pages/shopify-categories";
+import { TenantWorkspace } from "@/components/TenantWorkspace";
+import type { AccountUser } from "@/lib/account-auth";
 
-export function AppRoutes() {
+export function AppRoutes({ user }: { user: AccountUser }) {
   const isMobile = useIsMobile();
+
+  // Share the original home and tabs; workspace accounts only mount tenant-safe pages.
+  if (user.systemRole !== "admin") {
+    return (
+      <Switch>
+        <Route path="/"><PageTransition><MarketplaceSelection workspaceOnly /></PageTransition></Route>
+        <Route path="/marketplace"><PageTransition><MarketplaceSelection workspaceOnly /></PageTransition></Route>
+        <Route path="/scraper/trendyol"><PageTransition><TenantWorkspace user={user} /></PageTransition></Route>
+        <Route path="/trendyol"><Redirect to="/scraper/trendyol" /></Route>
+        <Route path="/workspace"><Redirect to="/scraper/trendyol" /></Route>
+        <Route><Redirect to="/" /></Route>
+      </Switch>
+    );
+  }
 
   const scraperShell = (content: ReactNode) => (
     <div className={`mx-auto ${isMobile ? "px-4 py-4 max-w-full" : "container px-4 py-4"}`}>

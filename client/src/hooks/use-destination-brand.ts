@@ -32,8 +32,9 @@ const MARKTGO_BRAND: DestinationBrand = {
   provider: "marktgo",
 };
 
-export function useDestinationBrand(): DestinationBrand {
+export function useDestinationBrand({ enabled = true }: { enabled?: boolean } = {}): DestinationBrand {
   const connectionsQ = useQuery({
+    enabled,
     queryKey: ["/api/marktgo/connections"],
     queryFn: async () => {
       const res = await fetch("/api/marktgo/connections", { cache: "no-store" });
@@ -67,6 +68,8 @@ export function useDestinationBrand(): DestinationBrand {
     refetchInterval: 15_000,
     retry: 1,
   });
+
+  if (!enabled) return MARKTGO_BRAND;
 
   const saved =
     connectionsQ.data?.connections?.find((c) => c.isActive !== false) ??
