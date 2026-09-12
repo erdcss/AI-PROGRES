@@ -23,6 +23,7 @@ fs.writeFileSync(target, src);
 console.log("[ultra-bulk-profile] paced bulk scrape concurrency=1, upload concurrency=3, retry delay=1200ms");
 
 for (const [file, label] of [
+  ["scripts/restore-legacy-home.mjs", "Legacy home dashboard restore"],
   ["scripts/fix-trendyol-ban-and-marktgo-flow.mjs", "Trendyol ban/MARKT-GO flow fix"],
   ["scripts/fix-browser-worker-provider-cache.mjs", "Browser Worker provider cache fix"],
   ["scripts/fix-marktgo-env-token-sync.mjs", "MARKT-GO env token sync fix"],
