@@ -26,7 +26,8 @@ export default function TabsLayout() {
   const { data } = useQuery({
     queryKey: ["notifications-badge"],
     queryFn: () => fetchPushInboxRecent(40),
-    refetchInterval: false,
+    refetchInterval: 1500,
+    refetchIntervalInBackground: true,
   });
   const badge = data?.items?.length || 0;
 
@@ -44,7 +45,7 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarItemStyle: { paddingTop: 2 },
+        tabBarItemStyle: { paddingTop: 2, minWidth: 0 },
       }}
     >
       <Tabs.Screen
@@ -58,6 +59,16 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="trendyol"
+        options={{
+          title: "Trendyol",
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon name={focused ? "cart" : "cart-outline"} focused={focused} />
+          ),
+          tabBarLabel: ({ focused }) => <TabLabel label="Trendyol" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="products"
         options={{
           title: "Ürünler",
@@ -67,16 +78,7 @@ export default function TabsLayout() {
           tabBarLabel: ({ focused }) => <TabLabel label="Ürünler" focused={focused} />,
         }}
       />
-      <Tabs.Screen
-        name="webo"
-        options={{
-          title: "Webo",
-          tabBarIcon: ({ focused }) => (
-            <TabBarIcon name={focused ? "globe" : "globe-outline"} focused={focused} />
-          ),
-          tabBarLabel: ({ focused }) => <TabLabel label="Webo" focused={focused} />,
-        }}
-      />
+      <Tabs.Screen name="webo" options={{ href: null }} />
       <Tabs.Screen
         name="tracking"
         options={{
