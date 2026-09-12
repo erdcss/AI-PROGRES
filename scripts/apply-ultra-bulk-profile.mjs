@@ -35,6 +35,7 @@ for (const [file, label] of [
   ["scripts/inject-trendyol-reviews.mjs", "Trendyol review injector"],
   ["scripts/enable-inline-trendyol-reviews.mjs", "Inline Trendyol reviews + MARKT-GO payload"],
   ["scripts/instant-review-preview-and-full-sync.mjs", "Instant review preview + complete MARKT-GO review sync"],
+  ["scripts/accelerate-reviews-and-heal-color-family.mjs", "Fast Trendyol reviews + color family healing"],
   ["scripts/enable-ultra-fast-marktgo-upload.mjs", "Ultra fast MARKT-GO product-first upload"],
   ["scripts/enforce-auto-tag-toggle.mjs", "Strict automatic-tag toggle"],
   ["scripts/enable-mobile-live-scrape-jobs.mjs", "Mobile live Trendyol scrape jobs"],
