@@ -26,6 +26,7 @@ for (const [file, label] of [
   ["scripts/restore-legacy-home.mjs", "Legacy home dashboard restore"],
   ["scripts/hide-scraper-runtime-panel.mjs", "Scraper runtime/provider panel remover"],
   ["scripts/fix-trendyol-ban-and-marktgo-flow.mjs", "Trendyol ban/MARKT-GO flow fix"],
+  ["scripts/enable-trendyol-seo-product-fallback.mjs", "Trendyol SEO product fallback"],
   ["scripts/fix-browser-worker-provider-cache.mjs", "Browser Worker provider cache fix"],
   ["scripts/fix-marktgo-env-token-sync.mjs", "MARKT-GO env token sync fix"],
   ["scripts/fix-marktgo-health-fallback.mjs", "MARKT-GO health fallback fix"],
