@@ -36,6 +36,7 @@ for (const [file, label] of [
   ["scripts/enable-inline-trendyol-reviews.mjs", "Inline Trendyol reviews + MARKT-GO payload"],
   ["scripts/instant-review-preview-and-full-sync.mjs", "Instant review preview + complete MARKT-GO review sync"],
   ["scripts/enable-ultra-fast-marktgo-upload.mjs", "Ultra fast MARKT-GO product-first upload"],
+  ["scripts/enforce-auto-tag-toggle.mjs", "Strict automatic-tag toggle"],
 ]) {
   const full = path.join(root, file);
   if (!fs.existsSync(full)) throw new Error(`[ultra-bulk-profile] ${label} bulunamadı`);
