@@ -41,6 +41,12 @@ if (!fs.existsSync(banFlowFix)) {
 }
 execFileSync(process.execPath, [banFlowFix], { cwd: root, stdio: "inherit" });
 
+const browserWorkerCacheFix = path.join(root, "scripts/fix-browser-worker-provider-cache.mjs");
+if (!fs.existsSync(browserWorkerCacheFix)) {
+  throw new Error("[ultra-bulk-profile] Browser Worker provider cache fix bulunamadı");
+}
+execFileSync(process.execPath, [browserWorkerCacheFix], { cwd: root, stdio: "inherit" });
+
 const category500Injector = path.join(root, "scripts/enable-trendyol-category-500.mjs");
 if (!fs.existsSync(category500Injector)) {
   throw new Error("[ultra-bulk-profile] Trendyol category 500 injector bulunamadı");
