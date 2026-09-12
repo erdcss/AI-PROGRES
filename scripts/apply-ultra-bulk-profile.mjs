@@ -47,6 +47,12 @@ if (!fs.existsSync(browserWorkerCacheFix)) {
 }
 execFileSync(process.execPath, [browserWorkerCacheFix], { cwd: root, stdio: "inherit" });
 
+const marktGoEnvTokenSyncFix = path.join(root, "scripts/fix-marktgo-env-token-sync.mjs");
+if (!fs.existsSync(marktGoEnvTokenSyncFix)) {
+  throw new Error("[ultra-bulk-profile] MARKT-GO env token sync fix bulunamadı");
+}
+execFileSync(process.execPath, [marktGoEnvTokenSyncFix], { cwd: root, stdio: "inherit" });
+
 const category500Injector = path.join(root, "scripts/enable-trendyol-category-500.mjs");
 if (!fs.existsSync(category500Injector)) {
   throw new Error("[ultra-bulk-profile] Trendyol category 500 injector bulunamadı");
