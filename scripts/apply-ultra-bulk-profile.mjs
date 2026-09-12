@@ -29,6 +29,7 @@ for (const [file, label] of [
   ["scripts/fix-browser-worker-provider-cache.mjs", "Browser Worker provider cache fix"],
   ["scripts/fix-marktgo-env-token-sync.mjs", "MARKT-GO env token sync fix"],
   ["scripts/fix-marktgo-health-fallback.mjs", "MARKT-GO health fallback fix"],
+  ["scripts/prefer-latest-marktgo-token.mjs", "MARKT-GO latest token priority"],
   ["scripts/enable-trendyol-category-500.mjs", "Trendyol category 500 injector"],
   ["scripts/inject-trendyol-reviews.mjs", "Trendyol review injector"],
   ["scripts/enable-inline-trendyol-reviews.mjs", "Inline Trendyol reviews + MARKT-GO payload"],
