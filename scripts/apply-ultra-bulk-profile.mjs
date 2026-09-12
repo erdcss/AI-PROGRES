@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const root = process.cwd();
 const target = path.join(root, "client/src/pages/scraper.tsx");
@@ -33,3 +34,9 @@ if (!src.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 1200;")) {
 
 fs.writeFileSync(target, src);
 console.log("[ultra-bulk-profile] paced bulk scrape concurrency=1, upload concurrency=3, retry delay=1200ms");
+
+const reviewInjector = path.join(root, "scripts/inject-trendyol-reviews.mjs");
+if (!fs.existsSync(reviewInjector)) {
+  throw new Error("[ultra-bulk-profile] Trendyol review injector bulunamadı");
+}
+execFileSync(process.execPath, [reviewInjector], { cwd: root, stdio: "inherit" });
