@@ -63,12 +63,14 @@ export function useLocalChangeAlerts(): void {
         }
 
         const alreadyOpen =
-          isAppInForeground() && activeSince > 0 && Date.now() - activeSince > 1500;
+          isAppInForeground() && activeSince > 0 && Date.now() - activeSince > 1200;
         if (alreadyOpen) {
           for (const item of fresh.slice(0, 2)) {
             if (bannerShownIds.has(item.id)) continue;
             bannerShownIds.add(item.id);
-            showBannerRef.current(item.title, item.body);
+            const type = String(item.data?.type || "").toUpperCase();
+            const isError = type.includes("FAILED") || type.includes("ERROR");
+            showBannerRef.current(item.title, item.body, isError ? "error" : "default");
           }
         }
         void qc.invalidateQueries({ queryKey: ["push-inbox-recent"] });
@@ -79,9 +81,10 @@ export function useLocalChangeAlerts(): void {
     };
 
     void tick();
+    // Program hareketleri uygulama açıkken yaklaşık 1 saniye içinde yansısın.
     const timer = setInterval(() => {
       void tick();
-    }, 5000);
+    }, 1000);
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         activeSince = Date.now();
@@ -98,7 +101,6 @@ export function useLocalChangeAlerts(): void {
         void tick();
         return;
       }
-      // Uzaktan FCM geldiyse aynı inbox satırı için banner tekrarlama
       const inboxId = Number(notification.request.content.data?.inboxId || 0);
       if (inboxId > 0) bannerShownIds.add(inboxId);
     });
