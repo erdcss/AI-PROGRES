@@ -1,486 +1,397 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
-import { 
-  ArrowRight, Database, Shield, Bot, 
-  Activity, Settings, Bell, Star, FolderTree
+import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import {
+  ArrowRight,
+  Database,
+  Shield,
+  Bot,
+  Activity,
+  Bell,
+  Star,
+  FolderTree,
+  Package,
+  Link2,
+  KeyRound,
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
+import { OrvianHeroBrand } from "@/components/OrvianHeroBrand";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { hasShopifyLabel, useDestinationBrand } from "@/hooks/use-destination-brand";
 
-const MarketplaceSelection = () => {
+type NavItem = {
+  name: string;
+  description: string;
+  path: string;
+  available?: boolean;
+  icon: LucideIcon | "shark" | "box";
+  testId?: string;
+};
+
+function StatusDot({ available, restricted = false }: { available: boolean; restricted?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] tracking-[0.12em] uppercase ${
+        available
+          ? "border-zinc-700 bg-zinc-950 text-zinc-200"
+          : "border-zinc-800 bg-black text-zinc-500"
+      }`}
+    >
+      <span className={`h-1 w-1 rounded-full ${available ? "bg-emerald-400" : "bg-zinc-600"}`} />
+      {restricted ? "Yönetici" : available ? "Aktif" : "Yakında"}
+    </span>
+  );
+}
+
+function ItemIcon({ kind }: { kind: NavItem["icon"] }) {
+  if (kind === "shark") {
+    return (
+      <img
+        src="/product-pool-shark-3d.png"
+        alt=""
+        className="h-6 w-6 object-contain"
+        style={{ transform: "perspective(400px) rotateY(-16deg)" }}
+        draggable={false}
+      />
+    );
+  }
+  if (kind === "box") {
+    return <Package className="h-4 w-4 text-zinc-300" strokeWidth={1.25} />;
+  }
+  const Icon = kind;
+  return <Icon className="h-4 w-4 text-zinc-300" strokeWidth={1.25} />;
+}
+
+function NavCard({
+  item,
+  delay,
+  onOpen,
+  restricted = false,
+}: {
+  item: NavItem;
+  delay: number;
+  onOpen: () => void;
+  restricted?: boolean;
+}) {
+  const available = item.available !== false && !restricted;
+  return (
+    <motion.button
+      type="button"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay, ease: [0.16, 1, 0.3, 1] }}
+      disabled={!available}
+      title={restricted ? "Bu alanı kullanmak için yönetici hesabıyla giriş yapın." : undefined}
+      onClick={() => available && onOpen()}
+      data-testid={item.testId}
+      className="group flex w-full min-h-0 items-center gap-2.5 rounded-lg border border-zinc-800/90 bg-black/70 px-2.5 py-2 text-left transition-all duration-200 hover:border-zinc-600 hover:bg-zinc-950 disabled:cursor-not-allowed disabled:opacity-45 active:scale-[0.99]"
+    >
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-800 bg-zinc-950">
+        <ItemIcon kind={item.icon} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <div className="home-title truncate text-[13px] tracking-wide">{item.name}</div>
+          <StatusDot available={available} restricted={restricted} />
+        </div>
+        <p className="home-muted mt-0.5 truncate text-[11px] leading-snug">{item.description}</p>
+      </div>
+      <ArrowRight
+        className="h-3.5 w-3.5 shrink-0 text-zinc-500 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-zinc-200"
+        strokeWidth={1.25}
+      />
+    </motion.button>
+  );
+}
+
+function Section({
+  title,
+  subtitle,
+  children,
+  delay = 0.2,
+  className = "",
+}: {
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={`flex h-fit flex-col rounded-xl border border-zinc-800/80 bg-[#070707] p-3 sm:p-3.5 ${className}`}
+    >
+      <header className="mb-2.5 shrink-0 border-b border-zinc-900 pb-2">
+        <h2 className="home-title text-[11px] uppercase tracking-[0.24em] sm:text-xs">{title}</h2>
+        <p className="home-muted mt-0.5 text-[11px] leading-snug">{subtitle}</p>
+      </header>
+      <div>{children}</div>
+    </motion.section>
+  );
+}
+
+const MarketplaceSelection = ({ workspaceOnly = false }: { workspaceOnly?: boolean }) => {
   const [, setLocation] = useLocation();
   const isMobile = useIsMobile();
+  const brand = useDestinationBrand({ enabled: !workspaceOnly });
+  const dest = brand.destinationName;
 
-  // Ürün Çıkarma Platformları
-  const extractionPlatforms = [
+  const extraction: NavItem[] = [
     {
       name: "Trendyol",
-      description: "Ürün çıkarma ve Shopify aktarım",
-      icon: <span className="text-4xl">📦</span>,
-      available: true,
-      path: "/scraper/trendyol"
+      description: workspaceOnly ? "Ürün çekme ve işlem takibi" : `Ürün çıkarma ve ${dest} aktarım`,
+      path: "/scraper/trendyol",
+      icon: "box",
+      testId: "card-platform-trendyol",
     },
     {
       name: "Ürün Havuzu",
       description: "Bağımsız ürün çekme · ara sıra siteler",
-      icon: (
-        <img
-          src="/product-pool-shark-3d.png"
-          alt="Ürün Havuzu"
-          className="w-10 h-10 object-contain drop-shadow-lg"
-          style={{ transform: "perspective(400px) rotateY(-18deg)" }}
-        />
-      ),
-      available: true,
-      path: "/urun-havuzu"
+      path: "/urun-havuzu",
+      icon: "shark",
+      testId: "card-platform-urun-havuzu",
     },
   ];
 
-  // Yorum Çıkarma Araçları
-  const reviewTools = [
+  const reviews: NavItem[] = [
     {
       name: "Trendyol Yorum Çıkarıcı",
       description: "Ürün yorumlarını çek ve CSV olarak dışa aktar",
-      icon: <Star className="w-8 h-8 text-white" />,
-      available: true,
-      path: "/trendyol-reviews"
-    }
+      path: "/trendyol-reviews",
+      icon: Star,
+    },
   ];
 
-  // Sistem Yönetimi ve Analiz
-  const systemManagement = [
+  const system: NavItem[] = [
     {
       name: "Ürün Takip Sistemi",
-      description: "Kaynak vs Shopify değişiklik tespiti (manuel onay)",
-      icon: <Activity className="w-8 h-8 text-white" />,
-      available: true,
-      path: "/urun-takip"
+      description: `Kaynak vs ${dest} değişiklik tespiti (manuel onay)`,
+      path: "/urun-takip",
+      icon: Activity,
+      testId: "card-system-ürün-takip-sistemi",
     },
     {
       name: "Kategoriler",
-      description: "Shopify etiketleri, ürün sayıları ve koleksiyonlar",
-      icon: <FolderTree className="w-8 h-8 text-white" />,
-      available: true,
-      path: "/kategoriler"
+      description: `${dest} etiketleri, ürün sayıları ve koleksiyonlar`,
+      path: "/kategoriler",
+      icon: FolderTree,
+      testId: "card-system-kategoriler",
+    },
+    {
+      name: "Web sitesi kancaları",
+      description: "Ürün havuzu + Trendyol siteleri · canlı şema (ürünler mobilde)",
+      path: "/web-hooks",
+      icon: Link2,
+      testId: "card-system-web-hooks",
+    },
+    {
+      name: "Bağlantı API Erişimi",
+      description: "Tüm bağlantılar, şemalar, durdur ve yeni API anahtarı",
+      path: "/baglanti-api",
+      icon: KeyRound,
+      testId: "card-system-baglanti-api",
     },
     {
       name: "Otomatik Takip Sistemi",
-      description: "Ürün fiyat izleme ve Shopify senkronizasyonu (legacy)",
-      icon: <Activity className="w-8 h-8 text-white" />,
-      available: true,
-      path: "/memory-tracking"
+      description: `Ürün fiyat izleme ve ${dest} senkronizasyonu`,
+      path: "/control-center?tab=tracking",
+      icon: Activity,
     },
     {
-      name: "Shopify Sistem Analizi",
+      name: "Bildirimler",
+      description: "Bildirim türlerini aç/kapa ve test gönder",
+      path: "/bildirimler",
+      icon: Bell,
+      testId: "card-system-bildirimler",
+    },
+    {
+      name: `${dest} Sistem Analizi`,
       description: "Token yenileme, bağlantı durumu ve kaynak izleme",
-      icon: <Shield className="w-8 h-8 text-white" />,
-      available: true,
-      path: "/shopify-system"
+      path: "/shopify-system",
+      icon: Shield,
     },
     {
       name: "Sistem Durumu",
       description: "Hata izleme ve sistem durumu",
-      icon: <Shield className="w-8 h-8 text-white" />,
-      available: true,
-      path: "/system-status"
-    }
+      path: "/system-status",
+      icon: Shield,
+    },
   ];
 
+  const quick: { path: string; icon: LucideIcon; label: string; testId: string }[] = [
+    { path: "/replit-agent", icon: Bot, label: "Replit Agent", testId: "button-quick-replit-agent" },
+    { path: "/sos-control", icon: Shield, label: "S.O.S Kontrol", testId: "button-quick-sos-control" },
+    { path: "/scheduler", icon: Activity, label: "Zamanlı Görevler", testId: "button-quick-scheduler" },
+    {
+      path: "/shopify-products",
+      icon: Database,
+      label: `${dest} Ürünleri`,
+      testId: "button-quick-shopify-products",
+    },
+    {
+      path: "/telegram-notifications",
+      icon: Bell,
+      label: "Telegram Bildirimleri",
+      testId: "button-quick-telegram-notifications",
+    },
+  ];
+
+  const hideShopifyNav = true;
+  const visibleSystem = hideShopifyNav
+    ? system.filter((item) => !hasShopifyLabel(`${item.path} ${item.name} ${item.testId || ""}`))
+    : system;
+  const visibleQuick = hideShopifyNav
+    ? quick.filter((item) => !hasShopifyLabel(`${item.path} ${item.label} ${item.testId}`))
+    : quick;
+
   return (
-    <div className="min-h-screen business-bg">
-      {/* Business Header */}
-      <div className="business-bg border-b-2 business-border">
-        <div className={`mx-auto py-6 ${isMobile ? 'px-4 max-w-full' : 'max-w-7xl px-6 py-8'}`}>
-          <motion.div
-            initial={{ opacity: 0, y: -30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="text-center"
-          >
-            <div className={`flex items-center justify-center mb-6 ${
-              isMobile ? 'flex-col gap-4' : 'flex-row gap-4'
-            }`}>
-              <div className={`bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl flex items-center justify-center shadow-lg ${
-                isMobile ? 'w-16 h-16' : 'w-20 h-20'
-              }`}>
-                <Settings className={`text-white ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`} />
-              </div>
-              <div className={`${isMobile ? 'text-center' : 'text-left'}`}>
-                <h1 className={`font-black text-white ${
-                  isMobile ? 'text-2xl leading-tight' : 'text-4xl'
-                }`}>
-                  VERİ TRANSFER PROGRAMI
-                </h1>
-                <p className={`text-blue-400 font-bold ${
-                  isMobile ? 'text-base mt-1' : 'text-lg'
-                }`}>
-                  Ürün Çıkarma ve Analiz Sistemi
-                </p>
-              </div>
-            </div>
-            
-            <div className={`flex justify-center ${isMobile ? 'mb-6' : 'mb-8'}`}>
-              <RealTimeClock />
-            </div>
-            
-            <p className={`text-white font-bold max-w-3xl mx-auto ${
-              isMobile ? 'text-base px-2' : 'text-lg px-4'
-            }`}>
-              Ürün verilerini çıkarabileceğiniz ve analiz edebileceğiniz platformları seçin
-            </p>
-          </motion.div>
-        </div>
+    <div className="home-orvian relative min-h-screen overflow-x-hidden bg-black">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255,255,255,0.03), transparent 55%), linear-gradient(180deg, #050505 0%, #000 40%, #000 100%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.22]"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(90deg, transparent 0, transparent 2px, rgba(255,255,255,0.015) 3px)",
+        }}
+      />
+
+      <div className="absolute right-3 top-2 z-40 sm:right-5 sm:top-3">
+        <motion.div
+          initial={{ opacity: 0, x: 20, y: -6 }}
+          animate={{ opacity: 1, x: 0, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <RealTimeClock variant="pool" />
+        </motion.div>
       </div>
 
-      {/* Main Content - Responsive Layout */}
-      <div className={`mx-auto ${
-        isMobile 
-          ? 'px-4 py-6 max-w-full' 
-          : 'max-w-7xl px-6 py-12'
-      }`}>
-        <div className={`grid gap-6 ${
-          isMobile 
-            ? 'grid-cols-1' 
-            : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8'
-        }`}>
-          
-          {/* Column 1: Ürün Çıkarma Platformları */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className={`business-card ${
-              isMobile 
-                ? 'p-6' 
-                : 'p-6 md:col-span-2 lg:col-span-1'
+      <div
+        className={`relative z-10 mx-auto flex w-full flex-col ${
+          isMobile ? "max-w-full px-4 py-4" : "max-w-[1400px] px-5 py-3"
+        }`}
+      >
+        <header className="relative shrink-0 overflow-visible border-b border-zinc-900 pb-2 pt-1">
+          <div className="flex flex-col items-center overflow-visible">
+            <OrvianHeroBrand compact />
+          </div>
+        </header>
+
+        <main className="relative mt-3 flex flex-col gap-3">
+          <div
+            className={`grid items-start gap-3 ${
+              isMobile ? "grid-cols-1" : "grid-cols-12"
             }`}
           >
-            <div className={`text-center ${isMobile ? 'mb-6' : 'mb-8'}`}>
-              <h2 className={`font-black text-white mb-2 ${
-                isMobile ? 'text-xl' : 'text-2xl'
-              }`}>
-                ÜRÜN ÇIKARMA PLATFORMLARI
-              </h2>
-              <p className={`text-white font-bold ${
-                isMobile ? 'text-sm' : 'text-sm'
-              }`}>
-                Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar
-              </p>
-            </div>
+            <Section
+              title="Ürün Çıkarma"
+              subtitle={
+                hideShopifyNav ? "Ürün çekme platformları" : `${dest}’a aktarım için platformlar`
+              }
+              delay={0.15}
+              className={isMobile ? "" : "col-span-3"}
+            >
+              <div className="flex flex-col gap-2">
+                {extraction.map((item, i) => (
+                  <NavCard
+                    key={item.path}
+                    item={item}
+                    restricted={workspaceOnly && item.path !== "/scraper/trendyol"}
+                    delay={0.2 + i * 0.04}
+                    onOpen={() => setLocation(item.path)}
+                  />
+                ))}
+              </div>
+            </Section>
 
-            <div className={`${isMobile ? 'space-y-4' : 'space-y-4'}`}>
-              {extractionPlatforms.map((platform, index) => (
-                <motion.div
-                  key={platform.name}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.1 + index * 0.05 }}
-                  className={`
-                    business-card cursor-pointer group card-hover
-                    ${!platform.available ? 'opacity-60' : ''}
-                    active:scale-95 transition-transform duration-200
-                    ${isMobile ? 'p-4' : 'p-4'}
-                  `}
-                  onClick={() => platform.available && setLocation(platform.path)}
-                  data-testid={`card-platform-${platform.name.toLowerCase()}`}
-                >
-                  <div className={`flex items-center ${isMobile ? 'gap-4' : 'gap-4'}`}>
-                    <div className={`business-button rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 ${
-                      isMobile ? 'w-14 h-14' : 'w-12 h-12'
-                    }`}>
-                      {platform.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`font-black text-white mb-1 truncate ${
-                        isMobile ? 'text-lg' : 'text-lg'
-                      }`}>
-                        {platform.name}
-                      </h3>
-                      <p className={`text-white font-bold mb-2 line-clamp-2 ${
-                        isMobile ? 'text-sm' : 'text-xs'
-                      }`}>
-                        {platform.description}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        {platform.available ? (
-                          <span className={`text-white bg-green-600 rounded-full font-black ${
-                            isMobile ? 'px-3 py-1.5 text-xs' : 'px-2 py-1 text-xs'
-                          }`}>
-                            AKTİF
-                          </span>
-                        ) : (
-                          <span className={`text-white bg-yellow-600 rounded-full font-black ${
-                            isMobile ? 'px-3 py-1.5 text-xs' : 'px-2 py-1 text-xs'
-                          }`}>
-                            YAKINDA
-                          </span>
-                        )}
-                        <ArrowRight className={`text-white group-hover:translate-x-1 transition-all duration-300 flex-shrink-0 ${
-                          isMobile ? 'w-5 h-5' : 'w-4 h-4'
-                        }`} />
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
+            <Section
+              title="Yorum Çıkarma"
+              subtitle="Yorumları çekip CSV dışa aktarın"
+              delay={0.18}
+              className={isMobile ? "" : "col-span-3"}
+            >
+              <div className="flex flex-col gap-2">
+                {reviews.map((item, i) => (
+                  <NavCard
+                    key={item.path}
+                    item={item}
+                    restricted={workspaceOnly}
+                    delay={0.22 + i * 0.04}
+                    onOpen={() => setLocation(item.path)}
+                  />
+                ))}
+              </div>
+            </Section>
 
-          {/* Column Review: Yorum Çıkarma */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            <Section
+              title="Sistem Analizi"
+              subtitle="Takip, kategori ve bağlantı yönetimi"
+              delay={0.22}
+              className={isMobile ? "" : "col-span-6"}
+            >
+              <div className={`grid gap-2 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+                {visibleSystem.map((item, i) => (
+                  <NavCard
+                    key={item.path}
+                    item={item}
+                    restricted={workspaceOnly}
+                    delay={0.24 + i * 0.03}
+                    onOpen={() => setLocation(item.path)}
+                  />
+                ))}
+              </div>
+            </Section>
+          </div>
+
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-            className={`business-card ${isMobile ? 'p-6' : 'p-6'}`}
+            transition={{ duration: 0.4, delay: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            className="shrink-0 rounded-xl border border-zinc-800/80 bg-[#070707] px-3 py-2.5 sm:px-3.5"
           >
-            <div className={`text-center ${isMobile ? 'mb-6' : 'mb-8'}`}>
-              <h2 className={`font-black text-white mb-2 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
-                YORUM ÇIKARMA ALANI
+            <div className="mb-2 flex items-baseline justify-between gap-3">
+              <h2 className="home-title text-[11px] uppercase tracking-[0.24em] sm:text-xs">
+                Hızlı Erişim
               </h2>
-              <p className={`text-white font-bold ${isMobile ? 'text-sm' : 'text-sm'}`}>
-                Ürün yorumlarını çekip CSV olarak dışa aktarın
-              </p>
+              <p className="home-muted hidden text-[11px] sm:block">Sık kullanılan sistem araçları</p>
             </div>
-
-            <div className={`${isMobile ? 'space-y-4' : 'space-y-4'}`}>
-              {reviewTools.map((tool, index) => (
-                <motion.div
-                  key={tool.name}
-                  initial={{ opacity: 0, y: 10 }}
+            <div className={`grid gap-2 ${isMobile ? "grid-cols-1" : "grid-cols-5"}`}>
+              {visibleQuick.map((item, index) => (
+                <motion.button
+                  key={item.path}
+                  type="button"
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.15 + index * 0.05 }}
-                  className={`
-                    business-card cursor-pointer group card-hover
-                    active:scale-95 transition-transform duration-200
-                    ${isMobile ? 'p-4' : 'p-4'}
-                  `}
-                  onClick={() => tool.available && setLocation(tool.path)}
+                  transition={{ duration: 0.25, delay: 0.35 + index * 0.03 }}
+                  disabled={workspaceOnly}
+                  title={workspaceOnly ? "Bu alanı kullanmak için yönetici hesabıyla giriş yapın." : undefined}
+                  onClick={() => !workspaceOnly && setLocation(item.path)}
+                  data-testid={item.testId}
+                  className="group flex items-center gap-2 rounded-lg border border-zinc-800/90 bg-black/80 px-2.5 py-2 text-left transition-colors hover:border-zinc-600 hover:bg-zinc-950 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  <div className={`flex items-center ${isMobile ? 'gap-4' : 'gap-4'}`}>
-                    <div className={`rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 ${
-                      isMobile ? 'w-14 h-14' : 'w-12 h-12'
-                    } bg-gradient-to-br from-purple-600 to-pink-600`}>
-                      {tool.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`font-black text-white mb-1 truncate ${isMobile ? 'text-lg' : 'text-lg'}`}>
-                        {tool.name}
-                      </h3>
-                      <p className={`text-white font-bold mb-2 line-clamp-2 ${isMobile ? 'text-sm' : 'text-xs'}`}>
-                        {tool.description}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-white bg-green-600 rounded-full font-black ${isMobile ? 'px-3 py-1.5 text-xs' : 'px-2 py-1 text-xs'}`}>
-                          AKTİF
-                        </span>
-                        <ArrowRight className={`text-white group-hover:translate-x-1 transition-all duration-300 flex-shrink-0 ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
+                  <item.icon
+                    className="h-3.5 w-3.5 shrink-0 text-zinc-400 transition-colors group-hover:text-zinc-200"
+                    strokeWidth={1.25}
+                  />
+                  <span className="home-title truncate text-[11px] tracking-[0.06em] sm:text-[12px]">
+                    {item.label}
+                  </span>
+                </motion.button>
               ))}
             </div>
-          </motion.div>
-
-          {/* Column 2: Sistem Analizi */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className={`business-card ${isMobile ? 'p-6' : 'p-6'}`}
-          >
-            <div className={`text-center ${isMobile ? 'mb-6' : 'mb-8'}`}>
-              <h2 className={`font-black text-white mb-2 ${
-                isMobile ? 'text-xl' : 'text-2xl'
-              }`}>
-                SİSTEM ANALİZ ALANI
-              </h2>
-              <p className={`text-white font-bold ${
-                isMobile ? 'text-sm' : 'text-sm'
-              }`}>
-                Shopify'a aktarılan ürünlerin analizi, takibi ve yönetimi
-              </p>
-            </div>
-
-            <div className={`${isMobile ? 'space-y-4' : 'space-y-4'}`}>
-              {systemManagement.map((tool, index) => (
-                <motion.div
-                  key={tool.name}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.2 + index * 0.05 }}
-                  className={`business-card cursor-pointer group card-hover active:scale-95 transition-transform duration-200 ${
-                    isMobile ? 'p-4' : 'p-4'
-                  }`}
-                  onClick={() => setLocation(tool.path)}
-                  data-testid={`card-system-${tool.name.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  <div className={`flex items-center ${isMobile ? 'gap-4' : 'gap-4'}`}>
-                    <div className={`business-button rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 ${
-                      isMobile ? 'w-14 h-14' : 'w-12 h-12'
-                    }`}>
-                      {tool.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`font-black text-white mb-1 truncate ${
-                        isMobile ? 'text-lg' : 'text-lg'
-                      }`}>
-                        {tool.name}
-                      </h3>
-                      <p className={`text-white font-bold mb-2 line-clamp-2 ${
-                        isMobile ? 'text-sm' : 'text-xs'
-                      }`}>
-                        {tool.description}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-white bg-green-600 rounded-full font-black ${
-                          isMobile ? 'px-3 py-1.5 text-xs' : 'px-2 py-1 text-xs'
-                        }`}>
-                          AKTİF
-                        </span>
-                        <ArrowRight className={`text-white group-hover:translate-x-1 transition-all duration-300 flex-shrink-0 ${
-                          isMobile ? 'w-5 h-5' : 'w-4 h-4'
-                        }`} />
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Column 3: Hızlı Erişim */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className={`business-card ${
-              isMobile 
-                ? 'p-6' 
-                : 'p-6 md:col-span-2 lg:col-span-1'
-            }`}
-          >
-            <div className={`text-center ${isMobile ? 'mb-6' : 'mb-8'}`}>
-              <h2 className={`font-black text-white mb-2 ${
-                isMobile ? 'text-xl' : 'text-2xl'
-              }`}>
-                HIZLI ERİŞİM ALANI
-              </h2>
-              <p className={`text-white font-bold ${
-                isMobile ? 'text-sm' : 'text-sm'
-              }`}>
-                Sık kullanılan sistem araçları
-              </p>
-            </div>
-
-            <div className={`grid gap-4 ${
-              isMobile 
-                ? 'grid-cols-1' 
-                : 'grid-cols-2 md:grid-cols-1'
-            }`}>
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.3 }}
-                onClick={() => setLocation("/replit-agent")}
-                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
-                  isMobile 
-                    ? 'p-4 gap-4 flex-row justify-start' 
-                    : 'p-4 gap-4 flex-row'
-                }`}
-                data-testid="button-quick-replit-agent"
-              >
-                <Bot className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
-                <span className={`font-black ${
-                  isMobile ? 'text-sm' : 'text-sm'
-                }`}>
-                  REPLIT AGENT
-                </span>
-              </motion.button>
-
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.35 }}
-                onClick={() => setLocation("/sos-control")}
-                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
-                  isMobile 
-                    ? 'p-4 gap-4 flex-row justify-start' 
-                    : 'p-4 gap-4 flex-row'
-                }`}
-                data-testid="button-quick-sos-control"
-              >
-                <Shield className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
-                <span className={`font-black ${
-                  isMobile ? 'text-sm' : 'text-sm'
-                }`}>
-                  S.O.S KONTROL
-                </span>
-              </motion.button>
-
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.4 }}
-                onClick={() => setLocation("/scheduler")}
-                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
-                  isMobile 
-                    ? 'p-4 gap-4 flex-row justify-start' 
-                    : 'p-4 gap-4 flex-row'
-                }`}
-                data-testid="button-quick-scheduler"
-              >
-                <Activity className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
-                <span className={`font-black ${
-                  isMobile ? 'text-sm' : 'text-sm'
-                }`}>
-                  ZAMANLI GÖREVLER
-                </span>
-              </motion.button>
-
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.45 }}
-                onClick={() => setLocation("/shopify-products")}
-                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
-                  isMobile 
-                    ? 'p-4 gap-4 flex-row justify-start' 
-                    : 'p-4 gap-4 flex-row'
-                }`}
-                data-testid="button-quick-shopify-products"
-              >
-                <Database className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
-                <span className={`font-black ${
-                  isMobile ? 'text-sm' : 'text-sm'
-                }`}>
-                  SHOPIFY ÜRÜNLERİ
-                </span>
-              </motion.button>
-
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.5 }}
-                onClick={() => setLocation("/telegram-notifications")}
-                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
-                  isMobile 
-                    ? 'p-4 gap-4 flex-row justify-start' 
-                    : 'p-4 gap-4 flex-row'
-                }`}
-                data-testid="button-quick-telegram-notifications"
-              >
-                <Bell className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
-                <span className={`font-black ${
-                  isMobile ? 'text-sm' : 'text-sm'
-                }`}>
-                  TELEGRAM BİLDİRİMLERİ
-                </span>
-              </motion.button>
-            </div>
-          </motion.div>
-          
-        </div>
+          </motion.section>
+        </main>
       </div>
     </div>
   );

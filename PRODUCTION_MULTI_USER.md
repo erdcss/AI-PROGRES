@@ -15,6 +15,8 @@ Normal kullanıcı istekleri `/api/workspace/*` altında çalışır. Bütün te
 
 Admin kullanıcı mevcut gelişmiş yönetim ekranını kullanmaya devam eder. Production'da hassas legacy API prefixleri admin oturumu veya geçerli internal service token olmadan çağrılamaz.
 
+Giriş sonrasında tüm hesaplar mevcut ORVIAN ana menüsünü ve sekme düzenini görür. Normal kullanıcılar Trendyol kartından kendi çalışma alanlarının ürün çekme görevlerine ulaşır; diğer menüler yönetici erişimi gerektirdiğini belirtir. Normal kullanıcıların doğrudan yönetici sayfası adresine gitmesi ana menüye yönlendirilir. Yönetici ekranları, takip bildirimleri ve kategori çekmecesi yalnızca yönetici oturumunda çalışır.
+
 ## Kimlik doğrulama
 - Şifre: Node `crypto.scrypt`, kullanıcı başına rastgele salt
 - Session: 32-byte rastgele token

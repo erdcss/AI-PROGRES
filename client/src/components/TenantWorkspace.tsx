@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Plus, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { useLocation } from "wouter";
 import type { AccountUser } from "@/lib/account-auth";
-import { logoutAccount } from "@/lib/account-auth";
 
 type Job = {
   id: string;
@@ -43,6 +43,7 @@ const statusText: Record<Job["status"], string> = {
 };
 
 export function TenantWorkspace({ user }: { user: AccountUser }) {
+  const [, setLocation] = useLocation();
   const [url, setUrl] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -108,11 +109,11 @@ export function TenantWorkspace({ user }: { user: AccountUser }) {
       <header className="border-b border-slate-800 bg-slate-950/95 px-4 py-4 md:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold">Turmarkt Veri Platformu</div>
+            <div className="text-lg font-semibold">Trendyol Ürün Çıkarma</div>
             <div className="text-xs text-slate-400">{summary?.workspace?.name || user.email}</div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => void logoutAccount()}>
-            <LogOut className="mr-2 h-4 w-4" /> Çıkış
+          <Button variant="outline" size="sm" onClick={() => setLocation("/")}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Ana Sayfa
           </Button>
         </div>
       </header>

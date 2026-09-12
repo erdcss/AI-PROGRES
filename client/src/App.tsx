@@ -12,8 +12,8 @@ import { AlertCircle, CheckCircle, LogOut, ShieldCheck } from "lucide-react";
 import { AppOpenSplash } from "@/components/AppOpenSplash";
 import { MatrixBackground } from "@/components/MatrixBackground";
 import { TrendyolCategoryBulkDrawer } from "@/components/TrendyolCategoryBulkDrawer";
-import { TenantWorkspace } from "@/components/TenantWorkspace";
 import {
+  type AccountUser,
   getAccountAuthServerSnapshot,
   getAccountAuthSnapshot,
   loginAccount,
@@ -146,20 +146,22 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
   }
 }
 
-function AdminAppShell() {
+function AccountAppShell({ user }: { user: AccountUser }) {
   return (
     <WouterRouter>
       <div className="min-h-screen" style={{ position: "relative" }}>
         <MatrixBackground />
-        <div className="fixed right-4 top-4 z-[9000]">
-          <Button type="button" size="sm" variant="outline" onClick={() => void logoutAccount()}>
-            <LogOut className="mr-2 h-4 w-4" /> Çıkış
-          </Button>
-        </div>
         <div style={{ position: "relative", zIndex: 1 }}>
           <AppErrorBoundary>
-            <AppTabWorkspace />
-            <TrendyolCategoryBulkDrawer />
+            <AppTabWorkspace
+              user={user}
+              actions={
+                <Button type="button" size="sm" variant="ghost" className="h-7 text-xs text-zinc-400" onClick={() => void logoutAccount()}>
+                  <LogOut className="mr-1.5 h-3.5 w-3.5" /> Çıkış
+                </Button>
+              }
+            />
+            {user.systemRole === "admin" ? <TrendyolCategoryBulkDrawer /> : null}
           </AppErrorBoundary>
         </div>
       </div>
@@ -181,15 +183,11 @@ function App() {
     return <><LoginScreen /><Toaster /></>;
   }
 
-  if (auth.user.systemRole !== "admin") {
-    return <AppErrorBoundary><TenantWorkspace user={auth.user} /><Toaster /></AppErrorBoundary>;
-  }
-
   return (
     <>
       <AnimatePresence>{bootSplash ? <AppOpenSplash key="boot" onDone={() => setBootSplash(false)} /> : null}</AnimatePresence>
-      <AdminAppShell />
-      <TrackingStartupNotifier />
+      <AccountAppShell key={`${auth.user.userId}:${auth.user.workspaceId}:${auth.user.systemRole}`} user={auth.user} />
+      {auth.user.systemRole === "admin" ? <TrackingStartupNotifier /> : null}
       <Toaster />
     </>
   );
