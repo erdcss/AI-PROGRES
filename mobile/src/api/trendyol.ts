@@ -10,6 +10,18 @@ export type MobileScrapeJob = {
   error?: string | null;
 };
 
+export type LiveScrapeJob = {
+  jobId: string;
+  status: string;
+  progress: number;
+  startedAt: string;
+  elapsedMs: number;
+  sourceUrl: string;
+  title?: string;
+  image?: string;
+  error?: string;
+};
+
 export async function startTrendyolScrape(url: string, autoTagEnabled = false) {
   return apiFetch<any>("/api/trendyol-scrape", {
     method: "POST",
@@ -28,6 +40,13 @@ export async function fetchTrendyolScrapeJob(jobId: string) {
   return apiFetch<any>(`/api/scrape-job/${encodeURIComponent(jobId)}`, {
     timeoutMs: 20_000,
   });
+}
+
+export async function fetchLiveTrendyolScrapeJobs() {
+  return apiFetch<{ success: boolean; serverTime: string; jobs: LiveScrapeJob[] }>(
+    "/api/mobile/scrape-jobs/live",
+    { timeoutMs: 15_000 },
+  );
 }
 
 export async function fetchMarktGoHealth() {
