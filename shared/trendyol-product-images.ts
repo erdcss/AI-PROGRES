@@ -22,23 +22,42 @@ function toAbsoluteCdnUrl(url: string): string | null {
   const trimmed = url.trim();
   if (!trimmed) return null;
 
-  if (trimmed.startsWith("//")) {
-    return `https:${trimmed}`;
-  }
-
+  if (trimmed.startsWith("//")) return `https:${trimmed}`;
   if (trimmed.startsWith("/ty") || trimmed.startsWith("/mnresize/")) {
     return `https://cdn.dsmcdn.com${trimmed}`;
   }
-
   if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
     return `https://cdn.dsmcdn.com${trimmed}`;
   }
-
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
     return trimmed.replace(/^http:/, "https:");
   }
-
   return null;
+}
+
+function decodedPath(url: string): string {
+  const path = url.split("?")[0];
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+function isKnownNonProductAsset(url: string): boolean {
+  const path = decodedPath(url);
+  return /(?:QC[_-]?ENRICHMENT|\/ENRICHMENT\/|size[_-]?(?:chart|guide)|beden[_-]?(?:tablo|rehber)|yikama|washing|wash[_-]?care|care[_-]?(?:instruction|guide)|instruction|laundry|symbol|\/icons?\/|[_-]icon(?:[_./-]|$)|badge|logo|banner|campaign|kampanya|seller|review|yorum|avatar|footer|header|favicon|story[_-]?image)/i.test(
+    path,
+  );
+}
+
+function isStrictProductGalleryPath(url: string): boolean {
+  const path = decodedPath(url);
+  return (
+    /\/ty\d+\/prod\/(?:QC|QC_PREP|PIM)\//i.test(path) ||
+    /\/ty\d+\/product\/media\//i.test(path) ||
+    (/\/ty\d+\//i.test(path) && /(?:org_zoom|_org_)/i.test(path))
+  );
 }
 
 export function optimizeTrendyolImageUrl(url: string): string | null {
@@ -49,7 +68,7 @@ export function optimizeTrendyolImageUrl(url: string): string | null {
   if (!CDN_HOSTS.some((host) => optimized.includes(host))) return null;
 
   const exclude = ["/ui/", "/icon", "/logo", "/footer", "/brand/", "/web/", "/sfint/", ".svg"];
-  if (exclude.some((pattern) => optimized.includes(pattern))) return null;
+  if (exclude.some((pattern) => optimized.toLowerCase().includes(pattern.toLowerCase()))) return null;
 
   return optimized.replace(/mnresize\/\d+\/\d+\//, "mnresize/1200/1800/");
 }
@@ -74,7 +93,10 @@ export function normalizeTrendyolImages(images: unknown): string[] {
   return result;
 }
 
-/** Ürün görselleri — SVG, sfint ikonları ve CSS mask URL'lerini eler */
+/**
+ * Yalnız gerçek Trendyol ürün galerisi görsellerini kabul eder.
+ * Açıklama içi zenginleştirme, yıkama/bakım ikonları, beden tabloları, banner ve UI görselleri kesin olarak elenir.
+ */
 export function filterValidProductImages(images: unknown): string[] {
   return normalizeTrendyolImages(images).filter((img) => {
     if (
@@ -82,19 +104,18 @@ export function filterValidProductImages(images: unknown): string[] {
       img.includes("background-image") ||
       img.includes(".svg") ||
       img.includes("/sfint/") ||
-      img.includes("data:")
+      img.includes("data:") ||
+      isKnownNonProductAsset(img)
     ) {
       return false;
     }
-    const isProductCdn =
-      /\/ty\d+\/(prod|product|media)\//i.test(img) ||
-      /\/QC_|\/PIM_|QC_PREP|ENRICHMENT|org_zoom|_org_/i.test(img);
-    if (!isProductCdn) return false;
-    const path = img.split("?")[0];
-    // Uzantısız CDN, webp/avif ve query parametreli URL'leri koru
+
+    if (!isStrictProductGalleryPath(img)) return false;
+
+    const path = decodedPath(img);
     return (
       /\.(jpg|jpeg|png|webp|gif|bmp|avif)$/i.test(path) ||
-      /org_zoom|_org_|\/prod\/|\/product\/|\/media\//i.test(path)
+      /org_zoom|_org_|\/prod\/(?:QC|QC_PREP|PIM)\/|\/product\/media\//i.test(path)
     );
   });
 }
@@ -134,7 +155,7 @@ export function mergeTrendyolImageLists(...lists: unknown[]): string[] {
   const byKey = new Map<string, string>();
 
   for (const list of lists) {
-    for (const url of normalizeTrendyolImages(list)) {
+    for (const url of filterValidProductImages(list)) {
       const key = imagePreviewDedupeKey(url);
       const existing = byKey.get(key);
       if (!existing) {
@@ -148,19 +169,21 @@ export function mergeTrendyolImageLists(...lists: unknown[]): string[] {
   return [...byKey.values()];
 }
 
-/** CDN 404 durumunda denenecek alternatif görsel URL'leri */
+/** CDN 404 durumunda yalnız doğrulanmış ürün galerisi URL'leri için alternatifler üretir. */
 export function getTrendyolImageFallbackUrls(
   url: string,
   preferredTyFolders: string[] = [],
 ): string[] {
   const normalized = url.trim().replace(/^http:/, "https:");
   if (!normalized.startsWith("https://")) return [];
+  if (filterValidProductImages([normalized]).length === 0) return [];
 
   const variants: string[] = [];
   const seen = new Set<string>();
 
   const add = (candidate: string | null | undefined) => {
     if (!candidate || seen.has(candidate)) return;
+    if (filterValidProductImages([candidate]).length === 0) return;
     seen.add(candidate);
     variants.push(candidate);
   };
@@ -186,12 +209,7 @@ export function getTrendyolImageFallbackUrls(
       add(`https://cdn.dsmcdn.com/mnresize/620/920/${qcPath}`);
       add(`https://cdn.dsmcdn.com/mnresize/1200/1800/${qcPath}`);
     }
-    if (barePath.includes("/prod/QC_ENRICHMENT/")) {
-      add(`https://cdn.dsmcdn.com/${barePath.replace("/prod/QC_ENRICHMENT/", "/prod/QC/")}`);
-      add(`https://cdn.dsmcdn.com/${barePath.replace("/prod/QC_ENRICHMENT/", "/prod/QC_PREP/")}`);
-    }
 
-    // tyXXXX klasör numarası CDN'de kayabiliyor — önce ürün galerisinden gelen ty'ler
     const tyMatch = barePath.match(/^(ty\d+)\//i);
     if (tyMatch) {
       const rest = barePath.slice(tyMatch[0].length);
@@ -221,7 +239,7 @@ export function getTrendyolImageFallbackUrls(
 export function collectTrendyolTyFolders(images: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const url of images) {
+  for (const url of filterValidProductImages(images)) {
     const m = String(url || "").match(/\/(ty\d+)\//i);
     if (!m) continue;
     const ty = m[1].toLowerCase();
@@ -232,11 +250,11 @@ export function collectTrendyolTyFolders(images: string[]): string[] {
   return out;
 }
 
-/** Önizleme için org_zoom görselleri öne alır, tekrarları eler */
+/** Önizleme için yalnız ürün galerisi görsellerini sıralar. */
 export function prioritizeProductImagesForPreview(images: string[]): string[] {
   const byKey = new Map<string, string>();
 
-  for (const url of images) {
+  for (const url of filterValidProductImages(images)) {
     const key = imagePreviewDedupeKey(url);
     const existing = byKey.get(key);
     if (!existing) {
