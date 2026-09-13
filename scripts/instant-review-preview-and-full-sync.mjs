@@ -18,11 +18,25 @@ if (!sc.includes("reviews: Array.isArray(raw.reviews)")) {
     "    stageErrors: Array.isArray(raw.stageErrors) ? (raw.stageErrors as string[]) : undefined,\n    reviews: Array.isArray(raw.reviews) ? (raw.reviews as ScrapedUrlPayload[\"reviews\"]) : [],\n    reviewSummary: raw.reviewSummary && typeof raw.reviewSummary === \"object\"\n      ? (raw.reviewSummary as ScrapedUrlPayload[\"reviewSummary\"])\n      : undefined,\n",
   );
 }
-if (!sc.includes("reviewSummary: data.reviewSummary")) {
-  sc = sc.replace(
-    "    sourceUrl: url,\n",
-    "    sourceUrl: url,\n    reviews: data.reviews || [],\n    reviewSummary: data.reviewSummary,\n",
-  );
+
+// Eski sürümde bu alanlar normalizeScrapedPayload içine `data.*` olarak yanlışlıkla
+// enjekte edilebiliyordu. O fonksiyonun değişkeni `raw`; yanlış enjeksiyonu temizle.
+sc = sc.replace(
+  "    originalUrl: url,\n    sourceUrl: url,\n    reviews: data.reviews || [],\n    reviewSummary: data.reviewSummary,\n    canonicalProduct,\n",
+  "    originalUrl: url,\n    sourceUrl: url,\n    canonicalProduct,\n",
+);
+
+// Yorumları kart önizlemesine buildCsvPreviewEntry içinden taşı. Burada `data`
+// gerçekten fonksiyon parametresi olduğu için ReferenceError oluşmaz.
+if (!sc.includes("    reviewSummary: data.reviewSummary,\n    scrapeRunId: data.scrapeRunId,")) {
+  const previewAnchor =
+    "    csvPreview: data.csvPreview,\n    sourceUrl: url,\n    scrapeRunId: data.scrapeRunId,\n";
+  const previewReplacement =
+    "    csvPreview: data.csvPreview,\n    sourceUrl: url,\n    reviews: data.reviews || [],\n    reviewSummary: data.reviewSummary,\n    scrapeRunId: data.scrapeRunId,\n";
+  if (!sc.includes(previewAnchor)) {
+    throw new Error("[instant-reviews] buildCsvPreviewEntry review anchor bulunamadı");
+  }
+  sc = sc.replace(previewAnchor, previewReplacement);
 }
 fs.writeFileSync(scrapeClientPath, sc);
 
@@ -69,4 +83,4 @@ if (sy.includes(oldProvided)) {
 }
 fs.writeFileSync(syncPath, sy);
 
-console.log("[instant-reviews] inline sample shown immediately; full MARKT-GO review sync preserved");
+console.log("[instant-reviews] inline sample shown immediately; full MARKT-GO review sync preserved; data scope fixed");
