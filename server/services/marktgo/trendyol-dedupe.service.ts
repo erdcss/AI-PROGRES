@@ -213,6 +213,71 @@ async function loadCatalogWithActiveConnection(): Promise<Map<string, ExistingTr
 }
 
 /**
+ * Daha önce programa giren Trendyol ürünlerini kalıcı geçmiş olarak tutar.
+ * Ürün MARKT-GO kataloğundan sonradan silinse bile tracked_products kaydı durduğu
+ * sürece aynı Trendyol productId kategori toplu aktarımında tekrar seçilmez.
+ */
+export async function loadPreviouslyTrackedTrendyolProductIds(): Promise<Set<string>> {
+  if (!String(process.env.DATABASE_URL || "").trim()) {
+    throw new Error(
+      "Geçmiş ürün duplicate kontrolü için DATABASE_URL gerekli. Duplicate riski nedeniyle kategori aktarımı durduruldu.",
+    );
+  }
+
+  try {
+    const [{ db }, { trackedProducts }] = await Promise.all([
+      import("../../db"),
+      import("@shared/schema"),
+    ]);
+    const rows = await db
+      .select({ sourceUrl: trackedProducts.sourceUrl })
+      .from(trackedProducts);
+
+    const ids = new Set<string>();
+    for (const row of rows) {
+      const productId = extractTrendyolProductId(row.sourceUrl);
+      if (productId) ids.add(productId);
+    }
+
+    console.info(`[trendyol-history-dedupe] geçmişte görülen Trendyol ürünleri=${ids.size}`);
+    return ids;
+  } catch (error) {
+    throw new Error(
+      `Geçmiş ürün duplicate kontrolü başarısız. Duplicate riski nedeniyle kategori aktarımı durduruldu: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
+/**
+ * Kategori toplu aktarımında yasaklı Trendyol kimliklerinin tek gerçek kaynağı.
+ * Canlı MARKT-GO kataloğu + programın kalıcı tracked_products geçmişi birleştirilir.
+ */
+export async function loadBlockedTrendyolProductIdsForCategoryImport(): Promise<{
+  blockedIds: Set<string>;
+  catalogCount: number;
+  historyCount: number;
+}> {
+  const [catalog, history] = await Promise.all([
+    loadExistingTrendyolProductsFromMarktGo(),
+    loadPreviouslyTrackedTrendyolProductIds(),
+  ]);
+  const blockedIds = new Set<string>(catalog.keys());
+  for (const productId of history) blockedIds.add(productId);
+
+  console.info(
+    `[trendyol-category-dedupe] katalog=${catalog.size} geçmiş=${history.size} toplam-engelli=${blockedIds.size}`,
+  );
+
+  return {
+    blockedIds,
+    catalogCount: catalog.size,
+    historyCount: history.size,
+  };
+}
+
+/**
  * Strict/fail-closed duplicate guard for Trendyol category bulk import.
  * 1) Prefer MARKTGO_ACCESS_TOKEN from env for the fastest path.
  * 2) If that token is missing/expired/invalid and DATABASE_URL exists, fall back
