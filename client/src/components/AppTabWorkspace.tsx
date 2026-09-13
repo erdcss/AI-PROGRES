@@ -135,7 +135,12 @@ const KeepAliveAppTab = memo(function KeepAliveAppTab({
 
   return (
     <AppTabPanelContext.Provider value={panelValue}>
-      <div className={isActive ? "block" : "hidden"} aria-hidden={!isActive}>
+      <div
+        className={isActive ? "block" : "hidden"}
+        aria-hidden={!isActive}
+        data-app-tab-id={tab.id}
+        data-app-tab-active={isActive ? "true" : "false"}
+      >
         <Router hook={locationHook}>
           <AppRoutes user={user} />
         </Router>
