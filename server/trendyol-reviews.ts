@@ -1,5 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { scrapeTrendyolReviewsWithBrowserWorker } from "./services/browser-worker-client.service";
 
 export type TrendyolReview = {
   author: string;
@@ -24,6 +25,160 @@ function headers() {
     "Cache-Control": "no-cache",
     Pragma: "no-cache",
   };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function firstText(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
+}
+
+function firstFinite(...values: unknown[]): number | null {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+}
+
+function nestedNumber(root: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const direct = firstFinite(root[key]);
+    if (direct != null) return direct;
+  }
+  for (const value of Object.values(root)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const nested = value as Record<string, unknown>;
+    for (const key of keys) {
+      const candidate = firstFinite(nested[key]);
+      if (candidate != null) return candidate;
+    }
+  }
+  return null;
+}
+
+function normalizeWorkerReview(raw: Record<string, unknown>): TrendyolReview | null {
+  const body = firstText(
+    raw.comment,
+    raw.commentText,
+    raw.reviewText,
+    raw.reviewBody,
+    raw.body,
+    raw.text,
+    raw.description,
+  ).replace(/\s+/g, " ").trim();
+  if (!body) return null;
+
+  const authorObject = asRecord(raw.author);
+  const userObject = asRecord(raw.user);
+  const sellerObject = asRecord(raw.seller);
+  const ratingValue = firstFinite(
+    raw.rate,
+    raw.rating,
+    raw.starCount,
+    raw.score,
+    asRecord(raw.reviewRating).ratingValue,
+  );
+
+  return {
+    author:
+      firstText(
+        raw.userFullName,
+        raw.userName,
+        raw.reviewerName,
+        raw.memberName,
+        raw.customerName,
+        authorObject.name,
+        userObject.fullName,
+        userObject.name,
+      ) || "Anonim",
+    date: firstText(
+      raw.lastModifiedDate,
+      raw.lastModifiedAt,
+      raw.createdAt,
+      raw.createdDate,
+      raw.commentDate,
+      raw.reviewDate,
+      raw.date,
+    ),
+    body,
+    rating:
+      ratingValue != null && ratingValue >= 1 && ratingValue <= 5
+        ? Math.round(ratingValue)
+        : null,
+    seller:
+      firstText(
+        raw.sellerName,
+        raw.merchantName,
+        raw.sellerTitle,
+        sellerObject.name,
+        sellerObject.title,
+      ) || null,
+  };
+}
+
+function normalizeWorkerSummary(
+  raw: Record<string, unknown> | null | undefined,
+  extractedCount: number,
+): TrendyolReviewSummary {
+  const summary = asRecord(raw);
+  const productReviews = asRecord(summary.productReviews);
+  const rating =
+    nestedNumber(summary, ["averageRating", "averageRate", "rating", "avg", "score"]) ??
+    nestedNumber(productReviews, ["averageRating", "averageRate", "rating", "avg", "score"]) ??
+    0;
+  const reviewCount =
+    nestedNumber(summary, [
+      "totalRatingCount",
+      "ratingCount",
+      "totalReviewCount",
+      "reviewCount",
+      "totalElements",
+      "total",
+    ]) ??
+    nestedNumber(productReviews, [
+      "totalRatingCount",
+      "ratingCount",
+      "totalReviewCount",
+      "reviewCount",
+      "totalElements",
+      "total",
+    ]) ??
+    extractedCount;
+  const commentCount =
+    nestedNumber(summary, [
+      "totalCommentCount",
+      "commentCount",
+      "totalReviewCount",
+      "reviewCount",
+      "totalElements",
+      "total",
+    ]) ??
+    nestedNumber(productReviews, [
+      "totalCommentCount",
+      "commentCount",
+      "totalReviewCount",
+      "reviewCount",
+      "totalElements",
+      "total",
+    ]) ??
+    extractedCount;
+
+  return {
+    rating: Number.isFinite(rating) ? rating : 0,
+    reviewCount: Math.max(extractedCount, Math.floor(reviewCount || 0)),
+    commentCount: Math.max(extractedCount, Math.floor(commentCount || 0)),
+  };
+}
+
+function extractProductId(productUrl: string): string {
+  return (productUrl.match(/[/-]p-(\d+)/i) || [])[1] || "";
 }
 
 export function buildTrendyolReviewsUrl(productUrl: string): string {
@@ -158,6 +313,52 @@ export async function attachTrendyolReviews(
   productUrl: string,
   productHtml?: string | null,
 ): Promise<void> {
+  const productId = extractProductId(productUrl);
+
+  // Railway'dan Trendyol yorum sayfasına doğrudan HTTP isteği 403 döndürüyor.
+  // Bu nedenle birincil yol Browser Worker + gerçek tarayıcı oturumu olmalı.
+  if (productId) {
+    try {
+      const worker = await scrapeTrendyolReviewsWithBrowserWorker({
+        url: productUrl,
+        productId,
+        pageSize: 50,
+        maxPages: 1,
+        timeoutMs: 35_000,
+      });
+
+      if (worker.success) {
+        const normalized = worker.reviews
+          .map((item) => normalizeWorkerReview(asRecord(item)))
+          .filter((item): item is TrendyolReview => Boolean(item));
+        const summary = normalizeWorkerSummary(worker.summary, normalized.length);
+
+        result.reviewSummary = summary;
+        result.reviews = normalized;
+        result.reviewSource = "browser_worker";
+        result.reviewFetchPartial = worker.partial === true;
+        result.reviewNextPage = worker.nextPage ?? null;
+
+        console.log("[trendyol-reviews] Browser Worker yorumları alındı", {
+          productId,
+          comments: normalized.length,
+          reportedComments: summary.commentCount,
+          partial: worker.partial === true,
+        });
+        return;
+      }
+
+      console.warn("[trendyol-reviews] Browser Worker yorum çekimi başarısız, HTML fallback deneniyor:", worker.error);
+    } catch (error) {
+      console.warn(
+        "[trendyol-reviews] Browser Worker yorum hatası, HTML fallback deneniyor:",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+
+  // Son çare: direct HTML. Bu yol cloud ortamında 403 alabilir fakat local kullanım ve
+  // geçmiş uyumluluk için tutuluyor; başarısız olması artık ana yorum yolunu bozmaz.
   let reviewHtml = "";
   try {
     const response = await axios.get(buildTrendyolReviewsUrl(productUrl), {
@@ -169,7 +370,7 @@ export async function attachTrendyolReviews(
     reviewHtml = String(response.data || "");
   } catch (error) {
     console.warn(
-      "[trendyol-reviews] yorum sayfası alınamadı, mevcut HTML kullanılacak:",
+      "[trendyol-reviews] direct yorum HTML alınamadı, mevcut ürün HTML'i kullanılacak:",
       error instanceof Error ? error.message : error,
     );
   }
@@ -177,4 +378,5 @@ export async function attachTrendyolReviews(
   const extracted = extractTrendyolReviews(reviewHtml || productHtml || "");
   result.reviewSummary = extracted.summary;
   result.reviews = extracted.reviews;
+  result.reviewSource = extracted.reviews.length ? "html" : "none";
 }
