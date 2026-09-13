@@ -35,3 +35,7 @@ console.log("[mobile-live-scrape] Trendyol scrape jobs are visible to mobile in 
 // exact-count reliability patch here so no legacy injector can overwrite it afterwards.
 await import("./prepare-lossless-exact-pipeline.mjs");
 await import("./enforce-lossless-exact-pipeline.mjs");
+
+// Exact-count koruması uygulandıktan sonra yalnız kontrollü hız/yorum ayarlarını yükselt.
+// Varyant zinciri bu adımda sadece doğrulanır, değiştirilmez.
+await import("./tune-fast-reviews-and-throughput.mjs");
