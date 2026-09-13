@@ -12,7 +12,9 @@ COPY browser-worker/ ./
 COPY shared/ /app/shared/
 COPY server/ /app/server/
 
-RUN npm run build
+# Trendyol yorum endpoint/JSON şekli zaman içinde değiştiği için build öncesi
+# geriye ve ileriye uyumlu çoklu parser uygulanır.
+RUN node patch-review-api.mjs && npm run build
 
 # Üretimde gerekmeyen geliştirme paketlerini kaldır
 RUN npm prune --omit=dev
