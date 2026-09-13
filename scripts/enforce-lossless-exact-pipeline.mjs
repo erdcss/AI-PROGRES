@@ -21,6 +21,8 @@ function replaceRequired(src, from, to, label) {
 
 // -----------------------------------------------------------------------------
 // 1) Category drawer: persist reserve URLs for the core scraper.
+//    Internal app tabs are keep-alive, so every exact-count storage key must be
+//    namespaced by the tab id. One tab must never overwrite another tab's target.
 // -----------------------------------------------------------------------------
 const drawerPath = "client/src/components/TrendyolCategoryBulkDrawer.tsx";
 let drawer = read(drawerPath);
@@ -34,19 +36,28 @@ if (!drawer.includes('const EXACT_RESERVE_STORAGE_KEY = "trendyol_category_exact
   );
 }
 
-if (!drawer.includes("sessionStorage.setItem(EXACT_RESERVE_STORAGE_KEY, JSON.stringify(reserveUrls));")) {
+if (!drawer.includes("const exactReserveKey = useMemo(() => storageKey(EXACT_RESERVE_STORAGE_KEY, tabId), [tabId]);")) {
   drawer = replaceRequired(
     drawer,
-    '      sessionStorage.setItem(EXACT_TARGET_STORAGE_KEY, String(targetCount));',
-    '      sessionStorage.setItem(EXACT_TARGET_STORAGE_KEY, String(targetCount));\n      sessionStorage.setItem(EXACT_RESERVE_STORAGE_KEY, JSON.stringify(reserveUrls));',
-    "persist reserve URLs after exact queue validation",
+    '  const exactReadyKey = useMemo(() => storageKey(EXACT_READY_STORAGE_KEY, tabId), [tabId]);',
+    '  const exactReadyKey = useMemo(() => storageKey(EXACT_READY_STORAGE_KEY, tabId), [tabId]);\n  const exactReserveKey = useMemo(() => storageKey(EXACT_RESERVE_STORAGE_KEY, tabId), [tabId]);',
+    "drawer tab-scoped reserve key",
   );
 }
 
-if (!drawer.includes("sessionStorage.removeItem(EXACT_RESERVE_STORAGE_KEY);")) {
+if (!drawer.includes("sessionStorage.setItem(exactReserveKey, JSON.stringify(reserveUrls));")) {
+  drawer = replaceRequired(
+    drawer,
+    '      sessionStorage.setItem(exactTargetKey, String(targetCount));',
+    '      sessionStorage.setItem(exactTargetKey, String(targetCount));\n      sessionStorage.setItem(exactReserveKey, JSON.stringify(reserveUrls));',
+    "persist tab-scoped reserve URLs after exact queue validation",
+  );
+}
+
+if (!drawer.includes("sessionStorage.removeItem(exactReserveKey);")) {
   drawer = drawer.replaceAll(
-    '      sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);',
-    '      sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);\n      sessionStorage.removeItem(EXACT_RESERVE_STORAGE_KEY);',
+    'sessionStorage.removeItem(exactReadyKey);',
+    'sessionStorage.removeItem(exactReadyKey);\n      sessionStorage.removeItem(exactReserveKey);',
   );
 }
 
@@ -62,15 +73,15 @@ const scraperPath = "client/src/pages/scraper.tsx";
 let scraper = read(scraperPath);
 
 const helperAnchor = 'const AUTO_TAG_STORAGE_KEY = "turmarkt_auto_tag_enabled";';
-const helperBlock = `const AUTO_TAG_STORAGE_KEY = "turmarkt_auto_tag_enabled";\nconst EXACT_BULK_TARGET_STORAGE_KEY = "trendyol_category_exact_target";\nconst EXACT_BULK_READY_STORAGE_KEY = "trendyol_category_exact_ready";\nconst EXACT_BULK_RESERVE_STORAGE_KEY = "trendyol_category_exact_reserve_urls";\n\nfunction readExactBulkTarget(): number | null {\n  try {\n    const value = Number(sessionStorage.getItem(EXACT_BULK_TARGET_STORAGE_KEY));\n    return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;\n  } catch {\n    return null;\n  }\n}\n\nfunction readExactBulkReady(): number | null {\n  try {\n    const value = Number(sessionStorage.getItem(EXACT_BULK_READY_STORAGE_KEY));\n    return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;\n  } catch {\n    return null;\n  }\n}\n\nfunction readExactBulkReserveUrls(): string[] {\n  try {\n    const parsed = JSON.parse(sessionStorage.getItem(EXACT_BULK_RESERVE_STORAGE_KEY) || "[]");\n    if (!Array.isArray(parsed)) return [];\n    return parsed.map(String).map((url) => normalizeProductUrl(url)).filter((url): url is string => Boolean(url));\n  } catch {\n    return [];\n  }\n}\n\nfunction setExactBulkReady(value: number | null): void {\n  try {\n    if (value && value > 0) sessionStorage.setItem(EXACT_BULK_READY_STORAGE_KEY, String(Math.floor(value)));\n    else sessionStorage.removeItem(EXACT_BULK_READY_STORAGE_KEY);\n  } catch {\n    /* sessionStorage kullanılamıyor */\n  }\n}\n\nfunction isExactBulkPreviewUsable(preview: CSVPreviewData): boolean {\n  const row = preview as unknown as Record<string, any>;\n  const title = String(row.productTitle || row.title || "").trim();\n  const price = Number(row.price?.original ?? row.price?.withProfit ?? row.price ?? 0);\n  const images = Array.isArray(row.images)\n    ? row.images.filter((item: unknown) => typeof item === "string" && /^https?:\\/\\//i.test(item))\n    : [];\n  return (\n    title.length >= 3 &&\n    Number.isFinite(price) &&\n    price > 0 &&\n    images.length > 0 &&\n    row.restoredFromDisk !== true &&\n    row.approvedForShopify !== false &&\n    row.shopifyUploadBlocked !== true &&\n    row.canonicalProduct?.shopifyUploadBlocked !== true &&\n    Boolean(String(row.sourceUrl || "").trim())\n  );\n}`;
+const helperBlock = `const AUTO_TAG_STORAGE_KEY = "turmarkt_auto_tag_enabled";\nconst EXACT_BULK_TARGET_STORAGE_KEY = "trendyol_category_exact_target";\nconst EXACT_BULK_READY_STORAGE_KEY = "trendyol_category_exact_ready";\nconst EXACT_BULK_RESERVE_STORAGE_KEY = "trendyol_category_exact_reserve_urls";\n\nfunction exactBulkStorageKey(base: string, tabId?: string): string {\n  return tabId ? \`${"${base}"}:${"${tabId}"}\` : base;\n}\n\nfunction readExactBulkTarget(tabId?: string): number | null {\n  try {\n    const value = Number(sessionStorage.getItem(exactBulkStorageKey(EXACT_BULK_TARGET_STORAGE_KEY, tabId)));\n    return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;\n  } catch {\n    return null;\n  }\n}\n\nfunction readExactBulkReady(tabId?: string): number | null {\n  try {\n    const value = Number(sessionStorage.getItem(exactBulkStorageKey(EXACT_BULK_READY_STORAGE_KEY, tabId)));\n    return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;\n  } catch {\n    return null;\n  }\n}\n\nfunction readExactBulkReserveUrls(tabId?: string): string[] {\n  try {\n    const parsed = JSON.parse(sessionStorage.getItem(exactBulkStorageKey(EXACT_BULK_RESERVE_STORAGE_KEY, tabId)) || "[]");\n    if (!Array.isArray(parsed)) return [];\n    return parsed.map(String).map((url) => normalizeProductUrl(url)).filter((url): url is string => Boolean(url));\n  } catch {\n    return [];\n  }\n}\n\nfunction setExactBulkReady(value: number | null, tabId?: string): void {\n  try {\n    const key = exactBulkStorageKey(EXACT_BULK_READY_STORAGE_KEY, tabId);\n    if (value && value > 0) sessionStorage.setItem(key, String(Math.floor(value)));\n    else sessionStorage.removeItem(key);\n  } catch {\n    /* sessionStorage kullanılamıyor */\n  }\n}\n\nfunction isExactBulkPreviewUsable(preview: CSVPreviewData): boolean {\n  const row = preview as unknown as Record<string, any>;\n  const title = String(row.productTitle || row.title || "").trim();\n  const price = Number(row.price?.original ?? row.price?.withProfit ?? row.price ?? 0);\n  const images = Array.isArray(row.images)\n    ? row.images.filter((item: unknown) => typeof item === "string" && /^https?:\\/\\//i.test(item))\n    : [];\n  return (\n    title.length >= 3 &&\n    Number.isFinite(price) &&\n    price > 0 &&\n    images.length > 0 &&\n    row.restoredFromDisk !== true &&\n    row.approvedForShopify !== false &&\n    row.shopifyUploadBlocked !== true &&\n    row.canonicalProduct?.shopifyUploadBlocked !== true &&\n    Boolean(String(row.sourceUrl || "").trim())\n  );\n}`;
 
-if (!scraper.includes("function readExactBulkTarget()")) {
+if (!scraper.includes("function readExactBulkTarget(tabId?: string)")) {
   scraper = replaceRequired(scraper, helperAnchor, helperBlock, "scraper exact helpers");
 }
 
 const processStartOld = `  const processAllUrls = async (items: UrlQueueItem[]) => {\n    const queue = items\n      .map((item) => ({ ...item, url: normalizeProductUrl(item.url) }))\n      .filter((item): item is UrlQueueItem & { url: string } => Boolean(item.url));\n\n    if (queue.length === 0) {`;
-const processStartNew = `  const processAllUrls = async (items: UrlQueueItem[]) => {\n    const initialQueue = items\n      .map((item) => ({ ...item, url: normalizeProductUrl(item.url) }))\n      .filter((item): item is UrlQueueItem & { url: string } => Boolean(item.url));\n\n    const exactTarget = readExactBulkTarget();\n    const exactMode = Boolean(exactTarget && exactTarget > 1);\n    const displayTotal = exactMode ? exactTarget! : initialQueue.length;\n    const queue: Array<UrlQueueItem & { url: string }> = [...initialQueue];\n    if (exactMode) {\n      const seen = new Set(queue.map((item) => item.url));\n      for (const reserveUrl of readExactBulkReserveUrls()) {\n        if (seen.has(reserveUrl)) continue;\n        seen.add(reserveUrl);\n        queue.push({ url: reserveUrl, status: "pending" });\n      }\n      setExactBulkReady(null);\n    }\n\n    if (queue.length === 0) {`;
-if (!scraper.includes("const initialQueue = items")) {
+const processStartNew = `  const processAllUrls = async (items: UrlQueueItem[]) => {\n    const initialQueue = items\n      .map((item) => ({ ...item, url: normalizeProductUrl(item.url) }))\n      .filter((item): item is UrlQueueItem & { url: string } => Boolean(item.url));\n\n    const exactTabId = workspace?.tabId;\n    const exactTarget = readExactBulkTarget(exactTabId);\n    const exactMode = Boolean(exactTarget && exactTarget > 1);\n    const displayTotal = exactMode ? exactTarget! : initialQueue.length;\n    const queue: Array<UrlQueueItem & { url: string }> = [...initialQueue];\n    if (exactMode) {\n      const seen = new Set(queue.map((item) => item.url));\n      for (const reserveUrl of readExactBulkReserveUrls(exactTabId)) {\n        if (seen.has(reserveUrl)) continue;\n        seen.add(reserveUrl);\n        queue.push({ url: reserveUrl, status: "pending" });\n      }\n      setExactBulkReady(null, exactTabId);\n    }\n\n    if (queue.length === 0) {`;
+if (!scraper.includes("const exactTabId = workspace?.tabId")) {
   scraper = replaceRequired(scraper, processStartOld, processStartNew, "core exact queue construction");
 }
 
@@ -136,7 +147,7 @@ if (!scraper.includes("const progressCurrent = exactMode")) {
 }
 
 const afterWorkersAnchor = `    await Promise.all(\n      Array.from(\n        { length: Math.min(activeConcurrency, queue.length) },\n        () => scrapeWorker(),\n      ),\n    );\n\n    // Durdurulduysa henüz başlamayan URL'leri pending bırak`;
-const afterWorkersReplacement = `    await Promise.all(\n      Array.from(\n        { length: Math.min(activeConcurrency, queue.length) },\n        () => scrapeWorker(),\n      ),\n    );\n\n    const exactComplete = exactMode && successCount === displayTotal;\n    if (exactMode) {\n      if (exactComplete) {\n        const exactQueue = successfulExactUrls.slice(0, displayTotal).map((url) => ({\n          url,\n          status: "success" as const,\n        }));\n        setUrlQueue(exactQueue);\n        urlQueueRef.current = exactQueue;\n        setExactBulkReady(displayTotal);\n      } else {\n        setExactBulkReady(null);\n      }\n    }\n\n    // Durdurulduysa henüz başlamayan URL'leri pending bırak`;
+const afterWorkersReplacement = `    await Promise.all(\n      Array.from(\n        { length: Math.min(activeConcurrency, queue.length) },\n        () => scrapeWorker(),\n      ),\n    );\n\n    const exactComplete = exactMode && successCount === displayTotal;\n    if (exactMode) {\n      if (exactComplete) {\n        const exactQueue = successfulExactUrls.slice(0, displayTotal).map((url) => ({\n          url,\n          status: "success" as const,\n        }));\n        setUrlQueue(exactQueue);\n        urlQueueRef.current = exactQueue;\n        setExactBulkReady(displayTotal, exactTabId);\n      } else {\n        setExactBulkReady(null, exactTabId);\n      }\n    }\n\n    // Durdurulduysa henüz başlamayan URL'leri pending bırak`;
 if (!scraper.includes("const exactComplete = exactMode")) {
   scraper = replaceRequired(scraper, afterWorkersAnchor, afterWorkersReplacement, "exact completion state");
 }
@@ -167,11 +178,11 @@ scraper = scraper.replace(
 
 // -----------------------------------------------------------------------------
 // 3) Bulk MARKT-GO upload: internal exact guard + serial exact upload.
-//    The old document click guard remains a UX backup; correctness now lives here.
+//    The document click guard is only a UX backup; correctness lives here.
 // -----------------------------------------------------------------------------
 const skippedAnchor = `    const skippedCount = idFilter\n      ? Math.max(0, (onlyPreviewIds?.length || 0) - eligiblePreviews.length)\n      : csvPreviews.length - eligiblePreviews.length;\n    if (eligiblePreviews.length === 0) {`;
-const skippedReplacement = `    const skippedCount = idFilter\n      ? Math.max(0, (onlyPreviewIds?.length || 0) - eligiblePreviews.length)\n      : csvPreviews.length - eligiblePreviews.length;\n\n    const exactUploadTarget = idFilter ? null : readExactBulkTarget();\n    if (exactUploadTarget) {\n      const exactReady = readExactBulkReady();\n      if (\n        exactReady !== exactUploadTarget ||\n        csvPreviews.length !== exactUploadTarget ||\n        eligiblePreviews.length !== exactUploadTarget\n      ) {\n        toast({\n          title: "Exact-count aktarımı kilitli",\n          description: \`${"${exactUploadTarget}"} ürün hedeflendi. Hazır/uygun ürün sayısı ${"${eligiblePreviews.length}"}; ${"${exactUploadTarget}"}/${"${exactUploadTarget}"} olmadan MARKT-GO aktarımı başlamaz.\`,\n          variant: "destructive",\n          duration: 9000,\n        });\n        return;\n      }\n    }\n\n    if (eligiblePreviews.length === 0) {`;
-if (!scraper.includes("Exact-count aktarımı kilitli")) {
+const skippedReplacement = `    const skippedCount = idFilter\n      ? Math.max(0, (onlyPreviewIds?.length || 0) - eligiblePreviews.length)\n      : csvPreviews.length - eligiblePreviews.length;\n\n    const exactUploadTabId = workspace?.tabId;\n    const exactUploadTarget = idFilter ? null : readExactBulkTarget(exactUploadTabId);\n    if (exactUploadTarget) {\n      const exactReady = readExactBulkReady(exactUploadTabId);\n      if (\n        exactReady !== exactUploadTarget ||\n        csvPreviews.length !== exactUploadTarget ||\n        eligiblePreviews.length !== exactUploadTarget\n      ) {\n        toast({\n          title: "Exact-count aktarımı kilitli",\n          description: \`${"${exactUploadTarget}"} ürün hedeflendi. Hazır/uygun ürün sayısı ${"${eligiblePreviews.length}"}; ${"${exactUploadTarget}"}/${"${exactUploadTarget}"} olmadan MARKT-GO aktarımı başlamaz.\`,\n          variant: "destructive",\n          duration: 9000,\n        });\n        return;\n      }\n    }\n\n    if (eligiblePreviews.length === 0) {`;
+if (!scraper.includes("const exactUploadTabId = workspace?.tabId")) {
   scraper = replaceRequired(scraper, skippedAnchor, skippedReplacement, "internal exact MARKT-GO guard");
 }
 
@@ -242,5 +253,5 @@ if (discovery.includes(oldReserve)) discovery = discovery.replace(oldReserve, ne
 write(discoveryPath, discovery);
 
 console.log(
-  "[lossless-exact] core exact replacement active; MARKT-GO exact guard active; fastUpload preserved; review backfill serialized",
+  "[lossless-exact] tab-scoped exact replacement active; MARKT-GO exact guard active; fastUpload preserved; review backfill serialized",
 );
