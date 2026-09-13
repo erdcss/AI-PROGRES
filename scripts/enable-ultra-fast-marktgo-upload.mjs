@@ -83,6 +83,20 @@ if (sy.includes(backfillAnchor) && !sy.includes("[marktgo-fast] review backfill"
 
 fs.writeFileSync(syncPath, sy);
 
+// 4) MARKT-GO API geçici 5xx/429/network hatalarında 3 çok kısa deneme yerine
+// daha uzun bir kontrollü retry penceresi kullan. Ürün bazında idempotent externalId
+// kullanıldığı için aynı ürün yanlışlıkla çoğalmaz.
+const routesPath = path.join(root, "server/routes/marktgo-routes.ts");
+let routes = fs.readFileSync(routesPath, "utf8");
+routes = routes.replace(
+  "  const delays = [0, 350, 900];",
+  "  const delays = [0, 750, 1_500, 3_000, 6_000, 10_000];",
+);
+if (!routes.includes("const delays = [0, 750, 1_500, 3_000, 6_000, 10_000];")) {
+  throw new Error("[marktgo-product-first] resilient sync retry window uygulanamadı");
+}
+fs.writeFileSync(routesPath, routes);
+
 console.log(
-  "[marktgo-product-first] concurrency=2; product-first upload active; review backfill background",
+  "[marktgo-product-first] concurrency=2; product-first; retry window=6 attempts; review backfill background",
 );
