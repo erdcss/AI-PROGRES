@@ -3,8 +3,17 @@ import { toast } from "@/hooks/use-toast";
 const EXACT_TARGET_STORAGE_KEY = "trendyol_category_exact_target";
 const EXACT_READY_STORAGE_KEY = "trendyol_category_exact_ready";
 
-function previewCountFromUi(): number {
-  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button"));
+function scopedKey(base: string, tabId?: string): string {
+  return tabId ? `${base}:${tabId}` : base;
+}
+
+function tabScopeFor(element: Element): { root: HTMLElement; tabId?: string } {
+  const root = element.closest<HTMLElement>("[data-app-tab-id]");
+  return root ? { root, tabId: root.dataset.appTabId } : { root: document.body };
+}
+
+function previewCountFromUi(root: HTMLElement): number {
+  const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>("button"));
   for (const button of buttons) {
     const text = button.textContent || "";
     const match = text.match(/CSV\s+OLARAK\s+DIŞA\s+AKTAR\s*\((\d+)\)/i);
@@ -13,9 +22,9 @@ function previewCountFromUi(): number {
   return 0;
 }
 
-function exactTarget(): number | null {
+function exactTarget(tabId?: string): number | null {
   try {
-    const raw = sessionStorage.getItem(EXACT_TARGET_STORAGE_KEY);
+    const raw = sessionStorage.getItem(scopedKey(EXACT_TARGET_STORAGE_KEY, tabId));
     const value = Number(raw);
     return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
   } catch {
@@ -23,9 +32,9 @@ function exactTarget(): number | null {
   }
 }
 
-function exactReady(): number | null {
+function exactReady(tabId?: string): number | null {
   try {
-    const raw = sessionStorage.getItem(EXACT_READY_STORAGE_KEY);
+    const raw = sessionStorage.getItem(scopedKey(EXACT_READY_STORAGE_KEY, tabId));
     const value = Number(raw);
     return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
   } catch {
@@ -41,9 +50,8 @@ function isBulkDestinationButton(button: HTMLButtonElement): boolean {
 }
 
 /**
- * Kategori exact-count işlemi aktifken kısmi ürün listesinin MARKT-GO'ya gitmesini
- * engeller. Örn. hedef 20 ise 19 preview varken kullanıcı butona bassa bile aktarım
- * başlamaz; yedek ürün tamamlandıktan sonra 20/20 olduğunda buton normal çalışır.
+ * Kategori exact-count işlemi aktifken yalnız tıklanan sekmenin durumunu kontrol eder.
+ * Aynı anda başka sekmelerde devam eden çekimlerin target/ready değerleri karışmaz.
  */
 document.addEventListener(
   "click",
@@ -52,11 +60,12 @@ document.addEventListener(
     const button = targetElement?.closest<HTMLButtonElement>("button");
     if (!button || !isBulkDestinationButton(button)) return;
 
-    const target = exactTarget();
+    const { root, tabId } = tabScopeFor(button);
+    const target = exactTarget(tabId);
     if (!target) return;
 
-    const ready = exactReady();
-    const previews = previewCountFromUi();
+    const ready = exactReady(tabId);
+    const previews = previewCountFromUi(root);
     if (ready === target && previews === target) return;
 
     event.preventDefault();
@@ -65,7 +74,7 @@ document.addEventListener(
 
     toast({
       title: "Exact-count tamamlanıyor",
-      description: `${target} ürün hedeflendi. Şu an ${previews}/${target} ürün hazır; eksik/fazla adetle MARKT-GO aktarımı başlatılmadı.`,
+      description: `${target} ürün hedeflendi. Bu sekmede şu an ${previews}/${target} ürün hazır; eksik/fazla adetle MARKT-GO aktarımı başlatılmadı.`,
       variant: "destructive",
       duration: 7000,
     });
