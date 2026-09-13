@@ -19,6 +19,8 @@ const SEO_USER_AGENTS = ["Twitterbot/1.0", "Google-InspectionTool/1.0"] as const
 const MAX_RAW_PAGES = 120;
 const VALIDATION_CONCURRENCY = 4;
 const MIX_BAND_SIZE = 24;
+const LARGE_BATCH_THRESHOLD = 100;
+const SMALL_BATCH_VALIDATION_CAP = 24;
 
 function normalizeCategoryUrl(raw: string): URL {
   const value = String(raw || "").trim();
@@ -173,6 +175,10 @@ async function validateCandidates(
   products: TrendyolCategoryProduct[],
   validationTarget: number,
 ): Promise<{ valid: TrendyolCategoryProduct[]; checked: number }> {
+  if (validationTarget <= 0 || products.length === 0) {
+    return { valid: [], checked: 0 };
+  }
+
   const validByIndex = new Map<number, TrendyolCategoryProduct>();
   let validCount = 0;
   let cursor = 0;
@@ -217,6 +223,9 @@ async function validateCandidates(
  * - Eski ürün görülürse adet düşürülmez; tarama sonraki kategori sayfalarına devam
  *   eder ve hedef adet yeni/benzersiz ürünlerle tamamlanır.
  * - Son liste kategori sayfa bantlarından karışık/round-robin sırada üretilir.
+ * - 100+ ürün keşfinde tek tek ürün sayfası ön-doğrulaması yapılmaz. Bu doğrulama
+ *   zaten ürün çekme pipeline'ında retry + yedek ürün sistemiyle yapılır; böylece
+ *   500 ürün isteği reverse-proxy timeout'una girmez.
  */
 export async function discoverTrendyolCategoryProducts(input: {
   url: string;
@@ -266,11 +275,26 @@ export async function discoverTrendyolCategoryProducts(input: {
   }
 
   const candidateList = [...candidates.values()];
-  const validationTarget = Math.min(
-    candidateList.length,
-    requestedCount + Math.min(reserveCount, Math.max(8, Math.ceil(requestedCount * 0.25))),
-  );
+
+  // Büyük kategori işlerinde yüzlerce ürün detay sayfasını keşif endpoint'i içinde
+  // doğrulamak Railway/proxy timeout'una neden oluyordu. Büyük batch'te ön-doğrulama
+  // tamamen atlanır; gerçek ürün çekme aşamasındaki exact-count retry sistemi bunu
+  // zaten güvenli şekilde yapar. Küçük batch'te ise hızlı bir örneklem korunur.
+  const validationTarget =
+    requestedCount >= LARGE_BATCH_THRESHOLD
+      ? 0
+      : Math.min(
+          candidateList.length,
+          SMALL_BATCH_VALIDATION_CAP,
+          requestedCount + Math.min(reserveCount, Math.max(8, Math.ceil(requestedCount * 0.25))),
+        );
   const validation = await validateCandidates(candidateList, validationTarget);
+
+  if (requestedCount >= LARGE_BATCH_THRESHOLD) {
+    console.info(
+      `[CategoryDiscoveryV4] large-batch=${requestedCount}; pre-validation skipped; candidates=${candidateList.length}; product pipeline will validate with exact-count retry`,
+    );
+  }
 
   const ordered = new Map<string, TrendyolCategoryProduct>();
   for (const product of validation.valid) addCandidate(ordered, product, blockedIds);
@@ -294,7 +318,7 @@ export async function discoverTrendyolCategoryProducts(input: {
     `Tekrar koruması aktif: MARKT-GO kataloğu ${duplicateGuard.catalogCount} Trendyol ürünü, kalıcı takip geçmişi ${duplicateGuard.historyCount} Trendyol ürünü içeriyor. Aynı productId ikinci kez seçilmez.`,
   );
 
-  if (validation.valid.length < requestedCount) {
+  if (validationTarget > 0 && validation.valid.length < Math.min(requestedCount, validationTarget)) {
     warnings.push(
       `${validation.checked} aday erişim kontrolünden geçti; ${validation.valid.length} aday güçlü şekilde doğrulandı. Kalan adaylar gerçek kategori sonuçlarından tamamlandı ve scraper retry zinciriyle yeniden doğrulanacak.`,
     );
