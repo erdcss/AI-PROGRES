@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Layers3, Loader2, PackageSearch, Play, X } from "lucide-react";
@@ -17,13 +17,17 @@ type DiscoveryResponse = {
   success: boolean;
   requestedCount?: number;
   foundCount?: number;
+  candidateCount?: number;
   pagesScanned?: number;
   products?: DiscoveryProduct[];
+  reserveProducts?: DiscoveryProduct[];
   warnings?: string[];
   message?: string;
 };
 
 const QUICK_COUNTS = [20, 50, 100, 250];
+const EXACT_TARGET_STORAGE_KEY = "trendyol_category_exact_target";
+const EXACT_READY_STORAGE_KEY = "trendyol_category_exact_ready";
 
 function findManualRow(input: HTMLElement): HTMLElement | null {
   const inputWrap = input.parentElement;
@@ -61,6 +65,41 @@ function queuedProductIds(manualRow: HTMLElement): Set<string> {
   return ids;
 }
 
+function currentPreviewCount(): number {
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button"));
+  for (const button of buttons) {
+    const text = button.textContent || "";
+    const match = text.match(/CSV\s+OLARAK\s+DIŞA\s+AKTAR\s*\((\d+)\)/i);
+    if (match?.[1]) return Number(match[1]) || 0;
+  }
+  return 0;
+}
+
+function isBulkScrapeRunning(): boolean {
+  return Array.from(document.querySelectorAll<HTMLButtonElement>("button")).some((button) => {
+    const text = button.textContent?.toLocaleUpperCase("tr-TR") || "";
+    return text.includes("VERİLER ÇEKİLİYOR") || text.includes("ÜRÜNLER HAZIRLANIYOR");
+  });
+}
+
+async function waitForBulkScrapeToSettle(timeoutMs = 45 * 60_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let stableIdleTicks = 0;
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  while (Date.now() < deadline) {
+    if (isBulkScrapeRunning()) {
+      stableIdleTicks = 0;
+    } else {
+      stableIdleTicks += 1;
+      if (stableIdleTicks >= 4) return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error("Toplu ürün çekiminin tamamlanması beklenirken zaman aşımı oluştu");
+}
+
 async function waitForQueuedProductIds(
   manualRow: HTMLElement,
   expectedIds: string[],
@@ -81,11 +120,6 @@ async function waitForQueuedProductIds(
   return uniqueIds.filter((id) => !present.has(id));
 }
 
-/**
- * Hızlı yol: mevcut scraper'ın gerçek drop handler'ını tek sefer çağırır.
- * Önceki sürüm sadece dispatchEvent sonucuna bakıyordu. Artık URL'lerin gerçekten
- * React kuyruğuna girdiğini ürün ID'leri üzerinden doğrulamadan başarılı sayılmaz.
- */
 async function queueUrlsViaExistingDropFlow(
   urls: string[],
   manualRow: HTMLElement,
@@ -142,11 +176,6 @@ async function waitForSingleQueuedId(
   return queuedProductIds(manualRow).has(productId);
 }
 
-/**
- * Güvenli fallback: eksik URL'leri ana scraper'ın kendi input + Ekle handler'ından
- * geçirir ve her satırın gerçekten listede oluştuğunu doğrular. Bir URL iki denemede
- * de kuyruğa girmiyorsa toplu çekim başlatılmaz; sessiz veri kaybına izin verilmez.
- */
 async function queueUrlsViaManualFlow(urls: string[], manualRow: HTMLElement) {
   const input = manualRow.querySelector<HTMLInputElement>("[data-testid='input-product-url']");
   const addButton = manualRow.querySelector<HTMLButtonElement>("[data-testid='button-add-url']");
@@ -157,15 +186,15 @@ async function queueUrlsViaManualFlow(urls: string[], manualRow: HTMLElement) {
     if (productId && queuedProductIds(manualRow).has(productId)) continue;
 
     let queued = false;
-    for (let attempt = 0; attempt < 2 && !queued; attempt += 1) {
+    for (let attempt = 0; attempt < 3 && !queued; attempt += 1) {
       setReactInputValue(input, url);
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await new Promise((resolve) => setTimeout(resolve, 30));
       addButton.click();
 
       if (productId) {
-        queued = await waitForSingleQueuedId(manualRow, productId, 900);
+        queued = await waitForSingleQueuedId(manualRow, productId, 1_100);
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 120));
         queued = input.value.trim() === "";
       }
     }
@@ -185,7 +214,7 @@ async function ensureUrlsAreQueued(urls: string[], manualRow: HTMLElement) {
     await queueUrlsViaManualFlow(missingUrls, manualRow);
   }
 
-  const stillMissingIds = await waitForQueuedProductIds(manualRow, expectedIds, 1_500);
+  const stillMissingIds = await waitForQueuedProductIds(manualRow, expectedIds, 1_800);
   if (stillMissingIds.length > 0) {
     missingUrls = urls.filter((url) => {
       const id = trendyolProductId(url);
@@ -214,6 +243,28 @@ async function clickExistingFetchButton(): Promise<boolean> {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   return false;
+}
+
+function removeFailedQueueRows(manualRow: HTMLElement): number {
+  const root = manualRow.parentElement || document.body;
+  const rows = new Set<HTMLElement>();
+  for (const element of Array.from(root.querySelectorAll<HTMLElement>("[title*='trendyol.com']"))) {
+    const row = element.parentElement;
+    if (!row) continue;
+    const text = row.textContent?.toLocaleLowerCase("tr-TR") || "";
+    if (text.includes("hata")) rows.add(row);
+  }
+
+  let removed = 0;
+  for (const row of rows) {
+    const buttons = Array.from(row.querySelectorAll<HTMLButtonElement>("button"));
+    const removeButton = buttons[buttons.length - 1];
+    if (removeButton && !removeButton.disabled) {
+      removeButton.click();
+      removed += 1;
+    }
+  }
+  return removed;
 }
 
 function clearTrendyolWorkspaceStorage() {
@@ -254,6 +305,8 @@ export function TrendyolCategoryBulkDrawer() {
   const [customCount, setCustomCount] = useState("");
   const [loading, setLoading] = useState(false);
   const [lastFound, setLastFound] = useState<number | null>(null);
+  const internalClearRef = useRef(false);
+  const exactRunTokenRef = useRef(0);
 
   useEffect(() => {
     let portalHost: HTMLElement | null = null;
@@ -300,18 +353,19 @@ export function TrendyolCategoryBulkDrawer() {
       const clearButton = target?.closest<HTMLButtonElement>("[data-testid='button-clear-workspace']");
       if (!clearButton || clearButton.disabled) return;
 
+      exactRunTokenRef.current += 1;
+      sessionStorage.removeItem(EXACT_TARGET_STORAGE_KEY);
+      sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+      clearTrendyolWorkspaceStorage();
+
+      if (internalClearRef.current) return;
+
       setOpen(false);
       setUrl("");
       setCount(50);
       setCustomCount("");
       setLoading(false);
       setLastFound(null);
-      clearTrendyolWorkspaceStorage();
-
-      window.setTimeout(() => {
-        clearTrendyolWorkspaceStorage();
-        window.location.reload();
-      }, 120);
     };
 
     document.addEventListener("click", handleClearWorkspace, true);
@@ -325,6 +379,119 @@ export function TrendyolCategoryBulkDrawer() {
     }
     return count;
   }, [count, customCount]);
+
+  const clearWorkspaceForExactBatch = useCallback(async () => {
+    const clearButton = document.querySelector<HTMLButtonElement>("[data-testid='button-clear-workspace']");
+    if (!clearButton || clearButton.disabled) {
+      const queueClear = document.querySelector<HTMLButtonElement>("[data-testid='button-clear-url-queue']");
+      queueClear?.click();
+      return;
+    }
+
+    internalClearRef.current = true;
+    try {
+      clearButton.click();
+      const deadline = Date.now() + 4_000;
+      while (Date.now() < deadline) {
+        const queueEmpty = !manualRow || queuedProductIds(manualRow).size === 0;
+        if (queueEmpty && currentPreviewCount() === 0) return;
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      }
+    } finally {
+      internalClearRef.current = false;
+    }
+  }, [manualRow]);
+
+  const enforceExactScrapeTarget = useCallback(
+    async (
+      targetCount: number,
+      reserveUrls: string[],
+      row: HTMLElement,
+      runToken: number,
+    ) => {
+      const reserveQueue = reserveUrls.filter(Boolean);
+      const usedReserveIds = new Set<string>();
+
+      for (let cycle = 0; cycle < 30; cycle += 1) {
+        if (runToken !== exactRunTokenRef.current) return;
+        await waitForBulkScrapeToSettle();
+        if (runToken !== exactRunTokenRef.current) return;
+
+        const readyCount = currentPreviewCount();
+        if (readyCount === targetCount) {
+          sessionStorage.setItem(EXACT_READY_STORAGE_KEY, String(targetCount));
+          setLastFound(targetCount);
+          toast({
+            title: `✅ ${targetCount}/${targetCount} ürün hazır`,
+            description: `Exact-count tamamlandı. MARKT-GO'ya gönderimde hedef ${targetCount} üründür.`,
+            duration: 6000,
+          });
+          return;
+        }
+
+        if (readyCount > targetCount) {
+          sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+          toast({
+            title: "Exact-count güvenlik durdurması",
+            description: `${targetCount} ürün istendi fakat ${readyCount} önizleme oluştu. Fazla ürün gönderilmemesi için otomatik süreç durduruldu.`,
+            variant: "destructive",
+            duration: 9000,
+          });
+          return;
+        }
+
+        const gap = targetCount - readyCount;
+        const removed = removeFailedQueueRows(row);
+        if (removed > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 180));
+        }
+
+        const presentIds = queuedProductIds(row);
+        const replacements: string[] = [];
+        for (const reserveUrl of reserveQueue) {
+          const id = trendyolProductId(reserveUrl);
+          if (!id || presentIds.has(id) || usedReserveIds.has(id)) continue;
+          usedReserveIds.add(id);
+          replacements.push(reserveUrl);
+          if (replacements.length >= gap) break;
+        }
+
+        if (replacements.length < gap) {
+          sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+          toast({
+            title: "Yedek ürün havuzu tükendi",
+            description: `${targetCount} hedef için ${readyCount} ürün hazırlandı. Eksik ${gap} ürünün yerine yeterli benzersiz yedek bulunamadı; eksik adetle MARKT-GO aktarımı yapmayın.`,
+            variant: "destructive",
+            duration: 10000,
+          });
+          return;
+        }
+
+        await ensureUrlsAreQueued(replacements, row);
+        const queuedNow = queuedProductIds(row).size;
+        if (queuedNow !== targetCount) {
+          sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+          throw new Error(
+            `Exact-count kuyruk doğrulaması başarısız: hedef=${targetCount}, kuyruk=${queuedNow}`,
+          );
+        }
+
+        toast({
+          title: `Eksik ${gap} ürün yedekleniyor`,
+          description: `${replacements.length} yeni kategori ürünü otomatik olarak kuyruğa alındı.`,
+          duration: 4000,
+        });
+
+        const restarted = await clickExistingFetchButton();
+        if (!restarted) {
+          throw new Error("Yedek ürünlerin veri çekimi otomatik yeniden başlatılamadı");
+        }
+      }
+
+      throw new Error("Exact-count işlemi maksimum yenileme döngüsüne ulaştı");
+    },
+    [],
+  );
 
   const start = useCallback(async () => {
     if (!manualRow) {
@@ -346,13 +513,16 @@ export function TrendyolCategoryBulkDrawer() {
       return;
     }
 
+    const targetCount = selectedCount;
     setLoading(true);
     setLastFound(null);
+    sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+
     try {
       const response = await fetch("/api/trendyol/category/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: categoryUrl, maxProducts: selectedCount }),
+        body: JSON.stringify({ url: categoryUrl, maxProducts: targetCount }),
       });
       const data = (await response.json().catch(() => ({}))) as DiscoveryResponse;
       if (!response.ok || !data.success) {
@@ -366,15 +536,39 @@ export function TrendyolCategoryBulkDrawer() {
         if (!productUrl || !id || uniqueById.has(id)) continue;
         uniqueById.set(id, productUrl);
       }
-      const urls = [...uniqueById.values()].slice(0, selectedCount);
-      if (urls.length === 0) throw new Error("Kategori içinde ürün bağlantısı bulunamadı");
+      const urls = [...uniqueById.values()].slice(0, targetCount);
+      if (urls.length !== targetCount) {
+        throw new Error(
+          `${targetCount} ürün istendi fakat yalnızca ${urls.length} benzersiz ürün hazırlanabildi. Eksik adetle işlem başlatılmadı.`,
+        );
+      }
 
-      setLastFound(urls.length);
+      const selectedIds = new Set([...uniqueById.keys()]);
+      const reserveById = new Map<string, string>();
+      for (const product of data.reserveProducts || []) {
+        const productUrl = String(product.url || "").trim();
+        const id = String(product.productId || trendyolProductId(productUrl) || "").trim();
+        if (!productUrl || !id || selectedIds.has(id) || reserveById.has(id)) continue;
+        reserveById.set(id, productUrl);
+      }
+      const reserveUrls = [...reserveById.values()];
+
+      await clearWorkspaceForExactBatch();
       await ensureUrlsAreQueued(urls, manualRow);
 
+      const exactQueueSize = queuedProductIds(manualRow).size;
+      if (exactQueueSize !== targetCount) {
+        throw new Error(
+          `Kuyruk adedi doğrulanamadı: ${targetCount} istenmesine rağmen ${exactQueueSize} URL var. Çekim başlatılmadı.`,
+        );
+      }
+
+      setLastFound(targetCount);
+      sessionStorage.setItem(EXACT_TARGET_STORAGE_KEY, String(targetCount));
+
       toast({
-        title: `${urls.length} ürün bulundu ve listelendi`,
-        description: "URL listesi doğrulandı. Ürün çekimi başlatılıyor...",
+        title: `${targetCount}/${targetCount} ürün kuyruğa alındı`,
+        description: `Fazla veya eksik ürün kabul edilmeyecek. ${reserveUrls.length} yedek ürün hazır.`,
         duration: 5000,
       });
 
@@ -385,18 +579,32 @@ export function TrendyolCategoryBulkDrawer() {
         );
       }
 
+      const runToken = exactRunTokenRef.current + 1;
+      exactRunTokenRef.current = runToken;
+      void enforceExactScrapeTarget(targetCount, reserveUrls, manualRow, runToken).catch((error) => {
+        sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+        toast({
+          title: "Exact-count tamamlanamadı",
+          description: error instanceof Error ? error.message : "Beklenmeyen hata",
+          variant: "destructive",
+          duration: 10000,
+        });
+      });
+
       setOpen(false);
     } catch (error) {
+      sessionStorage.removeItem(EXACT_TARGET_STORAGE_KEY);
+      sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
       toast({
         title: "Toplu ürün ekleme başarısız",
         description: error instanceof Error ? error.message : "Beklenmeyen hata",
         variant: "destructive",
-        duration: 7000,
+        duration: 9000,
       });
     } finally {
       setLoading(false);
     }
-  }, [manualRow, selectedCount, url]);
+  }, [clearWorkspaceForExactBatch, enforceExactScrapeTarget, manualRow, selectedCount, url]);
 
   if (!host) return null;
 
@@ -440,7 +648,7 @@ export function TrendyolCategoryBulkDrawer() {
                     Trendyol Kategori Toplu Çekim
                   </div>
                   <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-                    Kategori URL'sinden istediğiniz sayıda ürün bulunur ve mevcut ürün çekme kuyruğuna eklenir.
+                    Kategori URL'sinden seçtiğiniz adet kadar ürün hazırlanır. Eksik veya fazla adetle işlem tamamlanmaz.
                   </p>
                 </div>
                 <button
@@ -503,7 +711,7 @@ export function TrendyolCategoryBulkDrawer() {
                 </div>
 
                 <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/50 px-3 py-2.5 text-xs text-zinc-500">
-                  Seçili işlem: <span className="font-semibold text-zinc-300">{selectedCount} ürün</span>. Ürünler çekildikten sonra mevcut kart listesinde alt alta görünür ve MARKT-GO toplu gönderim butonu aynen kullanılmaya devam eder.
+                  Seçili işlem: <span className="font-semibold text-zinc-300">{selectedCount} ürün</span>. Sistem önce eski çalışma alanını temizler, tam {selectedCount} URL ile başlar ve başarısız ürünleri yedek kategori ürünleriyle tamamlar.
                 </div>
 
                 <Button
@@ -516,7 +724,7 @@ export function TrendyolCategoryBulkDrawer() {
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Kategori taranıyor ve URL'ler hazırlanıyor...
+                      Kategori taranıyor ve exact-count hazırlanıyor...
                     </>
                   ) : (
                     <>
