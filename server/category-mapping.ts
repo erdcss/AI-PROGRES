@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { classifyWithTurmarktTaxonomy } from './turmarkt-taxonomy';
 
 // ESM için __dirname işlevi
 const __filename = fileURLToPath(import.meta.url);
@@ -368,13 +369,33 @@ export function getCategoryConfig(categories: string[]): {
     defaultStock: number;
   }
 } {
+  // Önce Turmarkt'ın kendi koleksiyon/etiket kataloğunu kullan.
+  // Böylece kaynak pazaryerinin (Trendyol/Shopify vb.) kategori ağacı ürün modeline sızmaz.
+  const turmarktMatch = classifyWithTurmarktTaxonomy({
+    title: (categories || []).join(' '),
+    categories: categories || [],
+  });
+
+  if (turmarktMatch) {
+    return {
+      shopifyCategory: [turmarktMatch.category, turmarktMatch.subcategory, turmarktMatch.productType]
+        .filter(Boolean)
+        .join(' > '), // sadece eski export akışlarıyla geriye uyumluluk için
+      mainCategory: turmarktMatch.category,
+      subCategory: turmarktMatch.subcategory,
+      productType: turmarktMatch.productType,
+      tags: turmarktMatch.tags,
+      variantConfig: categoryMapping.default.variantConfig,
+    };
+  }
+
   if (!categories || categories.length === 0) {
     return {
       ...categoryMapping.default,
-      mainCategory: "Apparel",
-      subCategory: "Clothing",
-      productType: "General",
-      tags: ["Apparel", "Clothing", "turmarkt"]
+      mainCategory: "Genel",
+      subCategory: "",
+      productType: "",
+      tags: ["turmarkt"]
     };
   }
   
