@@ -8,11 +8,15 @@ import {
   type TrendyolCategoryDiscoveryResult as V3Result,
 } from "./trendyol-category-discovery-v3";
 
-export type TrendyolCategoryDiscoveryResult = V3Result;
+export type TrendyolCategoryDiscoveryResult = V3Result & {
+  /** İstenen adedin arkasında hazır tutulan yedek ürünler. */
+  reserveProducts: TrendyolCategoryProduct[];
+  candidateCount: number;
+};
 
 const SEO_USER_AGENTS = ["Twitterbot/1.0", "Google-InspectionTool/1.0"] as const;
-const MAX_RAW_PAGES = 12;
-const VALIDATION_CONCURRENCY = 6;
+const MAX_RAW_PAGES = 20;
+const VALIDATION_CONCURRENCY = 4;
 
 function normalizeCategoryUrl(raw: string): URL {
   const value = String(raw || "").trim();
@@ -87,11 +91,16 @@ async function fetchRawCategoryPage(target: string): Promise<TrendyolCategoryPro
   return [];
 }
 
+/**
+ * Kategori keşfinde yalnız HTTP 200 görmek yeterli değildir. Ürün sayfasında
+ * ürün kimliğiyle beraber gerçek ürün içerik sinyallerinden en az biri bulunmalıdır.
+ * Böylece kategori kartı var fakat ürün detay pipeline'ı boş dönen adaylar elenir.
+ */
 async function validateCandidate(product: TrendyolCategoryProduct): Promise<boolean> {
   for (const userAgent of SEO_USER_AGENTS) {
     try {
       const response = await axios.get<string>(product.url, {
-        timeout: 14_000,
+        timeout: 16_000,
         responseType: "text",
         maxRedirects: 4,
         validateStatus: () => true,
@@ -105,18 +114,23 @@ async function validateCandidate(product: TrendyolCategoryProduct): Promise<bool
       });
 
       if (response.status < 200 || response.status >= 400) continue;
-      if (typeof response.data !== "string" || response.data.length < 5_000) continue;
+      if (typeof response.data !== "string" || response.data.length < 8_000) continue;
 
       const finalUrl = String(response.request?.res?.responseUrl || product.url);
+      const firstChunk = response.data.slice(0, 60_000);
       if (/\/en\/select-country/i.test(finalUrl)) continue;
-      if (/select-country/i.test(response.data.slice(0, 20_000))) continue;
+      if (/select-country/i.test(firstChunk)) continue;
 
-      if (
+      const hasIdentity =
         response.data.includes(product.productId) ||
-        new RegExp(`-p-${product.productId}(?:[\\"'/?&<]|$)`, "i").test(response.data)
-      ) {
-        return true;
-      }
+        new RegExp(`-p-${product.productId}(?:[\\"'/?&<]|$)`, "i").test(response.data);
+      if (!hasIdentity) continue;
+
+      const hasProductSignal =
+        /product|ürün|price|fiyat|image|imageurl|merchant|seller|variants?|attributes?/i.test(
+          firstChunk,
+        );
+      if (hasProductSignal) return true;
     } catch {
       // Diğer user-agent denenir.
     }
@@ -127,20 +141,20 @@ async function validateCandidate(product: TrendyolCategoryProduct): Promise<bool
 
 async function validateCandidates(
   products: TrendyolCategoryProduct[],
-  requestedCount: number,
+  validationTarget: number,
 ): Promise<{ valid: TrendyolCategoryProduct[]; checked: number }> {
   const valid: TrendyolCategoryProduct[] = [];
   let cursor = 0;
   let checked = 0;
 
   const worker = async () => {
-    while (valid.length < requestedCount) {
+    while (valid.length < validationTarget) {
       const index = cursor++;
       if (index >= products.length) return;
       const product = products[index];
       const ok = await validateCandidate(product);
       checked++;
-      if (ok && valid.length < requestedCount) valid.push(product);
+      if (ok && valid.length < validationTarget) valid.push(product);
     }
   };
 
@@ -151,15 +165,17 @@ async function validateCandidates(
     ),
   );
 
-  return { valid: valid.slice(0, requestedCount), checked };
+  return { valid: valid.slice(0, validationTarget), checked };
 }
 
 /**
- * V4 davranışı:
- * - Kullanıcının istediği adet, MARKT-GO'da daha önce bulunmuş ürünler yüzünden azalmaz.
- * - V3'ün güçlü kaynakları korunur; eksik adet oluşursa kategori HTML'inden ham ürünler eklenir.
- * - İstenen adetten fazla aday toplanır ve ürün sayfaları hafif SEO isteğiyle doğrulanır.
- *   Böylece 20 URL -> 13 başarılı veri gibi sessiz kayıpların önemli kısmı daha çekim başlamadan elenir.
+ * V4 exact-count davranışı:
+ * - Kullanıcının seçtiği adet tek gerçek kaynak sayıdır: 20 => 20, 50 => 50.
+ * - Önceden MARKT-GO'da bulunmuş ürünler keşif adedini düşürmez.
+ * - İstenen adedin arkasında yedek havuz hazırlanır; UI gerektiğinde başarısız URL'yi
+ *   yedek bir ürünle değiştirebilir.
+ * - Mümkün olduğunca doğrulanmış ürünler öne alınır; doğrulanmamış adaylar yalnız
+ *   yedek/fallback olarak kullanılır.
  */
 export async function discoverTrendyolCategoryProducts(input: {
   url: string;
@@ -167,7 +183,10 @@ export async function discoverTrendyolCategoryProducts(input: {
 }): Promise<TrendyolCategoryDiscoveryResult> {
   const base = normalizeCategoryUrl(input.url);
   const requestedCount = Math.max(1, Math.min(500, Number(input.maxProducts) || 50));
-  const reserveCount = Math.max(12, Math.ceil(requestedCount * 0.5));
+  const reserveCount = Math.min(
+    500 - requestedCount,
+    Math.max(20, Math.ceil(requestedCount * 0.75)),
+  );
   const candidateTarget = Math.min(500, requestedCount + reserveCount);
   const warnings: string[] = [];
 
@@ -194,50 +213,54 @@ export async function discoverTrendyolCategoryProducts(input: {
   }
 
   const candidateList = [...candidates.values()];
-  const validationPool = candidateList.slice(0, Math.min(candidateList.length, candidateTarget));
-  const validation = await validateCandidates(validationPool, requestedCount);
+  const validationTarget = Math.min(
+    candidateList.length,
+    requestedCount + Math.min(reserveCount, Math.max(8, Math.ceil(requestedCount * 0.25))),
+  );
+  const validation = await validateCandidates(candidateList, validationTarget);
 
-  const selected = new Map<string, TrendyolCategoryProduct>();
-  for (const product of validation.valid) addCandidate(selected, product);
+  const ordered = new Map<string, TrendyolCategoryProduct>();
+  for (const product of validation.valid) addCandidate(ordered, product);
+  for (const product of candidateList) addCandidate(ordered, product);
 
-  // Ağ doğrulaması geçici olarak yetersiz kaldıysa adedi düşürmek yerine sıradaki gerçek
-  // kategori ürünleriyle tamamla. Asıl scraper kendi retry/fallback zincirini yine çalıştırır.
-  if (selected.size < requestedCount) {
-    for (const product of candidateList) {
-      addCandidate(selected, product);
-      if (selected.size >= requestedCount) break;
-    }
-  }
+  const orderedList = [...ordered.values()];
+  const products = orderedList.slice(0, requestedCount);
+  const selectedIds = new Set(products.map((product) => product.productId));
+  const reserveProducts = orderedList
+    .filter((product) => !selectedIds.has(product.productId))
+    .slice(0, reserveCount);
 
   if (primary.skippedExistingCount > 0) {
     warnings.push(
-      `${primary.skippedExistingCount} ürün MARKT-GO'da mevcut olsa da toplu çekim adedini eksiltmemesi için kategori aday havuzunda tutuldu.`,
+      `${primary.skippedExistingCount} ürün MARKT-GO'da mevcut; exact-count akışında bu durum istenen adedi azaltmaz.`,
     );
   }
 
   if (validation.valid.length < requestedCount) {
     warnings.push(
-      `${validation.checked} aday ürün erişim kontrolünden geçirildi; ${validation.valid.length} ürün doğrudan doğrulandı. Kalan adet scraper retry/fallback zinciriyle tamamlanacak.`,
+      `${validation.checked} aday erişim kontrolünden geçti; ${validation.valid.length} aday güçlü şekilde doğrulandı. Kalan adaylar gerçek kategori sonuçlarından tamamlandı ve scraper retry zinciriyle yeniden doğrulanacak.`,
     );
   }
 
-  if (selected.size < requestedCount) {
+  if (products.length < requestedCount) {
     warnings.push(
-      `${requestedCount} ürün istendi ancak kategori kaynaklarından yalnızca ${selected.size} benzersiz ürün URL'si elde edilebildi.`,
+      `${requestedCount} ürün istendi ancak kategori kaynaklarından yalnızca ${products.length} benzersiz ürün URL'si elde edilebildi. Exact-count güvenliği nedeniyle UI eksik adetle otomatik çekim başlatmamalıdır.`,
     );
   }
 
   warnings.push(...(primary.warnings || []).filter((warning) => !/yeni ürün istendi/i.test(warning)));
 
   return {
-    success: selected.size > 0,
+    success: products.length === requestedCount,
     categoryUrl: base.toString(),
     requestedCount,
-    foundCount: selected.size,
+    foundCount: products.length,
     skippedExistingCount: 0,
     existingCatalogCount: primary.existingCatalogCount || 0,
     pagesScanned: Math.max(primary.pagesScanned || 0, rawPagesScanned),
-    products: [...selected.values()].slice(0, requestedCount),
+    products,
+    reserveProducts,
+    candidateCount: orderedList.length,
     source: primary.source,
     warnings,
   };
