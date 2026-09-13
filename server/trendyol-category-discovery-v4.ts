@@ -20,6 +20,10 @@ const MAX_RAW_PAGES = 120;
 const VALIDATION_CONCURRENCY = 4;
 const MIX_BAND_SIZE = 24;
 const LARGE_BATCH_THRESHOLD = 100;
+const LARGE_BATCH_PAGE_CONCURRENCY = 8;
+const LARGE_BATCH_MAX_PAGES = 48;
+const LARGE_BATCH_REQUEST_TIMEOUT_MS = 7_000;
+const LARGE_BATCH_BUDGET_MS = 42_000;
 const SMALL_BATCH_VALIDATION_CAP = 24;
 
 function normalizeCategoryUrl(raw: string): URL {
@@ -68,9 +72,8 @@ function addCandidate(
 
 /**
  * Trendyol kategori sırası genellikle sayfa bazında benzer ürünleri kümeler.
- * 24'lük sayfa bantlarını round-robin örerek 500 ürünün tek bir ürün tipine
+ * 24'lük sayfa bantlarını round-robin örerek büyük batch'in tek ürün tipine
  * yığılmasını azaltırız: s1/1, s2/1, s3/1... sonra s1/2, s2/2...
- * İşlem deterministiktir; aynı aday havuzu her zaman aynı karışık sırayı üretir.
  */
 function mixAcrossCategoryPages(products: TrendyolCategoryProduct[]): TrendyolCategoryProduct[] {
   if (products.length <= MIX_BAND_SIZE) return products;
@@ -90,11 +93,15 @@ function mixAcrossCategoryPages(products: TrendyolCategoryProduct[]): TrendyolCa
   return mixed;
 }
 
-async function fetchRawCategoryPage(target: string): Promise<TrendyolCategoryProduct[]> {
-  for (const userAgent of SEO_USER_AGENTS) {
+async function fetchRawCategoryPage(
+  target: string,
+  timeoutMs = 20_000,
+  parallelAgents = false,
+): Promise<TrendyolCategoryProduct[]> {
+  const fetchForAgent = async (userAgent: (typeof SEO_USER_AGENTS)[number]) => {
     try {
       const response = await axios.get<string>(target, {
-        timeout: 20_000,
+        timeout: timeoutMs,
         responseType: "text",
         maxRedirects: 4,
         validateStatus: () => true,
@@ -113,20 +120,100 @@ async function fetchRawCategoryPage(target: string): Promise<TrendyolCategoryPro
         typeof response.data === "string" &&
         response.data.length > 8_000
       ) {
-        const products = extractTrendyolCategoryProducts(response.data, target);
-        if (products.length > 0) return products;
+        return extractTrendyolCategoryProducts(response.data, target);
       }
     } catch {
-      // Sonraki SEO user-agent denenir.
+      // Bu agent başarısızsa diğer yol denenir.
     }
+    return [];
+  };
+
+  if (parallelAgents) {
+    const groups = await Promise.all(SEO_USER_AGENTS.map((userAgent) => fetchForAgent(userAgent)));
+    const byId = new Map<string, TrendyolCategoryProduct>();
+    for (const group of groups) {
+      for (const product of group) {
+        if (product?.productId && product?.url && !byId.has(product.productId)) {
+          byId.set(product.productId, product);
+        }
+      }
+    }
+    return [...byId.values()];
+  }
+
+  for (const userAgent of SEO_USER_AGENTS) {
+    const products = await fetchForAgent(userAgent);
+    if (products.length > 0) return products;
   }
   return [];
+}
+
+async function collectLargeBatchCandidates(input: {
+  base: URL;
+  blockedIds: Set<string>;
+  blockedCandidates: Set<string>;
+  candidateTarget: number;
+}): Promise<{ candidates: Map<string, TrendyolCategoryProduct>; pagesScanned: number }> {
+  const { base, blockedIds, blockedCandidates, candidateTarget } = input;
+  const candidates = new Map<string, TrendyolCategoryProduct>();
+  const startedAt = Date.now();
+  let nextPage = 1;
+  let pagesScanned = 0;
+  let emptyBatches = 0;
+
+  while (
+    candidates.size < candidateTarget &&
+    nextPage <= LARGE_BATCH_MAX_PAGES &&
+    Date.now() - startedAt < LARGE_BATCH_BUDGET_MS
+  ) {
+    const pages: number[] = [];
+    for (
+      let index = 0;
+      index < LARGE_BATCH_PAGE_CONCURRENCY && nextPage <= LARGE_BATCH_MAX_PAGES;
+      index += 1
+    ) {
+      pages.push(nextPage++);
+    }
+
+    const groups = await Promise.all(
+      pages.map(async (page) => ({
+        page,
+        products: await fetchRawCategoryPage(
+          categoryPageUrl(base, page),
+          LARGE_BATCH_REQUEST_TIMEOUT_MS,
+          true,
+        ),
+      })),
+    );
+
+    pagesScanned += groups.length;
+    let addedThisBatch = 0;
+
+    // Promise.all giriş sırasını koruduğu için kategori sayfa sırası deterministik kalır.
+    for (const group of groups) {
+      for (const product of group.products) {
+        const status = addCandidate(candidates, product, blockedIds);
+        if (status === "blocked") blockedCandidates.add(product.productId);
+        if (status === "added") addedThisBatch += 1;
+      }
+    }
+
+    console.info(
+      `[CategoryDiscoveryV4] fast-pages=${pages[0]}-${pages[pages.length - 1]} added=${addedThisBatch} candidates=${candidates.size}/${candidateTarget} elapsed=${Date.now() - startedAt}ms`,
+    );
+
+    if (addedThisBatch === 0) emptyBatches += 1;
+    else emptyBatches = 0;
+
+    if (emptyBatches >= 2) break;
+  }
+
+  return { candidates, pagesScanned };
 }
 
 /**
  * Kategori keşfinde yalnız HTTP 200 görmek yeterli değildir. Ürün sayfasında
  * ürün kimliğiyle beraber gerçek ürün içerik sinyallerinden en az biri bulunmalıdır.
- * Böylece kategori kartı var fakat ürün detay pipeline'ı boş dönen adaylar elenir.
  */
 async function validateCandidate(product: TrendyolCategoryProduct): Promise<boolean> {
   for (const userAgent of SEO_USER_AGENTS) {
@@ -175,9 +262,7 @@ async function validateCandidates(
   products: TrendyolCategoryProduct[],
   validationTarget: number,
 ): Promise<{ valid: TrendyolCategoryProduct[]; checked: number }> {
-  if (validationTarget <= 0 || products.length === 0) {
-    return { valid: [], checked: 0 };
-  }
+  if (validationTarget <= 0 || products.length === 0) return { valid: [], checked: 0 };
 
   const validByIndex = new Map<number, TrendyolCategoryProduct>();
   let validCount = 0;
@@ -215,17 +300,12 @@ async function validateCandidates(
 
 /**
  * V4 exact-count + no-repeat davranışı:
- * - Kullanıcının seçtiği adet tek gerçek kaynak sayıdır: 20 => 20, 500 => 500.
- * - Aynı Trendyol productId aynı işlemde ikinci kez seçilemez.
- * - MARKT-GO'da halen bulunan ürün tekrar seçilemez.
- * - Daha önce programa girip sonradan katalogdan silinen ürün de tracked_products
- *   geçmişi sayesinde tekrar seçilemez.
- * - Eski ürün görülürse adet düşürülmez; tarama sonraki kategori sayfalarına devam
- *   eder ve hedef adet yeni/benzersiz ürünlerle tamamlanır.
- * - Son liste kategori sayfa bantlarından karışık/round-robin sırada üretilir.
- * - 100+ ürün keşfinde tek tek ürün sayfası ön-doğrulaması yapılmaz. Bu doğrulama
- *   zaten ürün çekme pipeline'ında retry + yedek ürün sistemiyle yapılır; böylece
- *   500 ürün isteği reverse-proxy timeout'una girmez.
+ * - 20 => 20, 50 => 50, 500 => 500.
+ * - Aynı Trendyol productId aynı işlemde veya geçmiş aktarımlarda ikinci kez seçilemez.
+ * - 100+ ürün keşfi proxy'nin 60 saniyelik sınırına girmemesi için kategori sayfalarını
+ *   kontrollü paralel tarar ve ürün detay ön-doğrulamasını gerçek scraper aşamasına bırakır.
+ * - 500 ürün için ayrıca yedek havuz hazırlanır; bir ürün detay çekiminde düşerse exact-count
+ *   akışı yedek URL ile hedef adedi koruyabilir.
  */
 export async function discoverTrendyolCategoryProducts(input: {
   url: string;
@@ -233,68 +313,77 @@ export async function discoverTrendyolCategoryProducts(input: {
 }): Promise<TrendyolCategoryDiscoveryResult> {
   const base = normalizeCategoryUrl(input.url);
   const requestedCount = Math.max(1, Math.min(500, Number(input.maxProducts) || 50));
-  const reserveCount = Math.min(
-    500 - requestedCount,
-    Math.max(20, Math.ceil(requestedCount * 0.75)),
-  );
-  const candidateTarget = Math.min(500, requestedCount + reserveCount);
+  const isLargeBatch = requestedCount >= LARGE_BATCH_THRESHOLD;
+  const reserveCount = isLargeBatch
+    ? Math.min(120, Math.max(30, Math.ceil(requestedCount * 0.2)))
+    : Math.min(500 - requestedCount, Math.max(20, Math.ceil(requestedCount * 0.75)));
+  const candidateTarget = requestedCount + reserveCount;
   const warnings: string[] = [];
 
-  // Fail-closed: duplicate kayıt defteri doğrulanamıyorsa yeni kategori aktarımı
-  // başlatılmaz. Böylece bağlantı sorunu yüzünden eski ürün yeniden çekilemez.
+  // Fail-closed: canlı katalog + kalıcı geçmiş doğrulanmadan kategori aktarımı başlamaz.
   const duplicateGuard = await loadBlockedTrendyolProductIdsForCategoryImport();
   const blockedIds = duplicateGuard.blockedIds;
   const blockedCandidates = new Set<string>();
 
-  const primary = await discoverV3({
-    url: base.toString(),
-    maxProducts: candidateTarget,
-  });
-
-  const candidates = new Map<string, TrendyolCategoryProduct>();
-  for (const product of primary.products || []) {
-    const status = addCandidate(candidates, product, blockedIds);
-    if (status === "blocked") blockedCandidates.add(product.productId);
-  }
-
+  let candidates = new Map<string, TrendyolCategoryProduct>();
+  let primarySkippedExistingCount = 0;
+  let primaryPagesScanned = 0;
+  let primaryWarnings: string[] = [];
+  let source: V3Result["source"] = "seo-ssr";
   let rawPagesScanned = 0;
-  if (candidates.size < candidateTarget) {
-    for (
-      let page = 1;
-      page <= MAX_RAW_PAGES && candidates.size < candidateTarget;
-      page += 1
-    ) {
-      const pageUrl = categoryPageUrl(base, page);
-      const rawProducts = await fetchRawCategoryPage(pageUrl);
-      rawPagesScanned++;
-      for (const product of rawProducts) {
-        const status = addCandidate(candidates, product, blockedIds);
-        if (status === "blocked") blockedCandidates.add(product.productId);
+
+  if (isLargeBatch) {
+    const fast = await collectLargeBatchCandidates({
+      base,
+      blockedIds,
+      blockedCandidates,
+      candidateTarget,
+    });
+    candidates = fast.candidates;
+    rawPagesScanned = fast.pagesScanned;
+    console.info(
+      `[CategoryDiscoveryV4] large-batch=${requestedCount} fast-discovery completed candidates=${candidates.size} pages=${rawPagesScanned}`,
+    );
+  } else {
+    const primary = await discoverV3({
+      url: base.toString(),
+      maxProducts: Math.min(500, candidateTarget),
+    });
+    primarySkippedExistingCount = primary.skippedExistingCount || 0;
+    primaryPagesScanned = primary.pagesScanned || 0;
+    primaryWarnings = primary.warnings || [];
+    source = primary.source;
+
+    for (const product of primary.products || []) {
+      const status = addCandidate(candidates, product, blockedIds);
+      if (status === "blocked") blockedCandidates.add(product.productId);
+    }
+
+    if (candidates.size < candidateTarget) {
+      for (
+        let page = 1;
+        page <= MAX_RAW_PAGES && candidates.size < candidateTarget;
+        page += 1
+      ) {
+        const rawProducts = await fetchRawCategoryPage(categoryPageUrl(base, page));
+        rawPagesScanned++;
+        for (const product of rawProducts) {
+          const status = addCandidate(candidates, product, blockedIds);
+          if (status === "blocked") blockedCandidates.add(product.productId);
+        }
       }
     }
   }
 
   const candidateList = [...candidates.values()];
-
-  // Büyük kategori işlerinde yüzlerce ürün detay sayfasını keşif endpoint'i içinde
-  // doğrulamak Railway/proxy timeout'una neden oluyordu. Büyük batch'te ön-doğrulama
-  // tamamen atlanır; gerçek ürün çekme aşamasındaki exact-count retry sistemi bunu
-  // zaten güvenli şekilde yapar. Küçük batch'te ise hızlı bir örneklem korunur.
-  const validationTarget =
-    requestedCount >= LARGE_BATCH_THRESHOLD
-      ? 0
-      : Math.min(
-          candidateList.length,
-          SMALL_BATCH_VALIDATION_CAP,
-          requestedCount + Math.min(reserveCount, Math.max(8, Math.ceil(requestedCount * 0.25))),
-        );
+  const validationTarget = isLargeBatch
+    ? 0
+    : Math.min(
+        candidateList.length,
+        SMALL_BATCH_VALIDATION_CAP,
+        requestedCount + Math.min(reserveCount, Math.max(8, Math.ceil(requestedCount * 0.25))),
+      );
   const validation = await validateCandidates(candidateList, validationTarget);
-
-  if (requestedCount >= LARGE_BATCH_THRESHOLD) {
-    console.info(
-      `[CategoryDiscoveryV4] large-batch=${requestedCount}; pre-validation skipped; candidates=${candidateList.length}; product pipeline will validate with exact-count retry`,
-    );
-  }
 
   const ordered = new Map<string, TrendyolCategoryProduct>();
   for (const product of validation.valid) addCandidate(ordered, product, blockedIds);
@@ -307,7 +396,7 @@ export async function discoverTrendyolCategoryProducts(input: {
     .filter((product) => !selectedIds.has(product.productId))
     .slice(0, reserveCount);
 
-  const skippedExistingCount = primary.skippedExistingCount + blockedCandidates.size;
+  const skippedExistingCount = primarySkippedExistingCount + blockedCandidates.size;
   if (skippedExistingCount > 0) {
     warnings.push(
       `${skippedExistingCount} eski/tekrar ürün engellendi; hedef adet için kategori taraması sonraki benzersiz ürünlerle devam etti.`,
@@ -318,9 +407,13 @@ export async function discoverTrendyolCategoryProducts(input: {
     `Tekrar koruması aktif: MARKT-GO kataloğu ${duplicateGuard.catalogCount} Trendyol ürünü, kalıcı takip geçmişi ${duplicateGuard.historyCount} Trendyol ürünü içeriyor. Aynı productId ikinci kez seçilmez.`,
   );
 
-  if (validationTarget > 0 && validation.valid.length < Math.min(requestedCount, validationTarget)) {
+  if (isLargeBatch) {
     warnings.push(
-      `${validation.checked} aday erişim kontrolünden geçti; ${validation.valid.length} aday güçlü şekilde doğrulandı. Kalan adaylar gerçek kategori sonuçlarından tamamlandı ve scraper retry zinciriyle yeniden doğrulanacak.`,
+      `Büyük batch hızlı keşif modu kullanıldı: ${rawPagesScanned} kategori sayfası kontrollü paralel tarandı; ${reserveProducts.length} yedek ürün hazırlandı.`,
+    );
+  } else if (validationTarget > 0 && validation.valid.length < Math.min(requestedCount, validationTarget)) {
+    warnings.push(
+      `${validation.checked} aday erişim kontrolünden geçti; ${validation.valid.length} aday güçlü şekilde doğrulandı. Kalan adaylar ürün çekme pipeline'ında yeniden doğrulanacak.`,
     );
   }
 
@@ -330,7 +423,7 @@ export async function discoverTrendyolCategoryProducts(input: {
     );
   }
 
-  warnings.push(...(primary.warnings || []).filter((warning) => !/yeni ürün istendi/i.test(warning)));
+  warnings.push(...primaryWarnings.filter((warning) => !/yeni ürün istendi/i.test(warning)));
 
   return {
     success: products.length === requestedCount,
@@ -339,11 +432,11 @@ export async function discoverTrendyolCategoryProducts(input: {
     foundCount: products.length,
     skippedExistingCount,
     existingCatalogCount: duplicateGuard.catalogCount,
-    pagesScanned: Math.max(primary.pagesScanned || 0, rawPagesScanned),
+    pagesScanned: Math.max(primaryPagesScanned, rawPagesScanned),
     products,
     reserveProducts,
     candidateCount: orderedList.length,
-    source: primary.source,
+    source,
     warnings,
   };
 }
