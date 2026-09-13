@@ -76,6 +76,7 @@ for (const [file, label] of [
   ["scripts/enable-ultra-fast-marktgo-upload.mjs", "Product-first MARKT-GO upload"],
   ["scripts/enforce-auto-tag-toggle.mjs", "Strict automatic-tag toggle"],
   ["scripts/enable-mobile-live-scrape-jobs.mjs", "Mobile live Trendyol scrape jobs"],
+  ["scripts/fix-bulk-toast-context.mjs", "Exact bulk notification context fix"],
 ]) {
   const full = path.join(root, file);
   if (!fs.existsSync(full)) throw new Error(`[exact-bulk-profile] ${label} bulunamadı`);
