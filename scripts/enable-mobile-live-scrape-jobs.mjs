@@ -39,3 +39,7 @@ await import("./enforce-lossless-exact-pipeline.mjs");
 // Exact-count koruması uygulandıktan sonra yalnız kontrollü hız/yorum ayarlarını yükselt.
 // Varyant zinciri bu adımda sadece doğrulanır, değiştirilmez.
 await import("./tune-fast-reviews-and-throughput.mjs");
+
+// Takip scheduler'ı legacy Shopify eşleşmesine bağlı kalmasın; kayıtlı kaynak ürünlerin
+// tamamını gözlemleyebilsin ve her döngünün gerçek sonucunu Railway loguna yazsın.
+await import("./harden-tracking-scheduler.mjs");
