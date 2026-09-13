@@ -55,5 +55,42 @@ if (
   throw new Error("[bulk-toast-context] exact-count overshoot guard doğrulanamadı");
 }
 
+// Yorumlar toplu ürün çekimi bitene kadar beklememeli. Her ürün preview'a düştüğü anda
+// Trendyol yorum isteği başlasın. trendyol-reviews-client içindeki kontrollü ortak havuz
+// concurrency/rate-limit güvenliğini korur; burada yalnız eski UI pause kilidini kaldırıyoruz.
+src = src.replaceAll(
+  "reviewsPaused={isBulkProcessing || Boolean(uploadProgress) || csvPreviews.length > 1}",
+  "reviewsPaused={false}",
+);
+src = src.replaceAll(
+  "reviewsPaused={isBulkProcessing}",
+  "reviewsPaused={false}",
+);
+
 fs.writeFileSync(scraperPath, src);
-console.log("[bulk-toast-context] exact reserve failures hidden; user-facing errors contextualized; exact overshoot capped");
+
+const productPreviewPath = path.join(root, "client/src/components/CSVDrawerProductPreview.tsx");
+let previewSrc = fs.readFileSync(productPreviewPath, "utf8");
+
+previewSrc = previewSrc.replaceAll(
+  "if (!canFetchReviews || !sourceUrl || reviewsPaused) return;",
+  "if (!canFetchReviews || !sourceUrl) return;",
+);
+previewSrc = previewSrc.replaceAll(
+  "[canFetchReviews, sourceUrl, reviewsPaused]",
+  "[canFetchReviews, sourceUrl]",
+);
+previewSrc = previewSrc.replaceAll(
+  '{reviewsPaused ? "Yorumlar ürün çekimi bittikten sonra alınacak" : "Yorumlar sırada…"}',
+  '"Yorumlar ürünle birlikte çekiliyor…"',
+);
+
+if (previewSrc.includes("Yorumlar ürün çekimi bittikten sonra alınacak")) {
+  throw new Error("[bulk-toast-context] ürün sırasında yorum çekme UI kilidi kaldırılamadı");
+}
+if (previewSrc.includes("!canFetchReviews || !sourceUrl || reviewsPaused")) {
+  throw new Error("[bulk-toast-context] yorum fetch pause guard kaldırılamadı");
+}
+
+fs.writeFileSync(productPreviewPath, previewSrc);
+console.log("[bulk-toast-context] exact reserve failures hidden; exact overshoot capped; reviews start immediately with each scraped product");
