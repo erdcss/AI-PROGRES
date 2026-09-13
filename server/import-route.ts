@@ -17,7 +17,7 @@ router.post('/api/trendyol/category/discover', async (req, res) => {
       });
     }
 
-    const { discoverTrendyolCategoryProducts } = await import('./trendyol-category-discovery-v3');
+    const { discoverTrendyolCategoryProducts } = await import('./trendyol-category-discovery-v4');
     const result = await discoverTrendyolCategoryProducts({
       url,
       maxProducts: Number(maxProducts) || 50,
