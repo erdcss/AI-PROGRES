@@ -7,6 +7,7 @@ import {
   discoverTrendyolCategoryProducts as discoverV3,
   type TrendyolCategoryDiscoveryResult as V3Result,
 } from "./trendyol-category-discovery-v3";
+import { loadBlockedTrendyolProductIdsForCategoryImport } from "./services/marktgo/trendyol-dedupe.service";
 
 export type TrendyolCategoryDiscoveryResult = V3Result & {
   /** İstenen adedin arkasında hazır tutulan yedek ürünler. */
@@ -15,8 +16,9 @@ export type TrendyolCategoryDiscoveryResult = V3Result & {
 };
 
 const SEO_USER_AGENTS = ["Twitterbot/1.0", "Google-InspectionTool/1.0"] as const;
-const MAX_RAW_PAGES = 20;
+const MAX_RAW_PAGES = 120;
 const VALIDATION_CONCURRENCY = 4;
+const MIX_BAND_SIZE = 24;
 
 function normalizeCategoryUrl(raw: string): URL {
   const value = String(raw || "").trim();
@@ -53,9 +55,37 @@ function categoryPageUrl(base: URL, page: number): string {
 function addCandidate(
   target: Map<string, TrendyolCategoryProduct>,
   product: TrendyolCategoryProduct | null | undefined,
-) {
-  if (!product?.productId || !product?.url || target.has(product.productId)) return;
+  blockedIds?: Set<string>,
+): "added" | "blocked" | "duplicate" | "invalid" {
+  if (!product?.productId || !product?.url) return "invalid";
+  if (blockedIds?.has(product.productId)) return "blocked";
+  if (target.has(product.productId)) return "duplicate";
   target.set(product.productId, product);
+  return "added";
+}
+
+/**
+ * Trendyol kategori sırası genellikle sayfa bazında benzer ürünleri kümeler.
+ * 24'lük sayfa bantlarını round-robin örerek 500 ürünün tek bir ürün tipine
+ * yığılmasını azaltırız: s1/1, s2/1, s3/1... sonra s1/2, s2/2...
+ * İşlem deterministiktir; aynı aday havuzu her zaman aynı karışık sırayı üretir.
+ */
+function mixAcrossCategoryPages(products: TrendyolCategoryProduct[]): TrendyolCategoryProduct[] {
+  if (products.length <= MIX_BAND_SIZE) return products;
+
+  const bands: TrendyolCategoryProduct[][] = [];
+  for (let start = 0; start < products.length; start += MIX_BAND_SIZE) {
+    bands.push(products.slice(start, start + MIX_BAND_SIZE));
+  }
+
+  const mixed: TrendyolCategoryProduct[] = [];
+  for (let offset = 0; offset < MIX_BAND_SIZE; offset += 1) {
+    for (const band of bands) {
+      const product = band[offset];
+      if (product) mixed.push(product);
+    }
+  }
+  return mixed;
 }
 
 async function fetchRawCategoryPage(target: string): Promise<TrendyolCategoryProduct[]> {
@@ -143,18 +173,22 @@ async function validateCandidates(
   products: TrendyolCategoryProduct[],
   validationTarget: number,
 ): Promise<{ valid: TrendyolCategoryProduct[]; checked: number }> {
-  const valid: TrendyolCategoryProduct[] = [];
+  const validByIndex = new Map<number, TrendyolCategoryProduct>();
+  let validCount = 0;
   let cursor = 0;
   let checked = 0;
 
   const worker = async () => {
-    while (valid.length < validationTarget) {
+    while (validCount < validationTarget) {
       const index = cursor++;
       if (index >= products.length) return;
       const product = products[index];
       const ok = await validateCandidate(product);
       checked++;
-      if (ok && valid.length < validationTarget) valid.push(product);
+      if (ok && validCount < validationTarget && !validByIndex.has(index)) {
+        validByIndex.set(index, product);
+        validCount++;
+      }
     }
   };
 
@@ -165,17 +199,24 @@ async function validateCandidates(
     ),
   );
 
-  return { valid: valid.slice(0, validationTarget), checked };
+  const valid = [...validByIndex.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, product]) => product)
+    .slice(0, validationTarget);
+
+  return { valid, checked };
 }
 
 /**
- * V4 exact-count davranışı:
- * - Kullanıcının seçtiği adet tek gerçek kaynak sayıdır: 20 => 20, 50 => 50.
- * - Önceden MARKT-GO'da bulunmuş ürünler keşif adedini düşürmez.
- * - İstenen adedin arkasında yedek havuz hazırlanır; UI gerektiğinde başarısız URL'yi
- *   yedek bir ürünle değiştirebilir.
- * - Mümkün olduğunca doğrulanmış ürünler öne alınır; doğrulanmamış adaylar yalnız
- *   yedek/fallback olarak kullanılır.
+ * V4 exact-count + no-repeat davranışı:
+ * - Kullanıcının seçtiği adet tek gerçek kaynak sayıdır: 20 => 20, 500 => 500.
+ * - Aynı Trendyol productId aynı işlemde ikinci kez seçilemez.
+ * - MARKT-GO'da halen bulunan ürün tekrar seçilemez.
+ * - Daha önce programa girip sonradan katalogdan silinen ürün de tracked_products
+ *   geçmişi sayesinde tekrar seçilemez.
+ * - Eski ürün görülürse adet düşürülmez; tarama sonraki kategori sayfalarına devam
+ *   eder ve hedef adet yeni/benzersiz ürünlerle tamamlanır.
+ * - Son liste kategori sayfa bantlarından karışık/round-robin sırada üretilir.
  */
 export async function discoverTrendyolCategoryProducts(input: {
   url: string;
@@ -190,13 +231,22 @@ export async function discoverTrendyolCategoryProducts(input: {
   const candidateTarget = Math.min(500, requestedCount + reserveCount);
   const warnings: string[] = [];
 
+  // Fail-closed: duplicate kayıt defteri doğrulanamıyorsa yeni kategori aktarımı
+  // başlatılmaz. Böylece bağlantı sorunu yüzünden eski ürün yeniden çekilemez.
+  const duplicateGuard = await loadBlockedTrendyolProductIdsForCategoryImport();
+  const blockedIds = duplicateGuard.blockedIds;
+  const blockedCandidates = new Set<string>();
+
   const primary = await discoverV3({
     url: base.toString(),
     maxProducts: candidateTarget,
   });
 
   const candidates = new Map<string, TrendyolCategoryProduct>();
-  for (const product of primary.products || []) addCandidate(candidates, product);
+  for (const product of primary.products || []) {
+    const status = addCandidate(candidates, product, blockedIds);
+    if (status === "blocked") blockedCandidates.add(product.productId);
+  }
 
   let rawPagesScanned = 0;
   if (candidates.size < candidateTarget) {
@@ -208,7 +258,10 @@ export async function discoverTrendyolCategoryProducts(input: {
       const pageUrl = categoryPageUrl(base, page);
       const rawProducts = await fetchRawCategoryPage(pageUrl);
       rawPagesScanned++;
-      for (const product of rawProducts) addCandidate(candidates, product);
+      for (const product of rawProducts) {
+        const status = addCandidate(candidates, product, blockedIds);
+        if (status === "blocked") blockedCandidates.add(product.productId);
+      }
     }
   }
 
@@ -220,21 +273,26 @@ export async function discoverTrendyolCategoryProducts(input: {
   const validation = await validateCandidates(candidateList, validationTarget);
 
   const ordered = new Map<string, TrendyolCategoryProduct>();
-  for (const product of validation.valid) addCandidate(ordered, product);
-  for (const product of candidateList) addCandidate(ordered, product);
+  for (const product of validation.valid) addCandidate(ordered, product, blockedIds);
+  for (const product of candidateList) addCandidate(ordered, product, blockedIds);
 
-  const orderedList = [...ordered.values()];
+  const orderedList = mixAcrossCategoryPages([...ordered.values()]);
   const products = orderedList.slice(0, requestedCount);
   const selectedIds = new Set(products.map((product) => product.productId));
   const reserveProducts = orderedList
     .filter((product) => !selectedIds.has(product.productId))
     .slice(0, reserveCount);
 
-  if (primary.skippedExistingCount > 0) {
+  const skippedExistingCount = primary.skippedExistingCount + blockedCandidates.size;
+  if (skippedExistingCount > 0) {
     warnings.push(
-      `${primary.skippedExistingCount} ürün MARKT-GO'da mevcut; exact-count akışında bu durum istenen adedi azaltmaz.`,
+      `${skippedExistingCount} eski/tekrar ürün engellendi; hedef adet için kategori taraması sonraki benzersiz ürünlerle devam etti.`,
     );
   }
+
+  warnings.push(
+    `Tekrar koruması aktif: MARKT-GO kataloğu ${duplicateGuard.catalogCount} Trendyol ürünü, kalıcı takip geçmişi ${duplicateGuard.historyCount} Trendyol ürünü içeriyor. Aynı productId ikinci kez seçilmez.`,
+  );
 
   if (validation.valid.length < requestedCount) {
     warnings.push(
@@ -244,7 +302,7 @@ export async function discoverTrendyolCategoryProducts(input: {
 
   if (products.length < requestedCount) {
     warnings.push(
-      `${requestedCount} ürün istendi ancak kategori kaynaklarından yalnızca ${products.length} benzersiz ürün URL'si elde edilebildi. Exact-count güvenliği nedeniyle UI eksik adetle otomatik çekim başlatmamalıdır.`,
+      `${requestedCount} yeni ve benzersiz ürün istendi ancak kategori kaynaklarından yalnızca ${products.length} uygun ürün elde edilebildi. Eksik adetle otomatik çekim başlatılmamalıdır.`,
     );
   }
 
@@ -255,8 +313,8 @@ export async function discoverTrendyolCategoryProducts(input: {
     categoryUrl: base.toString(),
     requestedCount,
     foundCount: products.length,
-    skippedExistingCount: 0,
-    existingCatalogCount: primary.existingCatalogCount || 0,
+    skippedExistingCount,
+    existingCatalogCount: duplicateGuard.catalogCount,
     pagesScanned: Math.max(primary.pagesScanned || 0, rawPagesScanned),
     products,
     reserveProducts,
