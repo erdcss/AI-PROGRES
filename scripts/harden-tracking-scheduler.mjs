@@ -6,7 +6,7 @@ const target = path.join(root, "server/services/tracking.scheduler.ts");
 let src = fs.readFileSync(target, "utf8");
 
 // MARKT-GO / kendi katalog altyapısındaki ürünlerin takip edilebilmesi için scheduler'ı
-// legacy Shopify id eşleşmesine bağımlı bırakma. Panelde görünen, aktif, arşivlenmemiş ve
+// legacy Shopify id eşleşmesine bağımlı bırakma. Panelde görünen, arşivlenmemiş ve
 // kaynak URL'si olan kayıtlar takip havuzuna girebilir.
 const oldVisibleCondition = `function visibleTrackedProductCondition() {\n  return and(\n    ne(trackedProducts.currentStatus, "shopify_deleted"),\n    isNull(trackedProducts.archivedAt),\n    or(\n      isNotNull(trackedProducts.shopifyProductId),\n      isNotNull(trackedProducts.shopifyProductGid),\n    ),\n  );\n}`;
 const newVisibleCondition = `function visibleTrackedProductCondition() {\n  return and(\n    ne(trackedProducts.currentStatus, "shopify_deleted"),\n    isNull(trackedProducts.archivedAt),\n    isNotNull(trackedProducts.sourceUrl),\n  );\n}`;
@@ -15,6 +15,17 @@ if (src.includes(oldVisibleCondition)) {
 }
 if (!src.includes("isNotNull(trackedProducts.sourceUrl)")) {
   throw new Error("[tracking-hardening] scheduler sourceUrl eligibility uygulanamadı");
+}
+
+// Hata durumuna düşmüş ürünleri scheduler dışına atmak onları sonsuza kadar hatalı bırakır.
+// Kaynak URL'si bulunan ve takip açık olan kayıtları tekrar dene; yalnız silinmiş/arşivlenmiş
+// ürünler visibleTrackedProductCondition tarafından dışarıda tutulur.
+src = src.replace(
+  `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          eq(trackedProducts.currentStatus, "active"),\n          visibleTrackedProductCondition(),\n        ),`,
+  `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          visibleTrackedProductCondition(),\n        ),`,
+);
+if (src.includes('eq(trackedProducts.currentStatus, "active"),\n          visibleTrackedProductCondition()')) {
+  throw new Error("[tracking-hardening] error-state retry eligibility uygulanamadı");
 }
 
 // Kapasite uyarısını her dakika spamlamamak için yalnız durum değiştiğinde yaz.
@@ -27,18 +38,21 @@ if (!src.includes("let lastCapacityWarningSignature")) {
 
 const oldBatchLoop = `    const batch = due.slice(0, settings.batchSize);\n    for (const p of batch) {\n      try {\n        await runManualProductCheck(p.id);\n      } catch (err) {\n        console.warn(\`Scheduler check failed for product \${p.id}:\`, err);\n      }\n      if (settings.requestDelayMs > 0) await sleep(settings.requestDelayMs);\n    }`;
 
-const newBatchLoop = `    const batch = due.slice(0, settings.batchSize);\n\n    // Ayardaki kontrol aralığının katalog büyüklüğünü gerçekten karşılayıp karşılamadığını\n    // görünür kıl. Örn. 788 ürün, batch=5, interval=60 => teorik kapasite 300 ürün/saat.\n    const configuredCapacity =\n      Math.max(1, settings.batchSize) * Math.max(1, settings.checkIntervalMinutes);\n    const capacitySignature = \`\${products.length}:\${settings.batchSize}:\${settings.checkIntervalMinutes}\`;\n    if (products.length > configuredCapacity) {\n      if (lastCapacityWarningSignature !== capacitySignature) {\n        console.warn(\n          \`[tracking-capacity] \${products.length} aktif ürün var; batch=\${settings.batchSize} ve interval=\${settings.checkIntervalMinutes}dk ile yaklaşık \${configuredCapacity} ürün/interval kapasitesi var. Tam rotasyon yaklaşık \${Math.ceil(products.length / Math.max(1, settings.batchSize))} dakika sürebilir.\`,\n        );\n        lastCapacityWarningSignature = capacitySignature;\n      }\n    } else if (lastCapacityWarningSignature !== null) {\n      console.info(\n        \`[tracking-capacity] Kapasite yeterli: \${products.length} ürün, batch=\${settings.batchSize}, interval=\${settings.checkIntervalMinutes}dk\`,\n      );\n      lastCapacityWarningSignature = null;\n    }\n\n    let cycleSucceeded = 0;\n    let cycleFailed = 0;\n    let cycleSkipped = 0;\n    let cycleChanges = 0;\n\n    for (const p of batch) {\n      try {\n        const result: any = await runManualProductCheck(p.id);\n        if (result?.skipped) cycleSkipped += 1;\n        else if (result?.success === false) cycleFailed += 1;\n        else cycleSucceeded += 1;\n        cycleChanges += Math.max(0, Number(result?.changesCreated || 0));\n      } catch (err) {\n        cycleFailed += 1;\n        console.warn(\`Scheduler check failed for product \${p.id}:\`, err);\n      }\n      if (settings.requestDelayMs > 0) await sleep(settings.requestDelayMs);\n    }`;
+const newBatchLoop = `    // Scheduler dakikada bir çalışıyor. Ayardaki checkIntervalMinutes gerçekten her\n    // ürün için hedef aralık olsun: katalog büyüdükçe gereken minimum batch otomatik artar.\n    // 788 ürün / 60 dakika => en az 14 ürün/döngü. Kullanıcının daha yüksek batch ayarı\n    // varsa ona dokunma. Güvenlik için tek döngüde en fazla 25 ürün işle.\n    const requiredBatchForInterval = Math.max(\n      1,\n      Math.ceil(products.length / Math.max(1, settings.checkIntervalMinutes)),\n    );\n    const effectiveBatchSize = Math.min(\n      25,\n      Math.max(settings.batchSize, requiredBatchForInterval),\n    );\n    const batch = due.slice(0, effectiveBatchSize);\n\n    const configuredCapacity =\n      Math.max(1, effectiveBatchSize) * Math.max(1, settings.checkIntervalMinutes);\n    const capacitySignature = \`\${products.length}:\${effectiveBatchSize}:\${settings.checkIntervalMinutes}\`;\n    if (products.length > configuredCapacity) {\n      if (lastCapacityWarningSignature !== capacitySignature) {\n        console.warn(\n          \`[tracking-capacity] \${products.length} takip ürünü var; effectiveBatch=\${effectiveBatchSize}, interval=\${settings.checkIntervalMinutes}dk. Tam rotasyon hedef aralığa sığmayabilir.\`,\n        );\n        lastCapacityWarningSignature = capacitySignature;\n      }\n    } else if (lastCapacityWarningSignature !== capacitySignature) {\n      console.info(\n        \`[tracking-capacity] Kapasite yeterli: \${products.length} ürün, configuredBatch=\${settings.batchSize}, effectiveBatch=\${effectiveBatchSize}, interval=\${settings.checkIntervalMinutes}dk\`,\n      );\n      lastCapacityWarningSignature = capacitySignature;\n    }\n\n    let cycleSucceeded = 0;\n    let cycleFailed = 0;\n    let cycleSkipped = 0;\n    let cycleChanges = 0;\n\n    // Full scan ile aynı kontrollü paralellik: kaynak siteleri boğmadan 60 dakikalık\n    // rotasyonu tamamlamak için en fazla 3 takip kontrolü aynı anda çalışır.\n    let batchCursor = 0;\n    const trackingConcurrency = Math.min(3, Math.max(1, batch.length));\n    const trackingWorker = async () => {\n      while (batchCursor < batch.length) {\n        const index = batchCursor++;\n        const p = batch[index];\n        if (!p) return;\n        try {\n          const result: any = await runManualProductCheck(p.id);\n          if (result?.skipped) cycleSkipped += 1;\n          else if (result?.success === false) cycleFailed += 1;\n          else cycleSucceeded += 1;\n          cycleChanges += Math.max(0, Number(result?.changesCreated || 0));\n        } catch (err) {\n          cycleFailed += 1;\n          console.warn(\`Scheduler check failed for product \${p.id}:\`, err);\n        }\n        if (settings.requestDelayMs > 0) await sleep(settings.requestDelayMs);\n      }\n    };\n    await Promise.all(Array.from({ length: trackingConcurrency }, () => trackingWorker()));`;
 
 if (src.includes(oldBatchLoop)) {
   src = src.replace(oldBatchLoop, newBatchLoop);
 }
-if (!src.includes("let cycleChanges = 0;")) {
-  throw new Error("[tracking-hardening] cycle metrics uygulanamadı");
+if (!src.includes("const requiredBatchForInterval")) {
+  throw new Error("[tracking-hardening] dynamic interval batch uygulanamadı");
+}
+if (!src.includes("const trackingConcurrency")) {
+  throw new Error("[tracking-hardening] scheduler concurrency uygulanamadı");
 }
 
 const oldSyncLog = `    await trackingService.writeSyncLog({\n      action: "tracking_check",\n      status: "success",\n      message: \`Scheduler cycle: \${batch.length} ürün kontrol edildi\`,\n      meta: { schedulerRunId: runId, changeCount: batch.length },\n    });`;
 
-const newSyncLog = `    await trackingService.writeSyncLog({\n      action: "tracking_check",\n      status: cycleFailed > 0 ? "warning" : "success",\n      message: \`Scheduler cycle: \${batch.length} ürün kontrol edildi · \${cycleChanges} değişiklik\`,\n      meta: {\n        schedulerRunId: runId,\n        totalEligible: products.length,\n        dueCount: due.length,\n        selectedCount: batch.length,\n        succeeded: cycleSucceeded,\n        failed: cycleFailed,\n        skipped: cycleSkipped,\n        changesCreated: cycleChanges,\n      },\n    });\n\n    console.info(\n      \`[tracking-cycle] run=\${runId} eligible=\${products.length} due=\${due.length} checked=\${batch.length} success=\${cycleSucceeded} failed=\${cycleFailed} skipped=\${cycleSkipped} changes=\${cycleChanges} next=\${schedulerState.nextRunAt?.toISOString() || "-"}\`,\n    );`;
+const newSyncLog = `    await trackingService.writeSyncLog({\n      action: "tracking_check",\n      status: cycleFailed > 0 ? "warning" : "success",\n      message: \`Scheduler cycle: \${batch.length} ürün kontrol edildi · \${cycleChanges} değişiklik\`,\n      meta: {\n        schedulerRunId: runId,\n        totalEligible: products.length,\n        dueCount: due.length,\n        configuredBatchSize: settings.batchSize,\n        effectiveBatchSize,\n        selectedCount: batch.length,\n        succeeded: cycleSucceeded,\n        failed: cycleFailed,\n        skipped: cycleSkipped,\n        changesCreated: cycleChanges,\n      },\n    });\n\n    console.info(\n      \`[tracking-cycle] run=\${runId} eligible=\${products.length} due=\${due.length} batch=\${settings.batchSize}->\${effectiveBatchSize} checked=\${batch.length} success=\${cycleSucceeded} failed=\${cycleFailed} skipped=\${cycleSkipped} changes=\${cycleChanges} next=\${schedulerState.nextRunAt?.toISOString() || "-"}\`,\n    );`;
 
 if (src.includes(oldSyncLog)) {
   src = src.replace(oldSyncLog, newSyncLog);
@@ -49,5 +63,5 @@ if (!src.includes("[tracking-cycle] run=")) {
 
 fs.writeFileSync(target, src);
 console.log(
-  "[tracking-hardening] own-catalog coverage enabled; scheduler capacity + cycle/change observability enabled",
+  "[tracking-hardening] all source-linked tracked products enabled; errors retry; dynamic interval batch + concurrency=3 + cycle/change observability enabled",
 );
