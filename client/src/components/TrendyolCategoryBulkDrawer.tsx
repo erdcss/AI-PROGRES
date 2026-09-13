@@ -5,6 +5,7 @@ import { ChevronDown, Layers3, Loader2, PackageSearch, Play, X } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
+import { useScraperWorkspace } from "@/components/scraper-workspace-context";
 
 type DiscoveryProduct = {
   productId: string;
@@ -25,9 +26,22 @@ type DiscoveryResponse = {
   message?: string;
 };
 
-const QUICK_COUNTS = [20, 50, 100, 250];
+const QUICK_COUNTS = [20, 50, 100, 250, 500];
 const EXACT_TARGET_STORAGE_KEY = "trendyol_category_exact_target";
 const EXACT_READY_STORAGE_KEY = "trendyol_category_exact_ready";
+
+function storageKey(base: string, tabId?: string): string {
+  return tabId ? `${base}:${tabId}` : base;
+}
+
+function findTabRoot(tabId?: string): HTMLElement | null {
+  if (!tabId) return document.body;
+  return (
+    Array.from(document.querySelectorAll<HTMLElement>("[data-app-tab-id]")).find(
+      (el) => el.dataset.appTabId === tabId,
+    ) || null
+  );
+}
 
 function findManualRow(input: HTMLElement): HTMLElement | null {
   const inputWrap = input.parentElement;
@@ -53,8 +67,12 @@ function trendyolProductId(value: string): string | null {
   return value.match(/-p-(\d+)/i)?.[1] || null;
 }
 
+function queueRoot(manualRow: HTMLElement): HTMLElement {
+  return manualRow.closest<HTMLElement>("[data-app-tab-id]") || manualRow.parentElement || document.body;
+}
+
 function queuedProductIds(manualRow: HTMLElement): Set<string> {
-  const root = manualRow.parentElement || document.body;
+  const root = queueRoot(manualRow);
   const ids = new Set<string>();
   for (const element of Array.from(root.querySelectorAll<HTMLElement>("[title]"))) {
     const title = element.getAttribute("title") || "";
@@ -65,8 +83,8 @@ function queuedProductIds(manualRow: HTMLElement): Set<string> {
   return ids;
 }
 
-function currentPreviewCount(): number {
-  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button"));
+function currentPreviewCount(scopeRoot: HTMLElement): number {
+  const buttons = Array.from(scopeRoot.querySelectorAll<HTMLButtonElement>("button"));
   for (const button of buttons) {
     const text = button.textContent || "";
     const match = text.match(/CSV\s+OLARAK\s+DIŞA\s+AKTAR\s*\((\d+)\)/i);
@@ -75,20 +93,23 @@ function currentPreviewCount(): number {
   return 0;
 }
 
-function isBulkScrapeRunning(): boolean {
-  return Array.from(document.querySelectorAll<HTMLButtonElement>("button")).some((button) => {
+function isBulkScrapeRunning(scopeRoot: HTMLElement): boolean {
+  return Array.from(scopeRoot.querySelectorAll<HTMLButtonElement>("button")).some((button) => {
     const text = button.textContent?.toLocaleUpperCase("tr-TR") || "";
     return text.includes("VERİLER ÇEKİLİYOR") || text.includes("ÜRÜNLER HAZIRLANIYOR");
   });
 }
 
-async function waitForBulkScrapeToSettle(timeoutMs = 45 * 60_000): Promise<void> {
+async function waitForBulkScrapeToSettle(
+  scopeRoot: HTMLElement,
+  timeoutMs = 45 * 60_000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let stableIdleTicks = 0;
   await new Promise((resolve) => setTimeout(resolve, 600));
 
   while (Date.now() < deadline) {
-    if (isBulkScrapeRunning()) {
+    if (isBulkScrapeRunning(scopeRoot)) {
       stableIdleTicks = 0;
     } else {
       stableIdleTicks += 1;
@@ -103,7 +124,7 @@ async function waitForBulkScrapeToSettle(timeoutMs = 45 * 60_000): Promise<void>
 async function waitForQueuedProductIds(
   manualRow: HTMLElement,
   expectedIds: string[],
-  timeoutMs = 1_500,
+  timeoutMs = 8_000,
 ): Promise<string[]> {
   const uniqueIds = [...new Set(expectedIds.filter(Boolean))];
   if (!uniqueIds.length) return [];
@@ -132,14 +153,19 @@ async function queueUrlsViaExistingDropFlow(
     const transfer = new DataTransfer();
     transfer.setData("text/plain", urls.join("\n"));
     transfer.setData("text/uri-list", urls.join("\n"));
-    const event = new DragEvent("drop", {
-      bubbles: true,
-      cancelable: true,
-      dataTransfer: transfer,
-    });
-    dropZone.dispatchEvent(event);
+    dropZone.dispatchEvent(
+      new DragEvent("drop", {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer: transfer,
+      }),
+    );
 
-    const missingIds = await waitForQueuedProductIds(manualRow, expectedIds, 1_500);
+    const missingIds = await waitForQueuedProductIds(
+      manualRow,
+      expectedIds,
+      Math.max(8_000, Math.min(20_000, urls.length * 35)),
+    );
     if (missingIds.length === 0) return [];
 
     const missingSet = new Set(missingIds);
@@ -154,10 +180,7 @@ async function queueUrlsViaExistingDropFlow(
 }
 
 function setReactInputValue(input: HTMLInputElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype,
-    "value",
-  )?.set;
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
   setter?.call(input, value);
   input.dispatchEvent(new Event("input", { bubbles: true }));
   input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -166,7 +189,7 @@ function setReactInputValue(input: HTMLInputElement, value: string) {
 async function waitForSingleQueuedId(
   manualRow: HTMLElement,
   productId: string,
-  timeoutMs = 900,
+  timeoutMs = 1_100,
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -191,17 +214,14 @@ async function queueUrlsViaManualFlow(urls: string[], manualRow: HTMLElement) {
       await new Promise((resolve) => setTimeout(resolve, 30));
       addButton.click();
 
-      if (productId) {
-        queued = await waitForSingleQueuedId(manualRow, productId, 1_100);
-      } else {
+      if (productId) queued = await waitForSingleQueuedId(manualRow, productId);
+      else {
         await new Promise((resolve) => setTimeout(resolve, 120));
         queued = input.value.trim() === "";
       }
     }
 
-    if (!queued) {
-      throw new Error(`Ürün URL'si ana çekim listesine eklenemedi: ${url}`);
-    }
+    if (!queued) throw new Error(`Ürün URL'si ana çekim listesine eklenemedi: ${url}`);
   }
 }
 
@@ -210,11 +230,17 @@ async function ensureUrlsAreQueued(urls: string[], manualRow: HTMLElement) {
   let missingUrls = await queueUrlsViaExistingDropFlow(urls, manualRow);
 
   if (missingUrls.length > 0) {
-    console.warn(`[CategoryBulk] drop akışında ${missingUrls.length} URL eksik kaldı; manual fallback çalışıyor`);
+    console.warn(
+      `[CategoryBulk] drop akışında ${missingUrls.length} URL eksik kaldı; manual fallback çalışıyor`,
+    );
     await queueUrlsViaManualFlow(missingUrls, manualRow);
   }
 
-  const stillMissingIds = await waitForQueuedProductIds(manualRow, expectedIds, 1_800);
+  const stillMissingIds = await waitForQueuedProductIds(
+    manualRow,
+    expectedIds,
+    Math.max(8_000, Math.min(20_000, urls.length * 35)),
+  );
   if (stillMissingIds.length > 0) {
     missingUrls = urls.filter((url) => {
       const id = trendyolProductId(url);
@@ -228,10 +254,10 @@ async function ensureUrlsAreQueued(urls: string[], manualRow: HTMLElement) {
   }
 }
 
-async function clickExistingFetchButton(): Promise<boolean> {
+async function clickExistingFetchButton(scopeRoot: HTMLElement): Promise<boolean> {
   const deadline = Date.now() + 8_000;
   while (Date.now() < deadline) {
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button"));
+    const buttons = Array.from(scopeRoot.querySelectorAll<HTMLButtonElement>("button"));
     const button = buttons.find((item) => {
       const text = item.textContent?.toLocaleUpperCase("tr-TR") || "";
       return text.includes("ÜRÜN VERİLERİNİ ÇEK") || text.includes("VERİLERİ ÇEK");
@@ -246,7 +272,7 @@ async function clickExistingFetchButton(): Promise<boolean> {
 }
 
 function removeFailedQueueRows(manualRow: HTMLElement): number {
-  const root = manualRow.parentElement || document.body;
+  const root = queueRoot(manualRow);
   const rows = new Set<HTMLElement>();
   for (const element of Array.from(root.querySelectorAll<HTMLElement>("[title*='trendyol.com']"))) {
     const row = element.parentElement;
@@ -267,36 +293,11 @@ function removeFailedQueueRows(manualRow: HTMLElement): number {
   return removed;
 }
 
-function clearTrendyolWorkspaceStorage() {
-  const exactKeys = [
-    "turmarkt_scraper_state_v1",
-    "turmarkt_scraper_queue",
-    "turmarkt_scraper_previews",
-    "turmarkt_last_scraped_product",
-    "turmarkt_scraper_last_url",
-  ];
-  const prefixes = [
-    "turmarkt_scraper_",
-    "trendyol_bulk_",
-    "trendyol_category_",
-  ];
-
-  for (const storage of [window.localStorage, window.sessionStorage]) {
-    try {
-      for (const key of exactKeys) storage.removeItem(key);
-      const toRemove: string[] = [];
-      for (let index = 0; index < storage.length; index += 1) {
-        const key = storage.key(index);
-        if (key && prefixes.some((prefix) => key.startsWith(prefix))) toRemove.push(key);
-      }
-      toRemove.forEach((key) => storage.removeItem(key));
-    } catch {
-      // Storage erişimi engelliyse UI reset yine devam eder.
-    }
-  }
-}
-
 export function TrendyolCategoryBulkDrawer() {
+  const workspace = useScraperWorkspace();
+  const tabId = workspace?.tabId;
+  const exactTargetKey = useMemo(() => storageKey(EXACT_TARGET_STORAGE_KEY, tabId), [tabId]);
+  const exactReadyKey = useMemo(() => storageKey(EXACT_READY_STORAGE_KEY, tabId), [tabId]);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [manualRow, setManualRow] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -308,11 +309,14 @@ export function TrendyolCategoryBulkDrawer() {
   const internalClearRef = useRef(false);
   const exactRunTokenRef = useRef(0);
 
+  const getScopeRoot = useCallback(() => findTabRoot(tabId), [tabId]);
+
   useEffect(() => {
     let portalHost: HTMLElement | null = null;
 
     const attach = () => {
-      const input = document.querySelector<HTMLElement>("[data-testid='input-product-url']");
+      const scopeRoot = getScopeRoot();
+      const input = scopeRoot?.querySelector<HTMLElement>("[data-testid='input-product-url']") || null;
       if (!input) {
         if (portalHost) {
           portalHost.remove();
@@ -327,9 +331,11 @@ export function TrendyolCategoryBulkDrawer() {
       if (!row?.parentElement) return;
       setManualRow(row);
 
-      if (portalHost?.isConnected) return;
+      if (portalHost?.isConnected && portalHost.parentElement === row.parentElement) return;
+      portalHost?.remove();
       portalHost = document.createElement("div");
       portalHost.dataset.trendyolCategoryBulk = "true";
+      if (tabId) portalHost.dataset.appTabOwner = tabId;
       portalHost.className = "w-full";
       row.parentElement.insertBefore(portalHost, row);
       setHost(portalHost);
@@ -345,21 +351,20 @@ export function TrendyolCategoryBulkDrawer() {
       window.clearInterval(timer);
       portalHost?.remove();
     };
-  }, []);
+  }, [getScopeRoot, tabId]);
 
   useEffect(() => {
     const handleClearWorkspace = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       const clearButton = target?.closest<HTMLButtonElement>("[data-testid='button-clear-workspace']");
-      if (!clearButton || clearButton.disabled) return;
+      const scopeRoot = getScopeRoot();
+      if (!clearButton || clearButton.disabled || !scopeRoot?.contains(clearButton)) return;
 
       exactRunTokenRef.current += 1;
-      sessionStorage.removeItem(EXACT_TARGET_STORAGE_KEY);
-      sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
-      clearTrendyolWorkspaceStorage();
+      sessionStorage.removeItem(exactTargetKey);
+      sessionStorage.removeItem(exactReadyKey);
 
       if (internalClearRef.current) return;
-
       setOpen(false);
       setUrl("");
       setCount(50);
@@ -370,7 +375,7 @@ export function TrendyolCategoryBulkDrawer() {
 
     document.addEventListener("click", handleClearWorkspace, true);
     return () => document.removeEventListener("click", handleClearWorkspace, true);
-  }, []);
+  }, [exactReadyKey, exactTargetKey, getScopeRoot]);
 
   const selectedCount = useMemo(() => {
     const custom = Number(customCount);
@@ -381,10 +386,12 @@ export function TrendyolCategoryBulkDrawer() {
   }, [count, customCount]);
 
   const clearWorkspaceForExactBatch = useCallback(async () => {
-    const clearButton = document.querySelector<HTMLButtonElement>("[data-testid='button-clear-workspace']");
+    const scopeRoot = getScopeRoot();
+    if (!scopeRoot) throw new Error("Sekme çalışma alanı bulunamadı");
+
+    const clearButton = scopeRoot.querySelector<HTMLButtonElement>("[data-testid='button-clear-workspace']");
     if (!clearButton || clearButton.disabled) {
-      const queueClear = document.querySelector<HTMLButtonElement>("[data-testid='button-clear-url-queue']");
-      queueClear?.click();
+      scopeRoot.querySelector<HTMLButtonElement>("[data-testid='button-clear-url-queue']")?.click();
       return;
     }
 
@@ -394,19 +401,20 @@ export function TrendyolCategoryBulkDrawer() {
       const deadline = Date.now() + 4_000;
       while (Date.now() < deadline) {
         const queueEmpty = !manualRow || queuedProductIds(manualRow).size === 0;
-        if (queueEmpty && currentPreviewCount() === 0) return;
+        if (queueEmpty && currentPreviewCount(scopeRoot) === 0) return;
         await new Promise((resolve) => setTimeout(resolve, 80));
       }
     } finally {
       internalClearRef.current = false;
     }
-  }, [manualRow]);
+  }, [getScopeRoot, manualRow]);
 
   const enforceExactScrapeTarget = useCallback(
     async (
       targetCount: number,
       reserveUrls: string[],
       row: HTMLElement,
+      scopeRoot: HTMLElement,
       runToken: number,
     ) => {
       const reserveQueue = reserveUrls.filter(Boolean);
@@ -414,12 +422,12 @@ export function TrendyolCategoryBulkDrawer() {
 
       for (let cycle = 0; cycle < 30; cycle += 1) {
         if (runToken !== exactRunTokenRef.current) return;
-        await waitForBulkScrapeToSettle();
+        await waitForBulkScrapeToSettle(scopeRoot);
         if (runToken !== exactRunTokenRef.current) return;
 
-        const readyCount = currentPreviewCount();
+        const readyCount = currentPreviewCount(scopeRoot);
         if (readyCount === targetCount) {
-          sessionStorage.setItem(EXACT_READY_STORAGE_KEY, String(targetCount));
+          sessionStorage.setItem(exactReadyKey, String(targetCount));
           setLastFound(targetCount);
           toast({
             title: `✅ ${targetCount}/${targetCount} ürün hazır`,
@@ -430,7 +438,7 @@ export function TrendyolCategoryBulkDrawer() {
         }
 
         if (readyCount > targetCount) {
-          sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+          sessionStorage.removeItem(exactReadyKey);
           toast({
             title: "Exact-count güvenlik durdurması",
             description: `${targetCount} ürün istendi fakat ${readyCount} önizleme oluştu. Fazla ürün gönderilmemesi için otomatik süreç durduruldu.`,
@@ -442,9 +450,7 @@ export function TrendyolCategoryBulkDrawer() {
 
         const gap = targetCount - readyCount;
         const removed = removeFailedQueueRows(row);
-        if (removed > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 180));
-        }
+        if (removed > 0) await new Promise((resolve) => setTimeout(resolve, 180));
 
         const presentIds = queuedProductIds(row);
         const replacements: string[] = [];
@@ -457,7 +463,7 @@ export function TrendyolCategoryBulkDrawer() {
         }
 
         if (replacements.length < gap) {
-          sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+          sessionStorage.removeItem(exactReadyKey);
           toast({
             title: "Yedek ürün havuzu tükendi",
             description: `${targetCount} hedef için ${readyCount} ürün hazırlandı. Eksik ${gap} ürünün yerine yeterli benzersiz yedek bulunamadı; eksik adetle MARKT-GO aktarımı yapmayın.`,
@@ -470,10 +476,8 @@ export function TrendyolCategoryBulkDrawer() {
         await ensureUrlsAreQueued(replacements, row);
         const queuedNow = queuedProductIds(row).size;
         if (queuedNow !== targetCount) {
-          sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
-          throw new Error(
-            `Exact-count kuyruk doğrulaması başarısız: hedef=${targetCount}, kuyruk=${queuedNow}`,
-          );
+          sessionStorage.removeItem(exactReadyKey);
+          throw new Error(`Exact-count kuyruk doğrulaması başarısız: hedef=${targetCount}, kuyruk=${queuedNow}`);
         }
 
         toast({
@@ -482,19 +486,18 @@ export function TrendyolCategoryBulkDrawer() {
           duration: 4000,
         });
 
-        const restarted = await clickExistingFetchButton();
-        if (!restarted) {
-          throw new Error("Yedek ürünlerin veri çekimi otomatik yeniden başlatılamadı");
-        }
+        const restarted = await clickExistingFetchButton(scopeRoot);
+        if (!restarted) throw new Error("Yedek ürünlerin veri çekimi otomatik yeniden başlatılamadı");
       }
 
       throw new Error("Exact-count işlemi maksimum yenileme döngüsüne ulaştı");
     },
-    [],
+    [exactReadyKey],
   );
 
   const start = useCallback(async () => {
-    if (!manualRow) {
+    const scopeRoot = getScopeRoot();
+    if (!manualRow || !scopeRoot) {
       toast({
         title: "Trendyol alanı hazır değil",
         description: "Sayfayı yenileyip tekrar deneyin.",
@@ -516,7 +519,7 @@ export function TrendyolCategoryBulkDrawer() {
     const targetCount = selectedCount;
     setLoading(true);
     setLastFound(null);
-    sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+    sessionStorage.removeItem(exactReadyKey);
 
     try {
       const response = await fetch("/api/trendyol/category/discover", {
@@ -564,25 +567,23 @@ export function TrendyolCategoryBulkDrawer() {
       }
 
       setLastFound(targetCount);
-      sessionStorage.setItem(EXACT_TARGET_STORAGE_KEY, String(targetCount));
+      sessionStorage.setItem(exactTargetKey, String(targetCount));
 
       toast({
         title: `${targetCount}/${targetCount} ürün kuyruğa alındı`,
-        description: `Fazla veya eksik ürün kabul edilmeyecek. ${reserveUrls.length} yedek ürün hazır.`,
+        description: `Bu sekme bağımsız çalışır. ${reserveUrls.length} yedek ürün hazır.`,
         duration: 5000,
       });
 
-      const started = await clickExistingFetchButton();
+      const started = await clickExistingFetchButton(scopeRoot);
       if (!started) {
-        throw new Error(
-          "Ürün URL'leri listeye eklendi ancak ana ürün çekme butonu otomatik başlatılamadı.",
-        );
+        throw new Error("Ürün URL'leri listeye eklendi ancak bu sekmedeki ürün çekme butonu otomatik başlatılamadı.");
       }
 
       const runToken = exactRunTokenRef.current + 1;
       exactRunTokenRef.current = runToken;
-      void enforceExactScrapeTarget(targetCount, reserveUrls, manualRow, runToken).catch((error) => {
-        sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+      void enforceExactScrapeTarget(targetCount, reserveUrls, manualRow, scopeRoot, runToken).catch((error) => {
+        sessionStorage.removeItem(exactReadyKey);
         toast({
           title: "Exact-count tamamlanamadı",
           description: error instanceof Error ? error.message : "Beklenmeyen hata",
@@ -593,8 +594,8 @@ export function TrendyolCategoryBulkDrawer() {
 
       setOpen(false);
     } catch (error) {
-      sessionStorage.removeItem(EXACT_TARGET_STORAGE_KEY);
-      sessionStorage.removeItem(EXACT_READY_STORAGE_KEY);
+      sessionStorage.removeItem(exactTargetKey);
+      sessionStorage.removeItem(exactReadyKey);
       toast({
         title: "Toplu ürün ekleme başarısız",
         description: error instanceof Error ? error.message : "Beklenmeyen hata",
@@ -604,7 +605,16 @@ export function TrendyolCategoryBulkDrawer() {
     } finally {
       setLoading(false);
     }
-  }, [clearWorkspaceForExactBatch, enforceExactScrapeTarget, manualRow, selectedCount, url]);
+  }, [
+    clearWorkspaceForExactBatch,
+    enforceExactScrapeTarget,
+    exactReadyKey,
+    exactTargetKey,
+    getScopeRoot,
+    manualRow,
+    selectedCount,
+    url,
+  ]);
 
   if (!host) return null;
 
@@ -621,9 +631,7 @@ export function TrendyolCategoryBulkDrawer() {
           <Layers3 className="h-4 w-4 text-zinc-500" />
           Toplu Ürün Ekle
           {lastFound ? (
-            <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-400">
-              {lastFound}
-            </span>
+            <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-400">{lastFound}</span>
           ) : null}
         </span>
         <ChevronDown
@@ -648,7 +656,7 @@ export function TrendyolCategoryBulkDrawer() {
                     Trendyol Kategori Toplu Çekim
                   </div>
                   <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-                    Kategori URL'sinden seçtiğiniz adet kadar ürün hazırlanır. Eksik veya fazla adetle işlem tamamlanmaz.
+                    Kategori URL'sinden tek seferde 500 ürüne kadar bulunur, kuyruğa eklenir ve çekim otomatik başlatılır. Her uygulama sekmesi kendi kuyruğunda bağımsız çalışır.
                   </p>
                 </div>
                 <button
@@ -666,7 +674,7 @@ export function TrendyolCategoryBulkDrawer() {
                   <Input
                     value={url}
                     onChange={(event) => setUrl(event.target.value)}
-                    placeholder="https://www.trendyol.com/kadin-canta-x-g1-c117"
+                    placeholder="https://www.trendyol.com/elektrikli-ev-aletleri-x-c1104"
                     className="business-input h-11 border-zinc-800 bg-zinc-900/70 text-sm"
                     disabled={loading}
                     data-testid="input-trendyol-category-url"
@@ -678,7 +686,7 @@ export function TrendyolCategoryBulkDrawer() {
                     <label className="text-xs font-medium text-zinc-400">Çekilecek ürün sayısı</label>
                     <span className="text-xs text-zinc-600">En fazla 500</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-2">
                     {QUICK_COUNTS.map((item) => (
                       <button
                         key={item}
@@ -711,7 +719,7 @@ export function TrendyolCategoryBulkDrawer() {
                 </div>
 
                 <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/50 px-3 py-2.5 text-xs text-zinc-500">
-                  Seçili işlem: <span className="font-semibold text-zinc-300">{selectedCount} ürün</span>. Sistem önce eski çalışma alanını temizler, tam {selectedCount} URL ile başlar ve başarısız ürünleri yedek kategori ürünleriyle tamamlar.
+                  Seçili işlem: <span className="font-semibold text-zinc-300">{selectedCount} ürün</span>. Bu sekmenin çalışma alanı temizlenir; diğer sekmelerde devam eden çekimlere dokunulmaz.
                 </div>
 
                 <Button
