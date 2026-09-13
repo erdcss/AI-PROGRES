@@ -12,6 +12,14 @@ function replaceRequired(src, from, to, label) {
   return src.split(from).join(to);
 }
 
+function replaceOneOf(src, variants, to, label) {
+  for (const from of variants) {
+    if (src.includes(from)) return src.split(from).join(to);
+  }
+  if (src.includes(to)) return src;
+  throw new Error(`[ban-flow-fix] replacement missing: ${label}`);
+}
+
 let guard = fs.readFileSync(guardPath, "utf8");
 
 guard = replaceRequired(
@@ -53,11 +61,14 @@ scraper = replaceRequired(
   "network unreachable is not a rate limit",
 );
 
-scraper = replaceRequired(
+scraper = replaceOneOf(
   scraper,
-  'const backoff = Math.max(60_000, Number((firstError as ScrapeFetchError)?.retryAfterMs) || 0);',
-  'const backoff = Math.max(8_000, Number((firstError as ScrapeFetchError)?.retryAfterMs) || 0);',
-  "first retry backoff",
+  [
+    'const backoff = Math.max(60_000, Number((firstError as ScrapeFetchError)?.retryAfterMs) || 0);',
+    'const backoff = Math.max(60_000, Number((attemptError as ScrapeFetchError)?.retryAfterMs) || 0);',
+  ],
+  'const backoff = Math.max(8_000, Number((attemptError as ScrapeFetchError)?.retryAfterMs) || 0);',
+  "controlled retry backoff",
 );
 
 scraper = replaceRequired(
@@ -96,4 +107,4 @@ scraper = replaceRequired(
 );
 
 fs.writeFileSync(scraperPath, scraper);
-console.log("[ban-flow-fix] false-ban detection reduced, batch continuation enabled, MARKT-GO timeout handling hardened");
+console.log("[ban-flow-fix] false-ban detection reduced, exact retry compatible, MARKT-GO timeout handling hardened");
