@@ -3,20 +3,25 @@ import path from "node:path";
 
 const root = process.cwd();
 
-// 1) Client: do not block bulk upload on full Trendyol review scraping.
+// 1) Client: ürün yüklemeyi tam yorum taramasına kilitleme. Exact-count akışında
+// MARKT-GO istekleri kontrollü 2 paralel gider; 8 paralel gönderim kaldırıldı.
 const scraperPath = path.join(root, "client/src/pages/scraper.tsx");
 let sp = fs.readFileSync(scraperPath, "utf8");
 
 sp = sp.replaceAll(
-  "const SHOPIFY_UPLOAD_CONCURRENCY = 3;",
   "const SHOPIFY_UPLOAD_CONCURRENCY = 8;",
+  "const SHOPIFY_UPLOAD_CONCURRENCY = 2;",
+);
+sp = sp.replaceAll(
+  "const SHOPIFY_UPLOAD_CONCURRENCY = 3;",
+  "const SHOPIFY_UPLOAD_CONCURRENCY = 2;",
 );
 
 const blockingReviewPrefetch = `      setUploadProgress((current) => current ? { ...current, detail: "Yorumlar ürünlerle birlikte hazırlanıyor...", percent: 5 } : current);\n      await Promise.all(eligiblePreviews.map(async (preview) => {\n        const sourceUrl = String(preview.sourceUrl || "").trim();\n        if (!isTrendyolProductUrl(sourceUrl) || getCachedTrendyolReviewsForProduct(sourceUrl)) return;\n        try { await scrapeTrendyolReviewsForProduct(sourceUrl); } catch { /* ürün aktarımı yorum hatasıyla tamamen durmasın */ }\n      }));\n\n`;
 if (sp.includes(blockingReviewPrefetch)) {
   sp = sp.replace(
     blockingReviewPrefetch,
-    `      setUploadProgress((current) => current ? { ...current, detail: "Ürünler MARKT-GO'ya ultra hızlı aktarılıyor; yorumlar arka planda tamamlanıyor...", percent: 5 } : current);\n\n`,
+    `      setUploadProgress((current) => current ? { ...current, detail: "Ürünler MARKT-GO'ya güvenli aktarılıyor; yorumlar arka planda tamamlanıyor...", percent: 5 } : current);\n\n`,
   );
 }
 
@@ -27,9 +32,13 @@ if (!sp.includes("fastUpload: true,")) {
   );
 }
 
+if (!sp.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 2;")) {
+  throw new Error("[marktgo-product-first] upload concurrency=2 uygulanamadı");
+}
+
 fs.writeFileSync(scraperPath, sp);
 
-// 2) Mapping/types: carry the fast-upload intent into MARKT-GO sync.
+// 2) Mapping/types: fast-upload niyetini MARKT-GO sync'e taşı.
 const typesPath = path.join(root, "server/services/marktgo/types.ts");
 let ty = fs.readFileSync(typesPath, "utf8");
 if (!ty.includes("fastUpload?: boolean;")) {
@@ -50,9 +59,8 @@ if (!pm.includes("fastUpload: product.fastUpload === true,")) {
 }
 fs.writeFileSync(poolMapPath, pm);
 
-// 3) Server: product-first. Use already-cached reviews immediately, but never wait for a
-// full Browser Worker review crawl before creating the product. Missing reviews are
-// backfilled asynchronously after the MARKT-GO product ID is available.
+// 3) Server: product-first. Cache'deki yorumları hemen kullan, fakat ürün oluşturmayı
+// Browser Worker yorum taramasına bağlama. Eksik yorumları ürün ID oluşunca arka planda tamamla.
 const syncPath = path.join(root, "server/services/marktgo/sync.service.ts");
 let sy = fs.readFileSync(syncPath, "utf8");
 
@@ -75,4 +83,6 @@ if (sy.includes(backfillAnchor) && !sy.includes("[marktgo-fast] review backfill"
 
 fs.writeFileSync(syncPath, sy);
 
-console.log("[marktgo-ultra-fast] concurrency=8; product-first upload active; review backfill runs in background");
+console.log(
+  "[marktgo-product-first] concurrency=2; product-first upload active; review backfill background",
+);
