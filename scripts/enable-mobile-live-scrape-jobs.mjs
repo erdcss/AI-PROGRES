@@ -31,6 +31,7 @@ if (!src.includes("/api/mobile/scrape-jobs/live")) {
 fs.writeFileSync(routesPath, src);
 console.log("[mobile-live-scrape] Trendyol scrape jobs are visible to mobile in realtime");
 
-// This script is the final injector in apply-ultra-bulk-profile.mjs. Run the exact-count
-// reliability patch here so no legacy injector can overwrite it afterwards.
+// This script is the final injector in apply-ultra-bulk-profile.mjs. Prepare and run the
+// exact-count reliability patch here so no legacy injector can overwrite it afterwards.
+await import("./prepare-lossless-exact-pipeline.mjs");
 await import("./enforce-lossless-exact-pipeline.mjs");
