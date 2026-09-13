@@ -1,6 +1,7 @@
 /**
  * Trendyol ürün görsel çıkarımı.
- * Yalnız ürün state/structured data/ürün galerisi CDN kaynakları kabul edilir.
+ * Yalnız ürünün kendi state / Product structured data kaynakları kabul edilir.
+ * Sayfa genelindeki görseller asla ürün galerisine eklenmez.
  */
 
 import * as cheerio from 'cheerio';
@@ -31,7 +32,7 @@ export function extractProductImages(htmlContent: string, $: cheerio.CheerioAPI)
 
   console.log('🎯 Güvenli ürün galerisi görsel çıkarımı başlatılıyor...');
 
-  // 1) Trendyol product state — en güvenilir kaynak.
+  // 1) Trendyol product state — ana ve varyant görselleri için birincil kaynak.
   const initialStatePattern = /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s;
   const initialStateMatch = htmlContent.match(initialStatePattern);
   if (initialStateMatch) {
@@ -60,15 +61,21 @@ export function extractProductImages(htmlContent: string, $: cheerio.CheerioAPI)
     }
   }
 
-  // 2) Product JSON-LD. Sadece Product nesnelerinin image alanı alınır.
+  // 2) Yalnız schema.org Product nesnesinin image alanı. Açıklama, beden tablosu,
+  // bakım/yıkama içeriği veya sayfadaki başka JSON blokları taranmaz.
   $('script[type="application/ld+json"]').each((_, el) => {
     try {
       const raw = $(el).html() || '';
       const parsed = JSON.parse(raw);
-      const nodes = Array.isArray(parsed) ? parsed : [parsed];
+      const roots = Array.isArray(parsed) ? parsed : [parsed];
+      const nodes: any[] = [];
+      for (const root of roots) {
+        nodes.push(root);
+        if (Array.isArray(root?.['@graph'])) nodes.push(...root['@graph']);
+      }
       for (const node of nodes) {
         const type = Array.isArray(node?.['@type']) ? node['@type'].join(' ') : node?.['@type'];
-        if (!/product/i.test(String(type || ''))) continue;
+        if (!/(?:^|\s)Product(?:\s|$)/i.test(String(type || ''))) continue;
         const imageList = Array.isArray(node?.image) ? node.image : node?.image ? [node.image] : [];
         pushValid(images, imageList);
       }
@@ -77,20 +84,14 @@ export function extractProductImages(htmlContent: string, $: cheerio.CheerioAPI)
     }
   });
 
-  // 3) Sayfanın ana ürün OG görseli.
+  // 3) OG image sadece son güvenilir tekil ürün görseli fallback'ıdır.
+  const ogType = $('meta[property="og:type"]').attr('content')?.trim().toLowerCase();
   const ogImage = $('meta[property="og:image"]').attr('content')?.trim();
-  if (ogImage) pushValid(images, [ogImage]);
+  if (ogImage && (!ogType || ogType.includes('product'))) pushValid(images, [ogImage]);
 
-  // 4) Sadece bilinen ürün galerisi yollarını tara. QC_ENRICHMENT, açıklama içi
-  // bakım/yıkama ikonları ve genel IMG tag'leri bu aşamada özellikle taranmaz.
-  const strictProductPatterns = [
-    /https:\/\/cdn\.dsmcdn\.com\/(?:mnresize\/\d+\/\d+\/)?ty\d+\/prod\/(?:QC|QC_PREP|PIM)\/[^"'\s<>]+(?:\.(?:jpg|jpeg|png|webp|avif))?/gi,
-    /https:\/\/cdn\.dsmcdn\.com\/(?:mnresize\/\d+\/\d+\/)?ty\d+\/product\/media\/[^"'\s<>]+(?:\.(?:jpg|jpeg|png|webp|avif))?/gi,
-  ];
-  for (const pattern of strictProductPatterns) {
-    pushValid(images, htmlContent.match(pattern) || []);
-  }
-
+  // Bilinçli olarak sayfa genelinde URL regex'i, script içeriği veya tüm <img>
+  // elemanları taranmıyor. Bu, yıkama sembolü/beden tablosu/banner gibi aynı CDN
+  // klasöründe tutulabilen ama ürüne ait olmayan varlıkların sızmasını engeller.
   const uniqueImages = [...new Set(filterValidProductImages(images))];
   for (const [color, urls] of Object.entries(variantImages)) {
     variantImages[color] = [...new Set(filterValidProductImages(urls))];
