@@ -9539,7 +9539,7 @@ setTimeout(check, 1000);
         const pictureUrls = rawUrls.join(',');
         const emailIndex = String(idx + 1).padStart(4, '0');
         return {
-          id: String(r.id || idx),
+          id: String(r.id ?? r.reviewId ?? `${productId}-${startPage}-${idx}`),
           title: r.commentTitle || (r.comment ? String(r.comment).replace(/\n/g, ' ') : ''),
           body: r.comment || r.reviewText || '',
           rating: Number(r.rate || r.starCount || 0),

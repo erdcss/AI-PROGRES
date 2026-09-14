@@ -131,7 +131,7 @@ test("failed review requests are not cached as successful zero-review products",
   }) as typeof fetch, async () => undefined);
   assert.equal((await client(url)).success, false);
   assert.equal((await client(url)).success, false);
-  assert.equal(calls, 2);
+  assert.equal(calls, 6);
 });
 
 test("worker client forwards 429 and Retry-After without recording a ban", async () => {
@@ -152,4 +152,36 @@ test("worker client forwards 429 and Retry-After without recording a ban", async
     if (oldUrl === undefined) delete process.env.BROWSER_WORKER_URL; else process.env.BROWSER_WORKER_URL = oldUrl;
     if (oldToken === undefined) delete process.env.BROWSER_WORKER_TOKEN; else process.env.BROWSER_WORKER_TOKEN = oldToken;
   }
+});
+
+
+test("review client retries a transient page failure without losing earlier comments", async () => {
+  const pages: number[] = [];
+  let failed = false;
+  const client = createTrendyolReviewsClient((async (_url, init) => {
+    const page = JSON.parse(String(init?.body)).startPage;
+    pages.push(page);
+    if (page === 1 && !failed) { failed = true; return response({ success: false }, 502); }
+    return response({ success: true, reviews: [review(String(page))],
+      meta: page === 0 ? { partial: true, nextPage: 1 } : { partial: false } });
+  }) as typeof fetch, async () => undefined);
+  const result = await client(url);
+  assert.deepEqual(pages, [0, 1, 1]);
+  assert.deepEqual(result.reviews.map(r => r.id), ["0", "1"]);
+  assert.equal(result.partial, false);
+});
+
+test("queued products wait for rate limit cooldown rather than immediately failing", async () => {
+  let now = 1000;
+  let calls = 0;
+  const client = createTrendyolReviewsClient((async () => {
+    calls++;
+    return calls === 1 ? response({ success: false, retryAfterMs: 60_000 }, 429)
+      : response({ success: true, reviews: [], meta: { partial: false } });
+  }) as typeof fetch, async ms => { now += ms; }, () => now);
+  const [first, second] = await Promise.all([client(url), client(url.replace("814869537", "814869538"))]);
+  assert.equal(first.success, false);
+  assert.equal(second.success, true);
+  assert.equal(calls, 2);
+  assert.ok(now >= 61_000);
 });
