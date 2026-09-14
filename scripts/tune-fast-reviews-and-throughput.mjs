@@ -52,20 +52,11 @@ if (!scraper.includes("exactMode ? Math.min(2, BULK_SCRAPE_CONCURRENCY_START)"))
 }
 write(scraperPath, scraper);
 
-// 2) Kart yorumları: 8 paralel istek rate-limit riskini yükseltiyordu.
-// 4 paralel + 150ms pacing, seri akıştan çok hızlı ve daha dengeli.
-const reviewsClientPath = "client/src/lib/trendyol-reviews-client.ts";
-let reviewsClient = read(reviewsClientPath);
-reviewsClient = reviewsClient.replace(
-  /const REVIEW_FETCH_CONCURRENCY = \d+;/,
-  "const REVIEW_FETCH_CONCURRENCY = 4;",
-);
-reviewsClient = reviewsClient.replaceAll("await sleep(75);", "await sleep(150);");
-reviewsClient = reviewsClient.replaceAll("await sleep(250);", "await sleep(150);");
-if (!reviewsClient.includes("const REVIEW_FETCH_CONCURRENCY = 4;")) {
-  throw new Error("[throughput-tune] yorum concurrency=4 uygulanamadı");
+// Review pacing is owned by the source client; do not replace its serialized queue.
+const reviewsClient = read("client/src/lib/trendyol-reviews-client.ts");
+if (!reviewsClient.includes("const task = tail.catch(() => undefined).then(async () => {")) {
+  throw new Error("[throughput-tune] serialized review queue missing");
 }
-write(reviewsClientPath, reviewsClient);
 
 // 3) Browser Worker yorumları: worker bir istekte sınırlı sayfa döndürdüğünde partial
 // sonucu tam sonuç sayma. nextPage üzerinden devam et, tüm başarılı parçaları birleştir.
@@ -118,5 +109,5 @@ for (const anchor of [
 write(syncPath, sync);
 
 console.log(
-  "[throughput-tune] exact scrape=2, normal scrape=3, MARKT-GO exact=2/normal=3, card reviews=4, full review pagination=on, variant guard=on",
+  "[throughput-tune] exact scrape=2, normal scrape=3, MARKT-GO exact=2/normal=3, card reviews=serialized, full review pagination=on, variant guard=on",
 );

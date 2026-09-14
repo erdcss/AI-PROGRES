@@ -38,6 +38,12 @@ export function isTrendyolProductUrl(url: string | undefined | null): boolean {
 type ReviewOptions = { shopifyProductId?: string; shopifyHandle?: string; signal?: AbortSignal };
 type SavedReviews = { result: TrendyolReviewsResult; nextPage: number | null; expires: number };
 
+const sharedReviewResults = new Map<string, { result: TrendyolReviewsResult; expires: number }>();
+export function getCachedTrendyolReviewsForProduct(url: string): TrendyolReviewsResult | null {
+  const cached = sharedReviewResults.get(url.trim());
+  return cached && cached.expires > Date.now() ? cached.result : null;
+}
+
 /** Serialize card requests and resume successful pages without downloading them again. */
 export function createTrendyolReviewsClient(
   fetcher: typeof fetch = fetch,
@@ -47,11 +53,11 @@ export function createTrendyolReviewsClient(
   let tail: Promise<unknown> = Promise.resolve();
   let cooldownUntil = 0;
   const saved = new Map<string, SavedReviews>();
-  const pending = new Map<string, Promise<TrendyolReviewsResult>>();
+  const pending = new Map<string, { task: Promise<TrendyolReviewsResult>; signal?: AbortSignal }>();
   return (url: string, options?: ReviewOptions): Promise<TrendyolReviewsResult> => {
     const key = JSON.stringify([url.trim(), options?.shopifyProductId || "", options?.shopifyHandle || ""]);
     const current = pending.get(key);
-    if (current) return current;
+    if (current && !current.signal?.aborted) return current.task;
     const task = tail.catch(() => undefined).then(async () => {
       options?.signal?.throwIfAborted();
       const old = saved.get(key);
@@ -63,6 +69,12 @@ export function createTrendyolReviewsClient(
       let warning = "";
       let complete = false;
       let verified = Boolean(cache);
+      // New cards wait out a previous product's rate limit instead of all failing at once.
+      if (!cache && cooldownUntil > now()) {
+        await sleep(cooldownUntil - now());
+        options?.signal?.throwIfAborted();
+      }
+      let transientFailures = 0;
       for (let batch = 0; batch < 50; batch++) {
         if (options?.signal?.aborted) { warning = "Yorum çekimi duraklatıldı; alınan yorumlar korundu."; break; }
         if (cooldownUntil > now()) {
@@ -74,15 +86,23 @@ export function createTrendyolReviewsClient(
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url: url.trim(), shopifyProductId: options?.shopifyProductId?.trim() || "",
               shopifyHandle: options?.shopifyHandle?.trim() || "", startPage: nextPage }),
-            signal: AbortSignal.timeout(60_000),
+            signal: options?.signal
+              ? AbortSignal.any([options.signal, AbortSignal.timeout(120_000)])
+              : AbortSignal.timeout(120_000),
           });
           const data = await response.json().catch(() => null);
           const retryAfterMs = Number(data?.retryAfterMs || data?.meta?.retryAfterMs) || 0;
           if (response.status === 429 || retryAfterMs > 0) cooldownUntil = now() + Math.max(60_000, retryAfterMs);
           if (!response.ok || !data?.success || !Array.isArray(data.reviews)) {
             warning = data?.error || `Yorumlar çekilemedi (${response.status}).`;
+            if ([408, 500, 502, 503, 504].includes(response.status) && retryAfterMs <= 0 && transientFailures < 2) {
+              transientFailures++;
+              await sleep(2_500 * transientFailures);
+              continue;
+            }
             break;
           }
+          transientFailures = 0;
           verified = true;
           productTitle = data.productTitle || productTitle;
           for (const review of data.reviews as TrendyolReviewItem[]) if (review.id) reviews.set(review.id, review);
@@ -95,6 +115,11 @@ export function createTrendyolReviewsClient(
           await sleep(2_500);
         } catch (error) {
           warning = error instanceof Error ? error.message : "Yorumlar çekilemedi.";
+          if (!options?.signal?.aborted && transientFailures < 2) {
+            transientFailures++;
+            await sleep(2_500 * transientFailures);
+            continue;
+          }
           break;
         }
       }
@@ -106,15 +131,19 @@ export function createTrendyolReviewsClient(
         partial: verified && !complete,
         error: complete ? undefined : warning || "Yorum çekimi tamamlanmadı; tekrar deneyerek devam edebilirsiniz." };
       if (verified) {
+        if (sharedReviewResults.size >= 100) sharedReviewResults.delete(sharedReviewResults.keys().next().value!);
+        sharedReviewResults.set(url.trim(), { result, expires: Date.now() + 10 * 60_000 });
         if (saved.size >= 100) saved.delete(saved.keys().next().value!);
         saved.set(key, { result, nextPage: complete ? null : nextPage, expires: now() + 10 * 60_000 });
       }
       await sleep(2_500);
       return result;
     });
-    pending.set(key, task);
+    pending.set(key, { task, signal: options?.signal });
     tail = task;
-    void task.finally(() => pending.delete(key)).catch(() => undefined);
+    void task.finally(() => {
+      if (pending.get(key)?.task === task) pending.delete(key);
+    }).catch(() => undefined);
     return task;
   };
 }

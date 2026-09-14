@@ -895,9 +895,9 @@ export function buildColorFamilyVariantMatrix(
         // Aynı Renk+Beden kombinasyonu Shopify'da reddedilir — tekrarları atla
         continue;
       }
-      seenOptionKeys.add(optionKey);
       const vColor = v.color && !isPlaceholderColor(v.color) ? v.color : color;
       if (vColor.toLocaleLowerCase("tr-TR") !== color.toLocaleLowerCase("tr-TR")) continue;
+      seenOptionKeys.add(optionKey);
       if (size && !sizes.includes(size)) sizes.push(size);
       allVariants.push({
         color,
@@ -916,6 +916,26 @@ export function buildColorFamilyVariantMatrix(
   }
 
   return { colors, sizes, allVariants };
+}
+
+/** Recover failed siblings without replacing already verified member data. */
+export async function recoverColorFamilyMembers(
+  candidates: TrendyolColorSiblingCandidate[],
+  members: TrendyolColorFamilyMember[],
+  rootProductId: string,
+  fetchMembers = fetchColorFamilyMembersViaApi,
+): Promise<TrendyolColorFamilyMember[]> {
+  const byId = new Map(members.map(member => [member.productId, member]));
+  const missing = candidates.filter(candidate => {
+    const member = byId.get(candidate.productId);
+    return !member?.ok || member.error === "soft-candidate";
+  });
+  if (!missing.length) return members;
+  const recovered = await fetchMembers(missing, rootProductId);
+  for (const member of recovered) {
+    if (member.ok || !byId.has(member.productId)) byId.set(member.productId, member);
+  }
+  return [...byId.values()];
 }
 
 export type ColorFamilyMergeInput = {
@@ -947,7 +967,7 @@ export async function fetchColorFamilyMembersViaApi(
     unique.set(c.productId, c);
   }
   const list = [...unique.values()].slice(0, COLOR_FAMILY_MAX_MEMBERS);
-  if (list.length < 2) return [];
+  if (list.length === 0) return [];
 
   console.log(
     `[ColorFamily] API fallback: ${list.length} aday (root=${rootProductId})`,

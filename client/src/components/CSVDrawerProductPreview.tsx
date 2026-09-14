@@ -630,8 +630,6 @@ export const ProductPreview = memo(function ProductPreview({
           const result = await scrapeTrendyolReviewsForProduct(sourceUrl, { signal });
           if (signal?.aborted) return;
           if (!result.success) {
-            setReviews([]);
-            setReviewsStats(null);
             setReviewsError(result.error || "Yorumlar çekilemedi");
             setReviewsFetched(true);
             return;

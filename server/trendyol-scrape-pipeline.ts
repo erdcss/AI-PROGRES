@@ -540,6 +540,12 @@ async function finalizeTrendyolPipelineWithVariants(
       }
     }
 
+    if (rootId && candidates.length >= 2 && !autoFast && !forcedGlobalTimeout && remainingMs() > 20_000) {
+      const { recoverColorFamilyMembers } = await import("./trendyol-color-family");
+      members = await recoverColorFamilyMembers(candidates, members, rootId);
+      result._colorFamilyMembers = members;
+    }
+
     if (rootId && members.length >= 2) {
       mergeColorFamilyIntoScrapeResult({
         result,
