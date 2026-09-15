@@ -262,7 +262,7 @@ function startAutoSendObserver(): void {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["disabled", "title", "aria-disabled"],
+    attributeFilter: ["disabled", "aria-disabled"],
   });
 
   window.setInterval(() => {
