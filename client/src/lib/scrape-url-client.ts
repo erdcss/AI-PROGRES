@@ -187,6 +187,46 @@ function normalizeImageList(images: unknown): string[] {
   return filterValidProductImages(images);
 }
 
+function collectScrapedImageSources(raw: Record<string, unknown>): string[] {
+  const found: string[] = [];
+  const seenObjects = new Set<object>();
+
+  const walk = (value: unknown, depth = 0) => {
+    if (value == null || depth > 6) return;
+    if (typeof value === "string") {
+      const url = value.trim();
+      if (/^https?:\/\//i.test(url)) found.push(url);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => walk(item, depth + 1));
+      return;
+    }
+    if (typeof value !== "object") return;
+    if (seenObjects.has(value as object)) return;
+    seenObjects.add(value as object);
+
+    const row = value as Record<string, unknown>;
+    for (const key of ["url", "src", "image", "imageUrl", "featuredImage"]) {
+      if (row[key] != null) walk(row[key], depth + 1);
+    }
+    for (const key of ["images", "gallery", "media", "imageUrls", "imagesByColor"]) {
+      if (row[key] != null) walk(row[key], depth + 1);
+    }
+  };
+
+  walk(raw.images);
+  walk(raw.image);
+  walk(raw.imagesByColor);
+  walk(raw.colorFamily);
+  walk(raw.variants);
+  walk(raw.canonicalProduct);
+
+  return prioritizeProductImagesForPreview(
+    filterValidProductImages([...new Set(found)]),
+  );
+}
+
 function extractCsvContent(raw: Record<string, unknown>): string | undefined {
   if (typeof raw.csvContent === "string" && raw.csvContent.length > 50) {
     return raw.csvContent;
@@ -216,7 +256,7 @@ export function normalizeScrapedPayload(
   raw: Record<string, unknown>,
   url: string,
 ): ScrapedUrlPayload {
-  const images = normalizeImageList(raw.images);
+  const images = collectScrapedImageSources(raw);
   const displayPrice = normalizeTrendyolDisplayPrice(raw.price, 0.10);
 
   const usableForCsv = raw.usableForCsv === true;
