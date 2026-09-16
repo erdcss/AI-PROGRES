@@ -2,7 +2,8 @@ const AUTO_SENT_STORAGE_KEY = "trendyol_auto_marktgo_sent_ids";
 const AUTO_TRIGGER_ATTR = "data-auto-marktgo-triggered";
 const SYNC_PATH = "/api/marktgo/products/sync";
 const IMAGE_RETRY_MS = 60_000;
-const MAX_RETRY_MS = 60_000;
+const MAX_AUTO_RETRY_MS = 60_000;
+const REQUEST_RETRY_DELAYS_MS = [0, 1_500, 4_000, 9_000];
 
 const retryAttempts = new Map<string, number>();
 let installed = false;
@@ -86,11 +87,10 @@ function scheduleAutoRetry(
   const attempts = (retryAttempts.get(context.key) || 0) + 1;
   retryAttempts.set(context.key, attempts);
   const delay =
-    delayOverride ?? Math.min(MAX_RETRY_MS, 4_000 * Math.max(1, 2 ** (attempts - 1)));
+    delayOverride ?? Math.min(MAX_AUTO_RETRY_MS, 4_000 * Math.max(1, 2 ** (attempts - 1)));
 
-  // exact-bulk-upload-guard ürünü istek başlamadan "sent" olarak işaretliyor.
-  // Başarısız istekte bu anahtarı kısa bir cooldown sonrasında silerek ürünün
-  // tekrar kuyruğa girmesini sağlıyoruz. Cooldown boyunca sıradaki ürünler devam eder.
+  // Otomatik gönderim ürünü tıklamadan önce "sent" listesine koyuyor. Gerçek istek
+  // tüm denemelerden sonra başarısızsa anahtarı silip ürünü yeniden kuyruğa alıyoruz.
   window.setTimeout(() => {
     const ids = readSentIds();
     if (!ids.delete(context.key)) return;
@@ -106,7 +106,7 @@ function markAutoSendSuccess(context: { button: HTMLButtonElement; key: string }
 }
 
 function collectHttpImageUrls(value: unknown, out: string[], depth = 0): void {
-  if (value == null || depth > 5) return;
+  if (value == null || depth > 6) return;
   if (typeof value === "string") {
     const url = value.trim();
     if (/^https?:\/\//i.test(url)) out.push(url);
@@ -122,7 +122,9 @@ function collectHttpImageUrls(value: unknown, out: string[], depth = 0): void {
   for (const key of ["images", "image", "imageUrl", "featuredImage", "imagesByColor"]) {
     if (row[key] != null) collectHttpImageUrls(row[key], out, depth + 1);
   }
-  if (Array.isArray(row.variants)) collectHttpImageUrls(row.variants, out, depth + 1);
+  for (const key of ["variants", "canonicalProduct", "colorFamily"]) {
+    if (row[key] != null) collectHttpImageUrls(row[key], out, depth + 1);
+  }
 }
 
 function payloadHasProductImage(init?: RequestInit): boolean | null {
@@ -154,6 +156,30 @@ function syntheticImageError(): Response {
   );
 }
 
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+function cloneRequestInit(init?: RequestInit): RequestInit | undefined {
+  if (!init) return undefined;
+  // Body burada JSON string olduğundan her retry'da güvenle yeniden kullanılabilir.
+  return { ...init, headers: init.headers };
+}
+
+async function wait(ms: number, signal?: AbortSignal | null): Promise<void> {
+  if (ms <= 0) return;
+  await new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(resolve, ms);
+    if (!signal) return;
+    const abort = () => {
+      window.clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    if (signal.aborted) abort();
+    else signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
 export function installMarktGoUploadGuard(): void {
   if (installed || typeof window === "undefined") return;
   installed = true;
@@ -167,30 +193,56 @@ export function installMarktGoUploadGuard(): void {
     const context = currentAutoSendContext();
     const hasImage = payloadHasProductImage(init);
 
+    // Hiç görseli olmayan ürün MARKT-GO'da oluşturulmasın. Kaynak veri sonradan
+    // tamamlanırsa otomatik gönderim ürünü yeniden deneyecek.
     if (hasImage === false) {
       scheduleAutoRetry(context, IMAGE_RETRY_MS);
       return syntheticImageError();
     }
 
-    try {
-      const response = await nativeFetch(input, init);
-      let success = response.ok;
+    let lastResponse: Response | null = null;
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < REQUEST_RETRY_DELAYS_MS.length; attempt += 1) {
+      const delay = REQUEST_RETRY_DELAYS_MS[attempt] || 0;
+      if (delay > 0) await wait(delay, init?.signal);
 
       try {
-        const body = await response.clone().json() as Record<string, unknown>;
-        if (body.success === false) success = false;
-      } catch {
-        // JSON olmayan başarılı yanıtı HTTP durumuna göre değerlendir.
+        const response = await nativeFetch(input, cloneRequestInit(init));
+        lastResponse = response;
+
+        let success = response.ok;
+        try {
+          const body = await response.clone().json() as Record<string, unknown>;
+          if (body.success === false) success = false;
+        } catch {
+          // JSON olmayan yanıtı HTTP durumuna göre değerlendir.
+        }
+
+        if (success) {
+          markAutoSendSuccess(context);
+          return response;
+        }
+
+        // 4xx doğrulama/iş kuralı hatalarını tekrar tekrar göndermeyelim.
+        if (!isRetryableStatus(response.status)) {
+          scheduleAutoRetry(context, response.status === 422 ? IMAGE_RETRY_MS : undefined);
+          return response;
+        }
+      } catch (error) {
+        lastError = error;
+        if (error instanceof DOMException && error.name === "AbortError") {
+          scheduleAutoRetry(context);
+          throw error;
+        }
       }
-
-      if (success) markAutoSendSuccess(context);
-      else scheduleAutoRetry(context);
-
-      return response;
-    } catch (error) {
-      scheduleAutoRetry(context);
-      throw error;
     }
+
+    // 100'lü toplu aktarımda geçici ağ/429/5xx yüzünden ürün sessizce kaybolmasın.
+    // Tüm istemci denemeleri bittiğinde otomatik moddaysa tekrar ana kuyruğa alınır.
+    scheduleAutoRetry(context);
+    if (lastResponse) return lastResponse;
+    throw lastError instanceof Error ? lastError : new Error("MARKT-GO bağlantı hatası");
   };
 }
 
