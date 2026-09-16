@@ -1,9 +1,8 @@
 /**
  * Prepare Trendyol/CDN image URLs for MARKT-GO product payloads.
  *
- * Offline-first: prefer real ty folders and drop known-bad rewrites without
- * probing CDN (Railway/datacenter IPs often cannot reach cdn.dsmcdn.com).
- * Optional light probe only for remaining low-quality ty URLs when enabled.
+ * Offline-first: prefer real ty folders and known-good alternatives without
+ * turning an otherwise valid product into an image-less MARKT-GO item.
  */
 import {
   collectTrendyolTyFolders,
@@ -76,10 +75,13 @@ async function resolveSuspiciousUrl(
     for (const candidate of candidates) {
       if (await probeImageUrl(candidate)) return candidate;
     }
-    return null;
+    // Local probe başarısız olsa bile gerçek ürün galerisi URL'sini tamamen kaybetme.
+    // MARKT-GO tarafı URL'yi kendi ortamından tekrar deneyebilir.
+    return recovered;
   }
-  // Cloud: never block sync on CDN probes — return best offline guess.
-  if (LOW_TY_RE.test(recovered)) return null;
+
+  // Railway/datacenter ortamında Trendyol CDN probe'u güvenilir değil. Daha iyi bir
+  // kardeş ty klasörü bulunduysa onu kullan; bulunmadıysa geçerli kaynak URL'yi koru.
   return recovered;
 }
 
@@ -117,11 +119,15 @@ export async function prepareMarktGoImages(
     }
   }
 
-  // Absolute fallback: any non-rewrite URL still unused
-  if (!resolved.length) {
-    for (const url of ranked) {
+  // Son güvenlik: filtre gerçek ürün görseli bulduysa sırf ty klasörü şüpheli diye
+  // ürünü görselsiz göndermeyelim. Önce normal URL'ler, sonra düşük öncelikli ty URL'leri.
+  if (!resolved.length && ranked.length) {
+    const fallbackRanked = [
+      ...ranked.filter((url) => !LOW_TY_RE.test(url)),
+      ...ranked.filter((url) => LOW_TY_RE.test(url)),
+    ];
+    for (const url of fallbackRanked) {
       if (resolved.length >= limit) break;
-      if (LOW_TY_RE.test(url)) continue;
       const key = imageIdentityKey(url);
       if (seen.has(key)) continue;
       seen.add(key);
