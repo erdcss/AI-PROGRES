@@ -3,6 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { initDevStability } from "./lib/dev-stability";
 import "./lib/exact-bulk-upload-guard";
 import "./lib/marktgo-upload-guard";
+import "./lib/marktgo-final-reconcile";
 import App from "./App";
 import { queryClient } from "./lib/queryClient";
 import "./index.css";
