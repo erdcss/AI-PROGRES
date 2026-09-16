@@ -89,8 +89,6 @@ function scheduleAutoRetry(
   const delay =
     delayOverride ?? Math.min(MAX_AUTO_RETRY_MS, 4_000 * Math.max(1, 2 ** (attempts - 1)));
 
-  // Otomatik gönderim ürünü tıklamadan önce sent listesine koyuyor. Gerçek istek
-  // başarısızsa anahtarı silip ürünü yeniden kuyruğa alıyoruz; ürün sessizce kaybolmaz.
   window.setTimeout(() => {
     const ids = readSentIds();
     ids.delete(context.key);
@@ -102,7 +100,6 @@ function markAutoSendSuccess(context: { button: HTMLButtonElement; key: string }
   if (!context) return;
   retryAttempts.delete(context.key);
   clearAutoMarker(context.button);
-  // Başarıda exact-bulk-upload-guard'ın sent kaydı korunur.
 }
 
 function collectHttpImageUrls(value: unknown, out: string[], depth = 0): void {
@@ -127,6 +124,32 @@ function collectHttpImageUrls(value: unknown, out: string[], depth = 0): void {
   }
 }
 
+function findRenderedProductImages(title: string): string[] {
+  const needle = title.trim().toLocaleLowerCase("tr-TR").slice(0, 48);
+  if (needle.length < 8) return [];
+
+  const found: string[] = [];
+  for (const img of Array.from(document.querySelectorAll<HTMLImageElement>("img[src]"))) {
+    const src = (img.currentSrc || img.src || "").trim();
+    if (!/^https?:\/\//i.test(src)) continue;
+
+    let node: HTMLElement | null = img.parentElement;
+    let depth = 0;
+    let matched = false;
+    while (node && node !== document.body && depth < 7) {
+      const text = (node.textContent || "").toLocaleLowerCase("tr-TR");
+      if (text.includes(needle)) {
+        matched = true;
+        break;
+      }
+      node = node.parentElement;
+      depth += 1;
+    }
+    if (matched) found.push(src);
+  }
+  return [...new Set(found)];
+}
+
 function prepareSyncRequest(init?: RequestInit): {
   init?: RequestInit;
   hasImage: boolean | null;
@@ -139,13 +162,17 @@ function prepareSyncRequest(init?: RequestInit): {
       : parsed;
 
     const candidates: string[] = [];
-    // Önce ana ürün görselleri; yoksa renk/varyant/canonical görsellerini ana galeriye yükselt.
     collectHttpImageUrls(product.images, candidates);
     collectHttpImageUrls(product.image, candidates);
     collectHttpImageUrls(product.imagesByColor, candidates);
     collectHttpImageUrls(product.canonicalProduct, candidates);
     collectHttpImageUrls(product.variantMediaGroups, candidates);
     collectHttpImageUrls(product.variants, candidates);
+
+    if (candidates.length === 0) {
+      const title = String(product.title || "");
+      candidates.push(...findRenderedProductImages(title));
+    }
 
     const images = [...new Set(candidates.map((url) => url.trim()).filter(Boolean))];
     if (images.length === 0) return { init, hasImage: false };
@@ -217,8 +244,6 @@ export function installMarktGoUploadGuard(): void {
     const context = currentAutoSendContext();
     const prepared = prepareSyncRequest(init);
 
-    // Hiç görseli olmayan ürün MARKT-GO'da oluşturulmasın. Varyant/canonical görseli
-    // varsa yukarıdaki hazırlık onu ana ürün galerisine taşır; gerçekten görsel yoksa retry edilir.
     if (prepared.hasImage === false) {
       scheduleAutoRetry(context, IMAGE_RETRY_MS);
       return syntheticImageError();
@@ -262,7 +287,6 @@ export function installMarktGoUploadGuard(): void {
       }
     }
 
-    // 100'lü toplu aktarımda geçici ağ/429/5xx yüzünden ürün sessizce kaybolmasın.
     scheduleAutoRetry(context);
     if (lastResponse) return lastResponse;
     throw lastError instanceof Error ? lastError : new Error("MARKT-GO bağlantı hatası");
