@@ -5,31 +5,32 @@ const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
 const write = (rel, value) => fs.writeFileSync(path.join(root, rel), value);
 
-// 1) Ürün çekme ve MARKT-GO gönderimi: exact-count korumasını bozmadan kontrollü hız.
+// 1) Ürün çekme ve MARKT-GO gönderimi: Browser Worker'ı doyurmadan kontrollü hız.
 // Build sırasında önceki injector'lar sayıları değiştirebildiği için sabit string yerine
-// mevcut generated source'u regex ile ayarla.
+// mevcut generated source'u regex ile ayarla. Toplu scrape için final concurrency=2.
 const scraperPath = "client/src/pages/scraper.tsx";
 let scraper = read(scraperPath);
 
 scraper = scraper.replace(
   /const BULK_SCRAPE_CONCURRENCY_START = \d+;/,
-  "const BULK_SCRAPE_CONCURRENCY_START = 3;",
+  "const BULK_SCRAPE_CONCURRENCY_START = 2;",
 );
 scraper = scraper.replace(
   /const BULK_SCRAPE_RETRY_DELAY_MS = \d+;/,
-  "const BULK_SCRAPE_RETRY_DELAY_MS = 800;",
+  "const BULK_SCRAPE_RETRY_DELAY_MS = 1200;",
 );
 
-// Exact upload guard generated source'da ternary olabilir. Exact akış 2, normal akış 3.
+// Exact ve normal yüklemeyi de ikiyle sınırla; scrape ile birlikte Browser Worker/backfill
+// kapasitesinin ani yükselmesini engelle.
 if (/const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget \? \d+ : \d+;/.test(scraper)) {
   scraper = scraper.replace(
     /const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget \? \d+ : \d+;/,
-    "const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget ? 2 : 3;",
+    "const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget ? 2 : 2;",
   );
 } else {
   scraper = scraper.replace(
     /const SHOPIFY_UPLOAD_CONCURRENCY = \d+;/,
-    "const SHOPIFY_UPLOAD_CONCURRENCY = 3;",
+    "const SHOPIFY_UPLOAD_CONCURRENCY = 2;",
   );
 }
 
@@ -38,14 +39,17 @@ scraper = scraper.replace(
   "let activeConcurrency = exactMode ? Math.min(2, BULK_SCRAPE_CONCURRENCY_START) : BULK_SCRAPE_CONCURRENCY_START;",
 );
 
-if (!scraper.includes("const BULK_SCRAPE_CONCURRENCY_START = 3;")) {
-  throw new Error("[throughput-tune] scrape concurrency=3 uygulanamadı");
+if (!scraper.includes("const BULK_SCRAPE_CONCURRENCY_START = 2;")) {
+  throw new Error("[throughput-tune] scrape concurrency=2 uygulanamadı");
 }
 if (
-  !scraper.includes("const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget ? 2 : 3;") &&
-  !scraper.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 3;")
+  !scraper.includes("const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget ? 2 : 2;") &&
+  !scraper.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 2;")
 ) {
-  throw new Error("[throughput-tune] MARKT-GO concurrency hedefi uygulanamadı");
+  throw new Error("[throughput-tune] MARKT-GO concurrency=2 uygulanamadı");
+}
+if (!scraper.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 1200;")) {
+  throw new Error("[throughput-tune] retry delay=1200 uygulanamadı");
 }
 if (!scraper.includes("exactMode ? Math.min(2, BULK_SCRAPE_CONCURRENCY_START)")) {
   throw new Error("[throughput-tune] exact-count concurrency=2 uygulanamadı");
@@ -79,17 +83,20 @@ sync = sync.replaceAll(
   "await scrapeAllTrendyolReviewsWithBrowserWorker({",
 );
 
-// Exact injector yorum backfill'lerini tek sıra yaptıysa, iki kontrollü arka plan işçisine çıkar.
+// Review backfill ürün toplu çekiminden düşük öncelikli kalsın: aynı anda yalnız bir iş.
 const serializedScheduler = `let fastReviewBackfillChain: Promise<void> = Promise.resolve();\n\nfunction scheduleFastReviewBackfill(task: () => Promise<void>): void {\n  fastReviewBackfillChain = fastReviewBackfillChain\n    .then(task, task)\n    .catch((err) => {\n      console.warn(\"[marktgo-fast] serialized review backfill failed\",\n        err instanceof Error ? err.message : String(err));\n    });\n}\n\n`;
-const pooledScheduler = `const FAST_REVIEW_BACKFILL_CONCURRENCY = 2;\nlet fastReviewBackfillActive = 0;\nconst fastReviewBackfillQueue: Array<() => Promise<void>> = [];\n\nfunction drainFastReviewBackfills(): void {\n  while (fastReviewBackfillActive < FAST_REVIEW_BACKFILL_CONCURRENCY && fastReviewBackfillQueue.length > 0) {\n    const task = fastReviewBackfillQueue.shift();\n    if (!task) return;\n    fastReviewBackfillActive += 1;\n    void Promise.resolve()\n      .then(task)\n      .catch((err) => {\n        console.warn(\"[marktgo-fast] review backfill failed\",\n          err instanceof Error ? err.message : String(err));\n      })\n      .finally(() => {\n        fastReviewBackfillActive = Math.max(0, fastReviewBackfillActive - 1);\n        drainFastReviewBackfills();\n      });\n  }\n}\n\nfunction scheduleFastReviewBackfill(task: () => Promise<void>): void {\n  fastReviewBackfillQueue.push(task);\n  drainFastReviewBackfills();\n}\n\n`;
+const pooledScheduler = `const FAST_REVIEW_BACKFILL_CONCURRENCY = 1;\nlet fastReviewBackfillActive = 0;\nconst fastReviewBackfillQueue: Array<() => Promise<void>> = [];\n\nfunction drainFastReviewBackfills(): void {\n  while (fastReviewBackfillActive < FAST_REVIEW_BACKFILL_CONCURRENCY && fastReviewBackfillQueue.length > 0) {\n    const task = fastReviewBackfillQueue.shift();\n    if (!task) return;\n    fastReviewBackfillActive += 1;\n    void Promise.resolve()\n      .then(task)\n      .catch((err) => {\n        console.warn(\"[marktgo-fast] review backfill failed\",\n          err instanceof Error ? err.message : String(err));\n      })\n      .finally(() => {\n        fastReviewBackfillActive = Math.max(0, fastReviewBackfillActive - 1);\n        drainFastReviewBackfills();\n      });\n  }\n}\n\nfunction scheduleFastReviewBackfill(task: () => Promise<void>): void {\n  fastReviewBackfillQueue.push(task);\n  drainFastReviewBackfills();\n}\n\n`;
 if (sync.includes(serializedScheduler)) {
   sync = sync.replace(serializedScheduler, pooledScheduler);
 }
+// Daha önce pool=2 uygulanmış generated source gelirse build sonunda 1'e indir.
+sync = sync.replace(
+  "const FAST_REVIEW_BACKFILL_CONCURRENCY = 2;",
+  "const FAST_REVIEW_BACKFILL_CONCURRENCY = 1;",
+);
 if (!sync.includes("scrapeAllTrendyolReviewsWithBrowserWorker")) {
   throw new Error("[throughput-tune] MARKT-GO tam yorum pagination aktif değil");
 }
-// Scheduler farklı bir injector sürümünde değişmişse build'i kırma; yorum doğruluğu tam
-// pagination ile korunur, yalnız arka plan süresi daha uzun olabilir.
 if (sync.includes("fastReviewBackfillChain")) {
   console.warn("[throughput-tune] review backfill scheduler serialized kaldı; güvenlik için değiştirilmedi");
 }
@@ -109,5 +116,5 @@ for (const anchor of [
 write(syncPath, sync);
 
 console.log(
-  "[throughput-tune] exact scrape=2, normal scrape=3, MARKT-GO exact=2/normal=3, card reviews=serialized, full review pagination=on, variant guard=on",
+  "[throughput-tune] scrape=2, retry=1200ms, MARKT-GO upload=2, card reviews=serialized, review backfill=1, full review pagination=on, variant guard=on",
 );
