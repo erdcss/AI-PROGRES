@@ -55,16 +55,15 @@ if (
   throw new Error("[bulk-toast-context] exact-count overshoot guard doğrulanamadı");
 }
 
-// Yorumlar toplu ürün çekimi bitene kadar beklememeli. Her ürün preview'a düştüğü anda
-// Trendyol yorum isteği başlasın. trendyol-reviews-client içindeki kontrollü ortak havuz
-// concurrency/rate-limit güvenliğini korur; burada yalnız eski UI pause kilidini kaldırıyoruz.
+// Toplu ürün çekimi sırasında yorum isteklerini başlatma. Ürün scrape worker'ları önceliklidir;
+// bulk bittiğinde mevcut preview effect'i yorumları otomatik olarak sıraya alır.
 src = src.replaceAll(
   "reviewsPaused={isBulkProcessing || Boolean(uploadProgress) || csvPreviews.length > 1}",
-  "reviewsPaused={false}",
+  "reviewsPaused={isBulkProcessing}",
 );
 src = src.replaceAll(
-  "reviewsPaused={isBulkProcessing}",
   "reviewsPaused={false}",
+  "reviewsPaused={isBulkProcessing}",
 );
 
 fs.writeFileSync(scraperPath, src);
@@ -72,25 +71,23 @@ fs.writeFileSync(scraperPath, src);
 const productPreviewPath = path.join(root, "client/src/components/CSVDrawerProductPreview.tsx");
 let previewSrc = fs.readFileSync(productPreviewPath, "utf8");
 
+// Önceki deploy script'i guard'ı kaldırmış olabilir; build sırasında tekrar güvenli hale getir.
 previewSrc = previewSrc.replaceAll(
-  "if (!canFetchReviews || !sourceUrl || reviewsPaused) return;",
   "if (!canFetchReviews || !sourceUrl) return;",
+  "if (!canFetchReviews || !sourceUrl || reviewsPaused) return;",
 );
 previewSrc = previewSrc.replaceAll(
-  "[canFetchReviews, sourceUrl, reviewsPaused]",
   "[canFetchReviews, sourceUrl]",
+  "[canFetchReviews, sourceUrl, reviewsPaused]",
 );
 previewSrc = previewSrc.replaceAll(
-  '{reviewsPaused ? "Yorumlar ürün çekimi bittikten sonra alınacak" : "Yorumlar sırada…"}',
   '"Yorumlar ürünle birlikte çekiliyor…"',
+  '{reviewsPaused ? "Toplu ürün çekimi tamamlanınca yorumlar alınacak" : "Yorumlar sırada…"}',
 );
 
-if (previewSrc.includes("Yorumlar ürün çekimi bittikten sonra alınacak")) {
-  throw new Error("[bulk-toast-context] ürün sırasında yorum çekme UI kilidi kaldırılamadı");
-}
-if (previewSrc.includes("!canFetchReviews || !sourceUrl || reviewsPaused")) {
-  throw new Error("[bulk-toast-context] yorum fetch pause guard kaldırılamadı");
+if (!previewSrc.includes("!canFetchReviews || !sourceUrl || reviewsPaused")) {
+  throw new Error("[bulk-toast-context] yorum pause guard doğrulanamadı");
 }
 
 fs.writeFileSync(productPreviewPath, previewSrc);
-console.log("[bulk-toast-context] exact reserve failures hidden; exact overshoot capped; reviews start immediately with each scraped product");
+console.log("[bulk-toast-context] exact overshoot capped; reviews yield Browser Worker capacity during bulk scraping");
