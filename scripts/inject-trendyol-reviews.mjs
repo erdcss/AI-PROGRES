@@ -14,18 +14,26 @@ if (!source.includes(importLine)) {
 }
 
 const anchor = '  const coreReady = isCompleteScrapeData(coreFields);';
-const injection = `  const coreReady = isCompleteScrapeData(coreFields);\n\n  // auto-fast toplu çekimde yorumlar ürünün kritik yolunu bloke etmez.\n  // Ürün preview'a düştükten / bulk turu bittikten sonra mevcut yorum akışı devam eder.\n  if (autoFast) {\n    result.reviewSummary = result.reviewSummary || { rating: 0, reviewCount: 0, commentCount: 0 };\n    result.reviews = Array.isArray(result.reviews) ? result.reviews : [];\n    result.reviewDeferred = true;\n    console.log("[trendyol-reviews] auto-fast: yorum çekimi ana pipeline dışında ertelendi");\n  } else {\n    // Ayrıntılı/tekli çekimde yorum davranışını koru; hata çekirdek ürünü bozmasın.\n    try {\n      await attachTrendyolReviews(\n        result,\n        url,\n        variantOpts?.html ?? result.htmlContent ?? null,\n      );\n    } catch (reviewError) {\n      console.warn(\n        "[trendyol-reviews] yorum entegrasyonu soft-fail:",\n        reviewError instanceof Error ? reviewError.message : reviewError,\n      );\n      result.reviewSummary = result.reviewSummary || { rating: 0, reviewCount: 0, commentCount: 0 };\n      result.reviews = Array.isArray(result.reviews) ? result.reviews : [];\n    }\n  }`;
+const injection = `  const coreReady = isCompleteScrapeData(coreFields);\n\n  // Yorumlar tekli ve toplu çekimde ürün sonucu dönmeden önce gelsin.\n  // attachTrendyolReviews Browser Worker üzerinden ilk sayfayı hızlıca alır;\n  // MARKT-GO gönderiminde eksik kalan devam sayfaları ayrıca tamamlanır.\n  try {\n    await attachTrendyolReviews(\n      result,\n      url,\n      variantOpts?.html ?? result.htmlContent ?? null,\n    );\n    result.reviewDeferred = false;\n  } catch (reviewError) {\n    console.warn(\n      "[trendyol-reviews] yorum entegrasyonu soft-fail:",\n      reviewError instanceof Error ? reviewError.message : reviewError,\n    );\n    result.reviewSummary = result.reviewSummary || { rating: 0, reviewCount: 0, commentCount: 0 };\n    result.reviews = Array.isArray(result.reviews) ? result.reviews : [];\n    result.reviewDeferred = false;\n  }`;
 
-if (!source.includes('[trendyol-reviews] auto-fast: yorum çekimi ana pipeline dışında ertelendi')) {
+const legacyStart = '  const coreReady = isCompleteScrapeData(coreFields);\n\n  // auto-fast toplu çekimde yorumlar ürünün kritik yolunu bloke etmez.';
+if (source.includes(legacyStart)) {
+  const legacyEnd = '  }';
+  const startIndex = source.indexOf(legacyStart);
+  const marker = '\n\n  if (!coreReady';
+  const endIndex = source.indexOf(marker, startIndex);
+  if (endIndex === -1) throw new Error('Legacy Trendyol review block end anchor not found');
+  source = source.slice(0, startIndex) + injection + source.slice(endIndex);
+} else if (!source.includes('result.reviewDeferred = false')) {
   if (!source.includes(anchor)) {
     throw new Error('Trendyol pipeline finalize anchor not found');
   }
   source = source.replace(anchor, injection);
 }
 
-if (!source.includes('result.reviewDeferred = true')) {
-  throw new Error('auto-fast review defer uygulanamadı');
+if (!source.includes('result.reviewDeferred = false')) {
+  throw new Error('inline Trendyol review integration uygulanamadı');
 }
 
 fs.writeFileSync(file, source);
-console.log('Trendyol review integration injected: auto-fast=deferred, detailed=inline');
+console.log('Trendyol review integration injected: single+bulk=inline first page');

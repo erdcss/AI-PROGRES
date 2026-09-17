@@ -113,6 +113,95 @@ function normalizePoolReviews(value: unknown, seed: string): ImportedReviewInput
   return limitPoolReviews(reviews, seed);
 }
 
+const IMAGE_VALUE_KEYS = [
+  "url",
+  "src",
+  "publicUrl",
+  "imageUrl",
+  "path",
+  "original",
+  "huge",
+  "large",
+  "medium",
+  "compact",
+  "small",
+] as const;
+
+const IMAGE_CONTAINER_KEYS = [
+  "images",
+  "image",
+  "imageUrl",
+  "featuredImage",
+  "imagesByColor",
+  "gallery",
+  "media",
+  "imageUrls",
+  "productImages",
+  "originalImages",
+  "photos",
+  "pictures",
+  "pictureUrls",
+  "picture_urls",
+  "thumbnails",
+] as const;
+
+const IMAGE_NESTED_KEYS = ["variants", "canonicalProduct", "colorFamily", "variantMediaGroups"] as const;
+
+function collectPoolImageUrls(
+  value: unknown,
+  out: string[],
+  depth = 0,
+  imageContext = false,
+): void {
+  if (value == null || depth > 8) return;
+  if (typeof value === "string") {
+    const url = value.trim();
+    if (imageContext && /^https?:\/\//i.test(url)) out.push(url);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectPoolImageUrls(item, out, depth + 1, imageContext));
+    return;
+  }
+  if (typeof value !== "object") return;
+
+  const row = value as Record<string, unknown>;
+  if (imageContext) {
+    for (const key of IMAGE_VALUE_KEYS) {
+      if (row[key] != null) collectPoolImageUrls(row[key], out, depth + 1, true);
+    }
+  }
+  for (const key of IMAGE_CONTAINER_KEYS) {
+    if (row[key] != null) collectPoolImageUrls(row[key], out, depth + 1, true);
+  }
+  for (const key of IMAGE_NESTED_KEYS) {
+    if (row[key] != null) collectPoolImageUrls(row[key], out, depth + 1, false);
+  }
+}
+
+function imagesForPoolProduct(product: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  collectPoolImageUrls(product, out);
+  const seen = new Set<string>();
+  return out.filter((url) => {
+    const cleaned = String(url || "").trim();
+    if (!cleaned || seen.has(cleaned)) return false;
+    seen.add(cleaned);
+    return true;
+  });
+}
+
+function reviewSummaryCount(product: Record<string, unknown>): number | null {
+  const raw = product.reviewSummary;
+  if (!raw || typeof raw !== "object") return null;
+  const summary = raw as Record<string, unknown>;
+  for (const candidate of [summary.reviewCount, summary.commentCount, summary.totalReviewCount, summary.total]) {
+    const n = Number(candidate);
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+  }
+  return null;
+}
+
 /** Map product-pool shape into Turmarkt external catalog sync input. */
 export function mapPoolProductToMarktGoInput(
   product: Record<string, unknown>,
@@ -129,11 +218,7 @@ export function mapPoolProductToMarktGoInput(
   const regular = compare
     ? Math.round(compare * (1 + PROFIT_MARGIN) * 100) / 100
     : sellPrice;
-  const images = Array.isArray(product.images)
-    ? product.images.map(String)
-    : product.image
-      ? [String(product.image)]
-      : [];
+  const images = imagesForPoolProduct(product);
   const { appliedTags: tags } = resolvePoolProductTagAssignment(product);
   const featurePairs = Array.isArray(product.features)
     ? (product.features as Array<{ name?: string; key?: string; value?: string }>)
@@ -181,10 +266,22 @@ export function mapPoolProductToMarktGoInput(
     product.sourceUrl || product.poolId || product.id || product.title || "product",
   );
   const reviews = normalizePoolReviews(product.reviews, reviewSeed);
-  const reviewCountRaw = Number(product.reviewCount ?? product.ratingCount ?? reviews?.length ?? 0);
+  const nestedReviewCount = reviewSummaryCount(product);
+  const reviewCountRaw = Number(
+    product.reviewCount ?? product.ratingCount ?? nestedReviewCount ?? reviews?.length ?? 0,
+  );
   const expectedReviewCount = Number.isFinite(reviewCountRaw) && reviewCountRaw >= 0
     ? Math.floor(reviewCountRaw)
     : null;
+  const sourceUrl = product.sourceUrl ? String(product.sourceUrl) : null;
+  const hasIncompleteTrendyolReviews =
+    Boolean(sourceUrl && /trendyol\.com/i.test(sourceUrl)) &&
+    expectedReviewCount != null &&
+    expectedReviewCount > (reviews?.length || 0);
+  // Toplu çekimde ilk sayfa yorumları UI'ya hemen gelir. Eğer Trendyol toplam yorum adedi
+  // bundan fazlaysa MARKT-GO sync servisinin Browser Worker ile kalan sayfaları tamamlaması
+  // için partial listeyi "tamamlandı" diye göndermiyoruz.
+  const reviewsForSync = hasIncompleteTrendyolReviews ? undefined : reviews;
 
   return {
     localProductId: poolLocalProductId(product),
@@ -192,14 +289,14 @@ export function mapPoolProductToMarktGoInput(
     description,
     brand: product.brand ? String(product.brand) : product.siteName ? String(product.siteName) : null,
     category: product.category ? String(product.category) : null,
-    sourceUrl: product.sourceUrl ? String(product.sourceUrl) : null,
+    sourceUrl,
     price: regular,
     discountPrice: compare ? sellPrice : null,
     purchasePrice: sale > 0 ? sale : null,
     stock: marktGoStockForAvailability(product.inStock !== false),
     images,
     tags,
-    reviews,
+    reviews: reviewsForSync,
     expectedReviewCount,
     variants,
   };
