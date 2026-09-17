@@ -46,7 +46,11 @@ function decodedPath(url: string): string {
 
 function isKnownNonProductAsset(url: string): boolean {
   const path = decodedPath(url);
-  return /(?:QC[_-]?ENRICHMENT|\/ENRICHMENT\/|size[_-]?(?:chart|guide)|beden[_-]?(?:tablo|rehber)|yikama|washing|wash[_-]?care|care[_-]?(?:instruction|guide)|instruction|laundry|symbol|\/icons?\/|[_-]icon(?:[_./-]|$)|badge|logo|banner|campaign|kampanya|seller|review|yorum|avatar|footer|header|favicon|story[_-]?image)/i.test(
+  // QC_ENRICHMENT is also used by Trendyol for the real numbered product gallery
+  // (for example 1_org_zoom.jpg). Do not reject the whole folder; the strict
+  // gallery-path check below still requires a real product-looking image path,
+  // while care/size-chart/banner assets remain blocked here.
+  return /(?:size[_-]?(?:chart|guide)|beden[_-]?(?:tablo|rehber)|yikama|washing|wash[_-]?care|care[_-]?(?:instruction|guide)|instruction|laundry|symbol|\/icons?\/|[_-]icon(?:[_./-]|$)|badge|logo|banner|campaign|kampanya|seller|review|yorum|avatar|footer|header|favicon|story[_-]?image)/i.test(
     path,
   );
 }
