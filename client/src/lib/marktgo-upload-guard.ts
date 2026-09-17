@@ -103,7 +103,7 @@ function markAutoSendSuccess(context: { button: HTMLButtonElement; key: string }
 }
 
 function collectHttpImageUrls(value: unknown, out: string[], depth = 0): void {
-  if (value == null || depth > 6) return;
+  if (value == null || depth > 7) return;
   if (typeof value === "string") {
     const url = value.trim();
     if (/^https?:\/\//i.test(url)) out.push(url);
@@ -116,7 +116,31 @@ function collectHttpImageUrls(value: unknown, out: string[], depth = 0): void {
   if (typeof value !== "object") return;
 
   const row = value as Record<string, unknown>;
-  for (const key of ["images", "image", "imageUrl", "featuredImage", "imagesByColor"]) {
+  for (const key of [
+    "images",
+    "image",
+    "imageUrl",
+    "featuredImage",
+    "imagesByColor",
+    "gallery",
+    "media",
+    "imageUrls",
+    "productImages",
+    "originalImages",
+    "photos",
+    "pictures",
+    "pictureUrls",
+    "picture_urls",
+    "thumbnails",
+    "original",
+    "huge",
+    "large",
+    "medium",
+    "compact",
+    "small",
+    "src",
+    "path",
+  ]) {
     if (row[key] != null) collectHttpImageUrls(row[key], out, depth + 1);
   }
   for (const key of ["variants", "canonicalProduct", "colorFamily", "variantMediaGroups"]) {
@@ -162,12 +186,29 @@ function prepareSyncRequest(init?: RequestInit): {
       : parsed;
 
     const candidates: string[] = [];
-    collectHttpImageUrls(product.images, candidates);
-    collectHttpImageUrls(product.image, candidates);
-    collectHttpImageUrls(product.imagesByColor, candidates);
-    collectHttpImageUrls(product.canonicalProduct, candidates);
-    collectHttpImageUrls(product.variantMediaGroups, candidates);
-    collectHttpImageUrls(product.variants, candidates);
+    for (const key of [
+      "images",
+      "image",
+      "imageUrl",
+      "featuredImage",
+      "imagesByColor",
+      "gallery",
+      "media",
+      "imageUrls",
+      "productImages",
+      "originalImages",
+      "photos",
+      "pictures",
+      "pictureUrls",
+      "picture_urls",
+      "thumbnails",
+      "canonicalProduct",
+      "variantMediaGroups",
+      "variants",
+      "colorFamily",
+    ]) {
+      if (product[key] != null) collectHttpImageUrls(product[key], candidates);
+    }
 
     if (candidates.length === 0) {
       const title = String(product.title || "");
