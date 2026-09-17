@@ -14,7 +14,10 @@ import { isCloudRuntime } from "@shared/deploy-runtime";
 
 const MIN_BYTES = 512;
 const PROBE_TIMEOUT_MS = 2_000;
-const MAX_IMAGES = 12;
+// Trendyol galerileri 12 görseli aşabildiği için eski sabit 12 sınırı gerçek
+// ürün görsellerini sessizce kesiyordu. Güvenlik için yüksek bir üst sınır tut,
+// fakat normal ürünlerde bulunan tüm benzersiz galeriyi MARKT-GO'ya geçir.
+const MAX_IMAGES = 64;
 const LOW_TY_RE = /\/ty(1660|1000|1505)\//i;
 
 function imageIdentityKey(url: string): string {
@@ -98,11 +101,19 @@ export async function prepareMarktGoImages(
     recoverWithPreferredTy(url, preferredTy),
   );
 
+  // Çağıran taraf yanlışlıkla 0/negatif veya eski 12 sınırı göndermesin diye
+  // gerçek galeri büyüklüğünü koruyan, yine de mutlak MAX_IMAGES ile sınırlı bir limit.
+  const requestedLimit = Number.isFinite(Number(limit)) ? Math.floor(Number(limit)) : MAX_IMAGES;
+  const effectiveLimit = Math.min(
+    MAX_IMAGES,
+    Math.max(1, requestedLimit, ranked.length),
+  );
+
   const resolved: string[] = [];
   const seen = new Set<string>();
 
   for (const url of ranked) {
-    if (resolved.length >= limit) break;
+    if (resolved.length >= effectiveLimit) break;
     let finalUrl = url;
     if (LOW_TY_RE.test(url)) {
       const fixed = await resolveSuspiciousUrl(url, preferredTy);
@@ -127,7 +138,7 @@ export async function prepareMarktGoImages(
       ...ranked.filter((url) => LOW_TY_RE.test(url)),
     ];
     for (const url of fallbackRanked) {
-      if (resolved.length >= limit) break;
+      if (resolved.length >= effectiveLimit) break;
       const key = imageIdentityKey(url);
       if (seen.has(key)) continue;
       seen.add(key);
