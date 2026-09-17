@@ -16,18 +16,44 @@ function asObj(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 }
 
-function imagesFrom(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const out: string[] = [];
-  for (const item of raw) {
-    if (typeof item === "string" && item.startsWith("http")) out.push(item);
-    else if (item && typeof item === "object") {
-      const o = item as Record<string, unknown>;
-      const u = String(o.url || o.src || o.publicUrl || o.imageUrl || "");
-      if (u.startsWith("http")) out.push(u);
-    }
+function collectImageUrls(raw: unknown, out: string[], depth = 0): void {
+  if (raw == null || depth > 6) return;
+  if (typeof raw === "string") {
+    const url = raw.trim();
+    if (/^https?:\/\//i.test(url)) out.push(url);
+    return;
   }
-  return out;
+  if (Array.isArray(raw)) {
+    raw.forEach((item) => collectImageUrls(item, out, depth + 1));
+    return;
+  }
+  if (typeof raw !== "object") return;
+
+  const row = raw as Record<string, unknown>;
+  for (const key of [
+    "url",
+    "src",
+    "publicUrl",
+    "imageUrl",
+    "image",
+    "featuredImage",
+    "images",
+    "imageUrls",
+    "gallery",
+    "media",
+    "photos",
+    "pictures",
+    "original",
+    "large",
+  ]) {
+    if (row[key] != null) collectImageUrls(row[key], out, depth + 1);
+  }
+}
+
+function imagesFrom(...rawValues: unknown[]): string[] {
+  const out: string[] = [];
+  rawValues.forEach((raw) => collectImageUrls(raw, out));
+  return [...new Set(out)];
 }
 
 export function normalizeMarktGoProduct(payload: unknown): NormalizedRemoteProduct {
@@ -45,7 +71,20 @@ export function normalizeMarktGoProduct(payload: unknown): NormalizedRemoteProdu
     price: num(p.price ?? asObj(p.pricing).price),
     discountPrice: num(p.discountPrice ?? asObj(p.pricing).discountPrice),
     stock: num(p.stock ?? asObj(p.inventory).stock),
-    images: imagesFrom(p.images),
+    images: imagesFrom(
+      p.images,
+      p.image,
+      p.imageUrl,
+      p.featuredImage,
+      p.imageUrls,
+      p.gallery,
+      p.media,
+      p.photos,
+      p.pictures,
+      root.images,
+      root.image,
+      root.imageUrl,
+    ),
     variants: variantsRaw.map((v) => {
       const o = asObj(v);
       return {

@@ -10,6 +10,7 @@ import {
 import { syncProductToMarktGo } from "../services/marktgo/sync.service";
 import { mapPoolProductToMarktGoInput } from "../services/marktgo/pool-map";
 import { repairExistingMarktGoProductImages } from "../services/marktgo/image-repair.service";
+import { applyAutomaticCollectionsToMarktGoProduct } from "../services/marktgo/collection-assignment.service";
 import { userMessageForMarktGoError } from "../services/marktgo/errors";
 import { runMarktGoMigration } from "../migrations/run-marktgo-migration";
 
@@ -155,13 +156,47 @@ export function registerMarktGoRoutes(app: Express): void {
       if (salePrice == null || !Number.isFinite(Number(salePrice))) {
         return res.status(400).json({ success: false, error: "product.salePrice zorunlu" });
       }
+
+      // Koleksiyon kurallarını önce yükle ki mapPoolProductToMarktGoInput ürün
+      // etiketlerini MARKT-GO'daki gerçek koleksiyon adlarıyla eşleştirebilsin.
+      try {
+        const { syncMarktGoCategorySummary } = await import(
+          "../services/marktgo/collections-sync.service"
+        );
+        await syncMarktGoCategorySummary(false);
+      } catch {
+        /* koleksiyon cache'i yoksa mevcut otomatik etiket kurallarıyla devam et */
+      }
+
       const input = req.body?.localProductId
         ? product
         : mapPoolProductToMarktGoInput(product);
       const result = await syncProductToMarktGoWithRetry(input, req.body?.connectionId);
 
-      let imageRepair = { attempted: false, repaired: false, imageCount: 0 };
-      if ((result as { skipped?: boolean }).skipped === true && result.externalProductId) {
+      let automaticCollections = {
+        attempted: false,
+        tagsApplied: 0,
+        categoryId: null as number | null,
+        categoryName: null as string | null,
+        categoryUnresolved: false,
+        matchedCollections: [] as Array<{ id: string; title: string }>,
+      };
+      let imageRepair = {
+        attempted: false,
+        repaired: false,
+        verified: false,
+        imageCount: 0,
+        remoteImageCount: 0,
+        missingImageCount: 0,
+        attempts: 0,
+      };
+
+      if (result.externalProductId) {
+        automaticCollections = await applyAutomaticCollectionsToMarktGoProduct(
+          result.externalProductId,
+          input as any,
+          req.body?.connectionId,
+        );
         imageRepair = await repairExistingMarktGoProductImages(
           result.externalProductId,
           (input as { images?: unknown }).images,
@@ -179,6 +214,7 @@ export function registerMarktGoRoutes(app: Express): void {
       console.info("[marktgo] product sync success", {
         externalProductId: result.externalProductId,
         sourceUrl: String(product.sourceUrl || "").slice(0, 180),
+        automaticCollections,
         imageRepair,
         elapsedMs: Date.now() - startedAt,
       });
@@ -199,6 +235,7 @@ export function registerMarktGoRoutes(app: Express): void {
       return res.json({
         success: true,
         assignment,
+        automaticCollections,
         imageRepair,
         elapsedMs: Date.now() - startedAt,
         ...result,
