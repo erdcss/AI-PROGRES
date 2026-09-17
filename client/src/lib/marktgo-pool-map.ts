@@ -142,6 +142,37 @@ function normalizeReviews(input: Record<string, unknown>) {
   return pickVariableReviewSubset(normalized, seed);
 }
 
+const PRODUCT_IMAGE_VALUE_KEYS = [
+  "url",
+  "src",
+  "image",
+  "imageUrl",
+  "featuredImage",
+  "original",
+  "huge",
+  "large",
+  "medium",
+  "compact",
+  "small",
+  "path",
+] as const;
+
+const PRODUCT_IMAGE_CONTAINER_KEYS = [
+  "images",
+  "gallery",
+  "media",
+  "imageUrls",
+  "imagesByColor",
+  "variantMediaGroups",
+  "productImages",
+  "originalImages",
+  "photos",
+  "pictures",
+  "pictureUrls",
+  "picture_urls",
+  "thumbnails",
+] as const;
+
 function collectProductImageCandidates(
   input: Record<string, unknown>,
   allVariants: unknown[],
@@ -150,7 +181,7 @@ function collectProductImageCandidates(
   const seenObjects = new Set<object>();
 
   const push = (value: unknown, depth = 0) => {
-    if (value == null || depth > 5) return;
+    if (value == null || depth > 6) return;
     if (typeof value === "string") {
       const url = value.trim();
       if (/^https?:\/\//i.test(url)) found.push(url);
@@ -165,28 +196,39 @@ function collectProductImageCandidates(
     seenObjects.add(value as object);
 
     const row = value as Record<string, unknown>;
-    for (const key of ["url", "src", "image", "imageUrl", "featuredImage"]) {
+    for (const key of PRODUCT_IMAGE_VALUE_KEYS) {
       if (row[key] != null) push(row[key], depth + 1);
     }
-    for (const key of ["images", "gallery", "media", "imageUrls", "imagesByColor"]) {
+    for (const key of PRODUCT_IMAGE_CONTAINER_KEYS) {
       if (row[key] != null) push(row[key], depth + 1);
     }
   };
 
-  push(input.images);
-  push(input.image);
-  push(input.imagesByColor);
+  for (const key of [
+    "images",
+    "image",
+    "imageUrl",
+    "featuredImage",
+    "gallery",
+    "media",
+    "imageUrls",
+    "imagesByColor",
+    "variantMediaGroups",
+    "productImages",
+    "originalImages",
+    "photos",
+    "pictures",
+    "pictureUrls",
+    "picture_urls",
+    "thumbnails",
+  ] as const) {
+    if (input[key] != null) push(input[key]);
+  }
 
   const canonical = input.canonicalProduct && typeof input.canonicalProduct === "object"
     ? (input.canonicalProduct as Record<string, unknown>)
     : null;
-  if (canonical) {
-    push(canonical.images);
-    push(canonical.image);
-    push(canonical.imagesByColor);
-    push(canonical.variantMediaGroups);
-    push(canonical.variants);
-  }
+  if (canonical) push(canonical);
 
   push(allVariants);
   return [...new Set(found)];
@@ -202,9 +244,6 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
       ? (input.variants as unknown[])
       : [];
 
-  // Ürün görsellerini yalnız üst seviye images alanından değil; renk ailesi,
-  // canonical payload ve varyant görsellerinden de topla. Böylece MARKT-GO'ya
-  // görselsiz ürün gitmesine yol açan veri şekli farkları ortadan kalkar.
   const imageCandidates = collectProductImageCandidates(input, allVariants);
   const images = filterValidProductImages(imageCandidates);
 
@@ -214,12 +253,7 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     const size = String(v.size || v.option2 || "").trim();
     const baseId = String(v.sourceProductId || v.listingId || v.id || "").trim();
     const id = baseId ? `${baseId}-${i + 1}` : `${color}-${size}-${i + 1}`;
-    const variantImageCandidates = [
-      v.image,
-      v.imageUrl,
-      v.featuredImage,
-      ...(Array.isArray(v.images) ? v.images : []),
-    ];
+    const variantImageCandidates = collectProductImageCandidates(v, []);
     const variantImage = filterValidProductImages(variantImageCandidates)[0];
     return {
       id,
