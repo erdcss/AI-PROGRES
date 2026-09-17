@@ -9,6 +9,7 @@ import {
 } from "../services/marktgo/connection.service";
 import { syncProductToMarktGo } from "../services/marktgo/sync.service";
 import { mapPoolProductToMarktGoInput } from "../services/marktgo/pool-map";
+import { repairExistingMarktGoProductImages } from "../services/marktgo/image-repair.service";
 import { userMessageForMarktGoError } from "../services/marktgo/errors";
 import { runMarktGoMigration } from "../migrations/run-marktgo-migration";
 
@@ -158,6 +159,16 @@ export function registerMarktGoRoutes(app: Express): void {
         ? product
         : mapPoolProductToMarktGoInput(product);
       const result = await syncProductToMarktGoWithRetry(input, req.body?.connectionId);
+
+      let imageRepair = { attempted: false, repaired: false, imageCount: 0 };
+      if ((result as { skipped?: boolean }).skipped === true && result.externalProductId) {
+        imageRepair = await repairExistingMarktGoProductImages(
+          result.externalProductId,
+          (input as { images?: unknown }).images,
+          req.body?.connectionId,
+        );
+      }
+
       const { buildMarktGoUploadItemReport } = await import(
         "../services/marktgo/upload-report.service"
       );
@@ -168,6 +179,7 @@ export function registerMarktGoRoutes(app: Express): void {
       console.info("[marktgo] product sync success", {
         externalProductId: result.externalProductId,
         sourceUrl: String(product.sourceUrl || "").slice(0, 180),
+        imageRepair,
         elapsedMs: Date.now() - startedAt,
       });
       void import("../services/mobile-push.service")
@@ -184,7 +196,13 @@ export function registerMarktGoRoutes(app: Express): void {
       void import("../services/mobile-dashboard.service")
         .then(({ scheduleDashboardRefresh }) => scheduleDashboardRefresh())
         .catch(() => undefined);
-      return res.json({ success: true, assignment, elapsedMs: Date.now() - startedAt, ...result });
+      return res.json({
+        success: true,
+        assignment,
+        imageRepair,
+        elapsedMs: Date.now() - startedAt,
+        ...result,
+      });
     } catch (err) {
       console.error("[marktgo] product sync failed", {
         elapsedMs: Date.now() - startedAt,
