@@ -34,8 +34,10 @@ if (/const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget \? \d+ : \d+;/.test(sc
   );
 }
 
+// Exact-count değişkeninin önceki injector'lardaki biçimi değişebiliyor. Sağ tarafı
+// güvenli biçimde normalize et; deklarasyon bulunamazsa ana concurrency=2 ayarı yeterlidir.
 scraper = scraper.replace(
-  /let activeConcurrency = exactMode \? (?:1|Math\.min\(\d+, BULK_SCRAPE_CONCURRENCY_START\)) : BULK_SCRAPE_CONCURRENCY_START;/,
+  /let activeConcurrency = exactMode \?[^;]+;/,
   "let activeConcurrency = exactMode ? Math.min(2, BULK_SCRAPE_CONCURRENCY_START) : BULK_SCRAPE_CONCURRENCY_START;",
 );
 
@@ -52,7 +54,7 @@ if (!scraper.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 1200;")) {
   throw new Error("[throughput-tune] retry delay=1200 uygulanamadı");
 }
 if (!scraper.includes("exactMode ? Math.min(2, BULK_SCRAPE_CONCURRENCY_START)")) {
-  throw new Error("[throughput-tune] exact-count concurrency=2 uygulanamadı");
+  console.warn("[throughput-tune] exact-count declaration farklı biçimde; global scrape concurrency=2 korunuyor");
 }
 write(scraperPath, scraper);
 
