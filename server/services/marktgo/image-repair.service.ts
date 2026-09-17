@@ -71,7 +71,7 @@ export async function repairExistingMarktGoProductImages(
   connectionId?: number,
 ): Promise<MarktGoImageRepairResult> {
   const id = String(externalProductId || "").trim();
-  const images = await prepareMarktGoImages(Array.isArray(rawImages) ? rawImages : [], 12);
+  const images = await prepareMarktGoImages(Array.isArray(rawImages) ? rawImages : []);
 
   if (!id || images.length === 0) {
     return {
