@@ -9,7 +9,6 @@ import dataAnalysisRoutes from './data-analysis-routes';
 import memoryStatusRoutes from './memory-status-api';
 import replitAgentRoutes from './replit-agent-routes';
 import sosRoutes from './sos-routes';
-import pendingChangesRoutes from './pending-changes-api';
 import * as pathModule from "path";
 import { fileURLToPath} from 'url';
 import * as fs from 'fs';
@@ -30,7 +29,7 @@ console.error("🚀 SERVER INDEX.TS BAŞLADI 🚀");
 console.error("=========================================");
 console.log("Uygulama başlatılıyor...");
 console.log("[FlowTrace] activeRoute=routes.ts (registerRoutes from server/routes.ts)");
-console.log("[FlowTrace] UI button -> POST /api/scrape -> scenario-based-scraper -> trendyol-variant-stock-normalizer -> variant-shape-normalizer -> shopify-canonical-export -> POST /api/shopify/upload-csv-product|/api/shopify/products -> shopify-upsert-service");
+console.log("[FlowTrace] active destination=MARKT-GO; legacy Shopify API disabled");
 
 const app = express();
 app.use(requestIdMiddleware);
@@ -323,7 +322,6 @@ app.use((req, res, next) => {
   // Add Replit Agent routes
   app.use('/api/agent', replitAgentRoutes);
 app.use('/api/sos', sosRoutes);
-app.use(pendingChangesRoutes);
   
   // Add import routes
   app.use(importRoutes);
@@ -331,7 +329,7 @@ app.use(pendingChangesRoutes);
   // ── Replit Importer API (/api/health, /api/import) ──────────────────────────
   app.use('/api', importerRouter);
 
-  // Ürün Havuzu — tamamen bağımsız scrape / Shopify taslak yükleme
+  // Ürün Havuzu — bağımsız scrape / hedef MARKT-GO
   const { default: productPoolRouter } = await import('./product-pool/router');
   app.use('/api/product-pool', productPoolRouter);
   
@@ -740,13 +738,7 @@ app.use(pendingChangesRoutes);
     webSocketService.initialize(server);
   }).catch(console.error);
 
-  // Initialize Shopify change tracker
-  setTimeout(() => {
-    import('./shopify-change-tracker').then(({ shopifyChangeTracker }) => {
-      shopifyChangeTracker.initializeCache();
-      console.log('✅ Shopify change tracker initialized');
-    }).catch(console.error);
-  }, 5000);
+
 
   server.listen(port, "0.0.0.0", () => {
     console.log("========================================");
