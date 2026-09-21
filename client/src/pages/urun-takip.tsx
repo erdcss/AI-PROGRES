@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import {
   TrackingChangeGroupCard,
-  selectInstantShopifySyncIds,
+  selectInstantMarktGoSyncIds,
 } from "@/features/tracking/TrackingChangeGroupCard";
 import { TrackingProductImage } from "@/features/tracking/TrackingProductImage";
 import {
@@ -65,6 +65,7 @@ type DetectedChange = {
   createdAt: string;
   seenAt?: string | null;
   approvedAt?: string | null;
+  approvedBy?: string | null;
   appliedAt?: string | null;
   productTitle?: string | null;
   productUrl?: string | null;
@@ -272,7 +273,7 @@ function getProductChangeKinds(changes: DetectedChange[]): Set<ChangeKindFilter>
 }
 
 async function runBulkTrackingAction(
-  action: "approve" | "shopify-sync",
+  action: "approve" | "marktgo-sync",
   ids: number[],
 ): Promise<{
   summary: { total: number; succeeded: number; failed: number };
@@ -298,7 +299,7 @@ async function runBulkTrackingAction(
 
   if (summary.succeeded === 0 && summary.failed > 0) {
     const firstError = results.find((r) => !r.success)?.error;
-    throw new Error(firstError || "Shopify güncellemesi başarısız");
+    throw new Error(firstError || "MARKT-GO güncellemesi başarısız");
   }
 
   return { summary, results };
@@ -522,25 +523,25 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     },
   });
 
-  const shopifySyncMutation = useMutation({
+  const marktgoSyncMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/tracking/changes/${id}/shopify-sync`, { method: "POST" });
+      const res = await fetch(`/api/tracking/changes/${id}/marktgo-sync`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.message || "Shopify güncellemesi başarısız");
+      if (!res.ok) throw new Error(data.error || data.message || "MARKT-GO güncellemesi başarısız");
       return data;
     },
     onMutate: () => {
-      toast({ title: "Shopify güncelleniyor…", description: "Fiyat doğrudan mağazaya yazılıyor" });
+      toast({ title: "MARKT-GO güncelleniyor…", description: "Değişiklik doğrudan MARKT-GO ürününe yazılıyor" });
     },
     onSuccess: (data) => {
       toast({
-        title: "Shopify güncellendi",
+        title: "MARKT-GO güncellendi",
         description: data.shopify?.message || "Değişiklik uygulandı",
       });
       refreshTrackingQueries();
     },
     onError: (err: Error) => {
-      toast({ title: "Shopify hatası", description: err.message, variant: "destructive" });
+      toast({ title: "MARKT-GO hatası", description: err.message, variant: "destructive" });
     },
   });
 
@@ -560,11 +561,11 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     },
   });
 
-  const bulkShopifySyncMutation = useMutation({
-    mutationFn: (ids: number[]) => runBulkTrackingAction("shopify-sync", ids),
+  const bulkMarktGoSyncMutation = useMutation({
+    mutationFn: (ids: number[]) => runBulkTrackingAction("marktgo-sync", ids),
     onMutate: () => {
       toast({
-        title: "Shopify güncelleniyor…",
+        title: "MARKT-GO güncelleniyor…",
         description: "Değişiklikler doğrudan mağazaya uygulanıyor",
       });
     },
@@ -584,7 +585,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       toast({
         title:
           summary.failed === 0
-            ? "Shopify güncellendi"
+            ? "MARKT-GO güncellendi"
             : `Shopify kısmen güncellendi (${summary.succeeded}/${summary.total})`,
         description:
           [
@@ -1011,10 +1012,10 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 {statusFilter !== "ignored" && statusFilter !== "seen" && statusFilter !== "applied" && statusFilter !== "history" && bulkFixIds.length > 0 && (
                   <Button
                     size="sm"
-                    disabled={bulkShopifySyncMutation.isPending}
-                    onClick={() => bulkShopifySyncMutation.mutate(bulkFixIds)}
+                    disabled={bulkMarktGoSyncMutation.isPending}
+                    onClick={() => bulkMarktGoSyncMutation.mutate(bulkFixIds)}
                   >
-                    {bulkShopifySyncMutation.isPending
+                    {bulkMarktGoSyncMutation.isPending
                       ? "Güncelleniyor…"
                       : `Toplu düzelt (${bulkFixIds.length})`}
                   </Button>
@@ -1023,7 +1024,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={bulkApproveMutation.isPending || bulkShopifySyncMutation.isPending}
+                    disabled={bulkApproveMutation.isPending || bulkMarktGoSyncMutation.isPending}
                     onClick={() => bulkApproveMutation.mutate(approvableIds)}
                   >
                     Toplu Onayla ({approvableIds.length})
@@ -1140,9 +1141,9 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 changes={changes}
                 busy={
                   changeActionMutation.isPending ||
-                  shopifySyncMutation.isPending ||
+                  marktgoSyncMutation.isPending ||
                   bulkApproveMutation.isPending ||
-                  bulkShopifySyncMutation.isPending
+                  bulkMarktGoSyncMutation.isPending
                 }
                 rechecking={
                   checkMutation.isPending && checkMutation.variables === changes[0].trackedProductId
@@ -1150,9 +1151,9 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 onMarkSeen={(id) => changeActionMutation.mutate({ id, action: "mark-seen" })}
                 onIgnore={(id) => changeActionMutation.mutate({ id, action: "ignore" })}
                 onApprove={(id) => changeActionMutation.mutate({ id, action: "approve" })}
-                onShopifySync={(id) => shopifySyncMutation.mutate(id)}
+                onMarktGoSync={(id) => marktgoSyncMutation.mutate(id)}
                 onApproveMany={(ids) => bulkApproveMutation.mutate(ids)}
-                onShopifySyncMany={(ids) => bulkShopifySyncMutation.mutate(ids)}
+                onShopifySyncMany={(ids) => bulkMarktGoSyncMutation.mutate(ids)}
                 onRecheck={() => checkMutation.mutate(changes[0].trackedProductId)}
               />
             ))}
@@ -1190,7 +1191,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                     <div>
                       <Label>Otomatik düzeltme</Label>
                       <p className="text-xs text-muted-foreground">
-                        Yüksek güvenli değişiklikleri MARKT-GO / Shopify&apos;a uygular; kaynak
+                        Yüksek güvenli değişiklikleri yalnızca MARKT-GO&apos;ya uygular; kaynak
                         kalkmış ürünü takipten düşürür
                       </p>
                     </div>
