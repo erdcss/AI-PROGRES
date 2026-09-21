@@ -15,14 +15,14 @@ import {
 } from "./tracking.scheduler";
 import {
   ensureLocalTrackingAutoStart,
-  syncShopifyMemoryToTracking,
+  syncMarktGoCatalogToTracking,
 } from "./tracking-sync.service";
 import { backfillTrackingUids } from "./tracking-uid-backfill.service";
 import {
   reconcileUnreliablePriceChanges,
   supersedeStaleTrackingChanges,
 } from "./tracking-reconcile.service";
-import { runStartupTrackingAndShopifyAudit } from "./tracking-startup-audit.service";
+import { runStartupTrackingAudit } from "./tracking-startup-audit.service";
 import { isCloudRuntime } from "@shared/deploy-runtime";
 import { trackingService } from "./tracking.service";
 import { runControlCenterMigration } from "../migrations/run-control-center-migration";
@@ -67,9 +67,9 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
     }
 
     try {
-      await syncShopifyMemoryToTracking();
+      await syncMarktGoCatalogToTracking();
     } catch (err) {
-      console.warn("⚠️ Shopify → v2 takip senkronu atlandı:", err);
+      console.warn("⚠️ MARKT-GO → v2 takip senkronu atlandı:", err);
     }
 
     try {
@@ -86,20 +86,13 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
     }
 
     await startTrackingScheduler();
-    // Açılış: takip + Shopify hard-delete + silme doğrulaması + uygulama içi bildirimler
+    // Açılış: takip + MARKT-GO katalog eşleme + otomatik düzeltme + uygulama içi bildirimler
     setTimeout(() => {
-      void runStartupTrackingAndShopifyAudit().catch((err) =>
-        console.warn("⚠️ Açılış Shopify/takip denetimi atlandı:", err),
+      void runStartupTrackingAudit().catch((err) =>
+        console.warn("⚠️ Açılış MARKT-GO/takip denetimi atlandı:", err),
       );
     }, isCloudRuntime() ? 10_000 : 3_000);
     triggerImmediateSchedulerCycle(isCloudRuntime() ? 15_000 : 5_000);
-    if (!isCloudRuntime()) {
-      setTimeout(() => {
-        void import("./tracking.scheduler")
-          .then(({ triggerShopifyTrackingReconcile }) => triggerShopifyTrackingReconcile(true))
-          .catch((err) => console.warn("⚠️ Yerel Shopify reconcile atlandı:", err));
-      }, 12_000);
-    }
     setTimeout(() => {
       void import("./marktgo/reconcile.service")
         .then(({ triggerMarktGoCatalogReconcile }) => triggerMarktGoCatalogReconcile(true))
