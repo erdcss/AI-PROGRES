@@ -7,7 +7,6 @@ import apiRoutes from "./api-routes";
 import importRoutes from "./import-route";
 import dataAnalysisRoutes from './data-analysis-routes';
 import memoryStatusRoutes from './memory-status-api';
-import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import replitAgentRoutes from './replit-agent-routes';
 import sosRoutes from './sos-routes';
 import pendingChangesRoutes from './pending-changes-api';
@@ -16,7 +15,6 @@ import { fileURLToPath} from 'url';
 import * as fs from 'fs';
 import { enhancedErrorDetection } from './enhanced-error-detection';
 import { importerRouter } from './importer-api';
-import { syncEnvApiKeyToDB } from './shopify-credentials';
 import { requestIdMiddleware } from './request-context';
 import {
   SHOPIFY_CSV_FILENAME,
@@ -39,21 +37,27 @@ app.use(requestIdMiddleware);
 
 // Timeout ve connection handling
 app.use((req, res, next) => {
-  const isLongShopifyUpload =
-    req.method === "POST" &&
-    (req.path === "/api/shopify/bulk-upload" ||
-      req.path === "/api/shopify/upload-csv-product" ||
-      req.path === "/api/shopify/products" ||
-      req.path === "/api/shopify/upload-product");
-  const timeoutMs = isLongShopifyUpload ? 10 * 60 * 1000 : 60_000;
-  req.setTimeout(timeoutMs);
-  res.setTimeout(timeoutMs);
+  req.setTimeout(60_000);
+  res.setTimeout(60_000);
   next();
 });
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 app.use(express.text({ type: ['text/csv', 'text/plain'], limit: '10mb' }));
+
+// Shopify entegrasyonu devre dışı: tüm hedef işlemler MARKT-GO üzerinden yürür.
+app.use((req, res, next) => {
+  const p = String(req.path || "");
+  if (/^\/api\/shopify(?:\/|-|$)/i.test(p) || /^\/api\/shopify-upload(?:\/|$)/i.test(p)) {
+    return res.status(410).json({
+      success: false,
+      error: "Shopify entegrasyonu kaldırıldı. Hedef sistem MARKT-GO.",
+      code: "shopify-integration-removed",
+    });
+  }
+  next();
+});
 
 // Remove duplicate API registrations - will be handled in async block
 
@@ -315,8 +319,6 @@ app.use((req, res, next) => {
   // Add memory status routes with explicit API prefix  
   app.use('/api', memoryStatusRoutes);
   
-  // Add Shopify-Trendyol matcher routes
-  app.use('/api/shopify-trendyol-matcher', shopifyTrendyolMatcher);
   
   // Add Replit Agent routes
   app.use('/api/agent', replitAgentRoutes);
@@ -328,9 +330,6 @@ app.use(pendingChangesRoutes);
 
   // ── Replit Importer API (/api/health, /api/import) ──────────────────────────
   app.use('/api', importerRouter);
-  import('./shopify-token-manager')
-    .then(({ warmUpShopifyToken }) => warmUpShopifyToken())
-    .catch((err) => console.error('Shopify token lifecycle error:', err));
 
   // Ürün Havuzu — tamamen bağımsız scrape / Shopify taslak yükleme
   const { default: productPoolRouter } = await import('./product-pool/router');
@@ -763,20 +762,6 @@ app.use(pendingChangesRoutes);
     }
 
     void (async () => {
-      try {
-        const { syncNewTokenToDB, hydrateShopDomainFromDatabase, bootstrapShopifyConnectionFromEnv } =
-          await import("./shopify-credentials");
-        await hydrateShopDomainFromDatabase();
-        await syncNewTokenToDB();
-        const boot = await bootstrapShopifyConnectionFromEnv();
-        if (!boot.hasAccessToken) {
-          console.warn(`⚠️ SHOPIFY: ${boot.message}`);
-        } else {
-          console.log(`✅ SHOPIFY: ${boot.message} (${boot.shopDomain})`);
-        }
-      } catch (e) {
-        console.error("Shopify startup bootstrap error:", e);
-      }
     })();
     
     // Initialize error detection system
