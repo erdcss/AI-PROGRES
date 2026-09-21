@@ -32,7 +32,6 @@ import TelegramManagementPage from "@/pages/TelegramManagementPage";
 import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import MemoryDashboard from "@/pages/memory-dashboard";
 import BaglantiApiPage from "@/pages/baglanti-api";
-import ShopifyCategoriesPage from "@/pages/shopify-categories";
 import { TenantWorkspace } from "@/components/TenantWorkspace";
 import type { AccountUser } from "@/lib/account-auth";
 
@@ -202,9 +201,6 @@ export function AppRoutes({ user }: { user: AccountUser }) {
           <PriceMovementTest />
         </PageTransition>
       </Route>
-      <Route path="/shopify-tracking">
-        <Redirect to="/control-center?tab=shopify" />
-      </Route>
       <Route path="/product-preview">
         <PageTransition>
           <ProductPreview />
@@ -228,16 +224,8 @@ export function AppRoutes({ user }: { user: AccountUser }) {
           <UrunTakipPage />
         </PageTransition>
       </Route>
-      <Route path="/kategoriler">
-        <PageTransition>
-          <ShopifyCategoriesPage />
-        </PageTransition>
-      </Route>
       <Route path="/memory-dashboard">
         <MemoryDashboard />
-      </Route>
-      <Route path="/shopify-system">
-        <Redirect to="/control-center?tab=shopify" />
       </Route>
       <Route path="/baglanti-api">
         <PageTransition>
