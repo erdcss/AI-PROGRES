@@ -13,16 +13,12 @@ import {
   triggerImmediateSchedulerCycle,
   isTrackingSchedulerRunning,
 } from "./tracking.scheduler";
-import {
-  ensureLocalTrackingAutoStart,
-  syncShopifyMemoryToTracking,
-} from "./tracking-sync.service";
+import { ensureLocalTrackingAutoStart } from "./tracking-sync.service";
 import { backfillTrackingUids } from "./tracking-uid-backfill.service";
 import {
   reconcileUnreliablePriceChanges,
   supersedeStaleTrackingChanges,
 } from "./tracking-reconcile.service";
-import { runStartupTrackingAndShopifyAudit } from "./tracking-startup-audit.service";
 import { isCloudRuntime } from "@shared/deploy-runtime";
 import { trackingService } from "./tracking.service";
 import { runControlCenterMigration } from "../migrations/run-control-center-migration";
@@ -66,11 +62,6 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
       console.warn("⚠️ Startup cleanup atlandı:", err);
     }
 
-    try {
-      await syncShopifyMemoryToTracking();
-    } catch (err) {
-      console.warn("⚠️ Shopify → v2 takip senkronu atlandı:", err);
-    }
 
     try {
       await backfillTrackingUids();
@@ -86,20 +77,8 @@ export async function bootstrapProductTrackingV2(): Promise<void> {
     }
 
     await startTrackingScheduler();
-    // Açılış: takip + Shopify hard-delete + silme doğrulaması + uygulama içi bildirimler
-    setTimeout(() => {
-      void runStartupTrackingAndShopifyAudit().catch((err) =>
-        console.warn("⚠️ Açılış Shopify/takip denetimi atlandı:", err),
-      );
-    }, isCloudRuntime() ? 10_000 : 3_000);
+    // Açılışta yalnızca kaynak takip ve MARKT-GO senkronizasyonu çalışır.
     triggerImmediateSchedulerCycle(isCloudRuntime() ? 15_000 : 5_000);
-    if (!isCloudRuntime()) {
-      setTimeout(() => {
-        void import("./tracking.scheduler")
-          .then(({ triggerShopifyTrackingReconcile }) => triggerShopifyTrackingReconcile(true))
-          .catch((err) => console.warn("⚠️ Yerel Shopify reconcile atlandı:", err));
-      }, 12_000);
-    }
     setTimeout(() => {
       void import("./marktgo/reconcile.service")
         .then(({ triggerMarktGoCatalogReconcile }) => triggerMarktGoCatalogReconcile(true))
