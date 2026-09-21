@@ -439,14 +439,14 @@ export async function markChangeSeen(id: number) {
   );
 }
 
-export async function shopifySyncChange(id: number) {
+export async function marktgoSyncChange(id: number) {
   return apiFetch<{
     success: boolean;
     change?: ChangeRow;
     skipped?: boolean;
-    shopify?: { message?: string; success?: boolean };
+    marktgo?: { message?: string; success?: boolean };
     error?: string;
-  }>(`/api/tracking/changes/${id}/shopify-sync`, {
+  }>(`/api/tracking/changes/${id}/marktgo-sync`, {
     method: "POST",
     body: JSON.stringify({ actor: "orvian-monitor" }),
     timeoutMs: 60_000,
