@@ -136,8 +136,7 @@ export async function applyDetectedChangeToMarktGo(changeId: number) {
             v.localVariantId === String(trackedVariant!.id) ||
             (trackedVariant!.option1 &&
               v.option1 === trackedVariant!.option1 &&
-              v.option2 === trackedVariant!.option2) ||
-            (trackedVariant!.sourceSku && v.sku === trackedVariant!.sourceSku),
+              v.option2 === trackedVariant!.option2),
         );
         variantId = hit?.externalVariantId || null;
       }
