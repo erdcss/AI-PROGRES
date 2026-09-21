@@ -1,6 +1,5 @@
 import { Router as WouterRouter } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
-import { TrackingStartupNotifier } from "@/components/TrackingStartupNotifier";
 import AppTabWorkspace from "@/components/AppTabWorkspace";
 import { Component, type ErrorInfo, type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { AnimatePresence } from "framer-motion";
@@ -187,7 +186,6 @@ function App() {
     <>
       <AnimatePresence>{bootSplash ? <AppOpenSplash key="boot" onDone={() => setBootSplash(false)} /> : null}</AnimatePresence>
       <AccountAppShell key={`${auth.user.userId}:${auth.user.workspaceId}:${auth.user.systemRole}`} user={auth.user} />
-      {auth.user.systemRole === "admin" ? <TrackingStartupNotifier /> : null}
       <Toaster />
     </>
   );
