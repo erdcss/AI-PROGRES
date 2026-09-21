@@ -10,7 +10,7 @@ export type TrackingSettingsDto = {
   id: number;
   trackingEnabled: boolean;
   schedulerEnabled: boolean;
-  autoShopifySyncEnabled: boolean;
+  autoMarktGoSyncEnabled: boolean;
   checkIntervalMinutes: number;
   batchSize: number;
   requestDelayMs: number;
@@ -21,7 +21,7 @@ export type TrackingSettingsDto = {
 const DEFAULTS = {
   trackingEnabled: true,
   schedulerEnabled: true,
-  autoShopifySyncEnabled: false,
+  autoMarktGoSyncEnabled: false,
   checkIntervalMinutes: 60,
   batchSize: 5,
   requestDelayMs: 1500,
@@ -58,10 +58,10 @@ export async function updateTrackingSettings(
     .update(trackingSettings)
     .set({
       ...patch,
-      autoShopifySyncEnabled:
-        typeof patch.autoShopifySyncEnabled === "boolean"
-          ? patch.autoShopifySyncEnabled
-          : current.autoShopifySyncEnabled,
+      autoMarktGoSyncEnabled:
+        typeof patch.autoMarktGoSyncEnabled === "boolean"
+          ? patch.autoMarktGoSyncEnabled
+          : current.autoMarktGoSyncEnabled,
       updatedAt: new Date(),
     })
     .where(eq(trackingSettings.id, current.id))
