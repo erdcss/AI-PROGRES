@@ -46,8 +46,8 @@ export function ChangeApprovalTab({ active }: { active: boolean }) {
   const mutation = useMutation({
     mutationFn: async ({ id, action }: { id: number; action: string }) => {
       const endpoint =
-        action === "shopify-sync"
-          ? `/api/tracking/changes/${id}/shopify-sync`
+        action === "marktgo-sync"
+          ? `/api/tracking/changes/${id}/marktgo-sync`
           : `/api/tracking/changes/${id}/${action}`;
       const res = await fetch(endpoint, { method: "POST" });
       const body = await res.json();
@@ -150,9 +150,9 @@ export function ChangeApprovalTab({ active }: { active: boolean }) {
                 : undefined
             }
             onIgnore={() => mutation.mutate({ id: c.id, action: "ignore" })}
-            onShopifySync={
+            onMarktGoSync={
               c.status !== "applied" && c.status !== "ignored" && c.status !== "rejected"
-                ? () => mutation.mutate({ id: c.id, action: "shopify-sync" })
+                ? () => mutation.mutate({ id: c.id, action: "marktgo-sync" })
                 : undefined
             }
             onApply={
