@@ -1153,7 +1153,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 onApprove={(id) => changeActionMutation.mutate({ id, action: "approve" })}
                 onMarktGoSync={(id) => marktgoSyncMutation.mutate(id)}
                 onApproveMany={(ids) => bulkApproveMutation.mutate(ids)}
-                onShopifySyncMany={(ids) => bulkMarktGoSyncMutation.mutate(ids)}
+                onMarktGoSyncMany={(ids) => bulkMarktGoSyncMutation.mutate(ids)}
                 onRecheck={() => checkMutation.mutate(changes[0].trackedProductId)}
               />
             ))}
