@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { detectedChanges, trackedProducts, trackedVariants } from "@shared/schema";
 import { DESTINATION_PROVIDER } from "@shared/integration-provider";
-import { extractSourceCostFromChangeValue } from "@shared/tracking-variant-resolve";
+import { extractSourceCostFromChangeValue, matchTrackedVariantByKey } from "@shared/tracking-variant-resolve";
+import { stableVariantKey } from "@shared/tracking-price-sanity";
 import { getMarktGoClientForConnection } from "./connection.service";
 import { findMappingForTrackedProduct, listVariantMappings } from "./mapping.service";
 import { userMessageForMarktGoError } from "./errors";
@@ -100,25 +101,51 @@ export async function applyDetectedChangeToMarktGo(changeId: number) {
       action = "title";
     } else if (t.startsWith("variant_") || t.includes("variant")) {
       const variants = await listVariantMappings(mapping.id);
+      const trackedRows = await db
+        .select()
+        .from(trackedVariants)
+        .where(eq(trackedVariants.trackedProductId, change.trackedProductId));
+
+      let trackedVariant =
+        change.trackedVariantId != null
+          ? trackedRows.find((row) => row.id === change.trackedVariantId) ?? null
+          : null;
+
+      if (!trackedVariant) {
+        const meta =
+          change.newValue && typeof change.newValue === "object"
+            ? (change.newValue as Record<string, unknown>)
+            : {};
+        const reasonKey = String(change.reason ?? "").match(/([^\s“”"]+::[^\s“”"]+)/)?.[1];
+        const key =
+          reasonKey ||
+          (meta.key ? String(meta.key) : null) ||
+          (meta.color || meta.size
+            ? stableVariantKey({
+                color: meta.color ? String(meta.color) : undefined,
+                size: meta.size ? String(meta.size) : undefined,
+              })
+            : null);
+        trackedVariant = key ? matchTrackedVariantByKey(trackedRows, key) : null;
+      }
+
       let variantId: string | null = null;
-      if (change.trackedVariantId) {
-        const [tv] = await db
-          .select()
-          .from(trackedVariants)
-          .where(eq(trackedVariants.id, change.trackedVariantId))
-          .limit(1);
-        if (tv) {
-          const hit = variants.find(
-            (v) =>
-              v.localVariantId === String(tv.id) ||
-              (tv.option1 && v.option1 === tv.option1 && tv.option2 === v.option2),
-          );
-          variantId = hit?.externalVariantId || null;
-        }
+      if (trackedVariant) {
+        const hit = variants.find(
+          (v) =>
+            v.localVariantId === String(trackedVariant!.id) ||
+            (trackedVariant!.option1 &&
+              v.option1 === trackedVariant!.option1 &&
+              v.option2 === trackedVariant!.option2) ||
+            (trackedVariant!.sourceSku && v.sku === trackedVariant!.sourceSku),
+        );
+        variantId = hit?.externalVariantId || null;
       }
 
       if (!variantId) {
-        throw new Error("MARKT-GO varyant eşlemesi bulunamadı — yanlış varyantı güncellememek için işlem durduruldu");
+        throw new Error(
+          "MARKT-GO varyant eşlemesi bulunamadı — beden/renk/SKU eşlemesini kontrol edin",
+        );
       }
 
       if (t.includes("stock")) {
