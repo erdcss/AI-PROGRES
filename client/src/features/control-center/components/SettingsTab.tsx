@@ -12,7 +12,7 @@ import { queryKeys } from "../query-keys";
 type TrackingSettings = {
   trackingEnabled: boolean;
   schedulerEnabled: boolean;
-  autoShopifySyncEnabled: boolean;
+  autoMarktGoSyncEnabled: boolean;
   checkIntervalMinutes: number;
   batchSize: number;
   requestDelayMs: number;
@@ -110,12 +110,19 @@ export function SettingsTab({ active }: { active: boolean }) {
             onCheckedChange={(v) => setSettingsForm((f) => ({ ...f, schedulerEnabled: v }))}
           />
         </div>
-        <div className="flex items-center justify-between opacity-60">
+        <div className="flex items-center justify-between">
           <div>
-            <Label>Otomatik Shopify güncelleme</Label>
-            <p className="text-xs text-muted-foreground">Değişiklikler onay sonrası uygulanır</p>
+            <Label>Otomatik MARKT-GO düzeltme</Label>
+            <p className="text-xs text-muted-foreground">
+              Yüksek güvenli değişiklikleri onay beklemeden MARKT-GO'ya uygular
+            </p>
           </div>
-          <Switch checked={false} disabled />
+          <Switch
+            checked={settings?.autoMarktGoSyncEnabled ?? false}
+            onCheckedChange={(v) =>
+              setSettingsForm((f) => ({ ...f, autoMarktGoSyncEnabled: v }))
+            }
+          />
         </div>
         <div>
           <Label>Kontrol aralığı (dakika)</Label>
