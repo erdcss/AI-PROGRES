@@ -54,9 +54,9 @@ type Props = {
   onApprove: (id: number) => void;
   onIgnore: (id: number) => void;
   onMarkSeen: (id: number) => void;
-  onShopifySync: (id: number) => void;
+  onMarktGoSync: (id: number) => void;
   onApproveMany: (ids: number[]) => void;
-  onShopifySyncMany: (ids: number[]) => void;
+  onMarktGoSyncMany: (ids: number[]) => void;
   onRecheck: () => void;
 };
 
@@ -82,7 +82,7 @@ function canSyncChange(change: TrackingChangeItem): boolean {
  * gerçekten uygulanabilir yan kayıtlar (bağlı OOS / başlık).
  * İç isimler geriye dönük uyumluluk nedeniyle shopify-sync olarak kalabilir.
  */
-export function selectInstantShopifySyncIds(changes: TrackingChangeItem[]): number[] {
+export function selectInstantMarktGoSyncIds(changes: TrackingChangeItem[]): number[] {
   const syncable = changes.filter(canSyncChange);
   const newestProductPrice = syncable
     .filter((c) => c.changeType === "price_changed")
@@ -129,14 +129,14 @@ function ChangeRowActions({
   onApprove,
   onIgnore,
   onMarkSeen,
-  onShopifySync,
+  onMarktGoSync,
 }: {
   change: TrackingChangeItem;
   busy?: boolean;
   onApprove: (id: number) => void;
   onIgnore: (id: number) => void;
   onMarkSeen: (id: number) => void;
-  onShopifySync: (id: number) => void;
+  onMarktGoSync: (id: number) => void;
 }) {
   const canAct = canActOnChange(change);
   const canSync = canSyncChange(change);
@@ -149,7 +149,7 @@ function ChangeRowActions({
           variant="secondary"
           className="h-8"
           disabled={busy}
-          onClick={() => onShopifySync(change.id)}
+          onClick={() => onMarktGoSync(change.id)}
         >
           {busy ? "…" : "Düzelt"}
         </Button>
@@ -189,7 +189,7 @@ function ProductMovementsDialog({
   onApprove,
   onIgnore,
   onMarkSeen,
-  onShopifySync,
+  onMarktGoSync,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -199,7 +199,7 @@ function ProductMovementsDialog({
   onApprove: (id: number) => void;
   onIgnore: (id: number) => void;
   onMarkSeen: (id: number) => void;
-  onShopifySync: (id: number) => void;
+  onMarktGoSync: (id: number) => void;
 }) {
   const sorted = [...changes].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -357,7 +357,7 @@ function ProductMovementsDialog({
                           onApprove={onApprove}
                           onIgnore={onIgnore}
                           onMarkSeen={onMarkSeen}
-                          onShopifySync={onShopifySync}
+                          onMarktGoSync={onMarktGoSync}
                         />
                       </td>
                     </tr>
@@ -413,9 +413,9 @@ export function TrackingChangeGroupCard({
   onApprove,
   onIgnore,
   onMarkSeen,
-  onShopifySync,
+  onMarktGoSync,
   onApproveMany,
-  onShopifySyncMany,
+  onMarktGoSyncMany,
   onRecheck,
 }: Props) {
   const sorted = [...changes].sort(
@@ -439,15 +439,17 @@ export function TrackingChangeGroupCard({
 
   const approvable = sorted.filter(canActOnChange);
   const syncable = sorted.filter(canSyncChange);
-  const instantSyncIds = selectInstantShopifySyncIds(sorted);
+  const instantSyncIds = selectInstantMarktGoSyncIds(sorted);
   const needsReview = approvable.length > 0;
   const reviewCount = sorted.filter((c) => c.status === "manual_review").length;
+  const autoCorrected = sorted.some(
+    (c) => c.status === "applied" && /^(auto|startup-auto)/i.test(String(c.approvedBy || "")),
+  );
   const syncBusy = Boolean(busy);
   const targetProductId = String(product.shopifyProductId || "");
-  const isMarktGoProduct = targetProductId.startsWith("marktgo:");
-  const displayTargetProductId = isMarktGoProduct
+  const displayTargetProductId = targetProductId.startsWith("marktgo:")
     ? targetProductId.slice("marktgo:".length)
-    : targetProductId;
+    : "";
 
   return (
     <article
@@ -470,6 +472,11 @@ export function TrackingChangeGroupCard({
               </h3>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                 <span className="text-foreground/85 font-medium">{primaryDiff.headline}</span>
+                {autoCorrected && (
+                  <Badge variant="secondary" className="font-normal text-[10px] h-5 px-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
+                    Otomatik düzeltildi
+                  </Badge>
+                )}
                 {needsReview && (
                   <Badge variant="destructive" className="font-normal text-[10px] h-5 px-1.5">
                     {reviewCount > 0
@@ -510,7 +517,7 @@ export function TrackingChangeGroupCard({
                   size="sm"
                   className="shrink-0 min-w-[10.5rem]"
                   disabled={syncBusy || rechecking}
-                  onClick={() => onShopifySyncMany(instantSyncIds)}
+                  onClick={() => onMarktGoSyncMany(instantSyncIds)}
                 >
                   {syncBusy
                     ? "MARKT-GO güncelleniyor…"
@@ -544,9 +551,7 @@ export function TrackingChangeGroupCard({
                 Kaynak <ExternalLink className="w-3 h-3" />
               </a>
             )}
-            {displayTargetProductId && (
-              <span>{isMarktGoProduct ? "MARKT-GO" : "Hedef"} #{displayTargetProductId}</span>
-            )}
+            {displayTargetProductId && <span>MARKT-GO #{displayTargetProductId}</span>}
             {approvable.length > 0 && syncable.length > 0 && (
               <button
                 type="button"
@@ -580,7 +585,7 @@ export function TrackingChangeGroupCard({
         onApprove={onApprove}
         onIgnore={onIgnore}
         onMarkSeen={onMarkSeen}
-        onShopifySync={onShopifySync}
+        onMarktGoSync={onMarktGoSync}
       />
     </article>
   );
