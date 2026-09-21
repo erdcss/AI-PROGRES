@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Image, Alert, TouchableOpacity } fr
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../src/theme/colors";
-import { fetchAllChanges, markChangeSeen, shopifySyncChange } from "../../src/api/tracking";
+import { fetchAllChanges, markChangeSeen, marktgoSyncChange } from "../../src/api/tracking";
 import {
   changeTypeLabel,
   formatChangeValue,
@@ -39,14 +39,14 @@ export default function ChangeDetailScreen() {
   });
 
   const fix = useMutation({
-    mutationFn: () => shopifySyncChange(changeId),
+    mutationFn: () => marktgoSyncChange(changeId),
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ["changes-all"] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
-      Alert.alert("Shopify", data.shopify?.message || "Shopify'da düzeltildi.");
+      Alert.alert("MARKT-GO", data.marktgo?.message || "MARKT-GO'da düzeltildi.");
     },
     onError: (err: Error) => {
-      Alert.alert("Shopify", err.message || "Düzeltme başarısız");
+      Alert.alert("MARKT-GO", err.message || "Düzeltme başarısız");
     },
   });
 
@@ -110,7 +110,7 @@ export default function ChangeDetailScreen() {
           activeOpacity={0.8}
         >
           <Text style={styles.fixBtnText}>
-            {fix.isPending ? "Shopify düzeltiliyor…" : "Shopify'da düzelt"}
+            {fix.isPending ? "MARKT-GO düzeltiliyor…" : "MARKT-GO'da düzelt"}
           </Text>
         </TouchableOpacity>
       ) : null}
