@@ -786,12 +786,6 @@ app.use('/api/sos', sosRoutes);
       import('./browser-session').then(({ prewarmBrowser }) => prewarmBrowser()).catch(() => {});
     }, 4000);
 
-    // Shopify token yenileme dışında legacy monitoring/schedule başlatılmaz
-    setTimeout(() => {
-      import('./simple-scheduler').then(({ initializeScheduler }) => {
-        initializeScheduler();
-      }).catch(console.error);
-    }, 3000);
   });
 })().catch((error) => {
   console.log('========================================');
