@@ -601,8 +601,8 @@ export async function persistDetectedChanges(input: {
           );
         });
       void import("./auto-shopify-sync.service")
-        .then(({ maybeAutoShopifySyncAfterPersist }) => {
-          maybeAutoShopifySyncAfterPersist(rows);
+        .then(({ maybeAutoMarktGoSyncAfterPersist }) => {
+          maybeAutoMarktGoSyncAfterPersist(rows);
         })
         .catch((err) => {
           console.warn(
