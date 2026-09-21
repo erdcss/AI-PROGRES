@@ -18,7 +18,7 @@ import {
   fetchChangeCounts,
   fetchChanges,
   fetchTrackedProducts,
-  shopifySyncChange,
+  marktgoSyncChange,
   type ChangeRow,
 } from "../../src/api/tracking";
 import { showShopifyFixButton } from "../../src/lib/shopify-fix";
@@ -200,7 +200,7 @@ export default function TrackingScreen() {
   );
 
   const fixMut = useMutation({
-    mutationFn: (id: number) => shopifySyncChange(id),
+    mutationFn: (id: number) => marktgoSyncChange(id),
     onMutate: (id) => setFixingId(id),
     onSettled: () => setFixingId(null),
     onSuccess: (data) => {
@@ -208,16 +208,16 @@ export default function TrackingScreen() {
       void qc.invalidateQueries({ queryKey: ["changes-all"] });
       void qc.invalidateQueries({ queryKey: ["tracking-change-counts"] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
-      Alert.alert("Shopify", data.shopify?.message || "Shopify'da düzeltildi.");
+      Alert.alert("MARKT-GO", data.marktgo?.message || "MARKT-GO'da düzeltildi.");
     },
     onError: (err: Error) => {
-      Alert.alert("Shopify", err.message || "Düzeltme başarısız");
+      Alert.alert("MARKT-GO", err.message || "Düzeltme başarısız");
     },
   });
 
   const onShopifyFix = useCallback(
     (id: number) => {
-      Alert.alert("Shopify'da düzelt", "Bu değişiklik Shopify'a anında uygulanacak.", [
+      Alert.alert("MARKT-GO'da düzelt", "Bu değişiklik MARKT-GO'ya anında uygulanacak.", [
         { text: "Vazgeç", style: "cancel" },
         { text: "Düzelt", onPress: () => fixMut.mutate(id) },
       ]);
