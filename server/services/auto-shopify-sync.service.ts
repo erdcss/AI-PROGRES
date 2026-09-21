@@ -1,7 +1,7 @@
 /**
  * persistDetectedChanges sonrası isteğe bağlı otomatik düzeltme.
  * Karşılaştırma algoritmasını değiştirmez; hata fırlatmaz.
- * MARKT-GO eşlemesi varsa applyChange onu da günceller.
+ * Otomatik düzeltme yalnızca MARKT-GO üzerinde çalışır.
  */
 import type { DetectedChange } from "@shared/schema";
 import {
@@ -26,29 +26,29 @@ export function isAutoCorrectCandidate(row: DetectedChange): boolean {
   return confidenceOf(row) >= AUTO_MIN_CONFIDENCE;
 }
 
-export function maybeAutoShopifySyncAfterPersist(rows: DetectedChange[]): void {
+export function maybeAutoMarktGoSyncAfterPersist(rows: DetectedChange[]): void {
   if (!rows.length) return;
-  void runAutoShopifySync(rows).catch((err) => {
+  void runAutoMarktGoSync(rows).catch((err) => {
     console.warn(
-      "[auto-correct] hook skipped:",
+      "[marktgo-auto-correct] hook skipped:",
       err instanceof Error ? err.message : String(err),
     );
   });
 }
 
-async function runAutoShopifySync(rows: DetectedChange[]): Promise<void> {
+async function runAutoMarktGoSync(rows: DetectedChange[]): Promise<void> {
   const { getTrackingSettings } = await import("./tracking-settings.service");
   const settings = await getTrackingSettings().catch(() => null);
   if (!settings?.autoShopifySyncEnabled) return;
 
-  const { shopifySyncChange } = await import("./change-approval.service");
+  const { marktgoSyncChange } = await import("./change-approval.service");
   for (const row of rows) {
     if (!isAutoCorrectCandidate(row)) continue;
     try {
-      await shopifySyncChange(row.id, "auto");
+      await marktgoSyncChange(row.id, "auto");
     } catch (err) {
       console.warn(
-        `[auto-correct] change #${row.id} skipped:`,
+        `[marktgo-auto-correct] change #${row.id} skipped:`,
         err instanceof Error ? err.message : String(err),
       );
     }
@@ -77,7 +77,7 @@ export async function applyPendingTrackingChangesOnStartup(options?: {
     .orderBy(desc(detectedChanges.createdAt))
     .limit(limit);
 
-  const { shopifySyncChange } = await import("./change-approval.service");
+  const { marktgoSyncChange } = await import("./change-approval.service");
   let applied = 0;
   let skipped = 0;
   let errors = 0;
@@ -88,12 +88,12 @@ export async function applyPendingTrackingChangesOnStartup(options?: {
       continue;
     }
     try {
-      await shopifySyncChange(row.id, "startup-auto");
+      await marktgoSyncChange(row.id, "startup-auto");
       applied++;
     } catch (err) {
       errors++;
       console.warn(
-        `[startup-auto-correct] change #${row.id} skipped:`,
+        `[marktgo-startup-auto-correct] change #${row.id} skipped:`,
         err instanceof Error ? err.message : String(err),
       );
     }
@@ -101,7 +101,7 @@ export async function applyPendingTrackingChangesOnStartup(options?: {
 
   if (applied > 0 || errors > 0) {
     console.info(
-      `[startup-auto-correct] uygulandı=${applied} atlandı=${skipped} hata=${errors}`,
+      `[marktgo-startup-auto-correct] uygulandı=${applied} atlandı=${skipped} hata=${errors}`,
     );
   }
 
