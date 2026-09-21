@@ -600,9 +600,9 @@ export async function persistDetectedChanges(input: {
             err instanceof Error ? err.message : String(err),
           );
         });
-      void import("./auto-shopify-sync.service")
-        .then(({ maybeAutoShopifySyncAfterPersist }) => {
-          maybeAutoShopifySyncAfterPersist(rows);
+      void import("./auto-marktgo-sync.service")
+        .then(({ maybeAutoMarktGoSyncAfterPersist }) => {
+          maybeAutoMarktGoSyncAfterPersist(rows);
         })
         .catch((err) => {
           console.warn(
