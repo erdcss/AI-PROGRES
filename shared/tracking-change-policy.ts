@@ -10,7 +10,7 @@ const DIRECTLY_APPLICABLE_CHANGE_TYPES = new Set([
   "source_unavailable",
 ]);
 
-const AUTO_SHOPIFY_CHANGE_TYPES = new Set([
+const AUTO_MARKTGO_CHANGE_TYPES = new Set([
   "price_changed",
   "variant_price_changed",
   "stock_changed",
@@ -51,7 +51,7 @@ export function extractVariantStockAvailability(newValue: unknown): boolean | nu
   return null;
 }
 
-export function requiresShopifyVariantLink(changeType: string): boolean {
+export function requiresDestinationVariantLink(changeType: string): boolean {
   return VARIANT_LINKED_CHANGE_TYPES.has(String(changeType ?? ""));
 }
 
@@ -69,30 +69,27 @@ export function isDirectlyApplicableTrackingChange(
   return DIRECTLY_APPLICABLE_CHANGE_TYPES.has(String(changeType ?? ""));
 }
 
-export function isAutoShopifyFixChangeType(changeType: string): boolean {
-  return AUTO_SHOPIFY_CHANGE_TYPES.has(String(changeType ?? ""));
+export function isAutoMarktGoFixChangeType(changeType: string): boolean {
+  return AUTO_MARKTGO_CHANGE_TYPES.has(String(changeType ?? ""));
 }
 
-/** UI / toplu Shopify senkronu: uygulanabilir + ürün/varyant bağlantısı hazır */
-export function isShopifySyncableTrackingChange(input: {
+/**
+ * UI / toplu MARKT-GO düzeltmesi.
+ * Hedef ürün ve varyant eşlemesinin kesin doğrulaması sunucuda integration mappings üzerinden yapılır.
+ */
+export function isMarktGoSyncableTrackingChange(input: {
   status: string;
   changeType: string;
   fieldName?: string | null;
   newValue?: unknown;
-  trackingUid?: string | null;
-  shopifyProductId?: string | null;
   trackedVariantId?: number | null;
-  shopifyVariantId?: string | null;
 }): boolean {
   if (!isActionableTrackingChangeStatus(input.status)) return false;
-  if (
-    !isDirectlyApplicableTrackingChange(input.changeType, input.fieldName, input.newValue)
-  ) {
+  if (!isDirectlyApplicableTrackingChange(input.changeType, input.fieldName, input.newValue)) {
     return false;
   }
-  if (!input.trackingUid || !input.shopifyProductId) return false;
-  if (requiresShopifyVariantLink(input.changeType)) {
-    return Boolean(input.trackedVariantId || input.shopifyVariantId);
+  if (requiresDestinationVariantLink(input.changeType)) {
+    return Boolean(input.trackedVariantId);
   }
   return true;
 }
