@@ -673,7 +673,7 @@ export const trackingSettings = pgTable('tracking_settings', {
   id: serial('id').primaryKey(),
   trackingEnabled: boolean('tracking_enabled').notNull().default(true),
   schedulerEnabled: boolean('scheduler_enabled').notNull().default(true),
-  autoShopifySyncEnabled: boolean('auto_shopify_sync_enabled').notNull().default(false),
+  autoMarktGoSyncEnabled: boolean('auto_shopify_sync_enabled').notNull().default(false),
   checkIntervalMinutes: integer('check_interval_minutes').notNull().default(60),
   batchSize: integer('batch_size').notNull().default(5),
   requestDelayMs: integer('request_delay_ms').notNull().default(1500),
