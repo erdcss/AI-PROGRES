@@ -9,16 +9,7 @@ import {
   runManualProductCheck,
   getTrackingSchedulerStatus,
   getTrackingNotifications,
-  triggerShopifyTrackingReconcile,
 } from "../services/tracking.scheduler";
-import { getLastShopifyTrackingReconcileStatus } from "../services/shopify-tracking-reconciliation.service";
-import { cleanupIgnoredAndMissingShopify, restoreTrackedProductsFromTransferred } from "../services/tracking-ignored-cleanup.service";
-import {
-  getLastStartupAuditResult,
-  isStartupAuditRunning,
-  listRecentStartupNotifications,
-  runStartupTrackingAndShopifyAudit,
-} from "../services/tracking-startup-audit.service";
 import { db } from "../db";
 import { detectedChanges } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -72,9 +63,7 @@ export function registerTrackingRoutes(app: Express): void {
     try {
       void hydrateIncompleteCatalog();
       const includeArchived = req.query.includeArchived === "true";
-      const includeUnlinked = req.query.includeShopifyOnly === "true"
-        ? false
-        : req.query.includeUnlinked !== "false";
+      const includeUnlinked = req.query.includeUnlinked !== "false";
       const products = await trackingService.listProductsForPanel({
         includeArchived,
         includeUnlinked,
@@ -129,87 +118,10 @@ export function registerTrackingRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/tracking/startup-audit", async (_req, res) => {
-    try {
-      const last = getLastStartupAuditResult();
-      const recent = await listRecentStartupNotifications(30);
-      return res.json({
-        success: true,
-        running: isStartupAuditRunning(),
-        last,
-        recentNotifications: recent,
-      });
-    } catch (err) {
-      return migrationErrorResponse(res, err);
-    }
-  });
-
-  app.post("/api/tracking/startup-audit", async (_req, res) => {
-    try {
-      const result = await runStartupTrackingAndShopifyAudit();
-      const statusCode = result.success ? 200 : 422;
-      return res.status(statusCode).json({ success: result.success, ...result });
-    } catch (err) {
-      return migrationErrorResponse(res, err);
-    }
-  });
-
   app.get("/api/tracking/scheduler-status", async (_req, res) => {
     try {
       const status = await getTrackingSchedulerStatus();
       return res.json({ success: true, ...status });
-    } catch (err) {
-      return migrationErrorResponse(res, err);
-    }
-  });
-
-  app.get("/api/tracking/shopify-reconcile-status", async (_req, res) => {
-    try {
-      const last = await getLastShopifyTrackingReconcileStatus();
-      return res.json({ success: true, last });
-    } catch (err) {
-      return migrationErrorResponse(res, err);
-    }
-  });
-
-  app.post("/api/tracking/shopify-reconcile", async (_req, res) => {
-    try {
-      const result = await triggerShopifyTrackingReconcile(true);
-      if (!result) {
-        return res.status(409).json({ success: false, error: "Senkron zaten çalışıyor" });
-      }
-      const statusCode = result.success ? 200 : result.locked ? 409 : 422;
-      return res.status(statusCode).json(result);
-    } catch (err) {
-      return migrationErrorResponse(res, err);
-    }
-  });
-
-  app.post("/api/tracking/cleanup-ignored", async (_req, res) => {
-    try {
-      const result = await cleanupIgnoredAndMissingShopify();
-      const statusCode = result.success ? 200 : 422;
-      return res.status(statusCode).json(result);
-    } catch (err) {
-      return migrationErrorResponse(res, err);
-    }
-  });
-
-  app.post("/api/tracking/sync-from-catalog", async (_req, res) => {
-    try {
-      const { syncShopifyMemoryToTracking } = await import("../services/tracking-sync.service");
-      const result = await syncShopifyMemoryToTracking();
-      return res.json({ success: true, ...result });
-    } catch (err) {
-      return migrationErrorResponse(res, err);
-    }
-  });
-
-  app.post("/api/tracking/restore-from-transferred", async (_req, res) => {
-    try {
-      const result = await restoreTrackedProductsFromTransferred();
-      const statusCode = result.success ? 200 : 422;
-      return res.status(statusCode).json(result);
     } catch (err) {
       return migrationErrorResponse(res, err);
     }
