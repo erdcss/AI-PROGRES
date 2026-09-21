@@ -507,11 +507,6 @@ export async function getTrackingNotifications() {
       sql`${detectedChanges.changeType} IN ('variant_added','variant_removed','variant_changed','variant_price_changed','variant_stock_changed')`,
     );
 
-  const { getLastStartupAuditResult, isStartupAuditRunning, listRecentStartupNotifications } =
-    await import("./tracking-startup-audit.service");
-
-  const startupRecent = await listRecentStartupNotifications(15).catch(() => []);
-  const startupAudit = getLastStartupAuditResult();
 
   return {
     pendingChangesCount: status.pendingChangesCount,
@@ -520,8 +515,5 @@ export async function getTrackingNotifications() {
     stockChangeCount: Number(stockChangeCount[0]?.c ?? 0),
     variantChangeCount: Number(variantChangeCount[0]?.c ?? 0),
     lastChanges,
-    startupAuditRunning: isStartupAuditRunning(),
-    startupAudit,
-    startupNotifications: startupRecent,
   };
 }
