@@ -14,10 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../src/theme/colors";
 import {
   fetchDashboard,
-  fetchMobileScan,
-  fetchShopifyConnection,
   fetchTrackingSettings,
-  startMobileScan,
   updateTrackingSettings,
 } from "../../src/api/tracking";
 import { apiFetch, getApiBaseUrl } from "../../src/api/client";
@@ -47,11 +44,10 @@ type HealthResponse = {
   lastDashboardSync?: string | null;
 };
 
-type SettingsTab = "sistem" | "shopify" | "takip" | "uygulama";
+type SettingsTab = "sistem" | "takip" | "uygulama";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "sistem", label: "Sistem" },
-  { id: "shopify", label: "Shopify" },
   { id: "takip", label: "Takip" },
   { id: "uygulama", label: "Uygulama" },
 ];
@@ -81,9 +77,9 @@ export default function SettingsScreen() {
       void qc.invalidateQueries({ queryKey: ["tracking-settings"] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
       Alert.alert(
-        "Otomatik Shopify",
+        "Otomatik MARKT-GO",
         data.settings.autoShopifySyncEnabled
-          ? "Açık — uygun fiyat/stok/renk/kaldırma değişiklikleri Shopify'a uygulanır."
+          ? "Açık — uygun fiyat/stok/renk/kaldırma değişiklikleri MARKT-GO'ya uygulanır."
           : "Kapalı — düzeltmeler yalnızca tek tuşla yapılır.",
       );
     },
@@ -95,37 +91,6 @@ export default function SettingsScreen() {
     queryKey: ["mobile-health"],
     queryFn: fetchMobileHealth,
     retry: 0,
-  });
-  const shopify = useQuery({
-    queryKey: ["shopify-connection"],
-    queryFn: fetchShopifyConnection,
-    retry: 0,
-  });
-  const scan = useQuery({
-    queryKey: ["mobile-scan"],
-    queryFn: fetchMobileScan,
-    refetchInterval: (q) => (q.state.data?.scan?.running ? 1500 : false),
-  });
-  const scanMut = useMutation({
-    mutationFn: startMobileScan,
-    onSuccess: (data) => {
-      qc.setQueryData(["mobile-scan"], data);
-      void qc.invalidateQueries({ queryKey: ["mobile-scan"] });
-      void qc.invalidateQueries({ queryKey: ["changes-all"] });
-      void qc.invalidateQueries({ queryKey: ["scraped-products"] });
-      void qc.invalidateQueries({ queryKey: ["tracked-products"] });
-      void qc.invalidateQueries({ queryKey: ["memory-products"] });
-      void qc.invalidateQueries({ queryKey: ["dashboard"] });
-      Alert.alert(
-        "Tarama",
-        data.scan.running
-          ? "Hafıza ve takip ürünleri taranıyor. Değişiklikler bildirim olarak gelir."
-          : data.scan.lastMessage,
-      );
-    },
-    onError: (err: Error) => {
-      Alert.alert("Tarama", err.message || "Başlatılamadı");
-    },
   });
 
   const registerMut = useMutation({
@@ -267,50 +232,6 @@ export default function SettingsScreen() {
           </>
         ) : null}
 
-        {tab === "shopify" ? (
-          <>
-            <SectionLabel>MAĞAZA</SectionLabel>
-            <SettingRow
-              label="Mağaza bağlantısı"
-              value={
-                shopify.data?.connected
-                  ? shopify.data.shopDomain || "Bağlı"
-                  : shopify.isLoading
-                    ? "Kontrol ediliyor"
-                    : shopify.isError
-                      ? "Bağlantı yok"
-                      : shopify.data?.error || "Bağlı değil"
-              }
-            />
-            <SettingRow
-              label="Shopify ürün sayısı"
-              value={
-                shopify.data?.productCount != null
-                  ? String(shopify.data.productCount)
-                  : dash.data?.cards?.shopifyMemoryTotal != null
-                    ? String(dash.data.cards.shopifyMemoryTotal)
-                    : "—"
-              }
-            />
-            <SettingRow
-              label="Taramayı başlat"
-              value={
-                scan.data?.scan.running
-                  ? `${scan.data.scan.checked}/${scan.data.scan.total}`
-                  : scanMut.isPending
-                    ? "Başlatılıyor"
-                    : "Hafızayı tara"
-              }
-              onPress={() => {
-                if (scan.data?.scan.running || scanMut.isPending) return;
-                scanMut.mutate();
-              }}
-            />
-            {scan.data?.scan.lastMessage ? (
-              <Text style={styles.scanNote}>{scan.data.scan.lastMessage}</Text>
-            ) : null}
-          </>
-        ) : null}
 
         {tab === "takip" ? (
           <>
@@ -326,8 +247,8 @@ export default function SettingsScreen() {
               }
             />
             <SettingToggle
-              label="Otomatik Shopify düzeltmesi"
-              hint="Fiyat, stok bitti, renk/varyant ve satıştan kalkma kayıtlarını onay beklemeden Shopify'a uygular."
+              label="Otomatik MARKT-GO düzeltmesi"
+              hint="Fiyat, stok bitti, renk/varyant ve satıştan kalkma kayıtlarını onay beklemeden MARKT-GO'ya uygular."
               value={Boolean(
                 trackingSettings.data?.settings.autoShopifySyncEnabled ??
                   dash.data?.system?.autoShopifySyncEnabled,
@@ -344,7 +265,7 @@ export default function SettingsScreen() {
             <SettingRow label="Hakkında" value="ORVIAN · Ürün Veri Takip Paneli" />
             <SettingRow label="API" value={getApiBaseUrl() || "—"} />
             <Text style={styles.note}>
-              Bu sürümde hesap girişi yoktur. Otomatik Shopify düzeltmesi kapalıyken değişiklikler tek tuşla uygulanır.
+              Bu sürümde hesap girişi yoktur. Otomatik MARKT-GO düzeltmesi kapalıyken değişiklikler tek tuşla uygulanır.
             </Text>
           </>
         ) : null}
