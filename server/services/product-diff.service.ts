@@ -606,7 +606,7 @@ export async function persistDetectedChanges(input: {
         })
         .catch((err) => {
           console.warn(
-            "[auto-shopify] post-persist hook skipped:",
+            "[auto-marktgo] post-persist hook skipped:",
             err instanceof Error ? err.message : String(err),
           );
         });
