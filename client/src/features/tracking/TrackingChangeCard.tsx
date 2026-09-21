@@ -37,6 +37,7 @@ export type TrackingChangeItem = {
   reason?: string | null;
   createdAt: string;
   approvedAt?: string | null;
+  approvedBy?: string | null;
   appliedAt?: string | null;
   productTitle?: string | null;
   productUrl?: string | null;
@@ -72,7 +73,7 @@ type TrackingChangeCardProps = {
   onReject?: () => void;
   onIgnore?: () => void;
   onMarkSeen?: () => void;
-  onShopifySync?: () => void;
+  onMarktGoSync?: () => void;
   onApply?: () => void;
   onRetry?: () => void;
 };
@@ -88,7 +89,7 @@ export function TrackingChangeCard({
   onReject,
   onIgnore,
   onMarkSeen,
-  onShopifySync,
+  onMarktGoSync,
   onApply,
   onRetry,
 }: TrackingChangeCardProps) {
@@ -104,7 +105,7 @@ export function TrackingChangeCard({
   const priceLines = formatPricePairLines(price);
   const saleTarget = price?.saleNew != null ? formatTryPrice(price.saleNew) : null;
   const canAct = c.status === "pending" || c.status === "manual_review";
-  const canShopify = isShopifySyncableTrackingChange(c);
+  const canMarktGo = isShopifySyncableTrackingChange(c) && String(c.shopifyProductId || "").startsWith("marktgo:");
   const needsReview = c.status === "manual_review" || c.status === "pending";
   const color =
     c.variantColor && !isPlaceholderColor(c.variantColor) ? c.variantColor : null;
@@ -133,6 +134,11 @@ export function TrackingChangeCard({
                   </span>
                 )}
                 <span className="text-foreground/85 font-medium">{parts.headline}</span>
+                {c.status === "applied" && /^(auto|startup-auto)/i.test(String(c.approvedBy || "")) && (
+                  <Badge variant="secondary" className="font-normal text-[10px] h-5 px-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
+                    Otomatik düzeltildi
+                  </Badge>
+                )}
                 <Badge variant={changeStatusVariant(c.status)} className="font-normal text-[10px] h-5 px-1.5">
                   {CHANGE_STATUS_LABELS[c.status] || c.status}
                 </Badge>
@@ -141,20 +147,20 @@ export function TrackingChangeCard({
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
-              {canShopify && onShopifySync && (
+              {canMarktGo && onMarktGoSync && (
                 <Button
                   size="sm"
                   disabled={busy || !c.trackingUid || !c.shopifyProductId}
                   title={
                     !c.shopifyProductId || !c.trackingUid
-                      ? "Shopify ürün bağlantısı eksik"
+                      ? "MARKT-GO ürün bağlantısı eksik"
                       : saleTarget
-                        ? `Shopify satış: ${saleTarget}`
-                        : "Shopify güncelle"
+                        ? `MARKT-GO satış: ${saleTarget}`
+                        : "MARKT-GO güncelle"
                   }
-                  onClick={onShopifySync}
+                  onClick={onMarktGoSync}
                 >
-                  Shopify&apos;da düzelt
+                  MARKT-GO&apos;da düzelt
                 </Button>
               )}
               {c.status === "approved" && onApply && (
@@ -209,7 +215,7 @@ export function TrackingChangeCard({
               )}
               {saleTarget && (
                 <p className="text-[15px]">
-                  <span className="text-muted-foreground">Shopify satış </span>
+                  <span className="text-muted-foreground">MARKT-GO satış </span>
                   <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
                     {saleTarget}
                   </span>
@@ -308,7 +314,7 @@ export function TrackingChangeCard({
           </div>
           <p className="font-mono text-[11px] text-muted-foreground">
             #{c.id}
-            {c.shopifyProductId ? ` · Shopify ${c.shopifyProductId}` : ""}
+            {c.shopifyProductId ? ` · MARKT-GO ${c.shopifyProductId}` : ""}
           </p>
         </div>
       )}
