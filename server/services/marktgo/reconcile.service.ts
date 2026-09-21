@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { trackedProducts } from "@shared/schema";
+import { trackedProducts, trackedVariants } from "@shared/schema";
 import { MarktGoApiError } from "./errors";
 import { getMarktGoClientForConnection } from "./connection.service";
 import { extractId, listItemsFromPayload } from "./normalize";
@@ -9,12 +9,14 @@ import {
   listProductMappings,
   stableExternalId,
   upsertProductMapping,
+  upsertVariantMapping,
 } from "./mapping.service";
 import {
   remoteToPoolProduct,
   type CatalogPoolProduct,
 } from "./pool-map";
 import type { IntegrationProductMapping } from "@shared/schema";
+import { ensureTrackedProductForMarktGo } from "./strict-tracking-sync.service";
 
 const INTERVAL_MS = 15 * 60_000;
 const MAX_PAGES = 50;
@@ -199,22 +201,60 @@ async function runReconcile(): Promise<MarktGoCatalogReconcileResult> {
   }
 
   let imported = 0;
-  const mappedExt = new Set(
-    (await listProductMappings(connection.id)).map((m) => String(m.externalProductId)),
-  );
+  const currentMappings = await listProductMappings(connection.id);
+  const mappedExt = new Set(currentMappings.map((m) => String(m.externalProductId)));
+
   for (const product of products) {
-    if (mappedExt.has(product.externalProductId)) continue;
     try {
-      await upsertProductMapping({
+      const wasMapped = mappedExt.has(product.externalProductId);
+      const tracked = await ensureTrackedProductForMarktGo(product);
+      const mapping = await upsertProductMapping({
         connectionId: connection.id,
         localProductId: product.poolId,
         externalProductId: product.externalProductId,
         externalId: stableExternalId(product.poolId),
+        trackedProductId: tracked?.id ?? null,
         status: "synced",
       });
+
+      if (tracked?.id && product.variants?.length) {
+        const trackedRows = await db
+          .select()
+          .from(trackedVariants)
+          .where(eq(trackedVariants.trackedProductId, tracked.id));
+
+        for (const remoteVariant of product.variants) {
+          if (!remoteVariant.externalVariantId) continue;
+          const matched =
+            trackedRows.find(
+              (row) =>
+                Boolean(remoteVariant.sku) &&
+                Boolean(row.sourceSku) &&
+                String(row.sourceSku) === String(remoteVariant.sku),
+            ) ||
+            trackedRows.find(
+              (row) =>
+                String(row.option1 || "") === String(remoteVariant.option1 || "") &&
+                String(row.option2 || "") === String(remoteVariant.option2 || ""),
+            );
+          if (!matched) continue;
+          await upsertVariantMapping({
+            productMappingId: mapping.id,
+            localVariantId: String(matched.id),
+            externalVariantId: String(remoteVariant.externalVariantId),
+            option1: remoteVariant.option1 || null,
+            option2: remoteVariant.option2 || null,
+          });
+        }
+      }
+
       mappedExt.add(product.externalProductId);
-      imported += 1;
-    } catch {
+      if (!wasMapped) imported += 1;
+    } catch (err) {
+      console.warn(
+        "[marktgo-reconcile] ürün/takip eşlemesi atlandı:",
+        err instanceof Error ? err.message : String(err),
+      );
       skipped += 1;
     }
   }
