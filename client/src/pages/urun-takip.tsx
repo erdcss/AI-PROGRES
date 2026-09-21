@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import {
   TrackingChangeGroupCard,
-  selectInstantShopifySyncIds,
+  selectInstantMarktGoSyncIds,
 } from "@/features/tracking/TrackingChangeGroupCard";
 import { TrackingProductImage } from "@/features/tracking/TrackingProductImage";
 import {
@@ -65,6 +65,7 @@ type DetectedChange = {
   createdAt: string;
   seenAt?: string | null;
   approvedAt?: string | null;
+  approvedBy?: string | null;
   appliedAt?: string | null;
   productTitle?: string | null;
   productUrl?: string | null;
@@ -108,25 +109,12 @@ type SchedulerStatus = {
   intervalMinutes: number;
   batchSize: number;
   legacySystemsRemoved: boolean;
-  shopifyReconcileRunning?: boolean;
-  lastShopifyReconcile?: {
-    status: string;
-    message: string;
-    meta?: {
-      checked?: number;
-      live?: number;
-      archived?: number;
-      restored?: number;
-      superseded?: number;
-    };
-    created_at: string;
-  } | null;
 };
 
 type TrackingSettings = {
   trackingEnabled: boolean;
   schedulerEnabled: boolean;
-  autoShopifySyncEnabled: boolean;
+  autoMarktGoSyncEnabled: boolean;
   checkIntervalMinutes: number;
   batchSize: number;
   requestDelayMs: number;
@@ -272,7 +260,7 @@ function getProductChangeKinds(changes: DetectedChange[]): Set<ChangeKindFilter>
 }
 
 async function runBulkTrackingAction(
-  action: "approve" | "shopify-sync",
+  action: "approve" | "marktgo-sync",
   ids: number[],
 ): Promise<{
   summary: { total: number; succeeded: number; failed: number };
@@ -298,7 +286,7 @@ async function runBulkTrackingAction(
 
   if (summary.succeeded === 0 && summary.failed > 0) {
     const firstError = results.find((r) => !r.success)?.error;
-    throw new Error(firstError || "Shopify güncellemesi başarısız");
+    throw new Error(firstError || "MARKT-GO güncellemesi başarısız");
   }
 
   return { summary, results };
@@ -408,13 +396,13 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       queryClient.setQueryData(["tracking-settings"], settings);
       queryClient.invalidateQueries({ queryKey: ["tracking-settings"] });
       queryClient.invalidateQueries({ queryKey: ["tracking-scheduler-status"] });
-      if (typeof patch.autoShopifySyncEnabled === "boolean") {
+      if (typeof patch.autoMarktGoSyncEnabled === "boolean") {
         toast({
-          title: patch.autoShopifySyncEnabled
+          title: patch.autoMarktGoSyncEnabled
             ? "Otomatik düzeltme açıldı"
             : "Otomatik düzeltme kapatıldı",
-          description: patch.autoShopifySyncEnabled
-            ? "Yüksek güvenli değişiklikler hedefe uygulanacak"
+          description: patch.autoMarktGoSyncEnabled
+            ? "Yüksek güvenli değişiklikler MARKT-GO'ya uygulanacak"
             : undefined,
         });
       } else {
@@ -478,27 +466,33 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     },
   });
 
-  const shopifyReconcileMutation = useMutation({
+  const marktGoReconcileMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/tracking/shopify-reconcile", { method: "POST" });
+      const res = await fetch("/api/marktgo/catalog-reconcile", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.message || "Shopify senkronu başarısız");
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || data.message || "MARKT-GO katalog senkronu başarısız");
+      }
       return data as {
         checked: number;
-        archived: number;
-        restored: number;
+        live: number;
+        removed: number;
+        imported: number;
+        message?: string;
       };
     },
     onSuccess: (data) => {
       refreshTrackingQueries();
       toast({
-        title: "Shopify senkronu tamamlandı",
-        description: `${data.checked} ürün kontrol edildi, ${data.archived} arşivlendi, ${data.restored} geri getirildi`,
+        title: "MARKT-GO katalog senkronu tamamlandı",
+        description:
+          data.message ||
+          `${data.checked} ürün kontrol edildi · ${data.imported} bağlandı · ${data.removed} kaldırıldı`,
       });
     },
     onError: (err: Error) => {
       refreshTrackingQueries();
-      toast({ title: "Shopify senkron hatası", description: err.message, variant: "destructive" });
+      toast({ title: "MARKT-GO senkron hatası", description: err.message, variant: "destructive" });
     },
   });
 
@@ -522,25 +516,25 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     },
   });
 
-  const shopifySyncMutation = useMutation({
+  const marktGoSyncMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/tracking/changes/${id}/shopify-sync`, { method: "POST" });
+      const res = await fetch(`/api/tracking/changes/${id}/marktgo-sync`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.message || "Shopify güncellemesi başarısız");
+      if (!res.ok) throw new Error(data.error || data.message || "MARKT-GO güncellemesi başarısız");
       return data;
     },
     onMutate: () => {
-      toast({ title: "Shopify güncelleniyor…", description: "Fiyat doğrudan mağazaya yazılıyor" });
+      toast({ title: "MARKT-GO güncelleniyor…", description: "Değişiklik doğrudan MARKT-GO'ya uygulanıyor" });
     },
     onSuccess: (data) => {
       toast({
-        title: "Shopify güncellendi",
-        description: data.shopify?.message || "Değişiklik uygulandı",
+        title: "MARKT-GO güncellendi",
+        description: data.marktgo?.message || "Değişiklik uygulandı",
       });
       refreshTrackingQueries();
     },
     onError: (err: Error) => {
-      toast({ title: "Shopify hatası", description: err.message, variant: "destructive" });
+      toast({ title: "MARKT-GO hatası", description: err.message, variant: "destructive" });
     },
   });
 
@@ -560,12 +554,12 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     },
   });
 
-  const bulkShopifySyncMutation = useMutation({
-    mutationFn: (ids: number[]) => runBulkTrackingAction("shopify-sync", ids),
+  const bulkMarktGoSyncMutation = useMutation({
+    mutationFn: (ids: number[]) => runBulkTrackingAction("marktgo-sync", ids),
     onMutate: () => {
       toast({
-        title: "Shopify güncelleniyor…",
-        description: "Değişiklikler doğrudan mağazaya uygulanıyor",
+        title: "MARKT-GO güncelleniyor…",
+        description: "Değişiklikler doğrudan MARKT-GO'ya uygulanıyor",
       });
     },
     onSuccess: (data) => {
@@ -584,8 +578,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       toast({
         title:
           summary.failed === 0
-            ? "Shopify güncellendi"
-            : `Shopify kısmen güncellendi (${summary.succeeded}/${summary.total})`,
+            ? "MARKT-GO güncellendi"
+            : `MARKT-GO kısmen güncellendi (${summary.succeeded}/${summary.total})`,
         description:
           [
             okMessages.join(" · ") || null,
@@ -600,7 +594,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       refreshTrackingQueries();
     },
     onError: (err: Error) => {
-      toast({ title: "Shopify güncelleme hatası", description: err.message, variant: "destructive" });
+      toast({ title: "MARKT-GO güncelleme hatası", description: err.message, variant: "destructive" });
     },
   });
 
@@ -665,14 +659,14 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const bulkFixIds = useMemo(() => {
     const ids: number[] = [];
     for (const group of filteredGroupedChanges) {
-      ids.push(...selectInstantShopifySyncIds(group));
+      ids.push(...selectInstantMarktGoSyncIds(group));
     }
     return [...new Set(ids)];
   }, [filteredGroupedChanges]);
 
   const st = statusQuery.data;
   const settings = { ...settingsQuery.data, ...settingsForm } as TrackingSettings | undefined;
-  const autoCorrectOn = Boolean(settings?.autoShopifySyncEnabled);
+  const autoCorrectOn = Boolean(settings?.autoMarktGoSyncEnabled);
   const trackingOff = settings && !settings.trackingEnabled;
 
   return (
@@ -719,9 +713,9 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
               checked={autoCorrectOn}
               disabled={saveSettingsMutation.isPending || settingsQuery.isLoading}
               onCheckedChange={(v) => {
-                setSettingsForm((f) => ({ ...f, autoShopifySyncEnabled: v }));
+                setSettingsForm((f) => ({ ...f, autoMarktGoSyncEnabled: v }));
                 saveSettingsMutation.mutate({
-                  autoShopifySyncEnabled: v,
+                  autoMarktGoSyncEnabled: v,
                   ...(v ? { trackingEnabled: true, schedulerEnabled: true } : {}),
                 });
               }}
@@ -745,38 +739,26 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       )}
 
       <Card className="border-border/60 bg-card/40">
-        <CardContent className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <CardContent className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium">Shopify takip senkronu</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {st?.shopifyReconcileRunning
-                ? "Shopify ürünleri doğrulanıyor..."
-                : st?.lastShopifyReconcile
-                  ? `${st.lastShopifyReconcile.message} · ${formatDate(st.lastShopifyReconcile.created_at)}`
-                  : "Henüz senkron çalışmadı"}
+            <p className="text-sm font-medium">MARKT-GO katalog senkronu</p>
+            <p className="text-xs text-muted-foreground">
+              Takip ürünleri MARKT-GO ürün eşlemeleriyle doğrulanır ve eksik bağlantılar yenilenir.
             </p>
           </div>
-          <Badge
-            variant={
-              st?.shopifyReconcileRunning
-                ? "secondary"
-                : st?.lastShopifyReconcile?.status === "error"
-                  ? "destructive"
-                  : "outline"
-            }
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => marktGoReconcileMutation.mutate()}
+            disabled={marktGoReconcileMutation.isPending}
           >
-            {st?.shopifyReconcileRunning
-              ? "Çalışıyor"
-              : st?.lastShopifyReconcile?.status === "success"
-                ? "Senkron"
-                : st?.lastShopifyReconcile?.status === "error"
-                  ? "Hata"
-                  : "Bekliyor"}
-          </Badge>
+            <RefreshCw className={`w-4 h-4 mr-2 ${marktGoReconcileMutation.isPending ? "animate-spin" : ""}`} />
+            {marktGoReconcileMutation.isPending ? "Senkronlanıyor…" : "MARKT-GO ile Yenile"}
+          </Button>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           {
             label: "Takip edilen",
@@ -819,30 +801,6 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         </TabsList>
 
         <TabsContent value="products" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => shopifyReconcileMutation.mutate()}
-              disabled={
-                productsQuery.isFetching ||
-                shopifyReconcileMutation.isPending ||
-                st?.shopifyReconcileRunning
-              }
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-2 ${
-                  productsQuery.isFetching ||
-                  shopifyReconcileMutation.isPending ||
-                  st?.shopifyReconcileRunning
-                    ? "animate-spin"
-                    : ""
-                }`}
-              />
-              Shopify ile Yenile
-            </Button>
-          </div>
-
           {productsQuery.isLoading && <p className="text-muted-foreground text-center py-8">Yükleniyor...</p>}
           {productsQuery.error && (
             <Card className="border-destructive/50">
@@ -855,8 +813,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           {!productsQuery.isLoading && !productsQuery.error && (productsQuery.data?.length ?? 0) === 0 && (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
-                Henüz takip edilen ürün yok. MARKT-GO veya Shopify&apos;a başarılı gönderim sonrası
-                otomatik eklenir.
+                Henüz takip edilen ürün yok. MARKT-GO'ya başarılı gönderim sonrası otomatik eklenir.
               </CardContent>
             </Card>
           )}
@@ -1011,10 +968,10 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 {statusFilter !== "ignored" && statusFilter !== "seen" && statusFilter !== "applied" && statusFilter !== "history" && bulkFixIds.length > 0 && (
                   <Button
                     size="sm"
-                    disabled={bulkShopifySyncMutation.isPending}
-                    onClick={() => bulkShopifySyncMutation.mutate(bulkFixIds)}
+                    disabled={bulkMarktGoSyncMutation.isPending}
+                    onClick={() => bulkMarktGoSyncMutation.mutate(bulkFixIds)}
                   >
-                    {bulkShopifySyncMutation.isPending
+                    {bulkMarktGoSyncMutation.isPending
                       ? "Güncelleniyor…"
                       : `Toplu düzelt (${bulkFixIds.length})`}
                   </Button>
@@ -1023,7 +980,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={bulkApproveMutation.isPending || bulkShopifySyncMutation.isPending}
+                    disabled={bulkApproveMutation.isPending || bulkMarktGoSyncMutation.isPending}
                     onClick={() => bulkApproveMutation.mutate(approvableIds)}
                   >
                     Toplu Onayla ({approvableIds.length})
@@ -1140,9 +1097,9 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 changes={changes}
                 busy={
                   changeActionMutation.isPending ||
-                  shopifySyncMutation.isPending ||
+                  marktGoSyncMutation.isPending ||
                   bulkApproveMutation.isPending ||
-                  bulkShopifySyncMutation.isPending
+                  bulkMarktGoSyncMutation.isPending
                 }
                 rechecking={
                   checkMutation.isPending && checkMutation.variables === changes[0].trackedProductId
@@ -1150,9 +1107,9 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 onMarkSeen={(id) => changeActionMutation.mutate({ id, action: "mark-seen" })}
                 onIgnore={(id) => changeActionMutation.mutate({ id, action: "ignore" })}
                 onApprove={(id) => changeActionMutation.mutate({ id, action: "approve" })}
-                onShopifySync={(id) => shopifySyncMutation.mutate(id)}
+                onMarktGoSync={(id) => marktGoSyncMutation.mutate(id)}
                 onApproveMany={(ids) => bulkApproveMutation.mutate(ids)}
-                onShopifySyncMany={(ids) => bulkShopifySyncMutation.mutate(ids)}
+                onMarktGoSyncMany={(ids) => bulkMarktGoSyncMutation.mutate(ids)}
                 onRecheck={() => checkMutation.mutate(changes[0].trackedProductId)}
               />
             ))}
@@ -1190,17 +1147,16 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                     <div>
                       <Label>Otomatik düzeltme</Label>
                       <p className="text-xs text-muted-foreground">
-                        Yüksek güvenli değişiklikleri MARKT-GO / Shopify&apos;a uygular; kaynak
-                        kalkmış ürünü takipten düşürür
+                        Yüksek güvenli değişiklikleri MARKT-GO'ya uygular; kaynak kalkmış ürünü takipten düşürür
                       </p>
                     </div>
                     <Switch
                       checked={autoCorrectOn}
                       disabled={saveSettingsMutation.isPending}
                       onCheckedChange={(v) => {
-                        setSettingsForm((f) => ({ ...f, autoShopifySyncEnabled: v }));
+                        setSettingsForm((f) => ({ ...f, autoMarktGoSyncEnabled: v }));
                         saveSettingsMutation.mutate({
-                          autoShopifySyncEnabled: v,
+                          autoMarktGoSyncEnabled: v,
                           ...(v ? { trackingEnabled: true, schedulerEnabled: true } : {}),
                         });
                       }}
