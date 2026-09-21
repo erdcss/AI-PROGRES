@@ -70,48 +70,24 @@ export async function splitNewTrackingSourceUrls(urls: string[]) {
 export async function ensureTrackedProductForMarktGo(product: CatalogPoolProduct) {
   const sourceUrl = canonicalTrackingSourceUrl(product.sourceUrl);
   if (!/^https?:\/\//i.test(sourceUrl)) return null;
-  const sourceProductId = trackingSourceProductId(sourceUrl);
-  const sourceSite = /trendyol\.com/i.test(sourceUrl) ? "trendyol" : "marktgo";
-  let row = await findTrackedDuplicateBySourceUrl(sourceUrl);
-  const now = new Date();
+
   const price = Number(product.salePrice || product.price || 0);
-  const stock = Array.isArray(product.variants)
-    ? product.variants.reduce((sum, variant) => sum + (variant.inStock === false ? 0 : 1), 0)
-    : product.inStock ? 1 : 0;
-  const patch = {
+  if (!Number.isFinite(price) || price <= 0) return null;
+
+  const { trackingService } = await import("../tracking.service");
+  return trackingService.registerFromDestinationUpload({
     sourceUrl,
-    sourceSite,
-    sourceProductId,
-    sourceTitle: product.title || "MARKT-GO Ürünü",
-    shopifyProductId: String(product.externalProductId),
-    currentSourcePrice: Number.isFinite(price) && price > 0 ? String(price) : null,
-    currentSourceStock: stock,
-    currentStatus: "active",
-    trackingEnabled: true,
-    shopifySyncStatus: "marktgo_managed",
-    lastShopifySyncAt: now,
-    archivedAt: null,
-    pausedReason: null,
-    updatedAt: now,
-  } as const;
-
-  if (row) {
-    const [updated] = await db.update(trackedProducts).set(patch).where(eq(trackedProducts.id, row.id)).returning();
-    return updated;
-  }
-
-  try {
-    const [created] = await db.insert(trackedProducts).values({
-      ...patch,
-      trackingUid: generateTrackingUid({ sourceSite, sourceProductId, sourceUrl }),
-    }).returning();
-    return created;
-  } catch (error) {
-    row = await findTrackedDuplicateBySourceUrl(sourceUrl);
-    if (!row) throw error;
-    const [updated] = await db.update(trackedProducts).set(patch).where(eq(trackedProducts.id, row.id)).returning();
-    return updated;
-  }
+    title: product.title || "MARKT-GO Ürünü",
+    price,
+    destinationProductId: product.externalProductId,
+    variants: (product.variants || []).map((variant) => ({
+      color: variant.option1,
+      size: variant.option2,
+      sku: variant.sku,
+      price: variant.price ?? undefined,
+      inStock: variant.inStock !== false,
+    })),
+  });
 }
 
 export async function markMissingMarktGoTrackedProductDeleted(trackedProductId: number) {
