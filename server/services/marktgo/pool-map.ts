@@ -358,6 +358,7 @@ export type CatalogPoolProduct = {
   images: string[];
   variants?: Array<{
     title: string;
+    externalVariantId?: string;
     sku?: string;
     option1?: string;
     option2?: string;
@@ -400,6 +401,7 @@ export function remoteToPoolProduct(raw: unknown): CatalogPoolProduct | null {
   const site = sourceUrl ? matchWebHookSite(sourceUrl) : null;
   const variants = (norm.variants || []).map((v) => ({
     title: [v.option1, v.option2].filter(Boolean).join(" / ") || "Varsayılan",
+    externalVariantId: v.id ? String(v.id) : undefined,
     sku: v.sku,
     option1: v.option1,
     option2: v.option2,
