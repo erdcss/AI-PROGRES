@@ -48,6 +48,20 @@ export function filterUploadedVariantsForTracking(
   return variants.filter((v) => v.inStock !== false);
 }
 
+function autoCorrectedChangeCondition() {
+  return and(
+    eq(detectedChanges.status, "applied"),
+    sql<boolean>`lower(coalesce(${detectedChanges.approvedBy}, '')) IN ('auto', 'startup-auto')`,
+  );
+}
+
+function excludeAutoCorrectedChangeCondition() {
+  return sql<boolean>`NOT (
+    ${detectedChanges.status} = 'applied'
+    AND lower(coalesce(${detectedChanges.approvedBy}, '')) IN ('auto', 'startup-auto')
+  )`;
+}
+
 function pickFirstImageUrl(images: unknown): string | null {
   if (!Array.isArray(images)) return null;
   for (const item of images) {
@@ -232,7 +246,10 @@ export class TrackingService {
     const openStatuses = ["pending", "manual_review", "failed"] as const;
 
     if (filters?.status === "all" || filters?.status === "history") {
-      // tüm durumlar — mobil bildirim / fiyat hareketi
+      // Ana değişiklik geçmişinde otomatik düzeltilenler gösterilmez; onlar ayrı arşivdir.
+      conditions.push(excludeAutoCorrectedChangeCondition());
+    } else if (filters?.status === "auto_corrected") {
+      conditions.push(autoCorrectedChangeCondition());
     } else if (filters?.status === "actionable" || !filters?.status) {
       conditions.push(inArray(detectedChanges.status, [...openStatuses]));
       conditions.push(isNull(detectedChanges.seenAt));
@@ -247,6 +264,7 @@ export class TrackingService {
       conditions.push(isNull(detectedChanges.seenAt));
     } else if (filters.status === "applied" || filters.status === "approved") {
       conditions.push(inArray(detectedChanges.status, ["applied", "approved"]));
+      conditions.push(excludeAutoCorrectedChangeCondition());
     } else if (filters.status === "rejected" || filters.status === "superseded") {
       conditions.push(eq(detectedChanges.status, filters.status));
     } else {
@@ -277,6 +295,7 @@ export class TrackingService {
     ignored: number;
     seen: number;
     applied: number;
+    auto_corrected: number;
     all: number;
   }> {
     const openStatuses = ["pending", "manual_review", "failed"] as const;
@@ -287,7 +306,17 @@ export class TrackingService {
       return Number(row?.c ?? 0);
     };
 
-    const [actionable, pending, manual_review, failed, ignored, seen, applied, all] = await Promise.all([
+    const [
+      actionable,
+      pending,
+      manual_review,
+      failed,
+      ignored,
+      seen,
+      applied,
+      auto_corrected,
+      all,
+    ] = await Promise.all([
       countWhere(and(inArray(detectedChanges.status, [...openStatuses]), isNull(detectedChanges.seenAt))),
       countWhere(and(eq(detectedChanges.status, "pending"), isNull(detectedChanges.seenAt))),
       countWhere(and(eq(detectedChanges.status, "manual_review"), isNull(detectedChanges.seenAt))),
@@ -296,11 +325,27 @@ export class TrackingService {
       countWhere(
         and(inArray(detectedChanges.status, [...openStatuses]), isNotNull(detectedChanges.seenAt)),
       ),
-      countWhere(inArray(detectedChanges.status, ["applied", "approved"])),
-      countWhere(),
+      countWhere(
+        and(
+          inArray(detectedChanges.status, ["applied", "approved"]),
+          excludeAutoCorrectedChangeCondition(),
+        ),
+      ),
+      countWhere(autoCorrectedChangeCondition()),
+      countWhere(excludeAutoCorrectedChangeCondition()),
     ]);
 
-    return { actionable, pending, manual_review, failed, ignored, seen, applied, all };
+    return {
+      actionable,
+      pending,
+      manual_review,
+      failed,
+      ignored,
+      seen,
+      applied,
+      auto_corrected,
+      all,
+    };
   }
 
   async listChangesWithProductForPanel(filters?: {
