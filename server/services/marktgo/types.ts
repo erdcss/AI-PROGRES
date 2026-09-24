@@ -107,6 +107,10 @@ export type LocalProductInput = {
   reviews?: ImportedReviewInput[];
   /** Kaynak ürünün bildirdiği değerlendirme/yorum adedi; 0-yorum sessiz başarısını yakalamak için. */
   expectedReviewCount?: number | null;
+  /** Ürün oluşturmayı yorum taramasına kilitlemez; eksik yorumlar arka planda tamamlanır. */
+  fastUpload?: boolean;
+  /** Otomatik kategori/etiket üretiminin kullanıcı seçimi. */
+  autoTagEnabled?: boolean;
   variants?: Array<{
     localVariantId: string;
     option1?: string;
