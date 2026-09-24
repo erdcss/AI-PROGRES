@@ -2,6 +2,7 @@
 
 import { marktGoStockForAvailability } from "@shared/integration-provider";
 import { filterValidProductImages } from "@shared/trendyol-product-images";
+import { resolveOriginalImageUrl } from "@/lib/product-image-url";
 
 export function extractNumericPrice(price: unknown): number | null {
   if (typeof price === "number" && Number.isFinite(price) && price > 0) return price;
@@ -173,6 +174,23 @@ const PRODUCT_IMAGE_CONTAINER_KEYS = [
   "thumbnails",
 ] as const;
 
+function directProductImages(candidates: unknown[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const candidate of candidates) {
+    const url = resolveOriginalImageUrl(candidate);
+    if (!url || seen.has(url)) continue;
+    if (
+      /(?:\/ui\/|\/icons?\/|logo|favicon|avatar|banner|campaign|kampanya|seller|review|yorum|size[_-]?(?:chart|guide)|beden[_-]?(?:tablo|rehber)|washing|wash[_-]?care)/i.test(url)
+    ) {
+      continue;
+    }
+    seen.add(url);
+    result.push(url);
+  }
+  return result;
+}
+
 function collectProductImageCandidates(
   input: Record<string, unknown>,
   allVariants: unknown[],
@@ -245,7 +263,9 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
       : [];
 
   const imageCandidates = collectProductImageCandidates(input, allVariants);
-  const images = filterValidProductImages(imageCandidates);
+  const strictImages = filterValidProductImages(imageCandidates);
+  const directImages = directProductImages(imageCandidates);
+  const images = [...new Set([...strictImages, ...directImages])];
 
   const variants = allVariants.map((raw, i) => {
     const v = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -254,7 +274,9 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     const baseId = String(v.sourceProductId || v.listingId || v.id || "").trim();
     const id = baseId ? `${baseId}-${i + 1}` : `${color}-${size}-${i + 1}`;
     const variantImageCandidates = collectProductImageCandidates(v, []);
-    const variantImage = filterValidProductImages(variantImageCandidates)[0];
+    const variantImage =
+      filterValidProductImages(variantImageCandidates)[0] ||
+      directProductImages(variantImageCandidates)[0];
     return {
       id,
       color: color || undefined,
