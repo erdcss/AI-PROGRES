@@ -179,7 +179,7 @@ function collectPoolImageUrls(
   }
 }
 
-function imagesForPoolProduct(product: Record<string, unknown>): string[] {
+export function imagesForPoolProduct(product: Record<string, unknown>): string[] {
   const out: string[] = [];
   collectPoolImageUrls(product, out);
   const seen = new Set<string>();
