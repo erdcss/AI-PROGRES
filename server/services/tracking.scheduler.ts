@@ -315,7 +315,6 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
       .where(
         and(
           eq(trackedProducts.trackingEnabled, true),
-          eq(trackedProducts.currentStatus, "active"),
           visibleTrackedProductCondition(),
           sql`${trackedProducts.sourceUrl} ~* '^https?://'`,
         ),
