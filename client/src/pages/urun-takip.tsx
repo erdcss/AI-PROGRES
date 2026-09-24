@@ -178,6 +178,7 @@ type ChangeFilterCounts = {
   ignored: number;
   seen: number;
   applied: number;
+  auto_corrected: number;
   all: number;
 };
 
@@ -187,6 +188,19 @@ function formatDate(value: string | null) {
 
 function getChangeProductKey(change: DetectedChange): string {
   return `tracked:${change.trackedProductId}`;
+}
+
+function formatChangeValue(value: unknown): string {
+  if (value == null || value === "") return "—";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    const json = JSON.stringify(value);
+    return json.length > 180 ? `${json.slice(0, 177)}…` : json;
+  } catch {
+    return String(value);
+  }
 }
 
 function isOutOfStockNewValue(newValue: unknown): boolean {
@@ -360,6 +374,23 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     staleTime: 10_000,
   });
 
+  const autoCorrectedQuery = useQuery({
+    queryKey: ["tracking-changes", "auto_corrected"],
+    queryFn: async ({ signal }) => {
+      const qs = new URLSearchParams({ status: "auto_corrected", limit: "400" });
+      const res = await fetch(`/api/tracking/changes?${qs.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Otomatik düzeltilenler alınamadı");
+      return (data.changes || []) as DetectedChange[];
+    },
+    refetchInterval: 30_000,
+    retry: 1,
+    staleTime: 10_000,
+  });
+
   const changeCountsQuery = useQuery({
     queryKey: ["tracking-change-counts"],
     queryFn: async () => {
@@ -374,6 +405,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         ignored: 0,
         seen: 0,
         applied: 0,
+        auto_corrected: 0,
         all: 0,
       }) as ChangeFilterCounts;
     },
@@ -402,7 +434,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             ? "Otomatik düzeltme açıldı"
             : "Otomatik düzeltme kapatıldı",
           description: patch.autoShopifySyncEnabled
-            ? "Yüksek güvenli değişiklikler hedefe uygulanacak"
+            ? "Bekleyen ve MARKT-GO'da uygulanabilir değişiklikler otomatik düzeltilecek"
             : undefined,
         });
       } else {
@@ -587,6 +619,25 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     });
   }, [changesQuery.data]);
 
+  const autoCorrectedGroups = useMemo(() => {
+    const groups = new Map<string, DetectedChange[]>();
+    for (const change of autoCorrectedQuery.data ?? []) {
+      const key = getChangeProductKey(change);
+      const group = groups.get(key);
+      if (group) group.push(change);
+      else groups.set(key, [change]);
+    }
+    return [...groups.values()].sort((a, b) => {
+      const latestA = Math.max(
+        ...a.map((change) => new Date(change.appliedAt || change.createdAt).getTime()),
+      );
+      const latestB = Math.max(
+        ...b.map((change) => new Date(change.appliedAt || change.createdAt).getTime()),
+      );
+      return latestB - latestA;
+    });
+  }, [autoCorrectedQuery.data]);
+
   const kindFilterCounts = useMemo(() => {
     const counts: Record<ChangeKindFilter, number> = {
       price: 0,
@@ -671,8 +722,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           <div className="min-w-0">
             <p className="text-sm font-medium">Otomatik düzeltme</p>
             <p className="text-xs text-muted-foreground">
-              Açıkken yüksek güvenli değişiklikler MARKT-GO&apos;ya uygulanır; kaynak kalkmış ürün
-              takipten düşer
+              Açıkken bekleyen ve uygulanabilir değişiklikler MARKT-GO&apos;da otomatik düzeltilir;
+              tamamlanan kayıtlar Otomatik Düzeltilenler arşivine taşınır
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -743,6 +794,14 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             {(changeCountsQuery.data?.all ?? 0) > 0 && (
               <Badge className="ml-2 h-5 px-1.5" variant="destructive">
                 {changeCountsQuery.data?.all}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="auto-corrected">
+            Otomatik Düzeltilenler
+            {(changeCountsQuery.data?.auto_corrected ?? 0) > 0 && (
+              <Badge className="ml-2 h-5 px-1.5" variant="secondary">
+                {changeCountsQuery.data?.auto_corrected}
               </Badge>
             )}
           </TabsTrigger>
@@ -896,9 +955,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
 
         <TabsContent value="changes" className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground max-w-2xl">
-            Değişiklikler kademeli süzülür: önce gerçek adaylar, sonra inceleme, sonra şüpheli.
-            Otomatik düzeltme açıksa yalnız yüksek güvenli (gerçek) kayıtlar hedefe uygulanır;
-            kaynak kalkmışsa ürün takipten düşürülür.
+            Değişiklikler yalnız bekleyen, manuel işlem gerektiren ve manuel uygulanmış kayıtları gösterir.
+            Otomatik düzeltme ile tamamlanan kayıtlar bu bölümden çıkarılır ve ayrı arşivde saklanır.
           </p>
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2 items-center justify-between">
@@ -1080,6 +1138,125 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           </div>
         </TabsContent>
 
+        <TabsContent value="auto-corrected" className="mt-4 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Otomatik Düzeltilenler</h2>
+              <p className="text-sm text-muted-foreground">
+                Otomatik düzeltme tarafından MARKT-GO&apos;ya başarıyla uygulanan kayıtlar.
+                Bu kayıtlar Değişiklikler bölümünde tekrar gösterilmez.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => autoCorrectedQuery.refetch()}
+              disabled={autoCorrectedQuery.isFetching}
+            >
+              <RefreshCw
+                className={`w-4 h-4 mr-2 ${autoCorrectedQuery.isFetching ? "animate-spin" : ""}`}
+              />
+              Yenile
+            </Button>
+          </div>
+
+          {autoCorrectedQuery.isLoading && (
+            <p className="text-muted-foreground text-sm">Otomatik düzeltilenler yükleniyor…</p>
+          )}
+
+          {autoCorrectedQuery.error && (
+            <Card className="border-destructive/50">
+              <CardContent className="py-4 text-destructive text-sm">
+                {(autoCorrectedQuery.error as Error).message}
+              </CardContent>
+            </Card>
+          )}
+
+          {!autoCorrectedQuery.isLoading &&
+            !autoCorrectedQuery.error &&
+            autoCorrectedGroups.length === 0 && (
+              <Card>
+                <CardContent className="py-10 text-center text-muted-foreground">
+                  Henüz otomatik düzeltilmiş ürün yok
+                </CardContent>
+              </Card>
+            )}
+
+          <div className="grid gap-3">
+            {autoCorrectedGroups.map((changes) => {
+              const product = changes[0];
+              const latestApplied = [...changes]
+                .sort(
+                  (a, b) =>
+                    new Date(b.appliedAt || b.createdAt).getTime() -
+                    new Date(a.appliedAt || a.createdAt).getTime(),
+                )[0];
+              return (
+                <article
+                  key={getChangeProductKey(product)}
+                  className="rounded-xl border border-border/60 bg-card/50 p-4"
+                >
+                  <div className="flex gap-4">
+                    <TrackingProductImage
+                      imageUrl={product.productImageUrl}
+                      title={product.productTitle || `Ürün #${product.trackedProductId}`}
+                      size="lg"
+                    />
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-medium leading-snug line-clamp-2 text-[15px]">
+                            {product.productTitle || `Ürün #${product.trackedProductId}`}
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Son düzeltme: {formatDate(latestApplied.appliedAt ?? latestApplied.createdAt)}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="secondary"
+                          className="border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                        >
+                          Otomatik düzeltildi
+                        </Badge>
+                      </div>
+
+                      <div className="grid gap-2">
+                        {changes.map((change) => (
+                          <div
+                            key={change.id}
+                            className="rounded-lg border border-border/40 bg-background/30 px-3 py-2"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-sm font-medium">
+                                {change.fieldName || change.changeType}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(change.appliedAt ?? change.createdAt)}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground break-words">
+                              {formatChangeValue(change.oldValue)} → {formatChangeValue(change.newValue)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {product.productUrl && /^https?:\/\//i.test(product.productUrl) && (
+                        <Button size="sm" variant="ghost" asChild>
+                          <a href={product.productUrl} target="_blank" rel="noreferrer">
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            Kaynak
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </TabsContent>
+
         <TabsContent value="settings" className="mt-4">
           <Card>
             <CardHeader>
@@ -1111,8 +1288,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                     <div>
                       <Label>Otomatik düzeltme</Label>
                       <p className="text-xs text-muted-foreground">
-                        Yüksek güvenli değişiklikleri yalnızca MARKT-GO&apos;ya uygular; kaynak
-                        kalkmış ürünü takipten düşürür
+                        Bekleyen ve uygulanabilir değişiklikleri MARKT-GO&apos;da otomatik düzeltir;
+                        tamamlananları ayrı arşive taşır
                       </p>
                     </div>
                     <Switch
