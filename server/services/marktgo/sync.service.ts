@@ -342,6 +342,14 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   const localProductId = String(input.localProductId);
   const externalId = stableExternalId(localProductId);
   const images = await prepareMarktGoImages(input.images || [], 12);
+  if (images.length === 0) {
+    throw new MarktGoApiError(
+      "Ürün görselsiz olduğu için MARKT-GO senkronu durduruldu.",
+      422,
+      "missing_product_image",
+      false,
+    );
+  }
   const brand = input.brand ? String(input.brand).trim() : "";
   const reviewResolution = await resolveProductReviews(input);
   const reviews = reviewResolution.reviews;
