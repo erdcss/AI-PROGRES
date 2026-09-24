@@ -28,10 +28,6 @@ src = src.replace(
   `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          eq(trackedProducts.currentStatus, "active"),\n          visibleTrackedProductCondition(),\n        ),`,
   `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          visibleTrackedProductCondition(),\n        ),`,
 );
-src = src.replace(
-  `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          eq(trackedProducts.currentStatus, "active"),\n          visibleTrackedProductCondition(),\n          sql\\`\${trackedProducts.sourceUrl} ~* '^https?://'\\`,\n        ),`,
-  `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          visibleTrackedProductCondition(),\n          sql\\`\${trackedProducts.sourceUrl} ~* '^https?://'\\`,\n        ),`,
-);
 if (
   src.includes('eq(trackedProducts.currentStatus, "active"),\n          visibleTrackedProductCondition()')
 ) {
