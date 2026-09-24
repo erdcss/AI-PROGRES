@@ -201,8 +201,8 @@ function collectProductImageCandidates(
   const push = (value: unknown, depth = 0) => {
     if (value == null || depth > 6) return;
     if (typeof value === "string") {
-      const url = value.trim();
-      if (/^https?:\/\//i.test(url)) found.push(url);
+      const direct = resolveOriginalImageUrl(value);
+      if (direct) found.push(direct);
       return;
     }
     if (Array.isArray(value)) {
