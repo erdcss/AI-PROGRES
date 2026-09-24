@@ -345,6 +345,8 @@ export function mapPoolProductToMarktGoInput(
     tags,
     reviews: reviewsForSync,
     expectedReviewCount,
+    fastUpload: product.fastUpload === true,
+    autoTagEnabled: product.autoTagEnabled !== false,
     variants,
   };
 }
