@@ -68,9 +68,12 @@ export async function splitNewTrackingSourceUrls(urls: string[]) {
 }
 
 export async function ensureTrackedProductForMarktGo(product: CatalogPoolProduct) {
-  const sourceUrl = canonicalTrackingSourceUrl(product.sourceUrl);
-  if (!/^https?:\/\//i.test(sourceUrl)) return null;
-  const sourceProductId = trackingSourceProductId(sourceUrl);
+  const canonicalSourceUrl = canonicalTrackingSourceUrl(product.sourceUrl);
+  const sourceUrl =
+    canonicalSourceUrl ||
+    `marktgo://products/${encodeURIComponent(String(product.externalProductId))}`;
+  const sourceProductId =
+    trackingSourceProductId(sourceUrl) || String(product.externalProductId);
   const sourceSite = /trendyol\.com/i.test(sourceUrl) ? "trendyol" : "marktgo";
   let row = await findTrackedDuplicateBySourceUrl(sourceUrl);
   const now = new Date();
