@@ -4,26 +4,15 @@
  * Otomatik düzeltme yalnızca MARKT-GO üzerinde çalışır.
  */
 import type { DetectedChange } from "@shared/schema";
-import {
-  isAutoShopifyFixChangeType,
-  isDirectlyApplicableTrackingChange,
-} from "@shared/tracking-change-policy";
+import { isDirectlyApplicableTrackingChange } from "@shared/tracking-change-policy";
 
-const AUTO_MIN_CONFIDENCE = 70;
-
-function confidenceOf(row: DetectedChange): number {
-  const n = Number(row.confidence);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** Yüksek güvenli / gerçek aday — otomatik düzeltmeye uygun */
+/**
+ * Otomatik düzeltme açıkken bekleyen ve MARKT-GO'da doğrudan uygulanabilir
+ * her değişiklik işleme alınır. Güven puanı burada ikinci bir bekleme kapısı değildir.
+ */
 export function isAutoCorrectCandidate(row: DetectedChange): boolean {
   if (row.status !== "pending") return false;
-  if (!isAutoShopifyFixChangeType(row.changeType)) return false;
-  if (!isDirectlyApplicableTrackingChange(row.changeType, row.fieldName, row.newValue)) {
-    return false;
-  }
-  return confidenceOf(row) >= AUTO_MIN_CONFIDENCE;
+  return isDirectlyApplicableTrackingChange(row.changeType, row.fieldName, row.newValue);
 }
 
 export function maybeAutoMarktGoSyncAfterPersist(rows: DetectedChange[]): void {
@@ -65,7 +54,7 @@ export async function applyPendingTrackingChangesOnStartup(options?: {
     return { applied: 0, skipped: 0, errors: 0 };
   }
 
-  const limit = Math.min(Math.max(options?.limit ?? 40, 1), 120);
+  const limit = Math.min(Math.max(options?.limit ?? 400, 1), 2000);
   const { db } = await import("../db");
   const { detectedChanges } = await import("@shared/schema");
   const { desc, eq } = await import("drizzle-orm");
