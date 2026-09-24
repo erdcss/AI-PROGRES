@@ -118,7 +118,19 @@ const IMAGE_VALUE_KEYS = [
   "src",
   "publicUrl",
   "imageUrl",
+  "image_url",
+  "image",
+  "href",
+  "link",
   "path",
+  "contentUrl",
+  "photoUrl",
+  "pictureUrl",
+  "largeImage",
+  "mediumImage",
+  "smallImage",
+  "originalImage",
+  "featuredImage",
   "original",
   "huge",
   "large",
@@ -135,6 +147,7 @@ const IMAGE_CONTAINER_KEYS = [
   "imagesByColor",
   "gallery",
   "media",
+  "mediaFiles",
   "imageUrls",
   "productImages",
   "originalImages",
@@ -145,7 +158,39 @@ const IMAGE_CONTAINER_KEYS = [
   "thumbnails",
 ] as const;
 
-const IMAGE_NESTED_KEYS = ["variants", "canonicalProduct", "colorFamily", "variantMediaGroups"] as const;
+const IMAGE_NESTED_KEYS = [
+  "variants",
+  "canonicalProduct",
+  "colorFamily",
+  "variantMediaGroups",
+  "allVariants",
+] as const;
+
+function normalizeDirectProductImageUrl(raw: string): string | null {
+  let value = String(raw || "").trim();
+  if (!value) return null;
+
+  try {
+    const proxyCandidate = value.startsWith("/api/image-proxy")
+      ? `https://local.invalid${value}`
+      : value;
+    const parsed = new URL(proxyCandidate);
+    if (parsed.pathname === "/api/image-proxy") {
+      const inner = parsed.searchParams.get("url");
+      if (inner) value = decodeURIComponent(inner);
+    }
+  } catch {
+    /* raw URL normalization continues below */
+  }
+
+  if (value.startsWith("//")) value = `https:${value}`;
+  else if (value.startsWith("/ty") || value.startsWith("/mnresize/")) {
+    value = `https://cdn.dsmcdn.com${value}`;
+  }
+
+  if (/^http:\/\//i.test(value)) value = value.replace(/^http:/i, "https:");
+  return /^https:\/\//i.test(value) ? value : null;
+}
 
 function collectPoolImageUrls(
   value: unknown,
@@ -155,8 +200,10 @@ function collectPoolImageUrls(
 ): void {
   if (value == null || depth > 8) return;
   if (typeof value === "string") {
-    const url = value.trim();
-    if (imageContext && /^https?:\/\//i.test(url)) out.push(url);
+    if (imageContext) {
+      const url = normalizeDirectProductImageUrl(value);
+      if (url) out.push(url);
+    }
     return;
   }
   if (Array.isArray(value)) {
