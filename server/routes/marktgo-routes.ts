@@ -8,7 +8,7 @@ import {
   testMarktGoConnection,
 } from "../services/marktgo/connection.service";
 import { syncProductToMarktGo } from "../services/marktgo/sync.service";
-import { mapPoolProductToMarktGoInput } from "../services/marktgo/pool-map";
+import { imagesForPoolProduct, mapPoolProductToMarktGoInput } from "../services/marktgo/pool-map";
 import { repairExistingMarktGoProductImages } from "../services/marktgo/image-repair.service";
 import { applyAutomaticCollectionsToMarktGoProduct } from "../services/marktgo/collection-assignment.service";
 import { userMessageForMarktGoError } from "../services/marktgo/errors";
@@ -156,6 +156,19 @@ export function registerMarktGoRoutes(app: Express): void {
       if (salePrice == null || !Number.isFinite(Number(salePrice))) {
         return res.status(400).json({ success: false, error: "product.salePrice zorunlu" });
       }
+
+      // Kesin veri bütünlüğü kuralı: gerçek ürün görseli olmayan kayıt sisteme alınmaz.
+      // Bu kontrol sunucu tarafındadır; web/mobil/başka bir istemci tarafından atlanamaz.
+      const requiredImages = imagesForPoolProduct(product);
+      if (requiredImages.length === 0) {
+        return res.status(422).json({
+          success: false,
+          code: "missing_product_image",
+          error: "Ürün görselsiz olduğu için çekilmedi ve MARKT-GO'ya gönderilmedi.",
+        });
+      }
+      product.images = requiredImages;
+      product.image = requiredImages[0];
 
       // Koleksiyon kurallarını önce yükle ki mapPoolProductToMarktGoInput ürün
       // etiketlerini MARKT-GO'daki gerçek koleksiyon adlarıyla eşleştirebilsin.
