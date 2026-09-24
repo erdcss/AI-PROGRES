@@ -64,11 +64,26 @@ fs.writeFileSync(poolMapPath, pm);
 const syncPath = path.join(root, "server/services/marktgo/sync.service.ts");
 let sy = fs.readFileSync(syncPath, "utf8");
 
+// Build-time patch artık metin dizilimine bağlı değil: fastUpload her koşulda tanımlı olmalı.
+if (!sy.includes("const fastUpload = input.fastUpload === true;")) {
+  const brandAnchor = '  const brand = input.brand ? String(input.brand).trim() : "";\n';
+  if (!sy.includes(brandAnchor)) {
+    throw new Error("[marktgo-product-first] fastUpload declaration anchor bulunamadı");
+  }
+  sy = sy.replace(
+    brandAnchor,
+    `${brandAnchor}  const fastUpload = input.fastUpload === true;\n`,
+  );
+}
+
 const oldResolution = `  const images = await prepareMarktGoImages(input.images || [], 12);\n  const brand = input.brand ? String(input.brand).trim() : \"\";\n  const reviewResolution = await resolveProductReviews(input);\n  const reviews = reviewResolution.reviews;\n  if (reviewResolution.error) failed.push(\"reviews\");`;
 
 const newResolution = `  const images = await prepareMarktGoImages(input.images || [], 12);\n  const brand = input.brand ? String(input.brand).trim() : \"\";\n  const fastUpload = input.fastUpload === true;\n  const fastProvidedReviews = fastUpload ? sanitizeProvidedReviews(input.reviews) : [];\n  const reviewResolution = fastUpload\n    ? {\n        reviews: fastProvidedReviews,\n        attempted: fastProvidedReviews.length > 0 || reviewCountHint(input) > 0,\n        expectedCount: Math.max(reviewCountHint(input), fastProvidedReviews.length),\n        source: fastProvidedReviews.length > 0 ? (\"provided\" as const) : (\"none\" as const),\n        error: undefined as string | undefined,\n      }\n    : await resolveProductReviews(input);\n  const reviews = reviewResolution.reviews;\n  if (reviewResolution.error) failed.push(\"reviews\");`;
 
-if (sy.includes(oldResolution)) {
+if (
+  !sy.includes("const fastProvidedReviews = fastUpload ? sanitizeProvidedReviews(input.reviews) : [];") &&
+  sy.includes(oldResolution)
+) {
   sy = sy.replace(oldResolution, newResolution);
 }
 
