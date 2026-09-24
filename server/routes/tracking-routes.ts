@@ -52,7 +52,24 @@ export function registerTrackingRoutes(app: Express): void {
 
   app.put("/api/tracking/settings", async (req, res) => {
     try {
-      const settings = await updateTrackingSettings(req.body ?? {});
+      const patch = req.body ?? {};
+      const settings = await updateTrackingSettings(patch);
+
+      // Otomatik düzeltme açıldığı anda geçmişten bekleyen uygulanabilir kayıtları da
+      // MARKT-GO'ya gönder; yeni tespitler persist kancasıyla zaten anlık işlenir.
+      if (patch.autoShopifySyncEnabled === true && settings.autoShopifySyncEnabled) {
+        void import("../services/auto-shopify-sync.service")
+          .then(({ applyPendingTrackingChangesOnStartup }) =>
+            applyPendingTrackingChangesOnStartup({ limit: 2000 }),
+          )
+          .catch((err) =>
+            console.warn(
+              "[marktgo-auto-correct] bekleyen kayıtlar işlenemedi:",
+              err instanceof Error ? err.message : String(err),
+            ),
+          );
+      }
+
       return res.json({ success: true, settings });
     } catch (err) {
       return migrationErrorResponse(res, err);
@@ -62,6 +79,17 @@ export function registerTrackingRoutes(app: Express): void {
   app.get("/api/tracking/products", async (req, res) => {
     try {
       void hydrateIncompleteCatalog();
+      try {
+        const { triggerMarktGoCatalogReconcile } = await import(
+          "../services/marktgo/reconcile.service"
+        );
+        await triggerMarktGoCatalogReconcile(false);
+      } catch (err) {
+        console.warn(
+          "[marktgo-reconcile] takip sayfası katalog eşitlemesi atlandı:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
       const includeArchived = req.query.includeArchived === "true";
       const includeUnlinked = req.query.includeUnlinked !== "false";
       const products = await trackingService.listProductsForPanel({
