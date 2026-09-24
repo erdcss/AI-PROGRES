@@ -352,6 +352,8 @@ export function mapScraperLikeToPoolProduct(input: Record<string, unknown>) {
     features,
     reviews,
     reviewCount,
+    fastUpload: input.fastUpload === true,
+    autoTagEnabled: input.autoTagEnabled !== false,
     variants,
     inStock: variants.length ? variants.some((v) => v.inStock) : true,
     stock: marktGoStockForAvailability(
