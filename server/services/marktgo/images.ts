@@ -17,6 +17,59 @@ const PROBE_TIMEOUT_MS = 2_000;
 const MAX_IMAGES = 12;
 const LOW_TY_RE = /\/ty(1660|1000|1505)\//i;
 
+function normalizeDirectImageUrl(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  let value = raw.trim();
+  if (!value) return null;
+
+  try {
+    const proxyCandidate = value.startsWith("/api/image-proxy")
+      ? `https://local.invalid${value}`
+      : value;
+    const parsed = new URL(proxyCandidate);
+    if (parsed.pathname === "/api/image-proxy") {
+      const inner = parsed.searchParams.get("url");
+      if (inner) value = decodeURIComponent(inner);
+    }
+  } catch {
+    /* continue with the raw value */
+  }
+
+  if (value.startsWith("//")) value = `https:${value}`;
+  else if (value.startsWith("/ty") || value.startsWith("/mnresize/")) {
+    value = `https://cdn.dsmcdn.com${value}`;
+  }
+  if (/^http:\/\//i.test(value)) value = value.replace(/^http:/i, "https:");
+  if (!/^https:\/\//i.test(value)) return null;
+
+  if (
+    /(?:\/ui\/|\/icons?\/|logo|favicon|avatar|banner|campaign|kampanya|seller|review|yorum|size[_-]?(?:chart|guide)|beden[_-]?(?:tablo|rehber)|washing|wash[_-]?care)/i.test(value)
+  ) {
+    return null;
+  }
+  return value;
+}
+
+function directImageUrls(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of list) {
+    const direct =
+      typeof item === "string"
+        ? normalizeDirectImageUrl(item)
+        : item && typeof item === "object"
+          ? ["url", "src", "imageUrl", "image", "href", "link", "path", "original", "large", "medium"]
+              .map((key) => normalizeDirectImageUrl((item as Record<string, unknown>)[key]))
+              .find((value): value is string => Boolean(value)) || null
+          : null;
+    if (!direct || seen.has(direct)) continue;
+    seen.add(direct);
+    result.push(direct);
+  }
+  return result;
+}
+
 function imageIdentityKey(url: string): string {
   return url
     .replace(/mnresize\/\d+\/\d+\//, "")
@@ -90,13 +143,18 @@ export async function prepareMarktGoImages(
   raw: unknown,
   limit = MAX_IMAGES,
 ): Promise<string[]> {
-  const filtered = filterValidProductImages(Array.isArray(raw) ? raw : []);
+  const rawList = Array.isArray(raw) ? raw : [];
+  const filtered = filterValidProductImages(rawList);
+  const direct = directImageUrls(rawList);
   const preferredTy = collectTrendyolTyFolders(filtered).filter(
     (ty) => !/^ty(1660|1000|1505)$/i.test(ty),
   );
-  const ranked = prioritizeProductImagesForPreview(filtered).map((url) =>
+  const rankedStrict = prioritizeProductImagesForPreview(filtered).map((url) =>
     recoverWithPreferredTy(url, preferredTy),
   );
+  // Sıkı Trendyol galerisi sıralaması öncelikli; ardından ürün verisindeki orijinal
+  // doğrudan URL'leri koru. Böylece yeni CDN path'leri filtre yüzünden kaybolmaz.
+  const ranked = [...new Set([...rankedStrict, ...direct])];
 
   const resolved: string[] = [];
   const seen = new Set<string>();
