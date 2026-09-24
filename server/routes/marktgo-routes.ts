@@ -157,18 +157,14 @@ export function registerMarktGoRoutes(app: Express): void {
         return res.status(400).json({ success: false, error: "product.salePrice zorunlu" });
       }
 
-      // Kesin veri bütünlüğü kuralı: gerçek ürün görseli olmayan kayıt sisteme alınmaz.
-      // Bu kontrol sunucu tarafındadır; web/mobil/başka bir istemci tarafından atlanamaz.
-      const requiredImages = imagesForPoolProduct(product);
-      if (requiredImages.length === 0) {
-        return res.status(422).json({
-          success: false,
-          code: "missing_product_image",
-          error: "Ürün görselsiz olduğu için çekilmedi ve MARKT-GO'ya gönderilmedi.",
-        });
+      // Ham ürün verisindeki tüm gerçek/orijinal görselleri tek listeye topla.
+      // Nihai "görselsiz ürün gönderme" kuralı sync servisinde uygulanır; burada erken
+      // false-negative üretmeyip görselleri doğrudan payload'a taşırız.
+      const collectedImages = imagesForPoolProduct(product);
+      if (collectedImages.length > 0) {
+        product.images = collectedImages;
+        product.image = collectedImages[0];
       }
-      product.images = requiredImages;
-      product.image = requiredImages[0];
 
       // Koleksiyon kurallarını önce yükle ki mapPoolProductToMarktGoInput ürün
       // etiketlerini MARKT-GO'daki gerçek koleksiyon adlarıyla eşleştirebilsin.
