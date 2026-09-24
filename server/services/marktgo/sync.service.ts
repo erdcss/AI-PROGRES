@@ -351,7 +351,18 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
     );
   }
   const brand = input.brand ? String(input.brand).trim() : "";
-  const reviewResolution = await resolveProductReviews(input);
+  // first-class runtime flag: build scriptlerinden bağımsız olarak her zaman tanımlıdır.
+  const fastUpload = input.fastUpload === true;
+  const fastProvidedReviews = fastUpload ? sanitizeProvidedReviews(input.reviews) : [];
+  const reviewResolution = fastUpload
+    ? {
+        reviews: fastProvidedReviews,
+        attempted: fastProvidedReviews.length > 0 || reviewCountHint(input) > 0,
+        expectedCount: Math.max(reviewCountHint(input), fastProvidedReviews.length),
+        source: fastProvidedReviews.length > 0 ? ("provided" as const) : ("none" as const),
+        error: undefined as string | undefined,
+      }
+    : await resolveProductReviews(input);
   const reviews = reviewResolution.reviews;
   if (reviewResolution.error) failed.push("reviews");
 
