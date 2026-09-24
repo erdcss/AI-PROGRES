@@ -66,6 +66,30 @@ export async function runManualProductCheck(trackedProductId: number) {
       return { success: false, skipped: true, message: "Tracking devre dışı", checked: false };
     }
 
+    // MARKT-GO içinde oluşturulmuş ve kaynak pazaryeri URL'si bulunmayan ürünler de
+    // takip panelinde yer alır. Bunların manuel kontrolü kaynak scrape yerine katalog
+    // reconcile üzerinden yapılır.
+    if (!/^https?:\/\//i.test(String(product.sourceUrl || ""))) {
+      const { triggerMarktGoCatalogReconcile } = await import("./marktgo/reconcile.service");
+      const reconcile = await triggerMarktGoCatalogReconcile(true);
+      const now = new Date();
+      await db
+        .update(trackedProducts)
+        .set({
+          lastCheckedAt: now,
+          ...(reconcile?.success !== false ? { lastSuccessAt: now, lastErrorAt: null, lastErrorMessage: null } : {}),
+          updatedAt: now,
+        })
+        .where(eq(trackedProducts.id, trackedProductId));
+      return {
+        success: reconcile?.success !== false,
+        checked: true,
+        validSource: true,
+        changesCreated: 0,
+        userMessage: reconcile?.message || "MARKT-GO katalog eşitlemesi tamamlandı",
+      };
+    }
+
     const previousSnapshot = await trackingService.getLatestSnapshot(trackedProductId);
     const baselinePrice = numPrice(product.currentSourcePrice);
     const fetchResult = await fetchSourceForTracking(product.sourceUrl, {
@@ -293,6 +317,7 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
           eq(trackedProducts.trackingEnabled, true),
           eq(trackedProducts.currentStatus, "active"),
           visibleTrackedProductCondition(),
+          sql`${trackedProducts.sourceUrl} ~* '^https?://'`,
         ),
       );
 
