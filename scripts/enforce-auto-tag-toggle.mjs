@@ -14,6 +14,11 @@ sp = sp.replaceAll(
   "        sourceUrl: preview.sourceUrl,\n",
   "        autoTagEnabled,\n        sourceUrl: preview.sourceUrl,\n",
 );
+// Aynı payload hem sourceUrl hem tags anchor'ına uyarsa iki kez eklenebiliyordu.
+sp = sp.replace(
+  /(\s+autoTagEnabled,\n)([\s\S]{0,320}?)(\s+autoTagEnabled,\n)/g,
+  "$1$2",
+);
 fs.writeFileSync(scraperPath, sp);
 
 // Client mapper: preserve the switch state in the pool product object.
