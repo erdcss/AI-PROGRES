@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { trackedProducts } from "@shared/schema";
 import { MarktGoApiError } from "./errors";
@@ -15,6 +15,7 @@ import {
   type CatalogPoolProduct,
 } from "./pool-map";
 import type { IntegrationProductMapping } from "@shared/schema";
+import { ensureTrackedProductForMarktGo } from "./strict-tracking-sync.service";
 
 const INTERVAL_MS = 15 * 60_000;
 const MAX_PAGES = 50;
@@ -198,35 +199,116 @@ async function runReconcile(): Promise<MarktGoCatalogReconcileResult> {
     }
   }
 
-  let imported = 0;
-  const mappedExt = new Set(
-    (await listProductMappings(connection.id)).map((m) => String(m.externalProductId)),
+  // Çift yönlü bütünlük: eşlenmiş ürün AI PROGRES takip tablosundan gerçekten
+  // silindiyse aynı ürünü MARKT-GO'dan da kaldır. Eşlemesi henüz takip kaydına
+  // bağlanmamış ürünler bu kurala girmez; aşağıdaki import turunda bağlanırlar.
+  const remainingMappings = await listProductMappings(connection.id);
+  const linkedTrackedIds = [
+    ...new Set(
+      remainingMappings
+        .map((mapping) => mapping.trackedProductId)
+        .filter((id): id is number => typeof id === "number" && id > 0),
+    ),
+  ];
+  const liveTrackedRows =
+    linkedTrackedIds.length > 0
+      ? await db
+          .select({
+            id: trackedProducts.id,
+            archivedAt: trackedProducts.archivedAt,
+            currentStatus: trackedProducts.currentStatus,
+          })
+          .from(trackedProducts)
+          .where(inArray(trackedProducts.id, linkedTrackedIds))
+      : [];
+  const liveTrackedIds = new Set(
+    liveTrackedRows
+      .filter(
+        (row) =>
+          !row.archivedAt &&
+          row.currentStatus !== "marktgo_deleted" &&
+          row.currentStatus !== "shopify_deleted",
+      )
+      .map((row) => row.id),
   );
-  for (const product of products) {
-    if (mappedExt.has(product.externalProductId)) continue;
+  const removedByLocal = new Set<string>();
+
+  for (const mapping of remainingMappings) {
+    if (!mapping.trackedProductId) continue;
+    const externalProductId = String(mapping.externalProductId);
+    if (!remoteIds.has(externalProductId)) continue;
+    if (liveTrackedIds.has(mapping.trackedProductId)) continue;
+
     try {
+      await client.request(
+        "DELETE",
+        `/products/${encodeURIComponent(externalProductId)}`,
+      );
+      await deleteProductMapping(mapping.id);
+      removedByLocal.add(externalProductId);
+      removedExternalProductIds.push(externalProductId);
+    } catch (err) {
+      console.warn(
+        `[marktgo-reconcile] AI PROGRES'te silinen ürün MARKT-GO'dan kaldırılamadı (${externalProductId}):`,
+        err instanceof Error ? err.message : String(err),
+      );
+      skipped += 1;
+    }
+  }
+
+  // MARKT-GO'da bulunan her geçerli ürünün AI PROGRES takip kaydını ve mapping'ini
+  // garanti et. Böylece iki katalog aynı ürün setini gösterir.
+  let imported = 0;
+  const currentMappings = await listProductMappings(connection.id);
+  const mappingByExternal = new Map(
+    currentMappings.map((mapping) => [String(mapping.externalProductId), mapping] as const),
+  );
+  const mappedExt = new Set(mappingByExternal.keys());
+  const liveProducts = products.filter(
+    (product) => !removedByLocal.has(String(product.externalProductId)),
+  );
+
+  for (const product of liveProducts) {
+    try {
+      const existingMapping = mappingByExternal.get(String(product.externalProductId));
+      const tracked = await ensureTrackedProductForMarktGo(product);
       await upsertProductMapping({
         connectionId: connection.id,
         localProductId: product.poolId,
         externalProductId: product.externalProductId,
         externalId: stableExternalId(product.poolId),
+        trackedProductId: tracked?.id ?? existingMapping?.trackedProductId ?? null,
         status: "synced",
       });
-      mappedExt.add(product.externalProductId);
-      imported += 1;
-    } catch {
+      if (!mappedExt.has(String(product.externalProductId))) {
+        imported += 1;
+        mappedExt.add(String(product.externalProductId));
+      }
+    } catch (err) {
+      console.warn(
+        `[marktgo-reconcile] ürün takip eşlemesi kurulamadı (${product.externalProductId}):`,
+        err instanceof Error ? err.message : String(err),
+      );
       skipped += 1;
     }
   }
 
-  const removed = removedLocalProductIds.length;
-  const live = Math.max(products.length, liveFromList + extraLive);
+  const removed = removedLocalProductIds.length + removedByLocal.size;
+  const live = Math.max(
+    liveProducts.length,
+    Math.max(0, liveFromList + extraLive - removedByLocal.size),
+  );
   const parts: string[] = [];
   if (imported) parts.push(`${imported} canlı ürün programa alındı`);
-  if (removed) parts.push(`${removed} silinen ürün çıkarıldı`);
+  if (removedLocalProductIds.length) {
+    parts.push(`${removedLocalProductIds.length} MARKT-GO'dan silinen ürün takipten çıkarıldı`);
+  }
+  if (removedByLocal.size) {
+    parts.push(`${removedByLocal.size} AI PROGRES'te silinen ürün MARKT-GO'dan kaldırıldı`);
+  }
   return {
     success: true,
-    checked: Math.max(mappings.length, products.length),
+    checked: Math.max(mappings.length, liveProducts.length),
     live,
     removed,
     imported,
@@ -234,7 +316,7 @@ async function runReconcile(): Promise<MarktGoCatalogReconcileResult> {
     abortedBySafety: false,
     removedLocalProductIds,
     removedExternalProductIds,
-    products,
+    products: liveProducts,
     message: parts.length ? parts.join(" · ") : "MARKT-GO katalog eşleşiyor",
     ranAt,
   };
