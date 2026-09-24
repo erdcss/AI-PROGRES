@@ -13,7 +13,11 @@ const newVisibleCondition = `function visibleTrackedProductCondition() {\n  retu
 if (src.includes(oldVisibleCondition)) {
   src = src.replace(oldVisibleCondition, newVisibleCondition);
 }
-if (!src.includes("isNotNull(trackedProducts.sourceUrl)")) {
+const hasSourceUrlEligibility =
+  src.includes("isNotNull(trackedProducts.sourceUrl)") ||
+  src.includes("sourceUrl} ~* '^https?://'") ||
+  src.includes("sourceUrl} ~* \"^https?://\"");
+if (!hasSourceUrlEligibility) {
   throw new Error("[tracking-hardening] scheduler sourceUrl eligibility uygulanamadı");
 }
 
@@ -24,7 +28,13 @@ src = src.replace(
   `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          eq(trackedProducts.currentStatus, "active"),\n          visibleTrackedProductCondition(),\n        ),`,
   `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          visibleTrackedProductCondition(),\n        ),`,
 );
-if (src.includes('eq(trackedProducts.currentStatus, "active"),\n          visibleTrackedProductCondition()')) {
+src = src.replace(
+  `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          eq(trackedProducts.currentStatus, "active"),\n          visibleTrackedProductCondition(),\n          sql\\`\${trackedProducts.sourceUrl} ~* '^https?://'\\`,\n        ),`,
+  `        and(\n          eq(trackedProducts.trackingEnabled, true),\n          visibleTrackedProductCondition(),\n          sql\\`\${trackedProducts.sourceUrl} ~* '^https?://'\\`,\n        ),`,
+);
+if (
+  src.includes('eq(trackedProducts.currentStatus, "active"),\n          visibleTrackedProductCondition()')
+) {
   throw new Error("[tracking-hardening] error-state retry eligibility uygulanamadı");
 }
 
