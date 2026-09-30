@@ -14,7 +14,7 @@ if (!source.includes(importLine)) {
 }
 
 const anchor = '  const coreReady = isCompleteScrapeData(coreFields);';
-const injection = `  const coreReady = isCompleteScrapeData(coreFields);\n\n  // Yorumlar tekli ve toplu çekimde ürün sonucu dönmeden önce gelsin.\n  // attachTrendyolReviews Browser Worker üzerinden ilk sayfayı hızlıca alır;\n  // MARKT-GO gönderiminde eksik kalan devam sayfaları ayrıca tamamlanır.\n  try {\n    await attachTrendyolReviews(\n      result,\n      url,\n      variantOpts?.html ?? result.htmlContent ?? null,\n    );\n    result.reviewDeferred = false;\n  } catch (reviewError) {\n    console.warn(\n      "[trendyol-reviews] yorum entegrasyonu soft-fail:",\n      reviewError instanceof Error ? reviewError.message : reviewError,\n    );\n    result.reviewSummary = result.reviewSummary || { rating: 0, reviewCount: 0, commentCount: 0 };\n    result.reviews = Array.isArray(result.reviews) ? result.reviews : [];\n    result.reviewDeferred = false;\n  }`;
+const injection = `  const coreReady = isCompleteScrapeData(coreFields);\\n\\n  // Hızlı modda yorum Browser Worker'ı ürün sonucunu bloke etmez.\\n  // Ürün önce döner; yorumlar kart/MarktGo arka plan akışında tamamlanabilir.\\n  if (variantOpts?.scrapeMode === "auto-fast") {\\n    result.reviewSummary = result.reviewSummary || { rating: 0, reviewCount: 0, commentCount: 0 };\\n    result.reviews = Array.isArray(result.reviews) ? result.reviews : [];\\n    result.reviewDeferred = true;\\n  } else {\\n    try {\\n      await attachTrendyolReviews(\\n        result,\\n        url,\\n        variantOpts?.html ?? result.htmlContent ?? null,\\n      );\\n      result.reviewDeferred = false;\\n    } catch (reviewError) {\\n      console.warn(\\n        "[trendyol-reviews] yorum entegrasyonu soft-fail:",\\n        reviewError instanceof Error ? reviewError.message : reviewError,\\n      );\\n      result.reviewSummary = result.reviewSummary || { rating: 0, reviewCount: 0, commentCount: 0 };\\n      result.reviews = Array.isArray(result.reviews) ? result.reviews : [];\\n      result.reviewDeferred = true;\\n    }\\n  }`;
 
 const legacyStart = '  const coreReady = isCompleteScrapeData(coreFields);\n\n  // auto-fast toplu çekimde yorumlar ürünün kritik yolunu bloke etmez.';
 if (source.includes(legacyStart)) {
@@ -36,4 +36,4 @@ if (!source.includes('result.reviewDeferred = false')) {
 }
 
 fs.writeFileSync(file, source);
-console.log('Trendyol review integration injected: single+bulk=inline first page');
+console.log('Trendyol review integration injected: auto-fast=deferred, direct-html=inline');
