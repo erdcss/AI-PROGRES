@@ -2576,10 +2576,11 @@ function parsePttAvmPoolHtml(html: string, sourceUrl: string): ProductPoolProduc
     .filter((u: string) => /^https?:\/\//i.test(u));
 
   // PTTAVM yeni React sayfasında galeri URL'leri ayrıca dehydrated state içinde bulunuyor.
-  for (const match of html.matchAll(/https:\\/\\/cdn-img\.pttavm\.com\\/pimages\\/[^"'\\\\<\s]+/gi)) {
-    imageCandidates.push(match[0].replace(/\\\//g, "/"));
-  }
-  for (const match of html.matchAll(/https:\/\/cdn-img\.pttavm\.com\/pimages\/[^"'<>\s]+/gi)) {
+  // Escaped JSON içindeki https:\/\/ biçimini önce normal URL'ye çevirip tek regex ile tara.
+  const decodedHtmlForImages = html.replace(/\\\//g, "/").replace(/\\u0026/g, "&");
+  for (const match of decodedHtmlForImages.matchAll(
+    /https:\/\/cdn-img\.pttavm\.com\/pimages\/[^"'<>\\\s]+/gi,
+  )) {
     imageCandidates.push(match[0]);
   }
 
