@@ -129,6 +129,7 @@ export function detectTitleSource(
 
 export const LOCAL_AGENT_VARIANT_WARNING = "local_agent_unreachable";
 export const BROWSER_WORKER_VARIANT_WARNING = "browser_worker_unreachable";
+export const BROWSER_WORKER_BLOCKED_WARNING = "browser_worker_blocked";
 
 export type TrendyolVariantGapAssessment = {
   sparseVariants: boolean;
@@ -244,8 +245,14 @@ export function evaluateScrapeQuality(
     opts.browserWorkerSucceeded !== true &&
     (htmlUnavailable || variantGaps.likelyIncomplete)
   ) {
-    if (!warnings.includes(BROWSER_WORKER_VARIANT_WARNING)) {
-      warnings.push(BROWSER_WORKER_VARIANT_WARNING);
+    const browserWorkerBlocked =
+      stageErrors.includes("browser-worker-blocked") ||
+      opts.gatewayError === "browser-worker-blocked";
+    const warningCode = browserWorkerBlocked
+      ? BROWSER_WORKER_BLOCKED_WARNING
+      : BROWSER_WORKER_VARIANT_WARNING;
+    if (!warnings.includes(warningCode)) {
+      warnings.push(warningCode);
     }
     if (variantGaps.sparseVariants) {
       console.warn(
@@ -253,8 +260,10 @@ export function evaluateScrapeQuality(
       );
     }
   } else if (opts.browserWorkerSucceeded === true) {
-    const bwIdx = warnings.indexOf(BROWSER_WORKER_VARIANT_WARNING);
-    if (bwIdx >= 0) warnings.splice(bwIdx, 1);
+    for (const warningCode of [BROWSER_WORKER_VARIANT_WARNING, BROWSER_WORKER_BLOCKED_WARNING]) {
+      const bwIdx = warnings.indexOf(warningCode);
+      if (bwIdx >= 0) warnings.splice(bwIdx, 1);
+    }
   }
 
   if (
