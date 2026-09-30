@@ -2555,14 +2555,42 @@ function parsePttAvmPoolHtml(html: string, sourceUrl: string): ProductPoolProduc
   const offers = Array.isArray(productNode.offers)
     ? productNode.offers[0] || {}
     : productNode.offers || {};
-  const salePrice =
+  // PTTAVM React payloadındaki AddToCart fiyatı ekranda görünen seçili satıcı fiyatıdır.
+  // JSON-LD AggregateOffer/Offer bazı ürünlerde başka satıcı aralığı döndürebildiği için
+  // önce bu görünür fiyatı tercih et, yoksa JSON-LD'ye düş.
+  let visibleSalePrice = 0;
+  let visibleRegularPrice = 0;
+  const decodedForPrice = html.replace(/\\\"/g, '"');
+  const addToCartPriceMatch = decodedForPrice.match(
+    /"type"\s*:\s*"AddToCart"[\s\S]{0,5000}?"price"\s*:\s*\{([\s\S]{0,1200}?)\}/i,
+  );
+  if (addToCartPriceMatch?.[1]) {
+    const priceBlock = addToCartPriceMatch[1];
+    const discounted = priceBlock.match(/"discountedPrice"\s*:\s*([\d.]+)/i);
+    const original = priceBlock.match(/"originalPrice"\s*:\s*([\d.]+)/i);
+    const regular = priceBlock.match(/"regularPrice"\s*:\s*([\d.]+)/i);
+    visibleSalePrice =
+      Number(discounted?.[1] || 0) ||
+      Number(original?.[1] || 0) ||
+      0;
+    visibleRegularPrice = Number(regular?.[1] || 0) || 0;
+  }
+
+  const offerPrice =
     parseTrPrice(String(offers.price ?? offers.lowPrice ?? "")) ||
     parseTrPrice(String(offers.highPrice ?? "")) ||
     0;
+  const salePrice = visibleSalePrice > 0 ? visibleSalePrice : offerPrice;
   if (!(salePrice > 0)) return null;
 
   const highPrice = parseTrPrice(String(offers.highPrice ?? "")) || 0;
-  const compareAtPrice = highPrice > salePrice ? highPrice : null;
+  const compareCandidate =
+    visibleRegularPrice > salePrice
+      ? visibleRegularPrice
+      : highPrice > salePrice
+        ? highPrice
+        : 0;
+  const compareAtPrice = compareCandidate > salePrice ? compareCandidate : null;
 
   const imageRaw = productNode.image ?? productNode.images ?? [];
   const imageCandidates = (Array.isArray(imageRaw) ? imageRaw : [imageRaw])
@@ -2575,20 +2603,20 @@ function parsePttAvmPoolHtml(html: string, sourceUrl: string): ProductPoolProduc
     )
     .filter((u: string) => /^https?:\/\//i.test(u));
 
-  // PTTAVM yeni React sayfasında galeri URL'leri ayrıca dehydrated state içinde bulunuyor.
-  // Escaped JSON içindeki https:\/\/ biçimini önce normal URL'ye çevirip tek regex ile tara.
-  const decodedHtmlForImages = html.replace(/\\\//g, "/").replace(/\\u0026/g, "&");
-  for (const match of decodedHtmlForImages.matchAll(
-    /https:\/\/cdn-img\.pttavm\.com\/pimages\/[^"'<>\\\s]+/gi,
-  )) {
-    imageCandidates.push(match[0]);
-  }
+  // Galeri yalnız Product JSON-LD'deki ürün görsellerinden oluşur.
+  // Sayfanın tamamındaki pimages URL'lerini taramak önerilen/benzer ürün görsellerini karıştırıyordu.
 
-  const images = [...new Set(
+
+  const productId = sourceUrl.match(/-p-(\d{6,})/i)?.[1] || "";
+  const cleanedImageCandidates = [...new Set(
     imageCandidates
       .map((u) => u.replace(/\\u0026/g, "&").split("?")[0])
       .filter((u) => !isLikelySiteBrandingImage(u)),
-  )].slice(0, 12);
+  )];
+  const idMatchedImages = productId
+    ? cleanedImageCandidates.filter((u) => u.includes(productId))
+    : [];
+  const images = (idMatchedImages.length > 0 ? idMatchedImages : cleanedImageCandidates).slice(0, 12);
 
   const features: ProductPoolFeature[] = [];
   const seenFeatures = new Set<string>();
@@ -2710,11 +2738,6 @@ async function scrapePttavmPool(sourceUrl: string): Promise<ProductPoolProduct> 
   const fromFormatted = parseTrPrice(formatted);
   if (fromFormatted && fromFormatted > salePrice * 10) {
     salePrice = fromFormatted;
-  }
-  // TR binlik nokta yanlış parse: 20.936 → 20936
-  if (salePrice > 0 && salePrice < 500 && Number.isFinite(salePrice)) {
-    const scaled = Math.round(salePrice * 1000);
-    if (scaled >= 1000 && scaled < 10_000_000) salePrice = scaled;
   }
   if (!(salePrice > 0)) {
     throw new Error("PTT AVM fiyatı alınamadı");
