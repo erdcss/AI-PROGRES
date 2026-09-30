@@ -1362,8 +1362,12 @@ function scrapeGeneric(html: string, sourceUrl: string): ProductPoolProduct {
     siteLogoUrl: logo ? absoluteUrl(origin, logo) : faviconFor(sourceUrl),
     currency: "TRY",
     price: salePrice,
-    compareAtPrice: null,
-    discountPercent: 0,
+    compareAtPrice:
+      Number(result.price?.compareAt) > salePrice ? Number(result.price?.compareAt) : null,
+    discountPercent:
+      Number(result.price?.compareAt) > salePrice
+        ? discountPercent(salePrice, Number(result.price?.compareAt))
+        : 0,
     salePrice,
     images: images.slice(0, 12),
     features: extractFeatures($),
@@ -2573,9 +2577,15 @@ function parsePttAvmPoolHtml(html: string, sourceUrl: string): ProductPoolProduc
   // önce bu görünür fiyatı tercih et, yoksa JSON-LD'ye düş.
   let visibleSalePrice = 0;
   let visibleRegularPrice = 0;
-  const decodedForPrice = html.replace(/\\\"/g, '"');
-  const addToCartPriceMatch = decodedForPrice.match(
-    /"type"\s*:\s*"AddToCart"[\s\S]{0,5000}?"price"\s*:\s*\{([\s\S]{0,1200}?)\}/i,
+  const decodedForPrice = html
+    .replace(/&quot;/g, '"')
+    .replace(/\\{1,4}"/g, '"');
+  const addToCartTypeMatch = /"type"\s*:\s*"AddToCart"/i.exec(decodedForPrice);
+  const addToCartBlock = addToCartTypeMatch
+    ? decodedForPrice.slice(addToCartTypeMatch.index, addToCartTypeMatch.index + 9000)
+    : "";
+  const addToCartPriceMatch = addToCartBlock.match(
+    /"price"\s*:\s*\{([\s\S]{0,1800}?)\}/i,
   );
   if (addToCartPriceMatch?.[1]) {
     const priceBlock = addToCartPriceMatch[1];
