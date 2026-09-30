@@ -165,6 +165,21 @@ function parseTrMoney(raw: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function parseStructuredPrice(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+  // JSON / API numeric strings use dot as decimal separator, e.g. "580.499".
+  if (/^\d+(?:\.\d{1,4})?$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+  // Formatted Turkish UI strings use comma decimals / dot thousands.
+  return parseTrMoney(raw);
+}
+
 function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
   const $ = cheerio.load(html);
 
@@ -216,10 +231,22 @@ function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
       if (priceRaw) return;
       try {
         const d = JSON.parse($(el).html() || '');
-        const p = d?.offers?.price || d?.price;
-        if (p != null) {
-          const val = parseTrMoney(String(p));
-          if (val > 0) priceRaw = val;
+        const productNodes = Array.isArray(d)
+          ? d
+          : Array.isArray(d?.["@graph"])
+            ? d["@graph"]
+            : [d];
+        for (const node of productNodes) {
+          const type = node?.["@type"];
+          const isProduct = type === "Product" || (Array.isArray(type) && type.includes("Product"));
+          if (!isProduct) continue;
+          const offers = Array.isArray(node?.offers) ? node.offers[0] : node?.offers;
+          const p = offers?.price ?? offers?.lowPrice ?? node?.price;
+          const val = parseStructuredPrice(p);
+          if (val > 0) {
+            priceRaw = val;
+            break;
+          }
         }
       } catch {}
     });
@@ -232,36 +259,60 @@ function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
     if (vals.length) priceRaw = Math.min(...vals);
   }
 
-  // Images
+  // Images — yalnızca mevcut Product JSON-LD galerisi; sayfadaki önerilen ürünleri karıştırma.
+  const productJsonImages = new Set<string>();
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const raw = JSON.parse($(el).html() || '');
+      const nodes = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.["@graph"])
+          ? raw["@graph"]
+          : [raw];
+      for (const node of nodes) {
+        const type = node?.["@type"];
+        const isProduct = type === "Product" || (Array.isArray(type) && type.includes("Product"));
+        if (!isProduct) continue;
+        const imgs = node?.image ?? node?.images ?? [];
+        for (const img of (Array.isArray(imgs) ? imgs : [imgs])) {
+          const u = typeof img === 'string' ? img : (img?.url || img?.contentUrl || '');
+          if (
+            typeof u === 'string' &&
+            /^https?:\/\//i.test(u) &&
+            !/\.svg(?:\?|$)|placeholder|\/logo/i.test(u)
+          ) {
+            productJsonImages.add(u.split('?')[0]);
+          }
+        }
+      }
+    } catch {}
+  });
+
   const imageSet = new Set<string>();
-  for (const sel of ['.product-image-gallery img', '.swiper-slide img', '.fotorama img',
-                     '.product-img img', '.gallery-image img', '[class*="product-image"] img',
-                     '[class*="gallery"] img', '.main-image img', '#main-image img',
-                     '[class*="slider"] img', 'figure img', '.pdp-images img',
-                     '.product-images img', '.product-gallery img']) {
-    $(sel).each((_, el) => {
+  if (productJsonImages.size > 0) {
+    for (const u of productJsonImages) imageSet.add(u);
+  } else {
+    // JSON-LD yoksa sadece ana ürün detay konteynerini tara.
+    const productRoot = $('#product-detail').length
+      ? $('#product-detail')
+      : $('[class*="productDetailContainer"]').first();
+    const root = productRoot.length ? productRoot : $('main').first();
+    root.find(
+      '.product-image-gallery img, .swiper-slide img, .fotorama img, .product-img img, .gallery-image img, [class*="product-image"] img, [class*="gallery"] img, .main-image img, #main-image img, [class*="slider"] img, figure img, .pdp-images img, .product-images img, .product-gallery img'
+    ).each((_, el) => {
       const src = $(el).attr('data-zoom-image') || $(el).attr('data-large') ||
                   $(el).attr('data-src') || $(el).attr('src') || '';
-      if (src && src.startsWith('http') && !src.includes('.svg') &&
-          !src.includes('placeholder') && !src.includes('logo') && src.length > 20) {
+      if (
+        src &&
+        /^https?:\/\//i.test(src) &&
+        !/\.svg(?:\?|$)|placeholder|\/logo/i.test(src)
+      ) {
         imageSet.add(src.split('?')[0]);
       }
     });
   }
-  $('script[type="application/ld+json"]').each((_, el) => {
-    try {
-      const d = JSON.parse($(el).html() || '');
-      const imgs = d.image || d.images || [];
-      (Array.isArray(imgs) ? imgs : [imgs]).forEach((img: any) => {
-        const u = typeof img === 'string' ? img : (img.url || img.contentUrl || '');
-        if (u?.startsWith('http')) imageSet.add(u.split('?')[0]);
-      });
-    } catch {}
-  });
-  const ogImage = $('meta[property="og:image"]').attr('content');
-  if (ogImage) imageSet.add(ogImage.split('?')[0]);
 
-  const images = Array.from(imageSet).slice(0, 20).map(u => ({ url: u, colorName: 'none' }));
+  const images = Array.from(imageSet).slice(0, 12).map(u => ({ url: u, colorName: 'none' }));
 
   // Description
   let description = '';
