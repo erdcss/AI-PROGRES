@@ -4,7 +4,7 @@ import path from "node:path";
 const root = process.cwd();
 
 // 1) Client: ürün yüklemeyi tam yorum taramasına kilitleme. Exact-count akışında
-// MARKT-GO istekleri kontrollü 2 paralel gider; 8 paralel gönderim kaldırıldı.
+// MARKT-GO istekleri kontrollü 4 paralel gider; aşırı paralellik kullanılmaz.
 const scraperPath = path.join(root, "client/src/pages/scraper.tsx");
 let sp = fs.readFileSync(scraperPath, "utf8");
 
@@ -102,8 +102,8 @@ if (sy.includes(backfillAnchor) && !sy.includes("[marktgo-fast] review backfill"
 
 fs.writeFileSync(syncPath, sy);
 
-// 4) MARKT-GO API geçici 5xx/429/network hatalarında 3 çok kısa deneme yerine
-// daha uzun bir kontrollü retry penceresi kullan. Ürün bazında idempotent externalId
+// 4) MARKT-GO API geçici 5xx/429/network hatalarında kısa kontrollü retry penceresi kullan.
+// Ürün bazında idempotent externalId
 // kullanıldığı için aynı ürün yanlışlıkla çoğalmaz.
 const routesPath = path.join(root, "server/routes/marktgo-routes.ts");
 let routes = fs.readFileSync(routesPath, "utf8");
