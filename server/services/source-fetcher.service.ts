@@ -84,6 +84,75 @@ export async function fetchSourceForTracking(
       };
     }
 
+    // Ürün Havuzu kaynakları (Happy, PTT AVM, n11, Amazon, vb.) Trendyol
+    // pipeline'ına zorlanmamalı. Aynı site adaptörünü kullanarak takip snapshot'ı üret.
+    if (!/trendyol\.com/i.test(sourceUrl)) {
+      try {
+        const { scrapeProductPoolUrl } = await import("../product-pool/scrape");
+        const product = await scrapeProductPoolUrl(sourceUrl);
+        const price = Number(product.salePrice || product.price || 0);
+        const priceSanity = validateFetchedPrice(price, options?.baselinePrice ?? null);
+        if (!(price > 0) || !priceSanity.ok) {
+          return {
+            valid: false,
+            reason: "unreliable_price",
+            message: priceSanity.reason || "Kaynak fiyatı doğrulanamadı",
+            quality: { source: "product-pool", priceSanityReason: priceSanity.reason },
+          };
+        }
+
+        const variants = (product.variants || []).map((variant, index) => ({
+          key: [
+            variant.option1 || "",
+            variant.option2 || "",
+            variant.option3 || "",
+            variant.sku || index + 1,
+          ]
+            .join("::")
+            .toLowerCase(),
+          color: variant.option1 || undefined,
+          size: variant.option2 || undefined,
+          price: variant.price ?? undefined,
+          inStock: variant.inStock,
+          sku: variant.sku,
+        }));
+        const stock =
+          variants.length > 0
+            ? variants.filter((variant) => variant.inStock !== false).length
+            : product.inStock
+              ? 1
+              : 0;
+
+        return {
+          valid: true,
+          data: {
+            valid: true,
+            sourceUrl: product.sourceUrl || sourceUrl,
+            title: product.title,
+            price,
+            currency: product.currency || "TRY",
+            images: Array.isArray(product.images) ? product.images : [],
+            variants,
+            stock,
+            available: product.inStock !== false,
+            quality: {
+              source: "product-pool",
+              siteName: product.siteName,
+              scrapedAt: product.scrapedAt,
+            },
+            rawData: product as unknown as Record<string, unknown>,
+          },
+        };
+      } catch (err) {
+        return {
+          valid: false,
+          reason: "fetch_error",
+          message: err instanceof Error ? err.message : String(err),
+          quality: { source: "product-pool" },
+        };
+      }
+    }
+
     const outcome = await runTrendyolScrapePipeline(sourceUrl, "auto-fast");
     const result = outcome.result ?? {};
 
