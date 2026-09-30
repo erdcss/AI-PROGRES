@@ -13,6 +13,7 @@ import {
 } from "@shared/schema";
 import { eq, desc, and, sql, inArray, isNull, isNotNull, ne, or } from "drizzle-orm";
 import { getTrackingSettings } from "./tracking-settings.service";
+import { matchWebHookSite } from "@shared/web-hooks-sites";
 import { generateTrackingUid, generateVariantUid } from "./tracking-uid.service";
 import {
   buildTrackingVariantLabel,
@@ -561,7 +562,10 @@ export class TrackingService {
 
     const variantList = filterUploadedVariantsForTracking(input.variants ?? []);
 
-    const site = input.sourceUrl.includes("trendyol") ? "trendyol" : "other";
+    const matchedSite = matchWebHookSite(input.sourceUrl);
+    const site =
+      matchedSite?.id ||
+      (input.sourceUrl.includes("trendyol") ? "trendyol" : "other");
     const productIdMatch = input.sourceUrl.match(/p-(\d+)/);
     const existing = await db
       .select()
