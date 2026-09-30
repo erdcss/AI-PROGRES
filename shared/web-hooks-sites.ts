@@ -125,6 +125,18 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
       "https://www.beymen.com/tr/p_beymen-club-siyah-midi-ipek-saten-elbise_1922586",
   },
   {
+    id: "happy",
+    name: "Happy Center",
+    domain: "happy.com.tr",
+    url: "https://www.happy.com.tr",
+    logoUrl: "https://www.happy.com.tr/favicon.ico",
+    source: "product-pool",
+    discoverUrl: "https://www.happy.com.tr",
+    productUrlRegex: "/[a-z0-9][a-z0-9-]{3,}(?:\\?.*)?$",
+    exampleProductUrl:
+      "https://www.happy.com.tr/vileda-turbo-2in1-temizlik-seti",
+  },
+  {
     id: "pttavm",
     name: "PTT AVM",
     domain: "pttavm.com",
