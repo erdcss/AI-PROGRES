@@ -2515,9 +2515,185 @@ async function scrapeAmazonPool(sourceUrl: string): Promise<ProductPoolProduct> 
   return product;
 }
 
+
+function parsePttAvmPoolHtml(html: string, sourceUrl: string): ProductPoolProduct | null {
+  const $ = cheerio.load(html);
+  let productNode: any = null;
+
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (productNode) return;
+    try {
+      const raw = JSON.parse($(el).html() || "");
+      const nodes = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.["@graph"])
+          ? raw["@graph"]
+          : [raw];
+      productNode = nodes.find((node: any) => {
+        const type = node?.["@type"];
+        return type === "Product" || (Array.isArray(type) && type.includes("Product"));
+      }) || null;
+    } catch {
+      /* next json-ld */
+    }
+  });
+
+  if (!productNode) return null;
+
+  const title = cleanText(String(productNode.name || ""));
+  if (!title || title.length < 4) return null;
+
+  const brandRaw = productNode.brand;
+  const brand = cleanText(
+    typeof brandRaw === "string"
+      ? brandRaw
+      : brandRaw && typeof brandRaw === "object"
+        ? String(brandRaw.name || "")
+        : "",
+  );
+
+  const offers = Array.isArray(productNode.offers)
+    ? productNode.offers[0] || {}
+    : productNode.offers || {};
+  const salePrice =
+    parseTrPrice(String(offers.price ?? offers.lowPrice ?? "")) ||
+    parseTrPrice(String(offers.highPrice ?? "")) ||
+    0;
+  if (!(salePrice > 0)) return null;
+
+  const highPrice = parseTrPrice(String(offers.highPrice ?? "")) || 0;
+  const compareAtPrice = highPrice > salePrice ? highPrice : null;
+
+  const imageRaw = productNode.image ?? productNode.images ?? [];
+  const imageCandidates = (Array.isArray(imageRaw) ? imageRaw : [imageRaw])
+    .map((img: any) =>
+      typeof img === "string"
+        ? img
+        : img && typeof img === "object"
+          ? String(img.url || img.contentUrl || "")
+          : "",
+    )
+    .filter((u: string) => /^https?:\/\//i.test(u));
+
+  // PTTAVM yeni React sayfasında galeri URL'leri ayrıca dehydrated state içinde bulunuyor.
+  for (const match of html.matchAll(/https:\\/\\/cdn-img\.pttavm\.com\\/pimages\\/[^"'\\\\<\s]+/gi)) {
+    imageCandidates.push(match[0].replace(/\\\//g, "/"));
+  }
+  for (const match of html.matchAll(/https:\/\/cdn-img\.pttavm\.com\/pimages\/[^"'<>\s]+/gi)) {
+    imageCandidates.push(match[0]);
+  }
+
+  const images = [...new Set(
+    imageCandidates
+      .map((u) => u.replace(/\\u0026/g, "&").split("?")[0])
+      .filter((u) => !isLikelySiteBrandingImage(u)),
+  )].slice(0, 12);
+
+  const features: ProductPoolFeature[] = [];
+  const seenFeatures = new Set<string>();
+  const pushFeature = (name: unknown, value: unknown) => {
+    const n = cleanText(String(name || ""));
+    const v = cleanText(String(value || ""));
+    if (!n || !v || n.length > 80 || v.length > 400) return;
+    const key = `${n.toLowerCase()}::${v.toLowerCase()}`;
+    if (seenFeatures.has(key)) return;
+    seenFeatures.add(key);
+    features.push({ name: n, value: v });
+  };
+
+  for (const prop of Array.isArray(productNode.additionalProperty) ? productNode.additionalProperty : []) {
+    pushFeature(prop?.name, prop?.value);
+  }
+  if (brand) pushFeature("Marka", brand);
+  if (productNode.category) pushFeature("Kategori", productNode.category);
+
+  // Yeni PTTAVM payload: Description.data.properties = [{name,value}]
+  for (const m of html.matchAll(/\\?"properties\\?"\s*:\s*\[([\s\S]*?)\]/gi)) {
+    const block = m[1];
+    for (const p of block.matchAll(/\\?"name\\?"\s*:\s*\\?"([^"\\]+)\\?"[\s\S]{0,250}?\\?"value\\?"\s*:\s*\\?"([^"\\]+)\\?"/gi)) {
+      pushFeature(p[1], p[2]);
+    }
+  }
+
+  const reviews: any[] = [];
+  const ldReviews = Array.isArray(productNode.review)
+    ? productNode.review
+    : productNode.review
+      ? [productNode.review]
+      : [];
+  for (const review of ldReviews) {
+    const rating = Number(review?.reviewRating?.ratingValue || review?.rating || 0);
+    if (!(rating > 0)) continue;
+    reviews.push({
+      externalReviewId: review?.["@id"] ? String(review["@id"]) : undefined,
+      rating,
+      comment: cleanText(String(review?.reviewBody || review?.description || "")) || undefined,
+      reviewerName: cleanText(String(review?.author?.name || review?.author || "")) || undefined,
+      createdAt: review?.datePublished ? String(review.datePublished) : undefined,
+      approved: true,
+    });
+  }
+  const reviewCount = Number(productNode?.aggregateRating?.reviewCount || reviews.length || 0) || null;
+
+  const availability = String(offers.availability || "");
+  const inStock = !/OutOfStock|SoldOut|Discontinued/i.test(availability);
+
+  return {
+    title,
+    sourceUrl,
+    siteName: "PTT AVM",
+    siteLogoUrl: "https://www.pttavm.com/favicon.ico",
+    brand: brand || undefined,
+    sku: productNode.sku ? String(productNode.sku) : undefined,
+    currency: String(offers.priceCurrency || "TRY"),
+    price: salePrice,
+    compareAtPrice,
+    discountPercent: discountPercent(salePrice, compareAtPrice),
+    salePrice,
+    images,
+    features: features.slice(0, 24),
+    reviews: reviews.length ? reviews : undefined,
+    reviewCount,
+    inStock,
+    scrapedAt: new Date().toISOString(),
+  };
+}
+
 /** PTT AVM → ürün havuzu (Cloudflare bypass için pttavm-scraper) */
 async function scrapePttavmPool(sourceUrl: string): Promise<ProductPoolProduct> {
-  const cleanUrl = sourceUrl.split("?")[0];
+  const cleanUrl = sourceUrl.split("#")[0].split("?")[0];
+
+  // Ürün havuzunda önce ortak korumalı-marketplace HTML hattını kullan.
+  // Bu yol Browser Worker'ı da deneyerek PTTAVM'nin yeni React/JSON-LD sayfasını
+  // legacy scraper'dan çok daha güvenilir ve hızlı şekilde okuyabilir.
+  try {
+    const html = await fetchProtectedMarketplaceHtml(
+      cleanUrl,
+      "pttavm-product",
+      "PTT AVM ürün sayfası alınamadı",
+    );
+    const parsed = parsePttAvmPoolHtml(html, cleanUrl);
+    if (parsed?.title && parsed.salePrice > 0 && parsed.images.length > 0) {
+      console.log("[ProductPool/pttavm] JSON-LD/React HTML parse success", {
+        title: parsed.title,
+        images: parsed.images.length,
+        price: parsed.salePrice,
+      });
+      return parsed;
+    }
+    console.warn("[ProductPool/pttavm] protected HTML eksik; legacy fallback çalışacak", {
+      hasParsed: Boolean(parsed),
+      title: parsed?.title || "",
+      images: parsed?.images.length || 0,
+      price: parsed?.salePrice || 0,
+    });
+  } catch (err) {
+    console.warn(
+      "[ProductPool/pttavm] protected HTML fallback:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
   const { scrapePttAvm } = await import("../pttavm-scraper");
   const result = await scrapePttAvm(cleanUrl);
 
