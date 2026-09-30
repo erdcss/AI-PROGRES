@@ -9,19 +9,19 @@ let src = fs.readFileSync(target, "utf8");
 // Exact-count için hızdan önce kararlılık: Trendyol'a aynı anda 5 istek göndermek ve
 // MARKT-GO'ya 8 paralel ürün basmak, 20->19 ve 19->15 gibi sessiz kayıplar üretiyordu.
 const replacements = [
-  ["const BULK_SCRAPE_RETRY_DELAY_MS = 2500;", "const BULK_SCRAPE_RETRY_DELAY_MS = 1200;"],
-  ["const BULK_SCRAPE_RETRY_DELAY_MS = 1200;", "const BULK_SCRAPE_RETRY_DELAY_MS = 1200;"],
-  ["const BULK_SCRAPE_RETRY_DELAY_MS = 600;", "const BULK_SCRAPE_RETRY_DELAY_MS = 1200;"],
-  ["const BULK_SCRAPE_RETRY_DELAY_MS = 250;", "const BULK_SCRAPE_RETRY_DELAY_MS = 1200;"],
-  ["const BULK_SCRAPE_CONCURRENCY_START = 1;", "const BULK_SCRAPE_CONCURRENCY_START = 2;"],
-  ["const BULK_SCRAPE_CONCURRENCY_START = 2;", "const BULK_SCRAPE_CONCURRENCY_START = 2;"],
-  ["const BULK_SCRAPE_CONCURRENCY_START = 3;", "const BULK_SCRAPE_CONCURRENCY_START = 2;"],
-  ["const BULK_SCRAPE_CONCURRENCY_START = 5;", "const BULK_SCRAPE_CONCURRENCY_START = 2;"],
-  ["const BULK_SCRAPE_CONCURRENCY_START = 6;", "const BULK_SCRAPE_CONCURRENCY_START = 2;"],
-  ["const SHOPIFY_UPLOAD_CONCURRENCY = 2;", "const SHOPIFY_UPLOAD_CONCURRENCY = 2;"],
-  ["const SHOPIFY_UPLOAD_CONCURRENCY = 3;", "const SHOPIFY_UPLOAD_CONCURRENCY = 2;"],
-  ["const SHOPIFY_UPLOAD_CONCURRENCY = 6;", "const SHOPIFY_UPLOAD_CONCURRENCY = 2;"],
-  ["const SHOPIFY_UPLOAD_CONCURRENCY = 8;", "const SHOPIFY_UPLOAD_CONCURRENCY = 2;"],
+  ["const BULK_SCRAPE_RETRY_DELAY_MS = 2500;", "const BULK_SCRAPE_RETRY_DELAY_MS = 500;"],
+  ["const BULK_SCRAPE_RETRY_DELAY_MS = 500;", "const BULK_SCRAPE_RETRY_DELAY_MS = 500;"],
+  ["const BULK_SCRAPE_RETRY_DELAY_MS = 600;", "const BULK_SCRAPE_RETRY_DELAY_MS = 500;"],
+  ["const BULK_SCRAPE_RETRY_DELAY_MS = 250;", "const BULK_SCRAPE_RETRY_DELAY_MS = 500;"],
+  ["const BULK_SCRAPE_CONCURRENCY_START = 1;", "const BULK_SCRAPE_CONCURRENCY_START = 3;"],
+  ["const BULK_SCRAPE_CONCURRENCY_START = 3;", "const BULK_SCRAPE_CONCURRENCY_START = 3;"],
+  ["const BULK_SCRAPE_CONCURRENCY_START = 3;", "const BULK_SCRAPE_CONCURRENCY_START = 3;"],
+  ["const BULK_SCRAPE_CONCURRENCY_START = 5;", "const BULK_SCRAPE_CONCURRENCY_START = 3;"],
+  ["const BULK_SCRAPE_CONCURRENCY_START = 6;", "const BULK_SCRAPE_CONCURRENCY_START = 3;"],
+  ["const SHOPIFY_UPLOAD_CONCURRENCY = 4;", "const SHOPIFY_UPLOAD_CONCURRENCY = 4;"],
+  ["const SHOPIFY_UPLOAD_CONCURRENCY = 3;", "const SHOPIFY_UPLOAD_CONCURRENCY = 4;"],
+  ["const SHOPIFY_UPLOAD_CONCURRENCY = 6;", "const SHOPIFY_UPLOAD_CONCURRENCY = 4;"],
+  ["const SHOPIFY_UPLOAD_CONCURRENCY = 8;", "const SHOPIFY_UPLOAD_CONCURRENCY = 4;"],
 ];
 for (const [from, to] of replacements) {
   if (src.includes(from)) src = src.split(from).join(to);
@@ -32,7 +32,7 @@ for (const [from, to] of replacements) {
 const scrapeClientPath = path.join(root, "client/src/lib/scrape-url-client.ts");
 let scrapeClientSrc = fs.readFileSync(scrapeClientPath, "utf8");
 const signatureOld = `export async function fetchScenarioScrapeResult(\n  url: string,\n  onlyExtractData = true,\n  autoTagEnabled = true,\n): Promise<ScrapedUrlPayload> {`;
-const signatureNew = `export async function fetchScenarioScrapeResult(\n  url: string,\n  onlyExtractData = true,\n  autoTagEnabled = true,\n  scrapeMode: "auto-fast" | "direct-html" = "direct-html",\n): Promise<ScrapedUrlPayload> {`;
+const signatureNew = `export async function fetchScenarioScrapeResult(\n  url: string,\n  onlyExtractData = true,\n  autoTagEnabled = true,\n  scrapeMode: "auto-fast" | "direct-html" = "auto-fast",\n): Promise<ScrapedUrlPayload> {`;
 if (scrapeClientSrc.includes(signatureOld)) {
   scrapeClientSrc = scrapeClientSrc.replace(signatureOld, signatureNew);
 }
@@ -64,13 +64,13 @@ src = src.replaceAll(
   'fetchScenarioScrapeResult(url, true, autoTagEnabled, "auto-fast");',
 );
 
-if (!src.includes("const BULK_SCRAPE_CONCURRENCY_START = 2;")) {
+if (!src.includes("const BULK_SCRAPE_CONCURRENCY_START = 3;")) {
   throw new Error("[exact-bulk-profile] bulk scrape concurrency uygulanamadı");
 }
-if (!src.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 2;")) {
+if (!src.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 4;")) {
   throw new Error("[exact-bulk-profile] upload concurrency uygulanamadı");
 }
-if (!src.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 1200;")) {
+if (!src.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 500;")) {
   throw new Error("[exact-bulk-profile] retry delay uygulanamadı");
 }
 if (!src.includes("EXACT_BULK_SCRAPE_RETRY") && src.includes(oldRetryBlock)) {
@@ -82,7 +82,7 @@ if (!src.includes('fetchScenarioScrapeResult(url, true, autoTagEnabled, "auto-fa
 
 fs.writeFileSync(target, src);
 console.log(
-  "[exact-bulk-profile] scrape concurrency=2, upload concurrency=2, retry delay=1200ms, scrape attempts=2, bulk mode=auto-fast",
+  "[exact-bulk-profile] scrape concurrency=3, upload concurrency=4, retry delay=500ms, scrape attempts=2, bulk mode=auto-fast",
 );
 
 for (const [file, label] of [
