@@ -27,8 +27,8 @@ for (const [from, to] of replacements) {
   if (src.includes(from)) src = src.split(from).join(to);
 }
 
-// Toplu çekimde ağır direct-html/color-family hattını kritik yoldan çıkar. Tekli çekimin
-// varsayılan direct-html davranışı korunur; yalnız bulk worker çağrıları auto-fast kullanır.
+// Tekli ve toplu çekimde hızlı çekirdek veri yolunu varsayılan yap. Eksik alanlar gerektiğinde
+// sunucu fallback'leriyle tamamlanır; pahalı direct-html yolu artık varsayılan değildir.
 const scrapeClientPath = path.join(root, "client/src/lib/scrape-url-client.ts");
 let scrapeClientSrc = fs.readFileSync(scrapeClientPath, "utf8");
 const signatureOld = `export async function fetchScenarioScrapeResult(\n  url: string,\n  onlyExtractData = true,\n  autoTagEnabled = true,\n): Promise<ScrapedUrlPayload> {`;
@@ -36,7 +36,7 @@ const signatureNew = `export async function fetchScenarioScrapeResult(\n  url: s
 if (scrapeClientSrc.includes(signatureOld)) {
   scrapeClientSrc = scrapeClientSrc.replace(signatureOld, signatureNew);
 }
-if (!scrapeClientSrc.includes('scrapeMode: "auto-fast" | "direct-html" = "direct-html"')) {
+if (!scrapeClientSrc.includes('scrapeMode: "auto-fast" | "direct-html" = "auto-fast"')) {
   throw new Error("[exact-bulk-profile] scrape client mode parametresi uygulanamadı");
 }
 scrapeClientSrc = scrapeClientSrc.replace(
