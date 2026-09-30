@@ -1210,7 +1210,14 @@ export default function UrunHavuzuPage() {
         })),
       );
     }
-    return data as { shopifyPrice?: number; productId?: string; externalProductId?: string; status?: string };
+    return data as {
+      shopifyPrice?: number;
+      productId?: string;
+      externalProductId?: string;
+      status?: string;
+      trackingAdded?: boolean;
+      trackedProductId?: number | null;
+    };
   };
 
   const sendToDestination = async () => {
@@ -1260,7 +1267,9 @@ export default function UrunHavuzuPage() {
           data.status === "partial_sync"
             ? `${brand.destinationName} kısmi senkron`
             : `${brand.destinationName}'a gönderildi`,
-        description: `${product.poolId} · ID ${data.externalProductId || data.productId || "—"}`,
+        description: data.trackingAdded
+          ? `${product.poolId} · ID ${data.externalProductId || data.productId || "—"} · Ürün Takip'e eklendi`
+          : `${product.poolId} · ID ${data.externalProductId || data.productId || "—"}`,
       });
       setDrawerOpen(true);
     } catch (err) {
@@ -1587,7 +1596,7 @@ export default function UrunHavuzuPage() {
           )}
 
           <p className="text-xs text-neutral-600">
-            Destek: hepegitim.com, idefix.com, pazarama.com, beymen.com, pttavm.com, n11.com, amazon.com.tr ve genel Open Graph.
+            Destek: happy.com.tr, hepegitim.com, idefix.com, pazarama.com, beymen.com, pttavm.com, n11.com, amazon.com.tr ve genel Open Graph.
             Toplu gönderim butonu 2+ üründe görünür.
           </p>
         </div>
