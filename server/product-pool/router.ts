@@ -29,6 +29,83 @@ function normalizeTags(input: unknown): string[] {
   return out;
 }
 
+async function ensureSuccessfulMarktGoPoolTracking(
+  product: Record<string, unknown>,
+  input: {
+    sourceUrl?: string | null;
+    title?: string;
+    purchasePrice?: number | null;
+    price?: number;
+    discountPrice?: number | null;
+    variants?: Array<{
+      option1?: string;
+      option2?: string;
+      sku?: string;
+      price?: number | null;
+      stock?: number;
+    }>;
+  },
+  syncResult: {
+    externalProductId?: string | null;
+    mappingId?: number | null;
+  },
+): Promise<number | null> {
+  const sourceUrl = String(input.sourceUrl || product.sourceUrl || "").trim();
+  const externalProductId = String(syncResult.externalProductId || "").trim();
+  if (!sourceUrl || !externalProductId) return null;
+
+  const sourcePriceCandidates = [
+    Number(input.purchasePrice),
+    Number(product.salePrice),
+    Number(product.price),
+    Number(input.discountPrice),
+    Number(input.price),
+  ];
+  const sourcePrice =
+    sourcePriceCandidates.find((value) => Number.isFinite(value) && value > 0) || 0;
+  if (!(sourcePrice > 0)) return null;
+
+  try {
+    const { trackingService } = await import("../services/tracking.service");
+    const tracked = await trackingService.registerFromDestinationUpload({
+      sourceUrl,
+      title: String(input.title || product.title || "Ürün"),
+      price: sourcePrice,
+      destinationProductId: externalProductId,
+      variants: (input.variants || []).map((variant) => ({
+        color: variant.option1,
+        size: variant.option2,
+        sku: variant.sku,
+        price: variant.price ?? undefined,
+        inStock: Number(variant.stock) > 0,
+      })),
+    });
+
+    if (tracked?.id && syncResult.mappingId) {
+      const { ensureTrackedLink } = await import("../services/marktgo/apply-change.service");
+      await ensureTrackedLink(tracked.id, Number(syncResult.mappingId));
+    }
+    return tracked?.id ?? null;
+  } catch (err) {
+    console.warn(
+      "[ProductPool] başarılı MARKT-GO gönderimi tracking'e doğrudan eklenemedi:",
+      err instanceof Error ? err.message : String(err),
+    );
+    try {
+      const { triggerMarktGoCatalogReconcile } = await import(
+        "../services/marktgo/reconcile.service"
+      );
+      await triggerMarktGoCatalogReconcile(true);
+    } catch (reconcileErr) {
+      console.warn(
+        "[ProductPool] tracking reconcile fallback başarısız:",
+        reconcileErr instanceof Error ? reconcileErr.message : String(reconcileErr),
+      );
+    }
+    return null;
+  }
+}
+
 async function uploadOneProduct(product: Record<string, unknown>) {
   const { shopifyAdminFetch, parseShopifyAdminResponse } = await import(
     "../shopify-token-manager"
@@ -364,6 +441,11 @@ router.post("/marktgo-upload", async (req, res) => {
     const { buildMarktGoUploadItemReport } = await import("../services/marktgo/upload-report.service");
     const input = mapPoolProductToMarktGoInput(product);
     const result = await syncProductToMarktGo(input);
+    const trackedProductId = await ensureSuccessfulMarktGoPoolTracking(
+      product,
+      input,
+      result,
+    );
     const assignment = await buildMarktGoUploadItemReport(product, {
       success: true,
       productId: result.externalProductId,
@@ -387,6 +469,8 @@ router.post("/marktgo-upload", async (req, res) => {
       provider: "marktgo",
       productId: result.externalProductId,
       shopifyPrice: input.discountPrice ?? input.price,
+      trackedProductId,
+      trackingAdded: Boolean(trackedProductId),
       assignment,
       ...result,
     });
@@ -428,6 +512,7 @@ router.post("/marktgo-upload-bulk", async (req, res) => {
       title?: string;
       success: boolean;
       productId?: string;
+      trackedProductId?: number | null;
       error?: string;
       assignment?: Awaited<ReturnType<typeof buildMarktGoUploadItemReport>>;
     }> = [];
@@ -437,6 +522,11 @@ router.post("/marktgo-upload-bulk", async (req, res) => {
       try {
         const input = mapPoolProductToMarktGoInput(raw);
         const uploaded = await syncProductToMarktGo(input);
+        const trackedProductId = await ensureSuccessfulMarktGoPoolTracking(
+          raw,
+          input,
+          uploaded,
+        );
         const assignment = await buildMarktGoUploadItemReport(raw, {
           success: true,
           productId: uploaded.externalProductId,
@@ -447,6 +537,7 @@ router.post("/marktgo-upload-bulk", async (req, res) => {
           title: raw?.title,
           success: true,
           productId: uploaded.externalProductId,
+          trackedProductId,
           assignment,
         });
       } catch (err) {
