@@ -53,9 +53,19 @@ patchFile("server/routes/tracking-routes.ts", (src) => {
 
 patchFile("server/routes.ts", (src) => {
   const anchor = '  async function postTrendyolScrapeHandler(req: any, res: any) {\n';
-  if (!src.includes('duplicate-product')) {
-    src = src.replace(anchor, `${anchor}    if (req.body?.allowDuplicate !== true) {\n      try {\n        const { findTrackedDuplicateBySourceUrl } = await import("./services/marktgo/strict-tracking-sync.service");\n        const duplicate = await findTrackedDuplicateBySourceUrl(String(req.body?.url || ""));\n        if (duplicate) {\n          return res.status(409).json({\n            success: false,\n            code: "duplicate-product",\n            message: "Bu ürün zaten MARKT-GO / takip listesinde. Aynı ürün yeniden çekilmedi.",\n            existingProduct: { id: duplicate.id, title: duplicate.sourceTitle, sourceUrl: duplicate.sourceUrl },\n          });\n        }\n      } catch (duplicateCheckError) {\n        console.warn("[duplicate-guard] kontrol soft-fail:", duplicateCheckError instanceof Error ? duplicateCheckError.message : duplicateCheckError);\n      }\n    }\n`);
+  // Existing tracked/MARKT-GO products must be re-scrapable so stale title, price,
+  // stock, variants and images can be refreshed. Duplicate protection belongs to
+  // the persistence/sync layer, not to the scrape endpoint.
+  if (!src.includes('existing-product-refresh')) {
+    src = src.replace(anchor, `${anchor}    // existing-product-refresh: duplicate source URLs are intentionally allowed.\n`);
   }
+
+  // Backward compatibility: if an older build already injected the hard 409 guard,
+  // make it opt-in only instead of blocking normal/manual retries.
+  src = src.replace(
+    'if (req.body?.allowDuplicate !== true) {',
+    'if (req.body?.rejectDuplicate === true) {',
+  );
   return src;
 });
 
@@ -67,4 +77,4 @@ patchFile("client/src/components/TrendyolCategoryBulkDrawer.tsx", (src) => {
   return src;
 });
 
-console.log("[strict-marktgo-sync] duplicate guard + bidirectional catalog tracking enabled");
+console.log("[strict-marktgo-sync] refresh-safe scrape + bidirectional catalog tracking enabled");
