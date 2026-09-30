@@ -10,11 +10,15 @@ let sp = fs.readFileSync(scraperPath, "utf8");
 
 sp = sp.replaceAll(
   "const SHOPIFY_UPLOAD_CONCURRENCY = 8;",
-  "const SHOPIFY_UPLOAD_CONCURRENCY = 2;",
+  "const SHOPIFY_UPLOAD_CONCURRENCY = 4;",
 );
 sp = sp.replaceAll(
   "const SHOPIFY_UPLOAD_CONCURRENCY = 3;",
+  "const SHOPIFY_UPLOAD_CONCURRENCY = 4;",
+);
+sp = sp.replaceAll(
   "const SHOPIFY_UPLOAD_CONCURRENCY = 2;",
+  "const SHOPIFY_UPLOAD_CONCURRENCY = 4;",
 );
 
 const blockingReviewPrefetch = `      setUploadProgress((current) => current ? { ...current, detail: "Yorumlar ürünlerle birlikte hazırlanıyor...", percent: 5 } : current);\n      await Promise.all(eligiblePreviews.map(async (preview) => {\n        const sourceUrl = String(preview.sourceUrl || "").trim();\n        if (!isTrendyolProductUrl(sourceUrl) || getCachedTrendyolReviewsForProduct(sourceUrl)) return;\n        try { await scrapeTrendyolReviewsForProduct(sourceUrl); } catch { /* ürün aktarımı yorum hatasıyla tamamen durmasın */ }\n      }));\n\n`;
@@ -32,8 +36,8 @@ if (!sp.includes("fastUpload: true,")) {
   );
 }
 
-if (!sp.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 2;")) {
-  throw new Error("[marktgo-product-first] upload concurrency=2 uygulanamadı");
+if (!sp.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 4;")) {
+  throw new Error("[marktgo-product-first] upload concurrency=4 uygulanamadı");
 }
 
 fs.writeFileSync(scraperPath, sp);
@@ -105,13 +109,13 @@ const routesPath = path.join(root, "server/routes/marktgo-routes.ts");
 let routes = fs.readFileSync(routesPath, "utf8");
 routes = routes.replace(
   "  const delays = [0, 350, 900];",
-  "  const delays = [0, 750, 1_500, 3_000, 6_000, 10_000];",
+  "  const delays = [0, 300, 900, 2_000];",
 );
-if (!routes.includes("const delays = [0, 750, 1_500, 3_000, 6_000, 10_000];")) {
+if (!routes.includes("const delays = [0, 300, 900, 2_000];")) {
   throw new Error("[marktgo-product-first] resilient sync retry window uygulanamadı");
 }
 fs.writeFileSync(routesPath, routes);
 
 console.log(
-  "[marktgo-product-first] concurrency=2; product-first; retry window=6 attempts; review backfill background",
+  "[marktgo-product-first] concurrency=4; product-first; retry window=4 attempts; review backfill background",
 );
