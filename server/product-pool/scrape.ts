@@ -43,6 +43,19 @@ function parseTrPrice(raw: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function parseStructuredMarketplacePrice(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (/^\d+(?:\.\d{1,4})?$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return parseTrPrice(raw);
+}
+
 function discountPercent(price: number, compareAt: number | null): number {
   if (!compareAt || compareAt <= price || price <= 0) return 0;
   return Math.round(((compareAt - price) / compareAt) * 100);
@@ -2577,13 +2590,13 @@ function parsePttAvmPoolHtml(html: string, sourceUrl: string): ProductPoolProduc
   }
 
   const offerPrice =
-    parseTrPrice(String(offers.price ?? offers.lowPrice ?? "")) ||
-    parseTrPrice(String(offers.highPrice ?? "")) ||
+    parseStructuredMarketplacePrice(offers.price ?? offers.lowPrice) ||
+    parseStructuredMarketplacePrice(offers.highPrice) ||
     0;
   const salePrice = visibleSalePrice > 0 ? visibleSalePrice : offerPrice;
   if (!(salePrice > 0)) return null;
 
-  const highPrice = parseTrPrice(String(offers.highPrice ?? "")) || 0;
+  const highPrice = parseStructuredMarketplacePrice(offers.highPrice) || 0;
   const compareCandidate =
     visibleRegularPrice > salePrice
       ? visibleRegularPrice
