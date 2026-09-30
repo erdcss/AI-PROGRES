@@ -13,11 +13,11 @@ let scraper = read(scraperPath);
 
 scraper = scraper.replace(
   /const BULK_SCRAPE_CONCURRENCY_START = \d+;/,
-  "const BULK_SCRAPE_CONCURRENCY_START = 2;",
+  "const BULK_SCRAPE_CONCURRENCY_START = 3;",
 );
 scraper = scraper.replace(
   /const BULK_SCRAPE_RETRY_DELAY_MS = \d+;/,
-  "const BULK_SCRAPE_RETRY_DELAY_MS = 1200;",
+  "const BULK_SCRAPE_RETRY_DELAY_MS = 500;",
 );
 
 // Exact ve normal yüklemeyi de ikiyle sınırla; scrape ile birlikte Browser Worker/backfill
@@ -25,7 +25,7 @@ scraper = scraper.replace(
 if (/const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget \? \d+ : \d+;/.test(scraper)) {
   scraper = scraper.replace(
     /const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget \? \d+ : \d+;/,
-    "const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget ? 2 : 2;",
+    "const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget ? 4 : 4;",
   );
 } else {
   scraper = scraper.replace(
@@ -39,16 +39,16 @@ scraper = scraper.replace(
   "let activeConcurrency = exactMode ? Math.min(2, BULK_SCRAPE_CONCURRENCY_START) : BULK_SCRAPE_CONCURRENCY_START;",
 );
 
-if (!scraper.includes("const BULK_SCRAPE_CONCURRENCY_START = 2;")) {
+if (!scraper.includes("const BULK_SCRAPE_CONCURRENCY_START = 3;")) {
   throw new Error("[throughput-tune] scrape concurrency=2 uygulanamadı");
 }
 if (
-  !scraper.includes("const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget ? 2 : 2;") &&
+  !scraper.includes("const SHOPIFY_UPLOAD_CONCURRENCY = exactUploadTarget ? 4 : 4;") &&
   !scraper.includes("const SHOPIFY_UPLOAD_CONCURRENCY = 2;")
 ) {
   throw new Error("[throughput-tune] MARKT-GO concurrency=2 uygulanamadı");
 }
-if (!scraper.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 1200;")) {
+if (!scraper.includes("const BULK_SCRAPE_RETRY_DELAY_MS = 500;")) {
   throw new Error("[throughput-tune] retry delay=1200 uygulanamadı");
 }
 if (!scraper.includes("exactMode ? Math.min(2, BULK_SCRAPE_CONCURRENCY_START)")) {
@@ -116,5 +116,5 @@ for (const anchor of [
 write(syncPath, sync);
 
 console.log(
-  "[throughput-tune] scrape=2, retry=1200ms, MARKT-GO upload=2, card reviews=serialized, review backfill=1, full review pagination=on, variant guard=on",
+  "[throughput-tune] scrape=3, retry=500ms, MARKT-GO upload=4, card reviews=serialized, review backfill=1, full review pagination=on, variant guard=on",
 );
