@@ -24,6 +24,7 @@ const replacements = [
   ["const SHOPIFY_UPLOAD_CONCURRENCY = 4;", "const SHOPIFY_UPLOAD_CONCURRENCY = 4;"],
   ["const SHOPIFY_UPLOAD_CONCURRENCY = 6;", "const SHOPIFY_UPLOAD_CONCURRENCY = 4;"],
   ["const SHOPIFY_UPLOAD_CONCURRENCY = 8;", "const SHOPIFY_UPLOAD_CONCURRENCY = 4;"],
+];
 for (const [from, to] of replacements) {
   if (src.includes(from)) src = src.split(from).join(to);
 }
