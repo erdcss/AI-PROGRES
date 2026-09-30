@@ -41,6 +41,7 @@ export interface PttAvmProduct {
     formatted: string;
     profitFormatted: string;
     currency: string;
+    compareAt?: number;
   };
   images: Array<{ url: string; colorName: string }>;
   description: string;
@@ -180,6 +181,41 @@ function parseStructuredPrice(value: unknown): number {
   return parseTrMoney(raw);
 }
 
+function extractPttAvmAddToCartPrice(html: string): { sale: number; compareAt: number } | null {
+  // PTTAVM React/Remix state JSON is frequently embedded with one or more
+  // backslashes before quotes. Normalize just the JSON quoting, then read the
+  // current product's AddToCart block (not recommendation cards).
+  const normalized = String(html || "")
+    .replace(/&quot;/g, '"')
+    .replace(/\\{1,4}"/g, '"');
+
+  const typeMatch = /"type"\s*:\s*"AddToCart"/i.exec(normalized);
+  if (!typeMatch) return null;
+
+  const block = normalized.slice(typeMatch.index, typeMatch.index + 9000);
+  const priceMatch = /"price"\s*:\s*\{([\s\S]{0,1800}?)\}/i.exec(block);
+  if (!priceMatch?.[1]) return null;
+
+  const priceBlock = priceMatch[1];
+  const read = (key: string) => {
+    const m = new RegExp(`"${key}"\\s*:\\s*"?([0-9]+(?:\\.[0-9]+)?)"?`, "i").exec(priceBlock);
+    return m?.[1] ? Number(m[1]) : 0;
+  };
+
+  const discounted = read("discountedPrice");
+  const original = read("originalPrice");
+  const regular = read("regularPrice");
+  const sale = discounted > 0 ? discounted : original > 0 ? original : regular;
+  if (!(sale > 0)) return null;
+
+  const compareAt =
+    original > sale ? original :
+    regular > sale ? regular :
+    0;
+
+  return { sale, compareAt };
+}
+
 function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
   const $ = cheerio.load(html);
 
@@ -212,19 +248,35 @@ function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
     if (m) brand = m[1];
   }
 
-  // Price
-  let priceRaw = 0;
+  // Price — PTTAVM'de "580 TL Sepete Özel 499 TL" aynı container içinde
+  // bulunabildiği için tüm metni rakamlara çevirip 580499 üretmek yasak.
+  const addToCartPrice = extractPttAvmAddToCartPrice(html);
+  let priceRaw = addToCartPrice?.sale || 0;
   const priceSelectors = [
     '.price-box .special-price .price', '.product-price .price',
     '.regular-price .price', '[itemprop="price"]', '.prc-dsc',
-    '.current-price', '.sale-price', '.product-price',
-    '.pdp-price', '.discounted-price', '[class*="price"]',
+    '.current-price', '.sale-price', '.pdp-price', '.discounted-price',
   ];
-  for (const sel of priceSelectors) {
-    const el = $(sel).first();
-    const text = el.attr('content') || el.text().trim();
-    const val = parseTrMoney(text);
-    if (val > 0 && val < 9999999) { priceRaw = val; break; }
+  if (!priceRaw) {
+    for (const sel of priceSelectors) {
+      const el = $(sel).first();
+      const content = el.attr('content');
+      if (content) {
+        const val = parseStructuredPrice(content);
+        if (val > 0 && val < 9_999_999) { priceRaw = val; break; }
+      }
+
+      const text = el.text().trim();
+      const tlMatches = text.match(/\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?\s*TL|\d+(?:[.,]\d{1,2})?\s*TL/gi) || [];
+      const vals = tlMatches
+        .map((v) => parseTrMoney(v))
+        .filter((v) => v > 0 && v < 9_999_999);
+      if (vals.length) {
+        // Aynı elemanda normal + Sepete Özel fiyat varsa satılabilir düşük fiyatı kullan.
+        priceRaw = Math.min(...vals);
+        break;
+      }
+    }
   }
   if (!priceRaw) {
     $('script[type="application/ld+json"]').each((_, el) => {
@@ -404,6 +456,7 @@ function parseHtml(html: string, sourceUrl: string): Partial<PttAvmProduct> {
     formatted: `${priceRaw.toFixed(2)} TL`,
     profitFormatted: `${Math.round(priceRaw * 1.10).toFixed(2)} TL`,
     currency: 'TL',
+    compareAt: addToCartPrice?.compareAt || undefined,
   }, images, description, features, category,
     variants: { colors, sizes, allVariants },
   };
