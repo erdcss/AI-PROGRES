@@ -250,6 +250,23 @@ export function normalizeSourceUrl(raw: string): string {
       "referrer",
     ].forEach((k) => u.searchParams.delete(k));
 
+    // Akakçe/Adjust affiliate parametreleri ürün seçiminin parçası değildir.
+    // Desteklenen tüm ürün havuzu sitelerinde bunları temizle; siteye özgü
+    // gerçek seçim parametreleri (örn. n11 magaza / renkrenk-kodu) korunur.
+    if (PRODUCT_POOL_SITES.some((s) => host === s.domain || host.endsWith(`.${s.domain}`))) {
+      for (const key of [...u.searchParams.keys()]) {
+        const lower = key.toLowerCase();
+        if (
+          lower.startsWith("utm_") ||
+          lower.startsWith("adj_") ||
+          lower === "akakce" ||
+          lower === "akakce_ref"
+        ) {
+          u.searchParams.delete(key);
+        }
+      }
+    }
+
     // Akakçe yönlendirmesi: desteklenen tüm ürün havuzu sitelerinde ?ref=akakce&v=...
     // ürün kimliğinin parçası değildir. Aynı ürünün farklı tracking URL'leriyle çoğalmasını engelle.
     const matchedPoolSite = PRODUCT_POOL_SITES.find(
@@ -274,6 +291,15 @@ export function normalizeSourceUrl(raw: string): string {
     } else if (host === "markafarma.com" || host.endsWith(".markafarma.com")) {
       u.hostname = "www.markafarma.com";
       u.protocol = "https:";
+    } else if (host === "n11.com" || host.endsWith(".n11.com")) {
+      u.protocol = "https:";
+      u.hostname = "www.n11.com";
+      // n11 ürün sayfasında yalnız ürün/satıcı/varyant seçimini etkileyen
+      // parametreleri tut; affiliate ve ölçüm parametreleri yukarıda silindi.
+      const keep = new Set(["magaza", "beden", "renk", "renkrenk-kodu"]);
+      for (const key of [...u.searchParams.keys()]) {
+        if (!keep.has(key.toLowerCase())) u.searchParams.delete(key);
+      }
     } else if (host === "amazon.com.tr" || host.endsWith(".amazon.com.tr")) {
       const asin =
         u.pathname.match(/\/(?:dp|gp\/product|product)\/([A-Z0-9]{10})/i)?.[1]?.toUpperCase() ||
