@@ -125,6 +125,22 @@ export const WEB_HOOK_SITES: WebHookSite[] = [
       "https://www.beymen.com/tr/p_beymen-club-siyah-midi-ipek-saten-elbise_1922586",
   },
   {
+    id: "markafarma",
+    name: "Markafarma",
+    domain: "markafarma.com",
+    url: "https://www.markafarma.com",
+    logoUrl: "https://www.markafarma.com/favicon.ico",
+    source: "product-pool",
+    discoverUrl: "https://www.markafarma.com",
+    discoverUrls: [
+      "https://www.markafarma.com/bebek-mamasi",
+      "https://www.markafarma.com/yeni-kargo-bedava-urunler",
+    ],
+    productUrlRegex: "/[a-z0-9][a-z0-9-]{3,}(?:\\?.*)?$",
+    exampleProductUrl:
+      "https://www.markafarma.com/sma-optipro-2-900-gr",
+  },
+  {
     id: "happy",
     name: "Happy Center",
     domain: "happy.com.tr",
@@ -234,14 +250,29 @@ export function normalizeSourceUrl(raw: string): string {
       "referrer",
     ].forEach((k) => u.searchParams.delete(k));
 
-    // Akakçe yönlendirmelerinde Happy/PTTAVM ürün URL'sine eklenen "v" sürüm
-    // parametresi aynı ürün için farklı tracking kayıtları oluşturmasın.
-    if (host === "happy.com.tr" || host.endsWith(".happy.com.tr") || host === "pttavm.com" || host.endsWith(".pttavm.com")) {
+    // Akakçe yönlendirmesi: desteklenen tüm ürün havuzu sitelerinde ?ref=akakce&v=...
+    // ürün kimliğinin parçası değildir. Aynı ürünün farklı tracking URL'leriyle çoğalmasını engelle.
+    const matchedPoolSite = PRODUCT_POOL_SITES.find(
+      (s) => host === s.domain || host.endsWith(`.${s.domain}`),
+    );
+    const refValue = String(u.searchParams.get("ref") || "").toLowerCase();
+    const versionValue = String(u.searchParams.get("v") || "");
+    const looksLikeAkakceRedirect =
+      Boolean(matchedPoolSite) &&
+      (refValue === "akakce" ||
+        (u.searchParams.has("ref") && /^\d+(?:\.\d+){1,4}$/.test(versionValue)) ||
+        (u.searchParams.has("ref") && !refValue));
+
+    if (looksLikeAkakceRedirect) {
+      u.searchParams.delete("ref");
       u.searchParams.delete("v");
     }
 
     if (host === "happy.com.tr" || host.endsWith(".happy.com.tr")) {
       u.hostname = "www.happy.com.tr";
+      u.protocol = "https:";
+    } else if (host === "markafarma.com" || host.endsWith(".markafarma.com")) {
+      u.hostname = "www.markafarma.com";
       u.protocol = "https:";
     }
 
