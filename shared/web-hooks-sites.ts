@@ -219,10 +219,32 @@ export function normalizeSourceUrl(raw: string): string {
   try {
     const u = new URL(String(raw || "").trim());
     u.hash = "";
-    // Trendyol / Amazon tracking parametrelerini sadeleştir
-    ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid"].forEach(
-      (k) => u.searchParams.delete(k),
-    );
+    const host = u.hostname.replace(/^www\./, "").toLowerCase();
+
+    // Kaynak takip parametreleri ürün kimliğinin parçası değildir.
+    [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_content",
+      "utm_term",
+      "gclid",
+      "fbclid",
+      "ref",
+      "referrer",
+    ].forEach((k) => u.searchParams.delete(k));
+
+    // Akakçe yönlendirmelerinde Happy/PTTAVM ürün URL'sine eklenen "v" sürüm
+    // parametresi aynı ürün için farklı tracking kayıtları oluşturmasın.
+    if (host === "happy.com.tr" || host.endsWith(".happy.com.tr") || host === "pttavm.com" || host.endsWith(".pttavm.com")) {
+      u.searchParams.delete("v");
+    }
+
+    if (host === "happy.com.tr" || host.endsWith(".happy.com.tr")) {
+      u.hostname = "www.happy.com.tr";
+      u.protocol = "https:";
+    }
+
     return u.toString().replace(/\/$/, "");
   } catch {
     return String(raw || "").trim();
