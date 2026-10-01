@@ -63,30 +63,44 @@ function excludeAutoCorrectedChangeCondition() {
   )`;
 }
 
-function pickFirstImageUrl(images: unknown): string | null {
-  if (!Array.isArray(images)) return null;
+function pickImageUrls(images: unknown): string[] {
+  if (!Array.isArray(images)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+
   for (const item of images) {
+    let value = "";
     if (typeof item === "string") {
-      const trimmed = item.trim();
-      if (trimmed.startsWith("http")) return trimmed;
-      continue;
-    }
-    if (item && typeof item === "object") {
+      value = item.trim();
+    } else if (item && typeof item === "object") {
       const record = item as Record<string, unknown>;
       for (const key of ["url", "src", "imageUrl", "image"]) {
-        const value = record[key];
-        if (typeof value === "string" && value.trim().startsWith("http")) {
-          return value.trim();
+        const candidate = record[key];
+        if (typeof candidate === "string" && candidate.trim().startsWith("http")) {
+          value = candidate.trim();
+          break;
         }
       }
     }
+
+    if (!value.startsWith("http")) continue;
+    const dedupeKey = value.split("?")[0].toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    out.push(value);
+    if (out.length >= 12) break;
   }
-  return null;
+
+  return out;
+}
+
+function pickFirstImageUrl(images: unknown): string | null {
+  return pickImageUrls(images)[0] ?? null;
 }
 
 export class TrackingService {
-  private async getLatestImageMap(productIds: number[]): Promise<Map<number, string | null>> {
-    const map = new Map<number, string | null>();
+  private async getLatestImagesMap(productIds: number[]): Promise<Map<number, string[]>> {
+    const map = new Map<number, string[]>();
     if (productIds.length === 0) return map;
 
     const rows = await db
@@ -99,14 +113,21 @@ export class TrackingService {
       .orderBy(productSnapshots.trackedProductId, desc(productSnapshots.createdAt));
 
     for (const row of rows) {
-      map.set(row.trackedProductId, pickFirstImageUrl(row.images));
+      map.set(row.trackedProductId, pickImageUrls(row.images));
     }
 
     for (const id of productIds) {
-      if (!map.has(id)) map.set(id, null);
+      if (!map.has(id)) map.set(id, []);
     }
 
     return map;
+  }
+
+  private async getLatestImageMap(productIds: number[]): Promise<Map<number, string | null>> {
+    const imagesMap = await this.getLatestImagesMap(productIds);
+    return new Map(
+      [...imagesMap.entries()].map(([id, urls]) => [id, urls[0] ?? null]),
+    );
   }
   async assertEnabled() {
     const s = await getTrackingSettings();
@@ -192,7 +213,7 @@ export class TrackingService {
       .where(visibility)
       .orderBy(desc(trackedProducts.updatedAt));
 
-    const imageMap = await this.getLatestImageMap(products.map((p) => p.id));
+    const imagesMap = await this.getLatestImagesMap(products.map((p) => p.id));
     const ids = products.map((p) => p.id);
     const variantPriceRows =
       ids.length > 0
@@ -225,10 +246,26 @@ export class TrackingService {
       const fallback = variantPriceById.get(p.id);
       const current = Number(p.currentSourcePrice);
       const hasPrice = Number.isFinite(current) && current > 0;
+      const productImageUrls = imagesMap.get(p.id) ?? [];
+      const matchedSite = matchWebHookSite(p.sourceUrl);
+      let sourceHost = "";
+      try {
+        sourceHost = new URL(p.sourceUrl).hostname.replace(/^www\./, "");
+      } catch {
+        sourceHost = p.sourceSite || "Kaynak";
+      }
+      const sourceSiteName = matchedSite?.name || p.sourceSite || sourceHost || "Kaynak";
+      const sourceLogoUrl =
+        matchedSite?.logoUrl ||
+        (sourceHost ? `https://${sourceHost}/favicon.ico` : null);
+
       return {
         ...p,
         currentSourcePrice: hasPrice ? p.currentSourcePrice : fallback ?? p.currentSourcePrice,
-        productImageUrl: imageMap.get(p.id) ?? null,
+        productImageUrl: productImageUrls[0] ?? null,
+        productImageUrls,
+        sourceSiteName,
+        sourceLogoUrl,
         shopifyTransferredAt: transferByUrl.get(p.sourceUrl) ?? null,
       };
     });
@@ -553,6 +590,7 @@ export class TrackingService {
     shopifyHandle?: string;
     shopifyProductGid?: string;
     variants?: TrackingRegistrationVariant[];
+    images?: string[];
     registeredFrom?: string;
   }) {
     await this.assertEnabled();
@@ -706,17 +744,22 @@ export class TrackingService {
         sourceUrl: input.sourceUrl,
         title: input.title,
         price: input.price,
-        images: [],
+        images: Array.isArray(input.images) ? input.images : [],
         variants: variantList,
         rawData: { shopifyProductId: input.shopifyProductId },
         quality: {
           registeredFrom: input.registeredFrom || "shopify_upload",
         },
       });
-    } else if (variantList.length > 0) {
+    } else if (variantList.length > 0 || (Array.isArray(input.images) && input.images.length > 0)) {
       await db
         .update(productSnapshots)
-        .set({ variants: variantList as never })
+        .set({
+          ...(variantList.length > 0 ? { variants: variantList as never } : {}),
+          ...(Array.isArray(input.images) && input.images.length > 0
+            ? { images: input.images as never }
+            : {}),
+        })
         .where(eq(productSnapshots.id, snapshot.id));
     }
 
@@ -776,6 +819,7 @@ export class TrackingService {
     price: number;
     destinationProductId?: string | null;
     variants?: TrackingRegistrationVariant[];
+    images?: string[];
   }) {
     const settings = await getTrackingSettings().catch(() => null);
     if (settings && (!settings.trackingEnabled || !settings.schedulerEnabled)) {
@@ -794,6 +838,7 @@ export class TrackingService {
         ? `marktgo:${input.destinationProductId}`
         : null,
       variants: input.variants,
+      images: input.images,
       registeredFrom: "marktgo_upload",
     });
   }
