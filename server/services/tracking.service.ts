@@ -727,7 +727,9 @@ export class TrackingService {
       message:
         input.registeredFrom === "marktgo_upload"
           ? "MARKT-GO gönderimi sonrası tracking kaydı oluşturuldu"
-          : "Shopify aktarımı sonrası tracking kaydı oluşturuldu",
+          : input.registeredFrom === "product_pool"
+            ? "Ürün Havuzu üzerinden aktif tracking kaydı oluşturuldu"
+            : "Shopify aktarımı sonrası tracking kaydı oluşturuldu",
       meta: {
         sourceUrl: input.sourceUrl,
         trackedProductId: productRow.id,
