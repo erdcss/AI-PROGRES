@@ -685,12 +685,82 @@ async function fetchProtectedMarketplaceHtml(
   }
 
   const stealthHtml = await fetchHtmlWithStealthBrowser(url);
-  if (stealthHtml && isUsableProductHtml(stealthHtml)) {
+  if (stealthHtml && isUsableN11ProductHtml(stealthHtml, baseUrl)) {
     console.log(`[ProductPool/${label}] Stealth Chromium HTML ok (${stealthHtml.length} bytes)`);
     return stealthHtml;
   }
 
   throw new Error(failMessage);
+}
+
+function isUsableN11ProductHtml(
+  html: string,
+  requestedUrl: string,
+  finalUrl?: string | null,
+): boolean {
+  if (!isUsableProductHtml(html)) return false;
+
+  const expectedProductId =
+    requestedUrl.match(/-(\d{6,})(?:\?|$)/)?.[1] ||
+    requestedUrl.match(/\/urun\/[^?#]*?(\d{6,})(?:\?|$)/i)?.[1] ||
+    "";
+
+  if (finalUrl) {
+    try {
+      const final = new URL(finalUrl);
+      if (!/(^|\.)n11\.com$/i.test(final.hostname)) return false;
+      if (!/^\/urun\//i.test(final.pathname)) return false;
+      if (expectedProductId && !final.pathname.includes(expectedProductId)) return false;
+    } catch {
+      return false;
+    }
+  }
+
+  const $ = cheerio.load(html);
+  const title =
+    cleanText($('meta[property="og:title"]').attr("content") || "") ||
+    cleanText($("h1").first().text()) ||
+    cleanText($("title").text());
+
+  if (
+    !title ||
+    /^n11(?:\.com)?(?:\s*[-|:]|$)/i.test(title) ||
+    /alışverişin adresi|alışveriş sitesi|online alışveriş/i.test(title)
+  ) {
+    return false;
+  }
+
+  let hasProductJsonLd = false;
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (hasProductJsonLd) return;
+    try {
+      const raw = JSON.parse($(el).html() || "");
+      const nodes = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.["@graph"])
+          ? raw["@graph"]
+          : [raw];
+      hasProductJsonLd = nodes.some((node: any) => {
+        const type = node?.["@type"];
+        return type === "Product" || (Array.isArray(type) && type.includes("Product"));
+      });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  const hasExpectedId =
+    Boolean(expectedProductId) &&
+    (
+      html.includes(expectedProductId) ||
+      new RegExp(`["'](?:productId|id)["']\\s*:\\s*["']?${expectedProductId}["']?`, "i").test(html)
+    );
+
+  const hasN11ProductModel =
+    /window\.model\s*=\s*\{/i.test(html) &&
+    /skuDefinitions|productAttributeGroup|displayPriceNumber|productDetail/i.test(html);
+
+  return hasExpectedId || hasProductJsonLd || hasN11ProductModel;
 }
 
 /** n11: affiliate/satıcı URL'si → temiz ürün URL'si; direct → Browser Worker → stealth */
@@ -703,7 +773,7 @@ async function fetchN11Html(url: string): Promise<string> {
   for (const candidate of candidates) {
     try {
       const html = await fetchHtml(candidate, { crawlerFallback: true });
-      if (isUsableProductHtml(html)) {
+      if (isUsableN11ProductHtml(html, candidate)) {
         console.log("[ProductPool/n11] direct HTML ok", {
           mode: candidate === url ? "selected" : "base",
           bytes: html.length,
@@ -728,18 +798,24 @@ async function fetchN11Html(url: string): Promise<string> {
     if (isBrowserWorkerConfigured()) {
       for (const candidate of candidates) {
         const bw = await fetchHtmlWithBrowserWorker(candidate);
-        if (bw.success && bw.html && isUsableProductHtml(bw.html)) {
+        if (
+          bw.success &&
+          bw.html &&
+          isUsableN11ProductHtml(bw.html, candidate, bw.finalUrl)
+        ) {
           console.log("[ProductPool/n11] Browser Worker HTML ok", {
             mode: candidate === url ? "selected" : "base",
             bytes: bw.html.length,
+            finalUrl: bw.finalUrl || null,
           });
           return bw.html;
         }
-        console.warn(
-          "[ProductPool/n11] Browser Worker candidate failed:",
-          candidate === url ? "selected" : "base",
-          bw.error || bw.errorCategory || "empty",
-        );
+        console.warn("[ProductPool/n11] Browser Worker candidate rejected:", {
+          mode: candidate === url ? "selected" : "base",
+          finalUrl: bw.finalUrl || null,
+          bytes: bw.html?.length || 0,
+          error: bw.error || bw.errorCategory || "not-product-page",
+        });
       }
     }
   } catch (err) {
