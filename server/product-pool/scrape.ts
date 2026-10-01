@@ -1521,6 +1521,24 @@ function scrapeHappy(html: string, sourceUrl: string): ProductPoolProduct {
   }
 
   const bodyText = cleanText($("body").text());
+
+  // Happy bazı render'larda fiyatı meta/JSON-LD yerine yalnız görünür metinde bırakıyor.
+  // "Fiyat : 2,234.99 TL" kalıbı ürünün gerçek satış fiyatıdır; KDV hariç/taksit
+  // rakamlarını yanlışlıkla ürün fiyatı olarak almamak için yalnız güvenli etiketleri tara.
+  if (!salePrice) {
+    const labeledPriceMatches = [
+      bodyText.match(/(?:^|\s)Fiyat\s*:?\s*(\d[\d.,]*)\s*(?:₺|TL)(?:\s|$)/i),
+      bodyText.match(/(?:Satış|Satis)\s*Fiyat[ıi]\s*:?\s*(\d[\d.,]*)\s*(?:₺|TL)/i),
+      bodyText.match(/(?:İndirimli|Indirimli)\s*Fiyat\s*:?\s*(\d[\d.,]*)\s*(?:₺|TL)/i),
+    ];
+    for (const match of labeledPriceMatches) {
+      const parsed = parseHappyPrice(match?.[1]);
+      if (parsed && parsed > 0) {
+        salePrice = parsed;
+        break;
+      }
+    }
+  }
   const couponPriceMatch =
     bodyText.match(/Kuponlu\s+fiyat[^0-9]{0,80}(\d[\d.,]*)\s*(?:₺|TL)/i) ||
     bodyText.match(/Kupon[^0-9]{0,120}(\d[\d.,]*)\s*(?:₺|TL)/i);
