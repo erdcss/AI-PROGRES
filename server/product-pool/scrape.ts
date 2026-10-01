@@ -2854,6 +2854,42 @@ function extractAmazonVariants(
   return { variantOptions, variants: variants.slice(0, 100) };
 }
 
+function parseAmazonPrice(raw: unknown): number | null {
+  const cleaned = String(raw ?? "")
+    .replace(/[^\d.,]/g, "")
+    .trim();
+  if (!cleaned) return null;
+
+  if (cleaned.includes(",") && cleaned.includes(".")) {
+    const lastComma = cleaned.lastIndexOf(",");
+    const lastDot = cleaned.lastIndexOf(".");
+    const normalized =
+      lastComma > lastDot
+        ? cleaned.replace(/\./g, "").replace(",", ".")
+        : cleaned.replace(/,/g, "");
+    const n = Number(normalized);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  if (cleaned.includes(",")) {
+    const parts = cleaned.split(",");
+    const normalized =
+      parts.length === 2 && parts[1].length <= 2
+        ? cleaned.replace(",", ".")
+        : cleaned.replace(/,/g, "");
+    const n = Number(normalized);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  if (/^\d{1,3}(?:\.\d{3})+$/.test(cleaned)) {
+    const n = Number(cleaned.replace(/\./g, ""));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  const n = Number(cleaned);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function scrapeAmazon(html: string, sourceUrl: string): ProductPoolProduct {
   const { asin, cleanUrl } = normalizeAmazonProductUrl(sourceUrl);
   const $ = cheerio.load(html);
@@ -2880,22 +2916,57 @@ function scrapeAmazon(html: string, sourceUrl: string): ProductPoolProduct {
 
   const priceCandidates: number[] = [];
   const listCandidates: number[] = [];
+  let selectedPriceSource = "";
 
-  $("#corePrice_feature_div .a-price:not(.a-text-price) .a-offscreen, #corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price) .a-offscreen, .apexPriceToPay .a-offscreen")
-    .each((_, el) => {
-      const p = parseTrPrice($(el).text());
-      if (p && p > 0 && p < 5_000_000) priceCandidates.push(p);
-    });
-  $(".a-price.a-text-price .a-offscreen, #listPrice, span.a-price.a-text-price span[aria-hidden]")
-    .each((_, el) => {
-      const p = parseTrPrice($(el).text());
-      if (p && p > 0 && p < 5_000_000) listCandidates.push(p);
-    });
+  const currentPriceSelectors = [
+    "#corePrice_feature_div .priceToPay .a-offscreen",
+    "#corePriceDisplay_desktop_feature_div .priceToPay .a-offscreen",
+    ".apexPriceToPay .a-offscreen",
+    "#corePrice_feature_div .a-price:not(.a-text-price) .a-offscreen",
+    "#corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price) .a-offscreen",
+    "#price_inside_buybox",
+    "#newBuyBoxPrice",
+    "#priceblock_ourprice",
+    "#priceblock_dealprice",
+  ];
 
-  // Fallback: all offscreen prices (first is usually sale)
+  for (const selector of currentPriceSelectors) {
+    const el = $(selector).first();
+    if (!el.length) continue;
+    const text = cleanText(el.text() || el.attr("data-a-color") || "");
+    const p = parseAmazonPrice(text);
+    if (p && p > 0 && p < 5_000_000) {
+      priceCandidates.push(p);
+      selectedPriceSource = selector;
+      break;
+    }
+  }
+
+  $(
+    "#basisPrice .a-offscreen, .a-price.a-text-price .a-offscreen, #listPrice, span.a-price.a-text-price span[aria-hidden]",
+  ).each((_, el) => {
+    const p = parseAmazonPrice($(el).text());
+    if (p && p > 0 && p < 5_000_000) listCandidates.push(p);
+  });
+
+  // Son fallback yalnızca ürünün ana fiyat alanında kalır. Taksit, birim fiyat,
+  // kupon tasarrufu ve önerilen ürün fiyatları satış fiyatına karışmamalı.
   if (!priceCandidates.length) {
-    $(".a-price .a-offscreen").each((_, el) => {
-      const p = parseTrPrice($(el).text());
+    $(
+      "#corePrice_feature_div .a-price .a-offscreen, #corePriceDisplay_desktop_feature_div .a-price .a-offscreen, #apex_offerDisplay_desktop .a-price .a-offscreen",
+    ).each((_, el) => {
+      const $el = $(el);
+      const context = [
+        $el.parent().attr("class") || "",
+        $el.closest("[id]").attr("id") || "",
+        cleanText($el.parent().text()),
+      ]
+        .join(" ")
+        .toLowerCase();
+      if (/unit|birim|installment|taksit|saving|tasarruf|coupon|kupon|list|basis|strike/.test(context)) {
+        return;
+      }
+      const p = parseAmazonPrice($el.text());
       if (p && p > 0 && p < 5_000_000) priceCandidates.push(p);
     });
   }
@@ -2918,7 +2989,7 @@ function scrapeAmazon(html: string, sourceUrl: string): ProductPoolProduct {
         const offer = node.offers;
         const offers = Array.isArray(offer) ? offer : offer ? [offer] : [];
         for (const o of offers) {
-          const p = parseTrPrice(String(o?.price ?? o?.lowPrice ?? ""));
+          const p = parseStructuredMarketplacePrice(o?.price ?? o?.lowPrice);
           if (p && p > 0) ldPrices.push(p);
         }
       }
@@ -2928,9 +2999,18 @@ function scrapeAmazon(html: string, sourceUrl: string): ProductPoolProduct {
   });
 
   let salePrice =
-    (priceCandidates.length ? Math.min(...priceCandidates) : 0) ||
+    (priceCandidates.length ? priceCandidates[0] : 0) ||
     (ldPrices.length ? Math.min(...ldPrices) : 0);
   let listPrice = listCandidates.length ? Math.max(...listCandidates) : 0;
+  if (salePrice > 0) {
+    console.log("[ProductPool/amazon] selected price", {
+      asin,
+      salePrice,
+      listPrice: listCandidates.length ? Math.max(...listCandidates) : 0,
+      source: selectedPriceSource || (ldPrices.length ? "json-ld" : "unknown"),
+    });
+  }
+
   if (listPrice > 0 && salePrice > 0 && listPrice < salePrice) {
     const tmp = listPrice;
     listPrice = salePrice;
