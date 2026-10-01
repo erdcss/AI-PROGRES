@@ -1329,6 +1329,37 @@ function scrapeTrendyolPool(html: string, sourceUrl: string): ProductPoolProduct
   };
 }
 
+function parseHappyPrice(raw: unknown): number | null {
+  const cleaned = String(raw ?? "")
+    .replace(/[^\d.,]/g, "")
+    .trim();
+  if (!cleaned) return null;
+
+  if (cleaned.includes(",") && cleaned.includes(".")) {
+    const lastComma = cleaned.lastIndexOf(",");
+    const lastDot = cleaned.lastIndexOf(".");
+    // Happy bazı alanlarda 2,237.99, bazı alanlarda 2.037,99 formatı kullanıyor.
+    const normalized =
+      lastDot > lastComma
+        ? cleaned.replace(/,/g, "")
+        : cleaned.replace(/\./g, "").replace(",", ".");
+    const n = Number(normalized);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  if (cleaned.includes(",")) {
+    const parts = cleaned.split(",");
+    const normalized =
+      parts.length === 2 && parts[1].length <= 2
+        ? cleaned.replace(",", ".")
+        : cleaned.replace(/,/g, "");
+    const n = Number(normalized);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  return parseStructuredMarketplacePrice(cleaned);
+}
+
 function scrapeHappy(html: string, sourceUrl: string): ProductPoolProduct {
   const $ = cheerio.load(html);
   const origin = new URL(sourceUrl).origin;
@@ -1458,7 +1489,7 @@ function scrapeHappy(html: string, sourceUrl: string): ProductPoolProduct {
       $('[data-price]').first().attr("data-price"),
     ];
     for (const value of structuredCandidates) {
-      const parsed = parseStructuredMarketplacePrice(value);
+      const parsed = parseHappyPrice(value);
       if (parsed && parsed > 0) {
         salePrice = parsed;
         break;
@@ -1478,15 +1509,39 @@ function scrapeHappy(html: string, sourceUrl: string): ProductPoolProduct {
     for (const selector of priceSelectors) {
       const text = cleanText($(selector).first().text());
       const matches =
-        text.match(/\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?\s*(?:₺|TL)|\d+(?:[.,]\d{1,2})?\s*(?:₺|TL)/gi) || [];
+        text.match(/\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?\s*(?:₺|TL)|\d+(?:[.,]\d{1,2})?\s*(?:₺|TL)/gi) || [];
       const values = matches
-        .map((m) => parseTrPrice(m))
+        .map((m) => parseHappyPrice(m))
         .filter((n): n is number => Boolean(n && n > 0));
       if (values.length) {
         salePrice = Math.min(...values);
         break;
       }
     }
+  }
+
+  const bodyText = cleanText($("body").text());
+  const couponPriceMatch =
+    bodyText.match(/Kuponlu\s+fiyat[^0-9]{0,80}(\d[\d.,]*)\s*(?:₺|TL)/i) ||
+    bodyText.match(/Kupon[^0-9]{0,120}(\d[\d.,]*)\s*(?:₺|TL)/i);
+  if (couponPriceMatch?.[1]) {
+    const couponPrice = parseHappyPrice(couponPriceMatch[1]);
+    if (couponPrice && couponPrice > 0 && salePrice > 0 && couponPrice < salePrice) {
+      listPrice = Math.max(listPrice, salePrice);
+      salePrice = couponPrice;
+      pushFeature("Kuponlu fiyat", `${couponPrice.toLocaleString("tr-TR")} TL`);
+    }
+  }
+
+  if (!sku) {
+    const skuMatch = bodyText.match(/Ürün\s*Kodu\s*:\s*([A-Z0-9._/-]+)/i);
+    if (skuMatch?.[1]) sku = cleanText(skuMatch[1]);
+  }
+
+  if (/Stokta\s+Yok|Tükendi|Stokta\s+Bulunmuyor/i.test(bodyText)) {
+    inStock = false;
+  } else if (/Stokta\s+Var|Sepete\s+Ekle/i.test(bodyText)) {
+    inStock = true;
   }
 
   if (!images.length) {
