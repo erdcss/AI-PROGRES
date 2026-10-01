@@ -35,6 +35,9 @@ type TrackedProduct = {
   id: number;
   sourceUrl: string;
   sourceTitle: string;
+  sourceSite?: string | null;
+  sourceSiteName?: string | null;
+  sourceLogoUrl?: string | null;
   shopifyProductId: string | null;
   trackingUid: string | null;
   currentSourcePrice: string | null;
@@ -49,6 +52,8 @@ type TrackedProduct = {
   lastShopifySyncAt?: string | null;
   shopifyTransferredAt?: string | null;
   productImageUrl?: string | null;
+  productImageUrls?: string[];
+  archivedAt?: string | null;
 };
 
 type DetectedChange = {
@@ -346,7 +351,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const productsQuery = useQuery({
     queryKey: ["tracking-products"],
     queryFn: async () => {
-      const res = await fetch("/api/tracking/products?includeUnlinked=true", { cache: "no-store" });
+      const res = await fetch("/api/tracking/products?includeUnlinked=true&includeArchived=true", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Liste alınamadı");
       return (data.products || []) as TrackedProduct[];
@@ -812,7 +817,10 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         </TabsList>
 
         <TabsContent value="products" className="mt-4 space-y-4">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-muted-foreground">
+              Toplam <span className="font-semibold text-foreground">{productsQuery.data?.length ?? 0}</span> ürün listeleniyor
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -847,16 +855,54 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 key={p.id}
                 className="rounded-xl border border-border/60 bg-card/50 p-4 flex gap-4"
               >
-                <TrackingProductImage
-                  imageUrl={p.productImageUrl}
-                  title={p.sourceTitle}
-                  size="lg"
-                />
+                <div className="shrink-0 space-y-2">
+                  <TrackingProductImage
+                    imageUrl={p.productImageUrl}
+                    title={p.sourceTitle}
+                    size="lg"
+                  />
+                  {p.sourceLogoUrl && (
+                    <div className="flex items-center justify-center">
+                      <img
+                        src={p.sourceLogoUrl}
+                        alt={p.sourceSiteName || p.sourceSite || "Kaynak site"}
+                        className="h-5 w-5 rounded object-contain bg-white/90 p-0.5"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <h3 className="font-medium leading-snug line-clamp-2 text-[15px] pr-2">
-                      {p.sourceTitle}
-                    </h3>
+                    <div className="min-w-0">
+                      <h3 className="font-medium leading-snug line-clamp-2 text-[15px] pr-2">
+                        {p.sourceTitle}
+                      </h3>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/40 px-2 py-1 text-[11px] text-muted-foreground">
+                          {p.sourceLogoUrl && (
+                            <img
+                              src={p.sourceLogoUrl}
+                              alt=""
+                              className="h-4 w-4 rounded object-contain bg-white/90 p-0.5"
+                              loading="lazy"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          )}
+                          {p.sourceSiteName || p.sourceSite || "Kaynak site"}
+                        </span>
+                        {p.archivedAt && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Arşiv
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                     <Badge
                       variant={p.currentStatus === "active" ? "default" : "secondary"}
                       className="shrink-0 text-xs"
@@ -864,6 +910,28 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       {p.currentStatus === "active" ? "Aktif" : p.currentStatus}
                     </Badge>
                   </div>
+
+                  {(p.productImageUrls?.length ?? 0) > 1 && (
+                    <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
+                      {p.productImageUrls!.slice(0, 8).map((imageUrl, imageIndex) => (
+                        <a
+                          key={`${p.id}-image-${imageIndex}`}
+                          href={imageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0 rounded-lg border border-border/50 bg-background/40 p-1 hover:border-primary/50"
+                          title={`Görsel ${imageIndex + 1}`}
+                        >
+                          <img
+                            src={imageUrl}
+                            alt={`${p.sourceTitle} görsel ${imageIndex + 1}`}
+                            className="h-12 w-12 rounded-md object-cover"
+                            loading="lazy"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
                     <span>
