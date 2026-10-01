@@ -207,11 +207,12 @@ export class TrackingService {
               isNotNull(trackedProducts.shopifyProductGid),
             ),
           );
-    const products = await db
-      .select()
-      .from(trackedProducts)
-      .where(visibility)
-      .orderBy(desc(trackedProducts.updatedAt));
+    const productsQuery = db.select().from(trackedProducts);
+    const products = visibility
+      ? await productsQuery
+          .where(visibility)
+          .orderBy(desc(trackedProducts.updatedAt))
+      : await productsQuery.orderBy(desc(trackedProducts.updatedAt));
 
     const imagesMap = await this.getLatestImagesMap(products.map((p) => p.id));
     const ids = products.map((p) => p.id);
