@@ -2,10 +2,11 @@ import { and, eq, inArray, or } from "drizzle-orm";
 import { db } from "../../db";
 import { trackedProducts } from "@shared/schema";
 import { generateTrackingUid } from "../tracking-uid.service";
+import { normalizeSourceUrl } from "@shared/web-hooks-sites";
 import type { CatalogPoolProduct } from "./pool-map";
 
 export function canonicalTrackingSourceUrl(raw: string): string {
-  const value = String(raw || "").trim();
+  const value = normalizeSourceUrl(String(raw || "").trim());
   if (!value) return "";
   try {
     const u = new URL(value);
@@ -15,6 +16,11 @@ export function canonicalTrackingSourceUrl(raw: string): string {
       u.pathname = u.pathname.replace(/\/yorumlar\/?$/i, "").replace(/\/+$/, "");
       u.hostname = "www.trendyol.com";
       u.protocol = "https:";
+    }
+    if (/(^|\.)happy\.com\.tr$/i.test(u.hostname)) {
+      u.hostname = "www.happy.com.tr";
+      u.protocol = "https:";
+      u.pathname = u.pathname.replace(/\/+$/, "");
     }
     return u.toString().replace(/\/$/, "");
   } catch {
