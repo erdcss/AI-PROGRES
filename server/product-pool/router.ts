@@ -339,6 +339,69 @@ router.post("/scrape", async (req, res) => {
   }
 });
 
+router.post("/track", async (req, res) => {
+  try {
+    const product = req.body?.product as Record<string, unknown> | undefined;
+    const sourceUrl = String(product?.sourceUrl || "").trim();
+    const title = String(product?.title || "").trim();
+    const price = Number(product?.salePrice ?? product?.price);
+
+    if (!sourceUrl || !title || !Number.isFinite(price) || price <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "sourceUrl, title ve geçerli salePrice zorunlu",
+      });
+    }
+
+    const { getTrackingSettings, updateTrackingSettings } = await import(
+      "../services/tracking-settings.service"
+    );
+    const settings = await getTrackingSettings().catch(() => null);
+    if (settings && (!settings.trackingEnabled || !settings.schedulerEnabled)) {
+      await updateTrackingSettings({
+        trackingEnabled: true,
+        schedulerEnabled: true,
+      });
+    }
+
+    const { trackingService } = await import("../services/tracking.service");
+    const variants = Array.isArray(product?.variants)
+      ? (product!.variants as Array<Record<string, unknown>>).map((variant) => ({
+          color: variant.option1 ? String(variant.option1) : undefined,
+          size: variant.option2 ? String(variant.option2) : undefined,
+          sku: variant.sku ? String(variant.sku) : undefined,
+          price:
+            variant.price != null && Number.isFinite(Number(variant.price))
+              ? Number(variant.price)
+              : undefined,
+          inStock: variant.inStock !== false,
+        }))
+      : [];
+
+    const tracked = await trackingService.registerFromShopifyUpload({
+      sourceUrl,
+      title,
+      price,
+      shopifyProductId: null,
+      variants,
+      registeredFrom: "product_pool",
+    });
+
+    return res.json({
+      success: true,
+      trackedProductId: tracked.id,
+      trackingEnabled: tracked.trackingEnabled !== false,
+      status: tracked.currentStatus || "active",
+      sourceUrl: tracked.sourceUrl,
+      sourceSite: tracked.sourceSite,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[ProductPool] tracking register failed:", message);
+    return res.status(500).json({ success: false, error: message });
+  }
+});
+
 router.post("/shopify-upload", async (req, res) => {
   try {
     const product = req.body?.product;
