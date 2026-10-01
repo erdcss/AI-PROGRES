@@ -6,6 +6,7 @@ import type {
   ProductPoolVariant,
   ProductPoolVariantOption,
 } from "./types";
+import { normalizeSourceUrl } from "@shared/web-hooks-sites";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
@@ -2050,7 +2051,8 @@ function assertStrictPoolProduct(product: ProductPoolProduct, host: string): voi
 }
 
 export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProduct> {
-  const trimmed = String(url || "").trim();
+  const raw = String(url || "").trim();
+  const trimmed = normalizeSourceUrl(raw);
   if (!/^https?:\/\//i.test(trimmed)) {
     throw new Error("Geçerli bir http(s) URL girin");
   }
