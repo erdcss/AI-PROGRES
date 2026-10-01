@@ -693,12 +693,72 @@ async function fetchProtectedMarketplaceHtml(
   throw new Error(failMessage);
 }
 
-/** n11: önce crawler UA; canlı CF engelinde Browser Worker → yerel stealth Chromium */
+/** n11: affiliate/satıcı URL'si → temiz ürün URL'si; direct → Browser Worker → stealth */
 async function fetchN11Html(url: string): Promise<string> {
-  return fetchProtectedMarketplaceHtml(
-    url,
-    "n11",
-    "n11 sayfası alınamadı (Cloudflare). Canlıda BROWSER_WORKER_URL yapılandırın veya daha sonra tekrar deneyin.",
+  const parsed = new URL(url);
+  const baseUrl = `${parsed.origin}${parsed.pathname}`;
+  const candidates = [...new Set([url, baseUrl])];
+
+  // 1) Hızlı HTTP/crawler: satıcı seçimini önce koru, sonra ana ürün URL'sine düş.
+  for (const candidate of candidates) {
+    try {
+      const html = await fetchHtml(candidate, { crawlerFallback: true });
+      if (isUsableProductHtml(html)) {
+        console.log("[ProductPool/n11] direct HTML ok", {
+          mode: candidate === url ? "selected" : "base",
+          bytes: html.length,
+        });
+        return html;
+      }
+    } catch (err) {
+      console.warn(
+        "[ProductPool/n11] direct candidate failed:",
+        candidate === url ? "selected" : "base",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  // 2) Browser Worker: n11 bazı query'li satıcı URL'lerinde boş shell döndürebiliyor.
+  try {
+    const {
+      fetchHtmlWithBrowserWorker,
+      isBrowserWorkerConfigured,
+    } = await import("../services/browser-worker-client.service");
+    if (isBrowserWorkerConfigured()) {
+      for (const candidate of candidates) {
+        const bw = await fetchHtmlWithBrowserWorker(candidate);
+        if (bw.success && bw.html && isUsableProductHtml(bw.html)) {
+          console.log("[ProductPool/n11] Browser Worker HTML ok", {
+            mode: candidate === url ? "selected" : "base",
+            bytes: bw.html.length,
+          });
+          return bw.html;
+        }
+        console.warn(
+          "[ProductPool/n11] Browser Worker candidate failed:",
+          candidate === url ? "selected" : "base",
+          bw.error || bw.errorCategory || "empty",
+        );
+      }
+    }
+  } catch (err) {
+    console.warn(
+      "[ProductPool/n11] Browser Worker error:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  // 3) Son çare: ana ürün URL'sini stealth Chromium ile aç. Aynı ürünü iki kez
+  // 60-120 sn bekletmemek için yalnız base URL denenir.
+  const stealthHtml = await fetchHtmlWithStealthBrowser(baseUrl);
+  if (stealthHtml && isUsableProductHtml(stealthHtml)) {
+    console.log(`[ProductPool/n11] Stealth Chromium HTML ok (${stealthHtml.length} bytes)`);
+    return stealthHtml;
+  }
+
+  throw new Error(
+    "n11 ürün sayfası alınamadı. Satıcı/affiliate URL ve temiz ürün URL'si ayrı ayrı denendi.",
   );
 }
 
@@ -962,6 +1022,39 @@ async function scrapeN11(html: string, sourceUrl: string): Promise<ProductPoolPr
     }
   });
 
+  // n11'in window.model içindeki SKU verisi DOM değişse bile ürün fiyatı/stok için
+  // daha kararlı bir kaynaktır. JSON-LD fiyatı yoksa veya satıcı sayfası eksikse bunu kullan.
+  const n11Model = parseN11WindowModel(html);
+  if (n11Model) {
+    const modelSkus = parseEmbeddedJsonField<N11Sku[]>(n11Model.skus) || [];
+    const skuPrices = modelSkus
+      .map((sku) =>
+        typeof sku.displayPriceNumber === "number" && sku.displayPriceNumber > 0
+          ? sku.displayPriceNumber
+          : parseTrPrice(String(sku.price || "")),
+      )
+      .filter((value): value is number => Boolean(value && value > 0 && value < 1_000_000));
+
+    if (!salePrice && skuPrices.length) {
+      salePrice = Math.min(...skuPrices);
+    }
+
+    if (modelSkus.length) {
+      inStock = modelSkus.some(
+        (sku) =>
+          sku.outOfStock !== true &&
+          (Number(sku.currentStock ?? sku.stock ?? 1) > 0),
+      );
+    }
+
+    if (!sku) {
+      const selectedSku = modelSkus.find(
+        (item) => item.gtin || item.id,
+      );
+      if (selectedSku) sku = selectedSku.gtin || (selectedSku.id ? String(selectedSku.id) : "");
+    }
+  }
+
   // Embedded JSON prices: "17.299 TL", "17399.00", "19.351,50 TL"
   const priceCandidates: number[] = [];
   const listCandidates: number[] = [];
@@ -982,9 +1075,8 @@ async function scrapeN11(html: string, sourceUrl: string): Promise<ProductPoolPr
   const salePool = sanePrices(priceCandidates);
   const listPool = sanePrices(listCandidates);
   // Satıcı JSON fiyatları AggregateOffer.lowPrice'tan daha spesifik (magaza=...)
-  if (salePool.length) {
-    const minSale = Math.min(...salePool);
-    if (!salePrice || minSale <= salePrice) salePrice = minSale;
+  if (salePool.length && !salePrice) {
+    salePrice = Math.min(...salePool);
   }
   if (listPool.length) {
     listPrice = Math.max(...listPool);
