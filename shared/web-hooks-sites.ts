@@ -274,6 +274,29 @@ export function normalizeSourceUrl(raw: string): string {
     } else if (host === "markafarma.com" || host.endsWith(".markafarma.com")) {
       u.hostname = "www.markafarma.com";
       u.protocol = "https:";
+    } else if (host === "amazon.com.tr" || host.endsWith(".amazon.com.tr")) {
+      const asin =
+        u.pathname.match(/\/(?:dp|gp\/product|product)\/([A-Z0-9]{10})/i)?.[1]?.toUpperCase() ||
+        u.searchParams.get("asin")?.toUpperCase() ||
+        "";
+      if (asin) {
+        u.protocol = "https:";
+        u.hostname = "www.amazon.com.tr";
+        u.pathname = `/dp/${asin}`;
+        u.search = "";
+        u.searchParams.set("language", "tr_TR");
+      } else {
+        [
+          "tag",
+          "linkCode",
+          "camp",
+          "creative",
+          "creativeASIN",
+          "ascsubtag",
+          "psc",
+          "th",
+        ].forEach((k) => u.searchParams.delete(k));
+      }
     }
 
     return u.toString().replace(/\/$/, "");
