@@ -988,6 +988,7 @@ export default function UrunHavuzuPage() {
       setActiveIndex(0);
       setImageIndex(0);
       const scraped: PoolProduct[] = [];
+      const scrapeErrors: Array<{ url: string; error: string }> = [];
 
       try {
         for (let i = 0; i < urls.length; i++) {
@@ -1000,9 +1001,11 @@ export default function UrunHavuzuPage() {
           });
           const data = await res.json();
           if (!res.ok || !data.success) {
+            const errorText = String(data.error || "başarısız");
+            scrapeErrors.push({ url, error: errorText });
             toast({
               title: "Çekim atlandı",
-              description: `${url}: ${data.error || "başarısız"}`,
+              description: `${url}: ${errorText}`,
               variant: "destructive",
             });
             continue;
@@ -1011,7 +1014,8 @@ export default function UrunHavuzuPage() {
         }
 
         if (!scraped.length) {
-          throw new Error("Hiçbir URL çekilemedi");
+          const firstError = scrapeErrors[0]?.error;
+          throw new Error(firstError ? `Ürün çekilemedi: ${firstError}` : "Hiçbir URL çekilemedi");
         }
 
         setProducts((prev) => {
