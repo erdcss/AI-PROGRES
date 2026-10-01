@@ -11,6 +11,7 @@ import {
   Link2,
   ListTodo,
   Plus,
+  Radar,
   Tag,
   Trash2,
   Eraser,
@@ -779,6 +780,7 @@ export default function UrunHavuzuPage() {
   const [loading, setLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [trackingAdding, setTrackingAdding] = useState(false);
   const [marktgoUploading, setMarktgoUploading] = useState(false);
   const [marktgoSteps, setMarktgoSteps] = useState<Array<{ label: string; ok: boolean }>>([]);
   const [bulkUploading, setBulkUploading] = useState(false);
@@ -866,6 +868,9 @@ export default function UrunHavuzuPage() {
   }, []);
 
   const product = products[activeIndex] || null;
+  const isActiveTracked = product
+    ? tracking.some((item) => item.sourceUrl === product.sourceUrl && !item.removed)
+    : false;
   const images = product?.images?.length ? product.images : [];
   const activeImage = images[imageIndex] || images[0];
   const unreadNotifs = useMemo(
@@ -1094,6 +1099,35 @@ export default function UrunHavuzuPage() {
     });
   };
 
+  const addActiveTracking = async () => {
+    if (!product || trackingAdding) return;
+    setTrackingAdding(true);
+    try {
+      const res = await fetch("/api/product-pool/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Aktif takip başlatılamadı");
+      }
+
+      trackFromProduct(product);
+      toast({
+        title: "Aktif takip başladı",
+        description: `${product.title} · ${product.siteName} · Ürün Takip\'e eklendi`,
+      });
+    } catch (err) {
+      toast({
+        title: "Takip başlatılamadı",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setTrackingAdding(false);
+    }
+  };
   const runTrackingPoll = useCallback(async () => {
     if (pollBusyRef.current) return;
     const items = trackingRef.current.filter((t) => !t.removed);
@@ -1937,6 +1971,27 @@ export default function UrunHavuzuPage() {
                   </div>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={addActiveTracking}
+                  disabled={trackingAdding || isActiveTracked}
+                  className={`w-full inline-flex items-center justify-center gap-2 rounded-full border px-5 py-3 text-sm font-semibold transition-colors ${
+                    isActiveTracked
+                      ? "border-emerald-700/70 bg-emerald-950/40 text-emerald-300 cursor-default"
+                      : "border-sky-700 bg-sky-950/30 text-sky-300 hover:bg-sky-900/40 hover:border-sky-500"
+                  } disabled:opacity-70`}
+                >
+                  {trackingAdding ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Radar className="w-4 h-4" />
+                  )}
+                  {trackingAdding
+                    ? "Takip başlatılıyor..."
+                    : isActiveTracked
+                      ? "Aktif Takipte"
+                      : "Aktif Takibe Al"}
+                </button>
                 <ShopifySendButton
                   loading={uploading || marktgoUploading}
                   disabled={
