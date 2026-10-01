@@ -236,17 +236,58 @@ export class TrackingService {
             .select({
               sourceUrl: shopifyTransferredProducts.sourceUrl,
               transferredAt: shopifyTransferredProducts.transferredAt,
+              sourceData: shopifyTransferredProducts.sourceData,
             })
             .from(shopifyTransferredProducts)
             .where(inArray(shopifyTransferredProducts.sourceUrl, sourceUrls))
         : [];
-    const transferByUrl = new Map(transfers.map((row) => [row.sourceUrl, row.transferredAt]));
+    const transferByUrl = new Map(transfers.map((row) => [row.sourceUrl, row]));
+
+    const legacyImageRows =
+      sourceUrls.length > 0
+        ? await db
+            .select({
+              sourceUrl: products.sourceUrl,
+              trendyolUrl: products.trendyolUrl,
+              images: products.images,
+            })
+            .from(products)
+            .where(
+              or(
+                inArray(products.sourceUrl, sourceUrls),
+                inArray(products.trendyolUrl, sourceUrls),
+              ),
+            )
+        : [];
+    const legacyImagesByUrl = new Map<string, string[]>();
+    for (const row of legacyImageRows) {
+      const urls = pickImageUrls(row.images);
+      if (!urls.length) continue;
+      if (row.sourceUrl) legacyImagesByUrl.set(row.sourceUrl, urls);
+      if (row.trendyolUrl) legacyImagesByUrl.set(row.trendyolUrl, urls);
+    }
 
     return products.map((p) => {
       const fallback = variantPriceById.get(p.id);
       const current = Number(p.currentSourcePrice);
       const hasPrice = Number.isFinite(current) && current > 0;
-      const productImageUrls = imagesMap.get(p.id) ?? [];
+      let productImageUrls = imagesMap.get(p.id) ?? [];
+      if (productImageUrls.length === 0) {
+        productImageUrls = legacyImagesByUrl.get(p.sourceUrl) ?? [];
+      }
+      if (productImageUrls.length === 0) {
+        const transferSource = transferByUrl.get(p.sourceUrl)?.sourceData as
+          | Record<string, unknown>
+          | null
+          | undefined;
+        productImageUrls = pickImageUrls(
+          transferSource?.images ||
+            transferSource?.imageUrls ||
+            transferSource?.productImages ||
+            [],
+        );
+      }
+
       const matchedSite = matchWebHookSite(p.sourceUrl);
       let sourceHost = "";
       try {
@@ -266,7 +307,7 @@ export class TrackingService {
         productImageUrls,
         sourceSiteName,
         sourceLogoUrl,
-        shopifyTransferredAt: transferByUrl.get(p.sourceUrl) ?? null,
+        shopifyTransferredAt: transferByUrl.get(p.sourceUrl)?.transferredAt ?? null,
       };
     });
   }
