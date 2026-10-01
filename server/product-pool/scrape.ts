@@ -1329,6 +1329,203 @@ function scrapeTrendyolPool(html: string, sourceUrl: string): ProductPoolProduct
   };
 }
 
+function scrapeMarkafarma(html: string, sourceUrl: string): ProductPoolProduct {
+  const $ = cheerio.load(html);
+  const origin = new URL(sourceUrl).origin;
+
+  let title = "";
+  let brand = "";
+  let sku = "";
+  let salePrice = 0;
+  let listPrice = 0;
+  let currency = "TRY";
+  let inStock = true;
+  let reviewCount: number | null = null;
+  const images: string[] = [];
+  const features: ProductPoolFeature[] = [];
+
+  const pushFeature = (name: unknown, value: unknown) => {
+    const n = cleanText(String(name || "")).replace(/:$/, "");
+    const v = cleanText(String(value || ""));
+    if (!n || !v || n.length > 100 || v.length > 500) return;
+    if (features.some((f) => f.name.toLowerCase() === n.toLowerCase() && f.value === v)) return;
+    features.push({ name: n, value: v });
+  };
+
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (title && salePrice > 0 && images.length > 0) return;
+    try {
+      const raw = JSON.parse($(el).html() || "");
+      const nodes = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.["@graph"])
+          ? raw["@graph"]
+          : [raw];
+
+      for (const node of nodes) {
+        const type = node?.["@type"];
+        const isProduct =
+          type === "Product" || (Array.isArray(type) && type.includes("Product"));
+        if (!isProduct) continue;
+
+        title ||= cleanText(String(node.name || ""));
+        sku ||= cleanText(String(node.sku || node.mpn || ""));
+
+        const brandRaw = node.brand;
+        if (!brand) {
+          brand =
+            typeof brandRaw === "string"
+              ? cleanText(brandRaw)
+              : brandRaw && typeof brandRaw === "object"
+                ? cleanText(String(brandRaw.name || ""))
+                : "";
+        }
+
+        const rawImages = node.image ?? node.images ?? [];
+        for (const img of (Array.isArray(rawImages) ? rawImages : [rawImages])) {
+          const value =
+            typeof img === "string"
+              ? img
+              : img && typeof img === "object"
+                ? String(img.url || img.contentUrl || "")
+                : "";
+          if (!value) continue;
+          const absolute = absoluteUrl(origin, value);
+          if (/^https?:\/\//i.test(absolute) && !isLikelySiteBrandingImage(absolute)) {
+            images.push(absolute.split("?")[0]);
+          }
+        }
+
+        for (const prop of Array.isArray(node.additionalProperty) ? node.additionalProperty : []) {
+          pushFeature(prop?.name, prop?.value);
+        }
+
+        const offerRoot = node.offers;
+        const offerList = Array.isArray(offerRoot)
+          ? offerRoot
+          : offerRoot && typeof offerRoot === "object" && Array.isArray(offerRoot.offers)
+            ? offerRoot.offers
+            : offerRoot
+              ? [offerRoot]
+              : [];
+
+        for (const offer of offerList) {
+          if (!offer || typeof offer !== "object") continue;
+          const current =
+            parseStructuredMarketplacePrice(offer.price) ||
+            parseStructuredMarketplacePrice(offer.lowPrice);
+          const compare =
+            parseStructuredMarketplacePrice(offer.highPrice) ||
+            parseStructuredMarketplacePrice(offer.listPrice);
+
+          if (current && current > 0 && (!salePrice || current < salePrice)) {
+            salePrice = current;
+          }
+          if (compare && compare > listPrice) listPrice = compare;
+          if (typeof offer.priceCurrency === "string" && offer.priceCurrency) {
+            currency = offer.priceCurrency;
+          }
+          const availability = String(offer.availability || "");
+          if (/OutOfStock|SoldOut|Discontinued/i.test(availability)) inStock = false;
+        }
+
+        const aggregate = node.aggregateRating;
+        const count = Number(aggregate?.reviewCount ?? aggregate?.ratingCount ?? 0);
+        if (Number.isFinite(count) && count > 0) reviewCount = count;
+      }
+    } catch {
+      /* next JSON-LD block */
+    }
+  });
+
+  if (!title) {
+    title =
+      cleanText($('meta[property="og:title"]').attr("content") || "") ||
+      cleanText($("h1").first().text()) ||
+      cleanText($("title").text());
+  }
+  title = title.replace(/\s*[|\-–—]\s*Markafarma.*$/i, "").trim();
+
+  if (!brand) {
+    brand =
+      cleanText($('meta[property="product:brand"]').attr("content") || "") ||
+      cleanText($('[itemprop="brand"]').first().text()) ||
+      cleanText($('[class*="brand"]').first().text());
+  }
+
+  if (!salePrice) {
+    const priceCandidates = [
+      $('meta[property="product:price:amount"]').attr("content"),
+      $('meta[itemprop="price"]').attr("content"),
+      $('[itemprop="price"]').attr("content"),
+      $('[data-price]').first().attr("data-price"),
+    ];
+    for (const candidate of priceCandidates) {
+      const parsed = parseStructuredMarketplacePrice(candidate);
+      if (parsed && parsed > 0) {
+        salePrice = parsed;
+        break;
+      }
+    }
+  }
+
+  const bodyText = cleanText($("body").text());
+
+  if (!salePrice) {
+    const stockPriceMatch =
+      bodyText.match(/Stokta\s+var[\s\S]{0,120}?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:[.,]\d{1,2})?)\s*(?:₺|TL)/i) ||
+      bodyText.match(/(?:^|\s)(\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:[.,]\d{1,2})?)\s*(?:₺|TL)[\s\S]{0,80}?SEPETE\s+EKLE/i);
+    const parsed = parseTrPrice(stockPriceMatch?.[1] || "");
+    if (parsed && parsed > 0) salePrice = parsed;
+  }
+
+  if (!sku) {
+    const barcodeMatch = bodyText.match(/Barkod\s*:?[\s]*(\d{8,14})/i);
+    if (barcodeMatch?.[1]) sku = barcodeMatch[1];
+  }
+
+  if (/Stokta\s+yok|Tükendi|Stokta\s+bulunmuyor/i.test(bodyText)) {
+    inStock = false;
+  } else if (/Stokta\s+var|SEPETE\s+EKLE/i.test(bodyText)) {
+    inStock = true;
+  }
+
+  if (!images.length) {
+    const ogImage = $('meta[property="og:image"]').attr("content");
+    if (ogImage) {
+      const absolute = absoluteUrl(origin, ogImage);
+      if (!isLikelySiteBrandingImage(absolute)) images.push(absolute.split("?")[0]);
+    }
+  }
+
+  for (const feature of extractFeatures($)) {
+    pushFeature(feature.name, feature.value);
+  }
+  if (brand && !features.some((f) => /marka/i.test(f.name))) pushFeature("Marka", brand);
+  if (sku && !features.some((f) => /barkod|sku|ürün kodu/i.test(f.name))) pushFeature("Barkod", sku);
+
+  const compareAtPrice = listPrice > salePrice ? listPrice : null;
+
+  return {
+    title,
+    sourceUrl,
+    siteName: "Markafarma",
+    siteLogoUrl: "https://www.markafarma.com/favicon.ico",
+    brand: brand || undefined,
+    sku: sku || undefined,
+    currency,
+    price: compareAtPrice || salePrice,
+    compareAtPrice,
+    discountPercent: discountPercent(salePrice, compareAtPrice),
+    salePrice,
+    images: [...new Set(images)].slice(0, 12),
+    features: features.slice(0, 24),
+    reviewCount,
+    inStock,
+    scrapedAt: new Date().toISOString(),
+  };
+}
+
 function parseHappyPrice(raw: unknown): number | null {
   const cleaned = String(raw ?? "")
     .replace(/[^\d.,]/g, "")
@@ -2108,7 +2305,7 @@ function assertStrictPoolProduct(product: ProductPoolProduct, host: string): voi
       title,
     ) ||
     new RegExp(`^${host.replace(/\./g, "\\.")}`, "i").test(title) ||
-    /^(hepegitim|idefix|pazarama|beymen|happy(?:\s*center)?|n11|ptt\s*avm|amazon|trendyol)(\.com)?$/i.test(
+    /^(hepegitim|idefix|pazarama|beymen|markafarma|happy(?:\s*center)?|n11|ptt\s*avm|amazon|trendyol)(\.com)?$/i.test(
       title,
     );
   if (homepageLike) {
@@ -2174,6 +2371,14 @@ export async function scrapeProductPoolUrl(url: string): Promise<ProductPoolProd
     );
     pageHtml = html;
     product = scrapeIdefix(html, trimmed);
+  } else if (host.includes("markafarma.com")) {
+    const html = await fetchProtectedMarketplaceHtml(
+      trimmed,
+      "markafarma",
+      "Markafarma ürün sayfası alınamadı",
+    );
+    pageHtml = html;
+    product = scrapeMarkafarma(html, trimmed);
   } else if (host.includes("happy.com.tr")) {
     const html = await fetchProtectedMarketplaceHtml(
       trimmed,
