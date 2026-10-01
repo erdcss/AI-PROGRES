@@ -79,6 +79,9 @@ async function ensureSuccessfulMarktGoPoolTracking(
         price: variant.price ?? undefined,
         inStock: Number(variant.stock) > 0,
       })),
+      images: Array.isArray(product.images)
+        ? product.images.map(String).filter((url) => /^https?:\/\//i.test(url)).slice(0, 12)
+        : [],
     });
 
     if (tracked?.id && syncResult.mappingId) {
@@ -384,6 +387,9 @@ router.post("/track", async (req, res) => {
       price,
       shopifyProductId: null,
       variants,
+      images: Array.isArray(product?.images)
+        ? (product!.images as unknown[]).map(String).filter((url) => /^https?:\/\//i.test(url)).slice(0, 12)
+        : [],
       registeredFrom: "product_pool",
     });
 
