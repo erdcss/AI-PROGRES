@@ -1171,8 +1171,45 @@ async function gotoAndRead(
   url: string,
   timeoutMs: number,
 ): Promise<{ html: string; finalUrl: string; status: number; diagnostics: SafePageDiagnostics }> {
-  const response = await gotoTrendyolPage(page, url, timeoutMs);
-  await page.waitForTimeout(1200);
+  const parsed = new URL(url);
+  const isTrendyol = /(^|\\.)trendyol\\.com$/i.test(parsed.hostname);
+
+  const response = isTrendyol
+    ? await gotoTrendyolPage(page, url, timeoutMs)
+    : await page.goto(url, {
+        waitUntil: "domcontentloaded",
+        timeout: timeoutMs,
+      });
+
+  if (!isTrendyol) {
+    // Generic marketplace pages (özellikle Happy) ürün verisini JS ile sonradan
+    // hydrate ediyor. İlk DOM'u hemen almak 20-30 KB'lık boş shell döndürüyor.
+    await page
+      .waitForLoadState("networkidle", { timeout: Math.min(7_000, timeoutMs) })
+      .catch(() => undefined);
+
+    await page
+      .waitForFunction(
+        () => {
+          const text = document.body?.innerText || "";
+          const hasProductJson = Array.from(
+            document.querySelectorAll('script[type="application/ld+json"]'),
+          ).some((node) => /"@type"\\s*:\\s*"Product"/i.test(node.textContent || ""));
+          const hasProductUi = Boolean(document.querySelector("h1")) &&
+            /(?:₺|\\bTL\\b|Sepete Ekle|Ürün Kodu|Stokta)/i.test(text);
+          return hasProductJson || hasProductUi;
+        },
+        undefined,
+        { timeout: Math.min(10_000, timeoutMs) },
+      )
+      .catch(() => undefined);
+
+    // React state/metalar son paint'te yazılabiliyor.
+    await page.waitForTimeout(900);
+  } else {
+    await page.waitForTimeout(1200);
+  }
+
   const html = await page.content();
   const diagnostics = await collectSafePageSignals(page, response, html);
   return {
