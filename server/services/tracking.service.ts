@@ -208,14 +208,18 @@ export class TrackingService {
             ),
           );
     const productsQuery = db.select().from(trackedProducts);
-    const products = visibility
+    // IMPORTANT: Do not name this local result `products`.
+    // `products` is also the imported legacy products table used below.
+    // Shadowing that table makes Drizzle receive an array/undefined column and
+    // throws "Cannot convert undefined or null to object".
+    const trackedRows = visibility
       ? await productsQuery
           .where(visibility)
           .orderBy(desc(trackedProducts.updatedAt))
       : await productsQuery.orderBy(desc(trackedProducts.updatedAt));
 
-    const imagesMap = await this.getLatestImagesMap(products.map((p) => p.id));
-    const ids = products.map((p) => p.id);
+    const imagesMap = await this.getLatestImagesMap(trackedRows.map((p) => p.id));
+    const ids = trackedRows.map((p) => p.id);
     const variantPriceRows =
       ids.length > 0
         ? await db
@@ -230,7 +234,7 @@ export class TrackingService {
     const variantPriceById = new Map(
       variantPriceRows.map((row) => [row.trackedProductId, row.minPrice]),
     );
-    const sourceUrls = [...new Set(products.map((p) => p.sourceUrl).filter(Boolean))];
+    const sourceUrls = [...new Set(trackedRows.map((p) => p.sourceUrl).filter(Boolean))];
     const transfers =
       sourceUrls.length > 0
         ? await db
@@ -268,7 +272,7 @@ export class TrackingService {
       if (row.trendyolUrl) legacyImagesByUrl.set(row.trendyolUrl, urls);
     }
 
-    return products.map((p) => {
+    return trackedRows.map((p) => {
       const fallback = variantPriceById.get(p.id);
       const current = Number(p.currentSourcePrice);
       const hasPrice = Number.isFinite(current) && current > 0;
