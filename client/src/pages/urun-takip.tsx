@@ -18,6 +18,8 @@ import {
   GitCompare,
   Settings,
   Clock,
+  Search,
+  X,
 } from "lucide-react";
 import {
   TrackingChangeGroupCard,
@@ -317,6 +319,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const [statusFilter, setStatusFilter] = useState<string>("actionable");
   const [kindFilter, setKindFilter] = useState<ChangeKindFilter | null>(null);
   const [authenticityFilter, setAuthenticityFilter] = useState<AuthenticityFilter>("all");
+  const [productSearch, setProductSearch] = useState("");
   const [settingsForm, setSettingsForm] = useState<Partial<TrackingSettings>>({});
 
   const refreshTrackingQueries = () => {
@@ -416,6 +419,31 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     },
     refetchInterval: 15_000,
   });
+
+  const filteredProducts = useMemo(() => {
+    const products = productsQuery.data ?? [];
+    const query = productSearch.trim().toLocaleLowerCase("tr-TR");
+    if (!query) return products;
+
+    return products.filter((product) => {
+      const searchable = [
+        product.sourceTitle,
+        product.sourceSite,
+        product.sourceSiteName,
+        product.sourceUrl,
+        product.trackingUid,
+        product.shopifyProductId,
+        product.currentStatus,
+        product.currentSourcePrice,
+        String(product.id),
+      ]
+        .filter((value) => value != null && value !== "")
+        .join(" ")
+        .toLocaleLowerCase("tr-TR");
+
+      return searchable.includes(query);
+    });
+  }, [productsQuery.data, productSearch]);
 
   const saveSettingsMutation = useMutation({
     mutationFn: async (patch: Partial<TrackingSettings>) => {
@@ -817,19 +845,51 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         </TabsList>
 
         <TabsContent value="products" className="mt-4 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-muted-foreground">
-              Toplam <span className="font-semibold text-foreground">{productsQuery.data?.length ?? 0}</span> ürün listeleniyor
+          <div className="space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+              <div className="text-sm text-muted-foreground">
+                {productSearch.trim() ? (
+                  <>
+                    <span className="font-semibold text-foreground">{filteredProducts.length}</span> sonuç bulundu
+                    <span className="mx-1.5">·</span>
+                    Toplam {productsQuery.data?.length ?? 0} ürün
+                  </>
+                ) : (
+                  <>
+                    Toplam <span className="font-semibold text-foreground">{productsQuery.data?.length ?? 0}</span> ürün listeleniyor
+                  </>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => productsQuery.refetch()}
+                disabled={productsQuery.isFetching}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${productsQuery.isFetching ? "animate-spin" : ""}`} />
+                Listeyi yenile
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => productsQuery.refetch()}
-              disabled={productsQuery.isFetching}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${productsQuery.isFetching ? "animate-spin" : ""}`} />
-              Listeyi yenile
-            </Button>
+
+            <div className="relative max-w-2xl">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Ürün adı, kaynak site, URL, takip ID veya durum ara..."
+                className="h-11 pl-10 pr-10"
+              />
+              {productSearch && (
+                <button
+                  type="button"
+                  onClick={() => setProductSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Aramayı temizle"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {productsQuery.isLoading && <p className="text-muted-foreground text-center py-8">Yükleniyor...</p>}
@@ -849,8 +909,23 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             </Card>
           )}
 
+          {!productsQuery.isLoading &&
+            !productsQuery.error &&
+            (productsQuery.data?.length ?? 0) > 0 &&
+            filteredProducts.length === 0 && (
+              <Card>
+                <CardContent className="py-10 text-center text-muted-foreground">
+                  <Search className="w-9 h-9 mx-auto mb-3 opacity-40" />
+                  <p>Aramanızla eşleşen takip ürünü bulunamadı.</p>
+                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => setProductSearch("")}>
+                    Aramayı temizle
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
           <div className="grid gap-3">
-            {productsQuery.data?.map((p) => (
+            {filteredProducts.map((p) => (
               <article
                 key={p.id}
                 className="rounded-xl border border-border/60 bg-card/50 p-4 flex gap-4"
