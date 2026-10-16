@@ -19,6 +19,22 @@ import {
   isMissingColumnError,
 } from "../migrations/run-product-tracking-migration";
 
+type TrackingSchedulerState = {
+  lastRunId: string | null;
+  lastRunStatus: "idle" | "success" | "skipped" | "error";
+  lastRunAt: Date | null;
+  nextRunAt: Date | null;
+};
+
+// This must be initialized before bootstrap and any scheduled/manual run.
+// Without it, startup throws ReferenceError and tracking never starts.
+const schedulerState: TrackingSchedulerState = {
+  lastRunId: null,
+  lastRunStatus: "idle",
+  lastRunAt: null,
+  nextRunAt: null,
+};
+
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 const checkingProducts = new Set<number>();
 export function releaseStaleCheckLocks(): void {
@@ -395,6 +411,7 @@ export function stopTrackingScheduler(): void {
     clearInterval(intervalHandle);
     intervalHandle = null;
   }
+  schedulerState.nextRunAt = null;
 }
 
 export function isTrackingSchedulerRunning(): boolean {
