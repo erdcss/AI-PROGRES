@@ -286,6 +286,49 @@ export async function deleteProductMapping(id: number) {
 }
 
 /**
+ * Only a destination-scoped id (or a legacy marktgo_managed id) can identify
+ * a MARKT-GO product directly. URL aliases are limited to an exact source URL
+ * and well-formed Trendyol product identifiers.
+ */
+export function getTrackingMarktGoIdentity(tracked: {
+  sourceUrl: string;
+  sourceSite: string;
+  sourceProductId: string | null;
+  shopifyProductId: string | null;
+  shopifySyncStatus: string | null;
+}): { externalProductId: string; localProductIds: string[] } {
+  const storedId = String(tracked.shopifyProductId || "").trim();
+  const externalProductId = storedId.startsWith("marktgo:")
+    ? storedId.slice("marktgo:".length).trim()
+    : tracked.shopifySyncStatus === "marktgo_managed"
+      ? storedId
+      : "";
+
+  const aliases = new Set<string>();
+  const sourceUrl = String(tracked.sourceUrl || "").trim();
+  if (sourceUrl) aliases.add(sourceUrl);
+
+  let trendyolSource = tracked.sourceSite === "trendyol";
+  try {
+    trendyolSource = new URL(sourceUrl).hostname.toLowerCase().match(/(^|\.)trendyol\.com$/i) !== null;
+  } catch {
+    // Non-URL legacy records may still have a trusted sourceSite.
+  }
+  if (trendyolSource) {
+    const sourceId =
+      String(tracked.sourceProductId || "").trim() ||
+      sourceUrl.match(/-p-(\d{5,})(?:[/?#&]|$)/i)?.[1] ||
+      "";
+    if (/^\d{5,}$/.test(sourceId)) {
+      aliases.add(`trendyol_${sourceId}`);
+      aliases.add(`trendyol-${sourceId}`);
+    }
+  }
+
+  return { externalProductId, localProductIds: [...aliases] };
+}
+
+/**
  * A tracked item may be registered successfully after the MARKT-GO mapping
  * was created (especially on the "already_exists" upload path). Resolve the
  * missing link using strong product identifiers; never match by title.
@@ -314,30 +357,7 @@ export async function findMappingForTrackedProduct(trackedProductId: number) {
     return null;
   }
 
-  // "marktgo:<id>" is issued by registerFromDestinationUpload. Legacy catalog
-  // imports stored a raw id, but only the marktgo_managed state proves its origin.
-  const storedId = String(tracked.shopifyProductId || "").trim();
-  const externalProductId = storedId.startsWith("marktgo:")
-    ? storedId.slice("marktgo:".length).trim()
-    : tracked.shopifySyncStatus === "marktgo_managed"
-      ? storedId
-      : "";
-
-  const aliases = new Set<string>();
-  if (tracked.sourceUrl?.trim()) aliases.add(tracked.sourceUrl.trim());
-
-  const trendyolSource =
-    tracked.sourceSite === "trendyol" || /(^|\.)trendyol\.com/i.test(tracked.sourceUrl || "");
-  if (trendyolSource) {
-    const sourceId =
-      String(tracked.sourceProductId || "").trim() ||
-      tracked.sourceUrl.match(/-p-(\d{5,})(?:[/?#&]|$)/i)?.[1] ||
-      "";
-    if (/^\d{5,}$/.test(sourceId)) {
-      aliases.add(`trendyol_${sourceId}`);
-      aliases.add(`trendyol-${sourceId}`);
-    }
-  }
+  const { externalProductId, localProductIds } = getTrackingMarktGoIdentity(tracked);
 
   // An exact remote id takes precedence; never silently fall back to an alias
   // if it points to another remote product.
@@ -353,8 +373,8 @@ export async function findMappingForTrackedProduct(trackedProductId: number) {
         )
     : [];
 
-  if (!candidates.length && aliases.size > 0) {
-    const localIds = [...aliases];
+  if (!candidates.length && localProductIds.length > 0) {
+    const localIds = localProductIds;
     const externalIds = localIds.map(stableExternalId);
     candidates = await db
       .select()
