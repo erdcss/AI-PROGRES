@@ -92,7 +92,8 @@ export async function ensureTrackedProductForMarktGo(product: CatalogPoolProduct
     sourceSite,
     sourceProductId,
     sourceTitle: product.title || "MARKT-GO Ürünü",
-    shopifyProductId: String(product.externalProductId),
+    // Preserve destination provenance; the old unprefixed value was indistinguishable from Shopify IDs.
+    shopifyProductId: `marktgo:${String(product.externalProductId)}`,
     currentSourcePrice: Number.isFinite(price) && price > 0 ? String(price) : null,
     currentSourceStock: stock,
     currentStatus: "active",
