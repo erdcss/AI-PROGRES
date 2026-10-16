@@ -335,6 +335,53 @@ export async function fetchNormalizedMarktGoProduct(externalProductId: string, c
   return normalizeMarktGoProduct(raw);
 }
 
+/**
+ * Existing products can skip creation, but they must not skip linking the
+ * existing MARKT-GO mapping with the product-tracking record.
+ */
+async function linkExistingUploadToTracking(
+  input: LocalProductInput,
+  externalProductId: string,
+  mappingId: number,
+  existingTrackedProductId?: number | null,
+): Promise<void> {
+  if (existingTrackedProductId || !input.sourceUrl) return;
+  const purchasePrice = Number(input.purchasePrice);
+  const sellPrice = Number(input.discountPrice ?? input.price);
+  const sourceCost =
+    Number.isFinite(purchasePrice) && purchasePrice > 0
+      ? money(purchasePrice)
+      : Number.isFinite(sellPrice) && sellPrice > 0
+        ? money(sellPrice / 1.1)
+        : 0;
+  if (sourceCost <= 0) return;
+
+  try {
+    const { trackingService } = await import("../tracking.service");
+    const tracked = await trackingService.registerFromDestinationUpload({
+      sourceUrl: String(input.sourceUrl),
+      title: input.title,
+      price: sourceCost,
+      destinationProductId: externalProductId,
+      images: input.images,
+      variants: (input.variants || []).map((v) => ({
+        color: v.option1,
+        size: v.option2,
+        sku: v.sku,
+        price: v.price ?? undefined,
+        inStock: Number(v.stock) > 0,
+      })),
+    });
+    const { ensureTrackedLink } = await import("./apply-change.service");
+    await ensureTrackedLink(tracked.id, mappingId);
+  } catch (err) {
+    console.warn(
+      "[marktgo] existing product tracking link skipped:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
 export async function syncProductToMarktGo(input: LocalProductInput, connectionId?: number) {
   const { client, connection } = await getMarktGoClientForConnection(connectionId);
   const steps: SyncProgress[] = [];
@@ -414,6 +461,12 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
         lastError: reviewResolution.error || null,
         failedSteps: reviewResolution.error ? ["reviews"] : [],
       });
+      await linkExistingUploadToTracking(
+        input,
+        externalProductId,
+        mapping.id,
+        mapping.trackedProductId,
+      );
       return {
         success: true,
         status: existingStatus,
@@ -484,6 +537,12 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
         lastError: reviewResolution.error || null,
         failedSteps: reviewResolution.error ? ["reviews"] : [],
       });
+      await linkExistingUploadToTracking(
+        input,
+        externalProductId,
+        mapping.id,
+        mapping.trackedProductId,
+      );
       return {
         success: true,
         status: existingStatus,
@@ -724,7 +783,8 @@ export async function syncProductToMarktGo(input: LocalProductInput, connectionI
   const status = failed.length ? "partial_sync" : "synced";
   let trackedProductId = input.trackedProductId ?? null;
 
-  if (input.sourceUrl && status !== "partial_sync") {
+  // A review/variant partial sync does not mean the remote product is missing.
+  if (input.sourceUrl) {
     try {
       const { trackingService } = await import("../tracking.service");
       const liveSell = Number(input.discountPrice ?? input.price);

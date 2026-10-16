@@ -15,7 +15,7 @@ import {
 import { missingRequiredScopes, parseScopeList } from "../services/marktgo/scopes";
 import { normalizeMarktGoHttpError } from "../services/marktgo/errors";
 import { extractId, listItemsFromPayload, normalizeMarktGoProduct } from "../services/marktgo/normalize";
-import { idempotencyKeyForProduct, stableExternalId } from "../services/marktgo/mapping.service";
+import { getTrackingMarktGoIdentity, idempotencyKeyForProduct, stableExternalId } from "../services/marktgo/mapping.service";
 import {
   localIdFromRemote,
   mapPoolProductToMarktGoInput,
@@ -77,6 +77,37 @@ assert(!missingRequiredScopes(parseScopeList([
 ])).length, "all required scopes present");
 assert(!missingRequiredScopes(parseScopeList(["*"])).length, "wildcard * grants all");
 assert(!missingRequiredScopes(parseScopeList("*")).length, "wildcard string * grants all");
+
+const trackedIdentityBase = {
+  sourceUrl: "https://www.trendyol.com/urun/test-p-123456?merchantId=3",
+  sourceSite: "trendyol",
+  sourceProductId: "123456",
+  shopifyProductId: "marktgo:8899",
+  shopifySyncStatus: "marktgo",
+};
+const trackedIdentity = getTrackingMarktGoIdentity(trackedIdentityBase);
+assert(trackedIdentity.externalProductId === "8899", "MARKT-GO-scoped ID resolves remote product");
+assert(trackedIdentity.localProductIds.includes("trendyol_123456"), "Trendyol source ID resolves legacy pool mapping");
+assert(trackedIdentity.localProductIds.includes(trackedIdentityBase.sourceUrl), "exact source URL is an identity candidate");
+
+const legacyMarktGoIdentity = getTrackingMarktGoIdentity({
+  ...trackedIdentityBase,
+  shopifyProductId: "9900",
+  shopifySyncStatus: "marktgo_managed",
+});
+assert(legacyMarktGoIdentity.externalProductId === "9900", "legacy MARKT-GO catalog ID can be recovered");
+assert(getTrackingMarktGoIdentity({
+  ...trackedIdentityBase,
+  shopifyProductId: "9900",
+  shopifySyncStatus: "live",
+}).externalProductId === "", "unscoped Shopify ID is not treated as MARKT-GO");
+
+const spoofedSource = getTrackingMarktGoIdentity({
+  ...trackedIdentityBase,
+  sourceSite: "other",
+  sourceUrl: "https://trendyol.com.evil.example/test-p-123456",
+});
+assert(!spoofedSource.localProductIds.includes("trendyol_123456"), "non-Trendyol host cannot claim Trendyol product alias");
 
 assert(stableExternalId("12991") === "aip_12991", "external ID mapping aip_<id>");
 assert(idempotencyKeyForProduct("12991") === "aip-product-aip_12991", "idempotency key stable");

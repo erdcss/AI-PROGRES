@@ -93,13 +93,10 @@ function changePatch(fields: Partial<InsertDetectedChange>): Partial<InsertDetec
   return fields;
 }
 
-async function hasMarktGoTarget(trackedProductId: number): Promise<boolean> {
-  try {
-    const { trackedProductHasMarktGoMapping } = await import("./marktgo/apply-change.service");
-    return await trackedProductHasMarktGoMapping(trackedProductId);
-  } catch {
-    return false;
-  }
+// Never mistake a connection/database exception for a missing product mapping.
+async function getMarktGoTarget(trackedProductId: number) {
+  const { findMappingForTrackedProduct } = await import("./marktgo/mapping.service");
+  return findMappingForTrackedProduct(trackedProductId);
 }
 
 export async function approveChange(id: number, actor = "user") {
@@ -205,7 +202,7 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
     .limit(1);
 
   const warnings: string[] = [];
-  const marktgoTarget = await hasMarktGoTarget(change.trackedProductId);
+  const marktgoTarget = await getMarktGoTarget(change.trackedProductId);
   let resolvedVariantId = change.trackedVariantId;
 
   if (!marktgoTarget) {
@@ -266,9 +263,7 @@ export async function buildChangeApplyDryRun(changeId: number): Promise<ApplyDry
     changeId,
     productId: change.trackedProductId,
     trackingUid: product?.trackingUid ?? null,
-    targetProductId: product?.shopifyProductId?.startsWith("marktgo:")
-      ? product.shopifyProductId.slice("marktgo:".length)
-      : null,
+    targetProductId: marktgoTarget?.externalProductId ?? null,
     variantId: resolvedVariantId,
     field: change.fieldName,
     oldValue: change.oldValue,
@@ -443,10 +438,10 @@ export async function bulkChangeAction(
  */
 export async function marktgoSyncChange(id: number, actor = "user") {
   const row = await getChangeOrThrow(id);
-  const marktgoTarget = await hasMarktGoTarget(row.trackedProductId);
+  const marktgoTarget = await getMarktGoTarget(row.trackedProductId);
 
   if (!marktgoTarget) {
-    throw new Error("Bu ürün MARKT-GO ile eşleştirilmemiş — önce Marktgo ürün eşlemesini tamamlayın");
+    throw new Error("Bu ürün için doğrulanmış MARKT-GO eşlemesi bulunamadı. Ürün aktarım kaydını kontrol edin.");
   }
   if (row.status === "applied") {
     throw new Error("Bu değişiklik zaten MARKT-GO'ya uygulanmış");
