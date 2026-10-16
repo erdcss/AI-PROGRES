@@ -1,8 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "../../db";
 import {
   integrationProductMappings,
   integrationVariantMappings,
+  trackedProducts,
 } from "@shared/schema";
 import { DESTINATION_PROVIDER } from "@shared/integration-provider";
 import { createHash } from "crypto";
@@ -284,8 +285,15 @@ export async function deleteProductMapping(id: number) {
   await db.delete(integrationProductMappings).where(eq(integrationProductMappings.id, id));
 }
 
+/**
+ * A tracked item may be registered successfully after the MARKT-GO mapping
+ * was created (especially on the "already_exists" upload path). Resolve the
+ * missing link using strong product identifiers; never match by title.
+ *
+ * A mapping owned by another tracked item is never reassigned automatically.
+ */
 export async function findMappingForTrackedProduct(trackedProductId: number) {
-  const [row] = await db
+  const [linked] = await db
     .select()
     .from(integrationProductMappings)
     .where(
@@ -295,5 +303,113 @@ export async function findMappingForTrackedProduct(trackedProductId: number) {
       ),
     )
     .limit(1);
-  return row || null;
+  if (linked) return linked;
+
+  const [tracked] = await db
+    .select()
+    .from(trackedProducts)
+    .where(eq(trackedProducts.id, trackedProductId))
+    .limit(1);
+  if (!tracked || tracked.archivedAt || tracked.currentStatus === "marktgo_deleted") {
+    return null;
+  }
+
+  // "marktgo:<id>" is issued by registerFromDestinationUpload. Legacy catalog
+  // imports stored a raw id, but only the marktgo_managed state proves its origin.
+  const storedId = String(tracked.shopifyProductId || "").trim();
+  const externalProductId = storedId.startsWith("marktgo:")
+    ? storedId.slice("marktgo:".length).trim()
+    : tracked.shopifySyncStatus === "marktgo_managed"
+      ? storedId
+      : "";
+
+  const aliases = new Set<string>();
+  if (tracked.sourceUrl?.trim()) aliases.add(tracked.sourceUrl.trim());
+
+  const trendyolSource =
+    tracked.sourceSite === "trendyol" || /(^|\\.)trendyol\\.com/i.test(tracked.sourceUrl || "");
+  if (trendyolSource) {
+    const sourceId =
+      String(tracked.sourceProductId || "").trim() ||
+      tracked.sourceUrl.match(/-p-(\\d{5,})(?:[/?#&]|$)/i)?.[1] ||
+      "";
+    if (/^\\d{5,}$/.test(sourceId)) {
+      aliases.add(`trendyol_${sourceId}`);
+      aliases.add(`trendyol-${sourceId}`);
+    }
+  }
+
+  // An exact remote id takes precedence; never silently fall back to an alias
+  // if it points to another remote product.
+  let candidates = externalProductId
+    ? await db
+        .select()
+        .from(integrationProductMappings)
+        .where(
+          and(
+            eq(integrationProductMappings.provider, DESTINATION_PROVIDER.MARKTGO),
+            eq(integrationProductMappings.externalProductId, externalProductId),
+          ),
+        )
+    : [];
+
+  if (!candidates.length && aliases.size > 0) {
+    const localIds = [...aliases];
+    const externalIds = localIds.map(stableExternalId);
+    candidates = await db
+      .select()
+      .from(integrationProductMappings)
+      .where(
+        and(
+          eq(integrationProductMappings.provider, DESTINATION_PROVIDER.MARKTGO),
+          inArray(integrationProductMappings.localProductId, localIds),
+        ),
+      );
+    if (!candidates.length) {
+      candidates = await db
+        .select()
+        .from(integrationProductMappings)
+        .where(
+          and(
+            eq(integrationProductMappings.provider, DESTINATION_PROVIDER.MARKTGO),
+            inArray(integrationProductMappings.externalId, externalIds),
+          ),
+        );
+    }
+  }
+
+  if (candidates.length === 0) return null;
+  if (candidates.length !== 1) {
+    throw new Error("MARKT-GO eşleştirmesi belirsiz: aynı kaynak için birden fazla ürün bulundu");
+  }
+  const mapping = candidates[0];
+  if (externalProductId && mapping.externalProductId !== externalProductId) {
+    throw new Error("MARKT-GO ürün kimliği çakışıyor; otomatik düzeltme durduruldu");
+  }
+  if (mapping.trackedProductId && mapping.trackedProductId !== trackedProductId) {
+    throw new Error("MARKT-GO ürünü başka bir takip kaydına bağlı; otomatik eşleştirme durduruldu");
+  }
+  if (mapping.trackedProductId === trackedProductId) return mapping;
+
+  // Conditional update guards against two different tracking workers taking
+  // ownership of the same remote product concurrently.
+  const [attached] = await db
+    .update(integrationProductMappings)
+    .set({ trackedProductId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(integrationProductMappings.id, mapping.id),
+        isNull(integrationProductMappings.trackedProductId),
+      ),
+    )
+    .returning();
+  if (attached) return attached;
+
+  const [current] = await db
+    .select()
+    .from(integrationProductMappings)
+    .where(eq(integrationProductMappings.id, mapping.id))
+    .limit(1);
+  if (current?.trackedProductId === trackedProductId) return current;
+  throw new Error("MARKT-GO eşleştirmesi başka işlem tarafından değiştirildi; tekrar deneyin");
 }
