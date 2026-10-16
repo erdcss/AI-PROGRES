@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { db } from "../../db";
 import { detectedChanges, trackedProducts, trackedVariants } from "@shared/schema";
 import { DESTINATION_PROVIDER } from "@shared/integration-provider";
@@ -224,8 +224,20 @@ export async function ensureTrackedLink(trackedProductId: number, mappingId: num
     .limit(1);
   if (!p) return;
   const { integrationProductMappings } = await import("@shared/schema");
-  await db
+  const [linked] = await db
     .update(integrationProductMappings)
     .set({ trackedProductId, updatedAt: new Date() })
-    .where(eq(integrationProductMappings.id, mappingId));
+    .where(
+      and(
+        eq(integrationProductMappings.id, mappingId),
+        or(
+          isNull(integrationProductMappings.trackedProductId),
+          eq(integrationProductMappings.trackedProductId, trackedProductId),
+        ),
+      ),
+    )
+    .returning({ id: integrationProductMappings.id });
+  if (!linked) {
+    throw new Error("MARKT-GO mapping başka bir takip ürününe bağlı; mevcut bağlantı korunuyor");
+  }
 }
