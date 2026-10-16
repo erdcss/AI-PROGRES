@@ -327,13 +327,13 @@ export async function findMappingForTrackedProduct(trackedProductId: number) {
   if (tracked.sourceUrl?.trim()) aliases.add(tracked.sourceUrl.trim());
 
   const trendyolSource =
-    tracked.sourceSite === "trendyol" || /(^|\\.)trendyol\\.com/i.test(tracked.sourceUrl || "");
+    tracked.sourceSite === "trendyol" || /(^|\.)trendyol\.com/i.test(tracked.sourceUrl || "");
   if (trendyolSource) {
     const sourceId =
       String(tracked.sourceProductId || "").trim() ||
-      tracked.sourceUrl.match(/-p-(\\d{5,})(?:[/?#&]|$)/i)?.[1] ||
+      tracked.sourceUrl.match(/-p-(\d{5,})(?:[/?#&]|$)/i)?.[1] ||
       "";
-    if (/^\\d{5,}$/.test(sourceId)) {
+    if (/^\d{5,}$/.test(sourceId)) {
       aliases.add(`trendyol_${sourceId}`);
       aliases.add(`trendyol-${sourceId}`);
     }
