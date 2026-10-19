@@ -297,6 +297,12 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
   const runId = `run-${Date.now()}`;
   schedulerState.lastRunId = runId;
 
+  // Shop correction is independent of Trendyol's scrape circuit breaker.
+  // An upstream website block must not prevent applying already-verified changes.
+  void import("./auto-shopify-sync.service")
+    .then(({ schedulePendingMarktGoCorrections }) => schedulePendingMarktGoCorrections())
+    .catch((err) => console.warn("[marktgo-auto-correct] scheduling skipped:", err));
+
   try {
     const { isTrendyolCircuitOpen, getTrendyolBlockStatus, formatCircuitOpenUserMessage } =
       await import("../trendyol-block-guard");
@@ -317,12 +323,6 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
       schedulerState.lastRunAt = new Date();
       return;
     }
-
-    // Apply backlog asynchronously; do not block source checks or run two
-    // corrections for the same change at once.
-    void import("./auto-shopify-sync.service")
-      .then(({ schedulePendingMarktGoCorrections }) => schedulePendingMarktGoCorrections())
-      .catch((err) => console.warn("[marktgo-auto-correct] scheduling skipped:", err));
 
     try {
       const { triggerMarktGoCatalogReconcile } = await import("./marktgo/reconcile.service");
