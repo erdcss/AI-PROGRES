@@ -305,7 +305,9 @@ export function getTrackingMarktGoIdentity(tracked: {
     ? storedId.slice("marktgo:".length).trim()
     : tracked.shopifySyncStatus === "marktgo_managed"
       ? storedId
-      : "";
+      : tracked.shopifySyncStatus === "marktgo" && /^\d+$/.test(storedId)
+        ? storedId
+        : "";
 
   const aliases = new Set<string>();
   const sourceUrl = String(tracked.sourceUrl || "").trim();
@@ -601,9 +603,20 @@ export async function findMappingForTrackedProduct(trackedProductId: number) {
   }
 
   if (candidates.length === 0) {
-    return recoverMissingMarktGoMapping(
+    const result = await recoverMissingMarktGoMapping(
       trackedProductId, tracked, externalProductId, localProductIds,
     );
+    if (!result) {
+      console.warn("[marktgo-mapping] unresolved tracking link", {
+        trackedProductId,
+        sourceSite: tracked.sourceSite,
+        destinationStatus: tracked.shopifySyncStatus,
+        hasStoredDestinationId: Boolean(tracked.shopifyProductId),
+        recognizedTargetId: externalProductId || null,
+        sourceAliases: localProductIds.length,
+      });
+    }
+    return result;
   }
   if (candidates.length !== 1) {
     throw new Error("MARKT-GO eşleştirmesi belirsiz: aynı kaynak için birden fazla ürün bulundu");

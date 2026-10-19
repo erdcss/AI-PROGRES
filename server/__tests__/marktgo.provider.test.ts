@@ -149,6 +149,18 @@ assert(!canRecoverUnmappedMarktGoProduct({
   remoteExternalId: "aip_unrelated",
 }), "unscoped source cannot recover via unrelated externalId");
 
+const numericLegacyMarktGoIdentity = getTrackingMarktGoIdentity({
+  ...trackedIdentityBase,
+  shopifyProductId: "102817",
+  shopifySyncStatus: "marktgo",
+});
+assert(numericLegacyMarktGoIdentity.externalProductId === "102817",
+  "numeric pre-namespace MARKT-GO ID recognized when provenance is marktgo");
+assert(getTrackingMarktGoIdentity({
+  ...trackedIdentityBase,
+  shopifyProductId: "gid://shopify/Product/102817",
+  shopifySyncStatus: "marktgo",
+}).externalProductId === "", "legacy status cannot misinterpret Shopify GID");
 const legacyMarktGoIdentity = getTrackingMarktGoIdentity({
   ...trackedIdentityBase,
   shopifyProductId: "9900",
