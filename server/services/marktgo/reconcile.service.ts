@@ -271,7 +271,19 @@ async function runReconcile(): Promise<MarktGoCatalogReconcileResult> {
   for (const product of liveProducts) {
     try {
       const existingMapping = mappingByExternal.get(String(product.externalProductId));
-      const tracked = await ensureTrackedProductForMarktGo(product);
+      // Reconciliation must not silently reassign a remote product to another
+      // tracking row when a URL/Trendyol alias finds a duplicate. This caused
+      // the mapping-owner conflict on manual and automatic corrections.
+      const [linkedTracked] = existingMapping?.trackedProductId
+        ? await db.select().from(trackedProducts)
+            .where(eq(trackedProducts.id, existingMapping.trackedProductId)).limit(1)
+        : [];
+      const liveLinkedTracked = linkedTracked &&
+        !linkedTracked.archivedAt &&
+        linkedTracked.currentStatus !== "marktgo_deleted";
+      const tracked = liveLinkedTracked
+        ? linkedTracked
+        : await ensureTrackedProductForMarktGo(product);
       await upsertProductMapping({
         connectionId: connection.id,
         localProductId: product.poolId,
