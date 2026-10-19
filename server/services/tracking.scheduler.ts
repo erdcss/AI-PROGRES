@@ -35,6 +35,8 @@ const schedulerState: TrackingSchedulerState = {
   nextRunAt: null,
 };
 
+// Required by the build-time dynamic batch scheduler (harden-tracking-scheduler.mjs).
+let lastCapacityWarningSignature: string | null = null;
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 const checkingProducts = new Set<number>();
 export function releaseStaleCheckLocks(): void {
@@ -295,6 +297,12 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
   const runId = `run-${Date.now()}`;
   schedulerState.lastRunId = runId;
 
+  // Shop correction is independent of Trendyol's scrape circuit breaker.
+  // An upstream website block must not prevent applying already-verified changes.
+  void import("./auto-shopify-sync.service")
+    .then(({ schedulePendingMarktGoCorrections }) => schedulePendingMarktGoCorrections())
+    .catch((err) => console.warn("[marktgo-auto-correct] scheduling skipped:", err));
+
   try {
     const { isTrendyolCircuitOpen, getTrendyolBlockStatus, formatCircuitOpenUserMessage } =
       await import("../trendyol-block-guard");
@@ -315,7 +323,6 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
       schedulerState.lastRunAt = new Date();
       return;
     }
-
 
     try {
       const { triggerMarktGoCatalogReconcile } = await import("./marktgo/reconcile.service");

@@ -15,7 +15,7 @@ import {
 import { missingRequiredScopes, parseScopeList } from "../services/marktgo/scopes";
 import { normalizeMarktGoHttpError } from "../services/marktgo/errors";
 import { extractId, listItemsFromPayload, normalizeMarktGoProduct } from "../services/marktgo/normalize";
-import { getTrackingMarktGoIdentity, idempotencyKeyForProduct, stableExternalId } from "../services/marktgo/mapping.service";
+import { getTrackingMarktGoIdentity, mayReadMarktGoMappingWithDifferentOwner, idempotencyKeyForProduct, stableExternalId } from "../services/marktgo/mapping.service";
 import {
   localIdFromRemote,
   mapPoolProductToMarktGoInput,
@@ -89,6 +89,34 @@ const trackedIdentity = getTrackingMarktGoIdentity(trackedIdentityBase);
 assert(trackedIdentity.externalProductId === "8899", "MARKT-GO-scoped ID resolves remote product");
 assert(trackedIdentity.localProductIds.includes("trendyol_123456"), "Trendyol source ID resolves legacy pool mapping");
 assert(trackedIdentity.localProductIds.includes(trackedIdentityBase.sourceUrl), "exact source URL is an identity candidate");
+
+
+const ownerSameSource = {
+  ...trackedIdentityBase,
+  sourceUrl: "https://www.trendyol.com/another-product-title-p-123456",
+  shopifyProductId: "marktgo:8899",
+};
+assert(mayReadMarktGoMappingWithDifferentOwner("8899", trackedIdentityBase, ownerSameSource),
+  "same Trendyol product ID can read existing mapping without moving ownership");
+assert(!mayReadMarktGoMappingWithDifferentOwner("7777", trackedIdentityBase, ownerSameSource),
+  "different remote id cannot use existing MARKT-GO mapping");
+assert(!mayReadMarktGoMappingWithDifferentOwner("8899", trackedIdentityBase, {
+  ...ownerSameSource,
+  sourceUrl: "https://www.trendyol.com/product-p-654321",
+}),
+  "different source product cannot borrow MARKT-GO mapping");
+assert(mayReadMarktGoMappingWithDifferentOwner("8899", trackedIdentityBase, {
+  ...ownerSameSource,
+  sourceSite: "marktgo",
+  sourceUrl: "marktgo://products/8899",
+  shopifySyncStatus: "marktgo_managed",
+}),
+  "remote-only catalog row for same id can share mapping");
+assert(!mayReadMarktGoMappingWithDifferentOwner("8899", {
+  ...trackedIdentityBase,
+  shopifyProductId: null,
+  sourceUrl: "https://www.n11.com/urun/other",
+}, ownerSameSource), "unrelated source without destination identity cannot borrow mapping");
 
 const legacyMarktGoIdentity = getTrackingMarktGoIdentity({
   ...trackedIdentityBase,

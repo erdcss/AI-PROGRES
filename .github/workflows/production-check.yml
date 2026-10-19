@@ -23,6 +23,8 @@ jobs:
         run: npm ci
       - name: Production build (blocking)
         run: npm run build
+      - name: MARKT-GO provider regression tests (blocking)
+        run: npm run test:marktgo
       - name: TypeScript debt report (non-blocking)
         continue-on-error: true
         run: npm run check
