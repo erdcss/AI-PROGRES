@@ -15,7 +15,7 @@ import {
 import { missingRequiredScopes, parseScopeList } from "../services/marktgo/scopes";
 import { normalizeMarktGoHttpError } from "../services/marktgo/errors";
 import { extractId, listItemsFromPayload, normalizeMarktGoProduct } from "../services/marktgo/normalize";
-import { getTrackingMarktGoIdentity, mayReadMarktGoMappingWithDifferentOwner, idempotencyKeyForProduct, stableExternalId } from "../services/marktgo/mapping.service";
+import { canRecoverUnmappedMarktGoProduct, getTrackingMarktGoIdentity, mayReadMarktGoMappingWithDifferentOwner, idempotencyKeyForProduct, stableExternalId } from "../services/marktgo/mapping.service";
 import {
   localIdFromRemote,
   mapPoolProductToMarktGoInput,
@@ -117,6 +117,37 @@ assert(!mayReadMarktGoMappingWithDifferentOwner("8899", {
   shopifyProductId: null,
   sourceUrl: "https://www.n11.com/urun/other",
 }, ownerSameSource), "unrelated source without destination identity cannot borrow mapping");
+
+
+const missingMappingCheck = {
+  trackedSourceUrl: trackedIdentityBase.sourceUrl,
+  trackedSourceSite: "trendyol",
+  trackedSourceProductId: "123456",
+  scopedExternalProductId: "8899",
+  remoteProductId: "8899",
+  remoteSourceUrl: "https://www.trendyol.com/renamed-product-p-123456",
+  remoteExternalId: "aip_ty_123456",
+  lookupExternalIds: ["aip_ty_123456"],
+};
+assert(canRecoverUnmappedMarktGoProduct(missingMappingCheck),
+  "missing mapping can be recovered with matching trusted remote source");
+assert(!canRecoverUnmappedMarktGoProduct({
+  ...missingMappingCheck,
+  remoteProductId: "9988",
+}), "recovery refuses conflicting remote product id");
+assert(!canRecoverUnmappedMarktGoProduct({
+  ...missingMappingCheck,
+  remoteSourceUrl: "https://www.trendyol.com/another-product-p-777777",
+}), "recovery refuses different product source");
+assert(canRecoverUnmappedMarktGoProduct({
+  ...missingMappingCheck,
+  scopedExternalProductId: "",
+}), "trusted externalId lookup permits unscoped source mapping");
+assert(!canRecoverUnmappedMarktGoProduct({
+  ...missingMappingCheck,
+  scopedExternalProductId: "",
+  remoteExternalId: "aip_unrelated",
+}), "unscoped source cannot recover via unrelated externalId");
 
 const legacyMarktGoIdentity = getTrackingMarktGoIdentity({
   ...trackedIdentityBase,
