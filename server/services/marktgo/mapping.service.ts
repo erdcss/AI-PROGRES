@@ -7,6 +7,9 @@ import {
 } from "@shared/schema";
 import { DESTINATION_PROVIDER } from "@shared/integration-provider";
 import { createHash } from "crypto";
+import { getMarktGoClientForConnection } from "./connection.service";
+import { extractId, extractExternalId, extractTags } from "./normalize";
+import { MarktGoApiError } from "./errors";
 
 export function stableExternalId(localProductId: string): string {
   const raw = String(localProductId || "").trim();
@@ -388,6 +391,136 @@ export function mayReadMarktGoMappingWithDifferentOwner(
   );
 }
 
+
+/** Restore a missing mapping only after confirming remote identity exists. */
+export function canRecoverUnmappedMarktGoProduct(input: {
+  trackedSourceUrl: string;
+  trackedSourceSite: string;
+  trackedSourceProductId: string | null;
+  scopedExternalProductId: string;
+  remoteProductId: string;
+  remoteSourceUrl: string | null;
+  remoteExternalId: string | null;
+  lookupExternalIds: string[];
+}): boolean {
+  if (!input.remoteProductId) return false;
+  if (input.scopedExternalProductId && input.scopedExternalProductId !== input.remoteProductId) {
+    return false;
+  }
+  if (!input.scopedExternalProductId &&
+      (!input.remoteExternalId || !input.lookupExternalIds.includes(input.remoteExternalId))) {
+    return false;
+  }
+  if (input.remoteSourceUrl) {
+    const request: TrackingMappingIdentity = {
+      sourceUrl: input.trackedSourceUrl,
+      sourceSite: input.trackedSourceSite,
+      sourceProductId: input.trackedSourceProductId,
+      shopifyProductId: input.scopedExternalProductId
+        ? "marktgo:" + input.scopedExternalProductId : null,
+      shopifySyncStatus: "marktgo",
+    };
+    const remote: TrackingMappingIdentity = {
+      sourceUrl: input.remoteSourceUrl,
+      sourceSite: input.trackedSourceSite,
+      sourceProductId: null,
+      shopifyProductId: "marktgo:" + input.remoteProductId,
+      shopifySyncStatus: "marktgo",
+    };
+    return mayReadMarktGoMappingWithDifferentOwner(input.remoteProductId, request, remote);
+  }
+  return Boolean(input.scopedExternalProductId ||
+    (input.remoteExternalId && input.lookupExternalIds.includes(input.remoteExternalId)));
+}
+
+async function recoverMissingMarktGoMapping(
+  trackedProductId: number,
+  tracked: TrackingMappingIdentity,
+  explicitRemoteId: string,
+  localProductIds: string[],
+) {
+  const { client, connection } = await getMarktGoClientForConnection();
+  const externalIds = [...new Set(localProductIds.map(stableExternalId))];
+  let remoteId: string | null = explicitRemoteId || null;
+  if (!remoteId) {
+    const foundIds = new Set<string>();
+    for (const externalId of externalIds) {
+      try {
+        const matched = await client.get<unknown>(
+          "/products/by-external-id/" + encodeURIComponent(externalId),
+        );
+        const foundId = extractId(matched);
+        if (foundId) foundIds.add(foundId);
+      } catch (error) {
+        if (error instanceof MarktGoApiError && error.status === 404) continue;
+        throw error;
+      }
+    }
+    if (foundIds.size > 1) {
+      throw new Error("MARKT-GO ürün araması birden fazla hedef döndürdü; eşleştirme durduruldu");
+    }
+    remoteId = [...foundIds][0] || null;
+  }
+  if (!remoteId) return null;
+
+  let remotePayload: unknown;
+  try {
+    remotePayload = await client.get<unknown>("/products/" + encodeURIComponent(remoteId));
+  } catch (error) {
+    if (error instanceof MarktGoApiError && error.status === 404) return null;
+    throw error;
+  }
+  if (extractId(remotePayload) !== remoteId) {
+    throw new Error("MARKT-GO uzaktaki ürün kimliği doğrulanamadı; eşleştirme kaydedilmedi");
+  }
+  const outer = (remotePayload && typeof remotePayload === "object"
+    ? remotePayload : {}) as Record<string, unknown>;
+  const item = ((outer.data && typeof outer.data === "object" ? outer.data :
+    outer.product && typeof outer.product === "object" ? outer.product : outer)
+    || {}) as Record<string, unknown>;
+  const sourceTag = extractTags(remotePayload).find((tag) => tag.startsWith("src:"));
+  const remoteSourceUrl = String(item.sourceUrl || (sourceTag ? sourceTag.slice(4) : "")).trim();
+  const remoteExternalId = extractExternalId(remotePayload);
+  if (!canRecoverUnmappedMarktGoProduct({
+    trackedSourceUrl: tracked.sourceUrl,
+    trackedSourceSite: tracked.sourceSite,
+    trackedSourceProductId: tracked.sourceProductId,
+    scopedExternalProductId: explicitRemoteId,
+    remoteProductId: remoteId,
+    remoteSourceUrl: remoteSourceUrl || null,
+    remoteExternalId,
+    lookupExternalIds: externalIds,
+  })) {
+    throw new Error("MARKT-GO kaynak ürün kimliği doğrulanamadı; yanlış ürüne güncelleme yapılmadı");
+  }
+  const existingRemote = await findProductMapping({
+    connectionId: connection.id, externalProductId: remoteId,
+  });
+  if (existingRemote) {
+    return existingRemote.trackedProductId && existingRemote.trackedProductId !== trackedProductId
+      ? null : existingRemote;
+  }
+  const localProductId = "marktgo_recovered_" + remoteId;
+  const externalId = remoteExternalId || stableExternalId(localProductId);
+  const conflict = (await findProductMapping({ connectionId: connection.id, externalId }))
+    || (await findProductMapping({ connectionId: connection.id, localProductId }));
+  if (conflict && conflict.externalProductId !== remoteId) {
+    throw new Error("MARKT-GO externalId başka ürüne ait; eksik eşleme güvenle kurulamadı");
+  }
+  const linked = await upsertProductMapping({
+    connectionId: connection.id,
+    localProductId,
+    externalProductId: remoteId,
+    externalId,
+    trackedProductId,
+    status: "synced",
+  });
+  console.info("[marktgo-mapping-recovery] verified remote product link", {
+    trackedProductId, connectionId: connection.id, externalProductId: remoteId,
+  });
+  return linked;
+}
+
 /**
  * A tracked item may be registered successfully after the MARKT-GO mapping
  * was created (especially on the "already_exists" upload path). Resolve the
@@ -467,7 +600,11 @@ export async function findMappingForTrackedProduct(trackedProductId: number) {
     }
   }
 
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) {
+    return recoverMissingMarktGoMapping(
+      trackedProductId, tracked, externalProductId, localProductIds,
+    );
+  }
   if (candidates.length !== 1) {
     throw new Error("MARKT-GO eşleştirmesi belirsiz: aynı kaynak için birden fazla ürün bulundu");
   }
