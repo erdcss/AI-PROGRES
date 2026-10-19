@@ -328,6 +328,65 @@ export function getTrackingMarktGoIdentity(tracked: {
   return { externalProductId, localProductIds: [...aliases] };
 }
 
+
+type TrackingMappingIdentity = {
+  sourceUrl: string;
+  sourceSite: string;
+  sourceProductId: string | null;
+  shopifyProductId: string | null;
+  shopifySyncStatus: string | null;
+};
+
+/**
+ * Catalog reconcile may keep an older tracking row as the mapping owner while
+ * a newer tracking row has pending changes for the very same MARKT-GO item.
+ * Only identical sources (or a remote-only catalog placeholder) may safely
+ * share that mapping for reads; ownership is never moved by the apply path.
+ */
+export function mayReadMarktGoMappingWithDifferentOwner(
+  mappingExternalId: string,
+  requested: TrackingMappingIdentity,
+  owner: TrackingMappingIdentity,
+): boolean {
+  const requestedIdentity = getTrackingMarktGoIdentity(requested);
+  const ownerIdentity = getTrackingMarktGoIdentity(owner);
+  if (
+    requestedIdentity.externalProductId &&
+    requestedIdentity.externalProductId !== mappingExternalId
+  ) return false;
+  if (ownerIdentity.externalProductId && ownerIdentity.externalProductId !== mappingExternalId) {
+    return false;
+  }
+
+  // Never borrow a foreign mapping with no trustworthy target on either side.
+  if (!requestedIdentity.externalProductId && !ownerIdentity.externalProductId) return false;
+
+  const requestedUrl = String(requested.sourceUrl || "").trim();
+  const ownerUrl = String(owner.sourceUrl || "").trim();
+  if (requestedUrl === ownerUrl && requestedUrl.length > 0) return true;
+
+  const requestedTy = requestedUrl.match(/(?:^|\\/)[^/?#]*-p-(\\d{5,})(?:[/?#]|$)/i)?.[1];
+  const ownerTy = ownerUrl.match(/(?:^|\\/)[^/?#]*-p-(\\d{5,})(?:[/?#]|$)/i)?.[1];
+  const trustedTyHost = (value: string) => {
+    try {
+      return /(^|\\.)trendyol\\.com$/i.test(new URL(value).hostname);
+    } catch {
+      return false;
+    }
+  };
+  if (requestedTy && ownerTy && requestedTy === ownerTy &&
+      trustedTyHost(requestedUrl) && trustedTyHost(ownerUrl)) return true;
+
+  // Catalog-only row has no storefront source. Its remote id must be proven.
+  const remoteOnlyOwner = ownerUrl ===
+    `marktgo://products/${encodeURIComponent(mappingExternalId)}`;
+  return Boolean(
+    remoteOnlyOwner &&
+    requestedIdentity.externalProductId === mappingExternalId &&
+    ownerIdentity.externalProductId === mappingExternalId,
+  );
+}
+
 /**
  * A tracked item may be registered successfully after the MARKT-GO mapping
  * was created (especially on the "already_exists" upload path). Resolve the
@@ -346,7 +405,16 @@ export async function findMappingForTrackedProduct(trackedProductId: number) {
       ),
     )
     .limit(1);
-  if (linked) return linked;
+  if (linked) {
+    const [tracked] = await db.select().from(trackedProducts)
+      .where(eq(trackedProducts.id, trackedProductId)).limit(1);
+    if (!tracked || tracked.archivedAt || tracked.currentStatus === "marktgo_deleted") return null;
+    const claimed = getTrackingMarktGoIdentity(tracked).externalProductId;
+    if (claimed && claimed !== linked.externalProductId) {
+      throw new Error("MARKT-GO takip kimliği mevcut eşlemeyle çakışıyor; yanlış ürün güncellenmedi");
+    }
+    return linked;
+  }
 
   const [tracked] = await db
     .select()
@@ -407,7 +475,19 @@ export async function findMappingForTrackedProduct(trackedProductId: number) {
     throw new Error("MARKT-GO ürün kimliği çakışıyor; otomatik düzeltme durduruldu");
   }
   if (mapping.trackedProductId && mapping.trackedProductId !== trackedProductId) {
-    throw new Error("MARKT-GO ürünü başka bir takip kaydına bağlı; otomatik eşleştirme durduruldu");
+    const [owner] = await db
+      .select()
+      .from(trackedProducts)
+      .where(eq(trackedProducts.id, mapping.trackedProductId))
+      .limit(1);
+    if (!owner || !mayReadMarktGoMappingWithDifferentOwner(mapping.externalProductId, tracked, owner)) {
+      throw new Error(
+        "MARKT-GO bağlantısı farklı bir kaynak ürüne ait; yanlış ürünü güncellememek için işlem durduruldu",
+      );
+    }
+    // Safe same-item alias: use the existing remote mapping without moving its
+    // owner, deleting either tracking row, or mutating unrelated change history.
+    return mapping;
   }
   if (mapping.trackedProductId === trackedProductId) return mapping;
 
