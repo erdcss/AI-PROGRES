@@ -44,6 +44,25 @@ async function runAutoMarktGoSync(rows: DetectedChange[]): Promise<void> {
   }
 }
 
+/**
+ * Backlog processing is scheduled repeatedly while auto-correct is enabled,
+ * not only when the switch is turned on or when a new change is detected.
+ * Never run concurrent backlog sweeps.
+ */
+let sweepRunning = false;
+let lastSweepStartedAt = 0;
+export function schedulePendingMarktGoCorrections(minIntervalMs = 5 * 60_000): void {
+  if (sweepRunning || Date.now() - lastSweepStartedAt < minIntervalMs) return;
+  sweepRunning = true;
+  lastSweepStartedAt = Date.now();
+  void applyPendingTrackingChangesOnStartup({ limit: 60 })
+    .catch((error) => console.warn(
+      "[marktgo-auto-correct] backlog sweep failed:",
+      error instanceof Error ? error.message : String(error),
+    ))
+    .finally(() => { sweepRunning = false; });
+}
+
 /** Program açılışında bekleyen yüksek güvenli değişiklikleri mağazaya uygular */
 export async function applyPendingTrackingChangesOnStartup(options?: {
   limit?: number;
@@ -57,12 +76,12 @@ export async function applyPendingTrackingChangesOnStartup(options?: {
   const limit = Math.min(Math.max(options?.limit ?? 400, 1), 2000);
   const { db } = await import("../db");
   const { detectedChanges } = await import("@shared/schema");
-  const { desc, eq } = await import("drizzle-orm");
+  const { desc, eq, inArray } = await import("drizzle-orm");
 
   const rows = await db
     .select()
     .from(detectedChanges)
-    .where(eq(detectedChanges.status, "pending"))
+    .where(inArray(detectedChanges.status, ["pending", "failed"]))
     .orderBy(desc(detectedChanges.createdAt))
     .limit(limit);
 
@@ -72,7 +91,11 @@ export async function applyPendingTrackingChangesOnStartup(options?: {
   let errors = 0;
 
   for (const row of rows) {
-    if (!isAutoCorrectCandidate(row)) {
+    const autoCandidate = isAutoCorrectCandidate(row) ||
+      (row.status === "failed" &&
+        Number(row.retryCount ?? 0) < 3 &&
+        isDirectlyApplicableTrackingChange(row.changeType, row.fieldName, row.newValue));
+    if (!autoCandidate) {
       skipped++;
       continue;
     }
