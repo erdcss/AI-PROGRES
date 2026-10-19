@@ -365,17 +365,18 @@ export function mayReadMarktGoMappingWithDifferentOwner(
   const ownerUrl = String(owner.sourceUrl || "").trim();
   if (requestedUrl === ownerUrl && requestedUrl.length > 0) return true;
 
-  const requestedTy = requestedUrl.match(/(?:^|\\/)[^/?#]*-p-(\\d{5,})(?:[/?#]|$)/i)?.[1];
-  const ownerTy = ownerUrl.match(/(?:^|\\/)[^/?#]*-p-(\\d{5,})(?:[/?#]|$)/i)?.[1];
-  const trustedTyHost = (value: string) => {
+  const trustedTrendyolProductId = (sourceUrl: string): string | null => {
     try {
-      return /(^|\\.)trendyol\\.com$/i.test(new URL(value).hostname);
+      const url = new URL(sourceUrl);
+      if (!/(^|\.)trendyol\.com$/i.test(url.hostname)) return null;
+      return url.pathname.match(/-p-(\d{5,})/i)?.[1] ?? null;
     } catch {
-      return false;
+      return null;
     }
   };
-  if (requestedTy && ownerTy && requestedTy === ownerTy &&
-      trustedTyHost(requestedUrl) && trustedTyHost(ownerUrl)) return true;
+  const requestedTy = trustedTrendyolProductId(requestedUrl);
+  const ownerTy = trustedTrendyolProductId(ownerUrl);
+  if (requestedTy && ownerTy && requestedTy === ownerTy) return true;
 
   // Catalog-only row has no storefront source. Its remote id must be proven.
   const remoteOnlyOwner = ownerUrl ===
