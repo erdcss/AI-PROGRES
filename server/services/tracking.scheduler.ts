@@ -35,6 +35,8 @@ const schedulerState: TrackingSchedulerState = {
   nextRunAt: null,
 };
 
+// Required by the build-time dynamic batch scheduler (harden-tracking-scheduler.mjs).
+let lastCapacityWarningSignature: string | null = null;
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 const checkingProducts = new Set<number>();
 export function releaseStaleCheckLocks(): void {
@@ -316,6 +318,11 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
       return;
     }
 
+    // Apply backlog asynchronously; do not block source checks or run two
+    // corrections for the same change at once.
+    void import("./auto-shopify-sync.service")
+      .then(({ schedulePendingMarktGoCorrections }) => schedulePendingMarktGoCorrections())
+      .catch((err) => console.warn("[marktgo-auto-correct] scheduling skipped:", err));
 
     try {
       const { triggerMarktGoCatalogReconcile } = await import("./marktgo/reconcile.service");
