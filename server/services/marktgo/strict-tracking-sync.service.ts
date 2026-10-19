@@ -106,6 +106,15 @@ export async function ensureTrackedProductForMarktGo(product: CatalogPoolProduct
   } as const;
 
   if (row) {
+    const storedId = String(row.shopifyProductId || "").trim();
+    const ownedRemoteId = storedId.startsWith("marktgo:")
+      ? storedId.slice("marktgo:".length)
+      : row.shopifySyncStatus === "marktgo_managed" ? storedId : "";
+    if (ownedRemoteId && ownedRemoteId !== String(product.externalProductId)) {
+      throw new Error(
+        "Kaynak URL başka bir MARKT-GO ürününe ait; katalog eşitlemesi takip kaydını değiştirmedi",
+      );
+    }
     const [updated] = await db.update(trackedProducts).set(patch).where(eq(trackedProducts.id, row.id)).returning();
     return updated;
   }
