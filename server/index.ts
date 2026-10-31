@@ -310,6 +310,9 @@ app.use((req, res, next) => {
   });
   
   // Ensure API routes are processed before any catch-all
+  const { default: maykBrandingRoutes } = await import("./routes/mayk-branding-routes");
+  app.use("/api/mayk", maykBrandingRoutes);
+
   app.use(apiRoutes);
   
   // Add data analysis routes with explicit API prefix
