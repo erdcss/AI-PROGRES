@@ -32,6 +32,7 @@ import {
   CircleDot
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import MaykAppBranding from "@/components/MaykAppBranding";
 
 interface SystemStatus {
   timestamp: string;
@@ -195,6 +196,8 @@ const SystemStatusPage = () => {
             </div>
           </div>
         </motion.div>
+
+        <MaykAppBranding />
 
         {/* System Overview Cards */}
         <motion.div
