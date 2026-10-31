@@ -1,0 +1,29 @@
+name: M.A.Y.K iOS checks
+
+on:
+  pull_request:
+    paths:
+      - "mayk-ios/**"
+      - ".github/workflows/mayk-*.yml"
+  workflow_dispatch:
+
+jobs:
+  validate-ios:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mayk-ios
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Generate M.A.Y.K icon
+        run: npm run prepare:icon
+      - name: Check TypeScript
+        run: npm run typecheck
+      - name: Check Expo configuration
+        run: npx expo config --type public
