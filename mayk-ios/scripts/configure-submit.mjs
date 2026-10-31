@@ -1,0 +1,11 @@
+import fs from "node:fs";
+const appId = process.env.MAYK_ASC_APP_ID;
+const projectId = process.env.MAYK_EAS_PROJECT_ID;
+if (!process.env.EXPO_TOKEN) throw new Error("GitHub Secret EXPO_TOKEN gerekli");
+if (!projectId) throw new Error("GitHub Secret MAYK_EAS_PROJECT_ID gerekli; önce Expo'da M.A.Y.K projesi oluşturulmalı");
+if (!/^\d+$/.test(appId || "")) throw new Error("GitHub Secret MAYK_ASC_APP_ID gerekli; App Store Connect sayısal Apple ID");
+const file = new URL("../eas.json", import.meta.url);
+const config = JSON.parse(fs.readFileSync(file, "utf8"));
+config.submit.production.ios.ascAppId = appId;
+fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+console.log("[M.A.Y.K] TestFlight submit profile configured");

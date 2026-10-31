@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<rect width="1024" height="1024" rx="190" fill="#081327"/>
+<rect x="75" y="75" width="874" height="874" rx="148" fill="#0E2940" stroke="#1CC9B1" stroke-width="18"/>
+<circle cx="512" cy="388" r="160" fill="#0F766E" opacity=".34"/>
+<path d="M400 390L478 475 624 305" stroke="#42E8CF" stroke-width="35" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<text x="512" y="686" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="124" font-weight="bold" fill="#FAFAFA">M.A.Y.K</text>
+<text x="512" y="770" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" fill="#85B5BD">AI PROGRES</text>
+</svg>
