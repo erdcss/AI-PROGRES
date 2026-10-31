@@ -1,0 +1,38 @@
+name: M.A.Y.K TestFlight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-submit:
+    name: iOS Build and TestFlight Upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: mayk-ios
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      MAYK_EAS_PROJECT_ID: ${{ secrets.MAYK_EAS_PROJECT_ID }}
+      MAYK_ASC_APP_ID: ${{ secrets.MAYK_ASC_APP_ID }}
+      MAYK_REQUIRE_REMOTE_ICON: "1"
+      EXPO_PUBLIC_MAYK_WEB_URL: https://progres.turmarkt.com
+      CI: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Fetch published M.A.Y.K logo and generate Apple icon
+        run: npm run prepare:icon
+      - name: Configure signed TestFlight upload
+        run: node scripts/configure-submit.mjs
+      - name: Validate types
+        run: npm run typecheck
+      - name: Build iOS and submit to TestFlight
+        run: npx --yes eas-cli@latest build --platform ios --profile production --auto-submit --non-interactive --no-wait
