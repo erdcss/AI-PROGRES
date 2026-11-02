@@ -1,0 +1,3 @@
+M.A.Y.K iOS one-time release request
+Requested: 2026-11-03
+Purpose: fetch verified production icon, validate build config, and start Apple TestFlight upload if Expo/Apple secrets are configured.
