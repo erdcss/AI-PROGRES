@@ -138,10 +138,10 @@ export default function MaykAppBranding() {
         </div>
         <div className="flex-1 space-y-3">
           <p className="text-sm text-slate-300">
-            {branding?.hasIcon ? "Logo sunucuda kayıtlı. Sonraki iOS derlemesine aktarılmaya hazır." : "Henüz özel logo yüklenmemiş. Varsayılan M.A.Y.K logosu kullanılacak."}
+            {branding?.hasIcon ? "Logo Railway PostgreSQL veritabanında kayıtlı. Sonraki iOS derlemesine aktarılmaya hazır." : "Henüz özel logo yüklenmemiş. Logoyu Railway PostgreSQL veritabanına kaydedebilirsiniz."}
           </p>
           <p className="text-xs text-slate-400">PNG / JPG / WEBP · Otomatik 1024 × 1024 PNG dönüşümü · Kaynak en fazla 20 MB</p>
-          {!branding?.configured && branding ? <p className="text-xs text-amber-300">Kalıcı logo depolaması için Supabase sunucu ayarları gereklidir.</p> : null}
+          {!branding?.configured && branding ? <p className="text-xs text-amber-300">Logo depolaması için Railway PostgreSQL bağlantısı gereklidir.</p> : null}
           {isAdmin ? (
             <>
               <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" id="mayk-app-icon" disabled={busy} onChange={(event) => {
