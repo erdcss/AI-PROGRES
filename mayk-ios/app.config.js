@@ -11,7 +11,7 @@ module.exports = {
     orientation: "portrait",
     platforms: ["ios"],
     scheme: "mayk",
-    owner: "erdcls",
+    ...(process.env.MAYK_EXPO_OWNER ? { owner: process.env.MAYK_EXPO_OWNER } : {}),
     userInterfaceStyle: "dark",
     icon: "./assets/icon.png",
     splash: {
