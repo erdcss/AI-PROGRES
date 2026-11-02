@@ -36,37 +36,82 @@ export default function MaykAppBranding() {
   }
   useEffect(() => { void load(); }, []);
 
+  async function normalizeLogo(file: File): Promise<{ imageBase64: string; resized: boolean }> {
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      throw new Error("PNG, JPG veya WEBP formatında görsel seçin.");
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      throw new Error("Kaynak görsel en fazla 20 MB olabilir.");
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Görsel açılamadı. Lütfen başka bir dosya deneyin."));
+        img.src = objectUrl;
+      });
+      const width = image.naturalWidth;
+      const height = image.naturalHeight;
+      if (!width || !height || width > 8192 || height > 8192) {
+        throw new Error("Görsel boyutu geçersiz veya çok büyük (en fazla 8192 piksel).");
+      }
+
+      // iOS ikon kaynağı: oranı koruyan, tam 1024×1024, opak PNG.
+      const canvas = document.createElement("canvas");
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (!ctx) throw new Error("Tarayıcı görsel dönüştürmeyi desteklemiyor.");
+      ctx.fillStyle = "#081327";
+      ctx.fillRect(0, 0, 1024, 1024);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      const scale = Math.min(1024 / width, 1024 / height);
+      const w = width * scale;
+      const h = height * scale;
+      ctx.drawImage(image, (1024 - w) / 2, (1024 - h) / 2, w, h);
+
+      const imageBase64 = canvas.toDataURL("image/png");
+      if (!imageBase64.startsWith("data:image/png;base64,")) {
+        throw new Error("PNG biçimine dönüştürme başarısız oldu.");
+      }
+      const base64 = imageBase64.slice("data:image/png;base64,".length);
+      if (base64.length * 3 / 4 > 4 * 1024 * 1024) {
+        throw new Error("Dönüştürülen PNG 4 MB sınırını aşıyor. Daha düşük detaylı bir görsel deneyin.");
+      }
+      return { imageBase64, resized: width !== 1024 || height !== 1024 || file.type !== "image/png" };
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
   async function upload(file: File) {
-    setError(""); setNotice("");
-    if (file.type !== "image/png") { setError("Yalnızca PNG formatı kabul edilir."); return; }
-    if (file.size > 4 * 1024 * 1024) { setError("Logo dosyası en fazla 4 MB olabilir."); return; }
-    const imageBase64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("Dosya okunamadı"));
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.readAsDataURL(file);
-    });
-    const validSize = await new Promise<boolean>((resolve) => {
-      const image = new Image();
-      image.onload = () => resolve(image.naturalWidth === 1024 && image.naturalHeight === 1024);
-      image.onerror = () => resolve(false);
-      image.src = imageBase64;
-    });
-    if (!validSize) { setError("Görsel 1024 × 1024 piksel olmalıdır."); return; }
+    setError("");
+    setNotice("");
     setBusy(true);
     try {
+      const { imageBase64, resized } = await normalizeLogo(file);
       const response = await fetch("/api/mayk/branding/icon", {
-        method: "POST", credentials: "include",
+        method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64 }),
       });
-      const result: Branding = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.message || "Yükleme başarısız");
-      setNotice(result.message || "Logo kaydedildi.");
+      const result: Branding = await response.json().catch(() => ({
+        success: false,
+        message: "Sunucudan geçerli yanıt alınamadı.",
+      }));
+      if (!response.ok || !result.success) throw new Error(result.message || "Logo yüklenemedi");
+      setNotice(
+        (resized ? "Görsel otomatik olarak 1024 × 1024 PNG biçimine dönüştürüldü. " : "") +
+        (result.message || "Logo kaydedildi."),
+      );
       setRevision(current => current + 1);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Yükleme başarısız");
+      setError(err instanceof Error ? err.message : "Logo yüklenemedi.");
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -95,16 +140,16 @@ export default function MaykAppBranding() {
           <p className="text-sm text-slate-300">
             {branding?.hasIcon ? "Logo sunucuda kayıtlı. Sonraki iOS derlemesine aktarılmaya hazır." : "Henüz özel logo yüklenmemiş. Varsayılan M.A.Y.K logosu kullanılacak."}
           </p>
-          <p className="text-xs text-slate-400">Dosya: PNG · Ölçü: 1024 × 1024 px · En fazla 4 MB</p>
+          <p className="text-xs text-slate-400">PNG / JPG / WEBP · Otomatik 1024 × 1024 PNG dönüşümü · Kaynak en fazla 20 MB</p>
           {!branding?.configured && branding ? <p className="text-xs text-amber-300">Kalıcı logo depolaması için Supabase sunucu ayarları gereklidir.</p> : null}
           {isAdmin ? (
             <>
-              <input ref={fileRef} type="file" accept="image/png" className="sr-only" id="mayk-app-icon" disabled={busy} onChange={(event) => {
+              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" id="mayk-app-icon" disabled={busy} onChange={(event) => {
                 const file = event.currentTarget.files?.[0];
                 if (file) void upload(file).catch(err => setError(String(err)));
               }} />
               <label htmlFor="mayk-app-icon" className={`inline-flex cursor-pointer items-center gap-2 rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold hover:bg-cyan-600 ${busy ? "pointer-events-none opacity-50" : ""}`}>
-                <ImagePlus className="h-4 w-4" /> {busy ? "Kaydediliyor..." : branding?.hasIcon ? "Logoyu Değiştir" : "1024×1024 Logo Yükle"}
+                <ImagePlus className="h-4 w-4" /> {busy ? "Kaydediliyor..." : branding?.hasIcon ? "Logoyu Değiştir" : "Uygulama Logosu Yükle"}
               </label>
             </>
           ) : <p className="text-xs text-slate-500">Logo yükleme yetkisi sistem yöneticisine aittir.</p>}
