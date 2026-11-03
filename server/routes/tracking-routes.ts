@@ -253,6 +253,13 @@ export function registerTrackingRoutes(app: Express): void {
         .where(eq(detectedChanges.id, id))
         .returning();
       if (!row) return res.status(404).json({ success: false, error: "Değişiklik bulunamadı" });
+      void import("../services/mayk-push.service")
+        .then(({ scheduleMaykEvent }) => scheduleMaykEvent({
+          key:"change:"+row.id+":seen:"+new Date(row.seenAt || new Date()).toISOString(),
+          type:"seen",title:"Değişiklik görüldü",
+          body:"Ürün #"+row.trackedProductId+" değişikliği görüntülendi.",
+          productId:row.trackedProductId,changeId:row.id,
+        })).catch(()=>undefined);
       return res.json({ success: true, change: row });
     } catch (err) {
       return migrationErrorResponse(res, err);
@@ -271,6 +278,9 @@ export function registerTrackingRoutes(app: Express): void {
         .where(eq(detectedChanges.id, id))
         .returning();
       if (!row) return res.status(404).json({ success: false, error: "Değişiklik bulunamadı" });
+      void import("../services/mayk-push.service")
+        .then(({ scheduleMaykChangeWithLookup }) => scheduleMaykChangeWithLookup(row))
+        .catch(()=>undefined);
       return res.json({ success: true, change: row });
     } catch (err) {
       return migrationErrorResponse(res, err);
