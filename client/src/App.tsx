@@ -154,13 +154,68 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
   }
 }
 
+type MaykWebWindow = Window & {
+  __maykPushToken?: string;
+  ReactNativeWebView?: { postMessage: (message: string) => void };
+};
+
 function AccountAppShell({ user }: { user: AccountUser }) {
   useEffect(() => {
-    // Native app menu logout: uses the existing web account logout and cookie flow.
-    const logoutFromNative = () => { void logoutAccount(); };
+    if (!isMaykNativeApp()) return;
+    const bridge = window as MaykWebWindow;
+    let registeredToken = "";
+    let canceled = false;
+    const messageNative = (type: string) => {
+      bridge.ReactNativeWebView?.postMessage(JSON.stringify({ type }));
+    };
+
+    const registerToken = async () => {
+      const token = bridge.__maykPushToken || "";
+      if (!token || user.systemRole !== "admin" || token === registeredToken || canceled) return;
+      try {
+        const res = await fetch("/api/mayk/push/register", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-Requested-With": "MAYK-IOS" },
+          body: JSON.stringify({ pushToken: token }),
+        });
+        if (!res.ok) throw new Error("Bildirim cihaz kaydı başarısız");
+        if (!canceled) {
+          registeredToken = token;
+          messageNative("mayk-push-registered");
+        }
+      } catch (err) {
+        console.warn("[M.A.Y.K] Push kaydı tekrarlanacak:", err);
+      }
+    };
+
+    const logoutFromNative = () => {
+      void (async () => {
+        canceled = true;
+        const token = bridge.__maykPushToken;
+        if (token) {
+          await fetch("/api/mayk/push/unregister", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-Requested-With": "MAYK-IOS" },
+            body: JSON.stringify({ pushToken: token }),
+          }).catch(() => undefined);
+        }
+        messageNative("mayk-logout");
+        await logoutAccount();
+      })();
+    };
+
+    window.addEventListener("mayk:push-token", registerToken);
     window.addEventListener("mayk:logout", logoutFromNative);
-    return () => window.removeEventListener("mayk:logout", logoutFromNative);
-  }, []);
+    if (user.systemRole === "admin") messageNative("mayk-authenticated");
+    void registerToken();
+    return () => {
+      canceled = true;
+      window.removeEventListener("mayk:push-token", registerToken);
+      window.removeEventListener("mayk:logout", logoutFromNative);
+    };
+  }, [user.systemRole, user.userId]);
 
   return (
     <WouterRouter>
