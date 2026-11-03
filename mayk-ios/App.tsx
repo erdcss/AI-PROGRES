@@ -87,6 +87,7 @@ function WebApp() {
   const [viewKey, setViewKey] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const navigatePathRef = useRef<((path: string) => void) | null>(null);
   const pushToken = useRef<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pushStatus, setPushStatus] = useState<"idle" | "requesting" | "ready" | "denied" | "error">("idle");
@@ -130,7 +131,6 @@ function WebApp() {
     return () => subscription.remove();
   }, []);
 
-  const navigatePathRef = useRef<((path: string) => void) | null>(null);
 
 
   useEffect(() => {
