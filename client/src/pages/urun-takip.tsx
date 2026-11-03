@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { isMaykNativeApp } from "@/lib/mayk-native";
 import {
   RefreshCw,
   Play,
@@ -317,6 +318,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("actionable");
+  const [mobileSection, setMobileSection] = useState<"products" | "changes" | "fixed" | "settings">("products");
+  const [expandedMobileProduct, setExpandedMobileProduct] = useState<number | null>(null);
   const [kindFilter, setKindFilter] = useState<ChangeKindFilter | null>(null);
   const [authenticityFilter, setAuthenticityFilter] = useState<AuthenticityFilter>("all");
   const [productSearch, setProductSearch] = useState("");
@@ -723,6 +726,426 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const settings = { ...settingsQuery.data, ...settingsForm } as TrackingSettings | undefined;
   const autoCorrectOn = Boolean(settings?.autoShopifySyncEnabled);
   const trackingOff = settings && !settings.trackingEnabled;
+
+  // M.A.Y.K iPhone presentation: same live queries and mutations as web, touch-first layout.
+  if (isMaykNativeApp() && !embedded) {
+    const sectionItems = [
+      { id: "products" as const, title: "Ürünler", count: productsQuery.data?.length ?? 0 },
+      { id: "changes" as const, title: "Değişiklik", count: changeCountsQuery.data?.all ?? 0 },
+      { id: "fixed" as const, title: "Düzeltilen", count: changeCountsQuery.data?.auto_corrected ?? 0 },
+      { id: "settings" as const, title: "Ayarlar", count: null },
+    ];
+
+    const mobileRefresh = () => {
+      void Promise.all([
+        statusQuery.refetch(), productsQuery.refetch(), changesQuery.refetch(),
+        autoCorrectedQuery.refetch(), changeCountsQuery.refetch(),
+      ]);
+    };
+
+    return (
+      <main className="mayk-mobile-tracking mx-auto w-full max-w-[760px] min-w-0 space-y-4 overflow-x-clip bg-[#0C1623] px-3.5 pb-8 pt-4 text-slate-100">
+        <header className="rounded-[22px] border border-[#395568] bg-gradient-to-br from-[#1C3545] to-[#101D2A] p-4">
+          <div className="flex min-w-0 items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-teal-300">Canlı izleme</p>
+              <h1 className="mt-1.5 text-[24px] font-bold leading-tight text-white">Ürün Takip</h1>
+              <p className="mt-1 text-[12px] leading-5 text-slate-300">Kaynak fiyatı, stok ve MarktGO düzeltmeleri</p>
+            </div>
+            <button
+              type="button"
+              onClick={mobileRefresh}
+              aria-label="Tüm takip verilerini yenile"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#466778] bg-[#223C4C] text-teal-100"
+            >
+              <RefreshCw className={`h-5 w-5 ${productsQuery.isFetching ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold ${st?.safeSchedulerRunning
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+              : "border-amber-400/30 bg-amber-500/10 text-amber-200"}`}>
+              {st?.safeSchedulerRunning ? "Takip aktif" : "Takip durdu"}
+            </span>
+            <span className="rounded-full border border-slate-500/40 bg-slate-700/30 px-3 py-1.5 text-[11px] text-slate-300">
+              {st?.intervalMinutes ? `Her ${st.intervalMinutes} dk kontrol` : "Durum izleniyor"}
+            </span>
+          </div>
+        </header>
+
+        <section className="grid grid-cols-2 gap-2.5" aria-label="Takip özeti">
+          {[
+            { label: "Takip edilen", value: st?.trackedProductsCount ?? "—" },
+            { label: "Aktif ürün", value: st?.activeTrackedProductsCount ?? "—" },
+            { label: "Değişiklik", value: changeCountsQuery.data?.all ?? "—" },
+            { label: "Kontrol gerekli", value: st?.manualReviewCount ?? "—" },
+          ].map(item => (
+            <div key={item.label} className="min-w-0 rounded-2xl border border-[#304152] bg-[#152434] px-3.5 py-3">
+              <p className="text-[11px] leading-4 text-slate-400">{item.label}</p>
+              <p className="mt-2 text-[25px] font-semibold leading-none tabular-nums text-white">{item.value}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-[#365061] bg-[#152938] px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-semibold text-white">Otomatik düzeltme</p>
+            <p className="mt-1 text-[11px] leading-4 text-slate-400">
+              {autoCorrectOn ? "MarktGO değişiklikleri otomatik uygulanır." : "Bekleyen değişiklikleri manuel düzeltebilirsin."}
+            </p>
+          </div>
+          <Switch
+            id="mayk-mobile-auto-correct"
+            checked={autoCorrectOn}
+            disabled={saveSettingsMutation.isPending || settingsQuery.isLoading}
+            aria-label="Otomatik düzeltmeyi aç veya kapat"
+            onCheckedChange={v => {
+              setSettingsForm(form => ({ ...form, autoShopifySyncEnabled: v }));
+              saveSettingsMutation.mutate({
+                autoShopifySyncEnabled: v,
+                ...(v ? { trackingEnabled: true, schedulerEnabled: true } : {}),
+              });
+            }}
+          />
+        </section>
+
+        <nav className="grid grid-cols-4 gap-1.5 rounded-2xl border border-[#304152] bg-[#132232] p-1.5" role="tablist" aria-label="Ürün takip bölümleri">
+          {sectionItems.map(item => (
+            <button
+              type="button"
+              role="tab"
+              key={item.id}
+              aria-selected={mobileSection === item.id}
+              onClick={() => setMobileSection(item.id)}
+              className={`min-h-12 min-w-0 rounded-xl px-1 py-2 text-center transition-colors ${mobileSection === item.id
+                ? "bg-[#2B5260] text-white shadow-sm"
+                : "text-slate-400"}`}
+            >
+              <span className="block text-[11px] font-semibold leading-4">{item.title}</span>
+              {item.count != null && <span className="mt-0.5 block text-[10px] tabular-nums">{item.count}</span>}
+            </button>
+          ))}
+        </nav>
+
+        {mobileSection === "products" && (
+          <section role="tabpanel" className="space-y-3">
+            <label className="relative block">
+              <span className="sr-only">Ürün ara</span>
+              <Search className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={productSearch}
+                onChange={e => setProductSearch(e.target.value)}
+                placeholder="Ürün, kaynak, takip ID ara..."
+                className="mayk-mobile-input h-12 w-full rounded-xl border border-[#3C5364] bg-[#172839] pl-11 pr-3 text-[16px] text-white placeholder:text-slate-400 focus:border-teal-400 focus:outline-none"
+              />
+            </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[12px] text-slate-400">{filteredProducts.length} ürün listeleniyor</p>
+              <button type="button" disabled={productsQuery.isFetching} onClick={() => void productsQuery.refetch()} className="min-h-10 rounded-lg border border-[#466072] px-3 text-[12px] text-slate-200">
+                Listeyi yenile
+              </button>
+            </div>
+            {productsQuery.isLoading && <p className="py-8 text-center text-sm text-slate-400">Ürünler yükleniyor...</p>}
+            {productsQuery.error && <p className="rounded-xl border border-red-500/30 bg-red-900/10 p-3 text-sm text-red-200">{(productsQuery.error as Error).message}</p>}
+            {!productsQuery.isLoading && !productsQuery.error && filteredProducts.length === 0 && (
+              <div className="rounded-xl border border-[#304152] bg-[#142231] p-6 text-center text-sm text-slate-400">
+                {productSearch ? "Aramayla eşleşen ürün bulunamadı." : "Henüz takip edilen ürün bulunmuyor."}
+              </div>
+            )}
+            {filteredProducts.map(product => (
+              <article key={product.id} className="min-w-0 overflow-hidden rounded-2xl border border-[#33495B] bg-[#152536] p-3.5">
+                <div className="flex min-w-0 items-start gap-3">
+                  <TrackingProductImage imageUrl={product.productImageUrl} title={product.sourceTitle} size="md" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p className="line-clamp-3 break-words text-[13px] font-semibold leading-[18px] text-white">{product.sourceTitle || "Başlıksız ürün"}</p>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      {product.sourceLogoUrl && (
+                        <img src={product.sourceLogoUrl} alt="" className="h-4 w-4 rounded bg-white p-0.5 object-contain" loading="lazy" />
+                      )}
+                      <span className="max-w-full break-words text-[11px] text-slate-400">{product.sourceSiteName || product.sourceSite || "Kaynak site"}</span>
+                    </div>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${product.trackingEnabled
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                      : "border-slate-500/40 bg-slate-700/30 text-slate-300"}`}>
+                      {product.trackingEnabled ? "Aktif takip" : "Takip durdu"}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="min-w-0 rounded-xl bg-[#203445] px-3 py-2.5">
+                    <p className="text-[11px] text-slate-400">Kaynak fiyatı</p>
+                    <p className="mt-1 break-words text-[15px] font-semibold text-white">{product.currentSourcePrice ? `${product.currentSourcePrice} ₺` : "—"}</p>
+                  </div>
+                  <div className="min-w-0 rounded-xl bg-[#203445] px-3 py-2.5">
+                    <p className="text-[11px] text-slate-400">Stok</p>
+                    <p className="mt-1 text-[15px] font-semibold text-white">{product.currentSourceStock ?? "—"}</p>
+                  </div>
+                </div>
+                {product.lastErrorMessage && (
+                  <div className="mt-2 break-words rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5 text-[12px] leading-4 text-rose-200">
+                    {product.lastErrorMessage}
+                  </div>
+                )}
+                {expandedMobileProduct === product.id && (
+                  <div className="mt-3 space-y-2 rounded-xl border border-[#33495B] bg-[#0F1D2B] p-3">
+                    <p className="text-[12px] font-semibold text-slate-200">Ürün zaman çizelgesi</p>
+                    {buildProductTrackingTimeline({
+                      productCreatedAt: product.createdAt,
+                      shopifyTransferredAt: product.shopifyTransferredAt,
+                      productLastCheckedAt: product.lastCheckedAt,
+                      productLastSuccessAt: product.lastSuccessAt,
+                      productLastShopifySyncAt: product.lastShopifySyncAt,
+                    }).map(point => (
+                      <div key={point.label} className="flex flex-wrap justify-between gap-x-2 gap-y-1 text-[11px]">
+                        <span className="text-slate-400">{point.label}</span>
+                        <span className="break-words text-slate-200">{formatTrackingDateTime(point.at)}</span>
+                      </div>
+                    ))}
+                    {(product.productImageUrls?.length ?? 0) > 1 && (
+                      <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
+                        {product.productImageUrls!.slice(0, 8).map((url, index) => (
+                          <a key={url + index} href={url} target="_blank" rel="noreferrer" aria-label={`Ürün görseli ${index + 1}`} className="shrink-0">
+                            <img src={url} alt="" loading="lazy" className="h-16 w-16 rounded-lg object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={checkMutation.isPending || !product.trackingEnabled}
+                    onClick={() => checkMutation.mutate(product.id)}
+                    className="min-h-11 rounded-xl bg-[#1C7480] px-2 text-[12px] font-semibold text-white disabled:opacity-50"
+                  >Kontrol et</button>
+                  <button
+                    type="button"
+                    disabled={toggleMutation.isPending}
+                    onClick={() => toggleMutation.mutate({ id: product.id, enable: !product.trackingEnabled })}
+                    className="min-h-11 rounded-xl border border-[#436074] bg-[#203749] px-2 text-[12px] font-semibold text-slate-100 disabled:opacity-50"
+                  >{product.trackingEnabled ? "Duraklat" : "Etkinleştir"}</button>
+                  <button type="button" onClick={() => setExpandedMobileProduct(id => id === product.id ? null : product.id)} className="min-h-10 rounded-xl border border-[#3A5265] px-2 text-[12px] text-slate-200">
+                    {expandedMobileProduct === product.id ? "Ayrıntıyı gizle" : "Ayrıntılar"}
+                  </button>
+                  {/^https?:\/\//i.test(product.sourceUrl) ? (
+                    <a className="flex min-h-10 items-center justify-center rounded-xl border border-[#3A5265] px-2 text-[12px] text-slate-200" href={product.sourceUrl} target="_blank" rel="noreferrer">Kaynağı aç</a>
+                  ) : <span />}
+                </div>
+              </article>
+            ))}
+          </section>
+        )}
+
+        {mobileSection === "changes" && (
+          <section role="tabpanel" className="space-y-3">
+            <p className="text-[12px] leading-5 text-slate-400">MarktGO'da bekleyen ürün değişikliklerini incele ve düzelt.</p>
+            <div className="flex flex-wrap gap-2">
+              {CHANGE_FILTERS.map(filter => (
+                <button
+                  type="button"
+                  key={filter.value}
+                  onClick={() => { setStatusFilter(filter.value); setKindFilter(null); }}
+                  className={`min-h-10 rounded-xl border px-3 text-[12px] font-medium ${statusFilter === filter.value
+                    ? "border-teal-400/50 bg-[#24515A] text-white" : "border-[#3A5265] bg-[#182B3B] text-slate-300"}`}
+                >{filter.label} ({changeCountsQuery.data?.[filter.countKey] ?? 0})</button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {AUTHENTICITY_FILTERS.map(filter => (
+                <button
+                  type="button"
+                  key={filter.value}
+                  title={filter.hint}
+                  onClick={() => setAuthenticityFilter(filter.value)}
+                  className={`min-h-9 rounded-lg border px-3 text-[11px] ${authenticityFilter === filter.value
+                    ? "border-teal-400/50 bg-[#24515A] text-white" : "border-[#3A5265] text-slate-400"}`}
+                >{filter.label} ({authenticityCounts[filter.value]})</button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {CHANGE_KIND_FILTERS.map(filter => (
+                <button
+                  type="button"
+                  key={filter.value}
+                  onClick={() => setKindFilter(prev => prev === filter.value ? null : filter.value)}
+                  className={`min-h-9 rounded-lg border px-3 text-[11px] ${kindFilter === filter.value
+                    ? "border-teal-400/50 bg-[#24515A] text-white" : "border-[#3A5265] text-slate-400"}`}
+                >{filter.label} ({kindFilterCounts[filter.value]})</button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {bulkFixIds.length > 0 && !["ignored", "seen", "applied", "history"].includes(statusFilter) && (
+                <button
+                  type="button"
+                  disabled={bulkMarktGoSyncMutation.isPending}
+                  onClick={() => bulkMarktGoSyncMutation.mutate(bulkFixIds)}
+                  className="min-h-11 rounded-xl bg-[#1C7480] px-2 text-[12px] font-semibold text-white disabled:opacity-50"
+                >Toplu düzelt ({bulkFixIds.length})</button>
+              )}
+              {approvableIds.length > 0 && !["ignored", "seen", "applied", "history"].includes(statusFilter) && (
+                <button
+                  type="button"
+                  disabled={bulkApproveMutation.isPending || bulkMarktGoSyncMutation.isPending}
+                  onClick={() => bulkApproveMutation.mutate(approvableIds)}
+                  className="min-h-11 rounded-xl border border-[#436074] bg-[#203749] px-2 text-[12px] text-slate-100 disabled:opacity-50"
+                >Toplu onay ({approvableIds.length})</button>
+              )}
+            </div>
+            {changesQuery.isLoading && <p className="text-center text-sm text-slate-400">Değişiklikler yükleniyor...</p>}
+            {changesQuery.error && <p className="rounded-xl border border-rose-500/40 p-3 text-sm text-rose-200">{(changesQuery.error as Error).message}</p>}
+            {(changesQuery.data?.length ?? 0) >= 400 && (
+              <p className="text-[11px] text-amber-200">Son 400 değişiklik gösteriliyor. Filtrelerle daraltabilirsin.</p>
+            )}
+            {!changesQuery.isLoading && !changesQuery.error && filteredGroupedChanges.length === 0 && (
+              <div className="rounded-xl border border-[#304152] bg-[#142231] p-6 text-center text-sm text-slate-400">Bu filtrede değişiklik yok.</div>
+            )}
+            {filteredGroupedChanges.map(group => {
+              const p = group[0];
+              const syncIds = selectInstantMarktGoSyncIds(group);
+              const busy = changeActionMutation.isPending || marktgoSyncMutation.isPending || bulkApproveMutation.isPending || bulkMarktGoSyncMutation.isPending;
+              return (
+                <article key={getChangeProductKey(p)} className="min-w-0 space-y-3 rounded-2xl border border-[#33495B] bg-[#152536] p-3.5">
+                  <div className="flex min-w-0 gap-3">
+                    <TrackingProductImage imageUrl={p.productImageUrl} title={p.productTitle} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-3 break-words text-[13px] font-semibold leading-[18px] text-white">{p.productTitle || `Ürün #${p.trackedProductId}`}</p>
+                      <p className="mt-1 text-[11px] text-slate-400">{group.length} değişiklik · Takip #{p.trackedProductId}</p>
+                      <p className="mt-1 text-[11px] text-slate-400">Son değişiklik: {formatDate(p.createdAt)}</p>
+                    </div>
+                  </div>
+                  {group.map(change => {
+                    const canSync = syncIds.includes(change.id);
+                    const canApprove = ["pending", "manual_review"].includes(change.status);
+                    return (
+                      <div key={change.id} className="min-w-0 space-y-2 rounded-xl border border-[#314A5C] bg-[#0F1E2D] p-3">
+                        <div className="flex flex-wrap justify-between gap-1 text-[11px]">
+                          <span className="break-words font-semibold text-teal-200">{change.variantLabel || change.fieldName || change.changeType}</span>
+                          <span className="text-slate-400">{change.status}</span>
+                        </div>
+                        <div className="grid min-w-0 grid-cols-2 gap-2 text-[12px]">
+                          <div className="min-w-0 rounded-lg bg-[#213347] p-2">
+                            <p className="text-[10px] text-slate-400">Önce</p>
+                            <p className="break-all text-slate-200">{formatChangeValue(change.oldValue)}</p>
+                          </div>
+                          <div className="min-w-0 rounded-lg bg-[#213347] p-2">
+                            <p className="text-[10px] text-slate-400">Sonra</p>
+                            <p className="break-all text-white">{formatChangeValue(change.newValue)}</p>
+                          </div>
+                        </div>
+                        {change.reason && <p className="break-words text-[11px] leading-4 text-slate-400">{change.reason}</p>}
+                        <div className="grid grid-cols-2 gap-2">
+                          {canSync && <button type="button" disabled={busy} onClick={() => marktgoSyncMutation.mutate(change.id)} className="min-h-11 rounded-lg bg-[#1C7480] px-2 text-[11px] font-semibold text-white disabled:opacity-50">MarktGO'da düzelt</button>}
+                          {canApprove && <button type="button" disabled={busy} onClick={() => changeActionMutation.mutate({ id: change.id, action: "approve" })} className="min-h-11 rounded-lg border border-teal-500/30 px-2 text-[11px] font-medium text-teal-200 disabled:opacity-50">Onayla</button>}
+                          {change.status !== "ignored" && <button type="button" disabled={busy} onClick={() => changeActionMutation.mutate({ id: change.id, action: "ignore" })} className="min-h-10 rounded-lg border border-[#435A6C] px-2 text-[11px] text-slate-300 disabled:opacity-50">Yok say</button>}
+                          {change.status !== "seen" && <button type="button" disabled={busy} onClick={() => changeActionMutation.mutate({ id: change.id, action: "mark-seen" })} className="min-h-10 rounded-lg border border-[#435A6C] px-2 text-[11px] text-slate-300 disabled:opacity-50">Görüldü</button>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => checkMutation.mutate(p.trackedProductId)}
+                    disabled={checkMutation.isPending}
+                    className="min-h-10 w-full rounded-xl border border-[#476477] bg-[#20394B] px-3 text-[12px] font-medium text-white disabled:opacity-50"
+                  >Kaynağı yeniden kontrol et</button>
+                </article>
+              );
+            })}
+          </section>
+        )}
+
+        {mobileSection === "fixed" && (
+          <section role="tabpanel" className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[12px] leading-5 text-slate-400">MarktGO'da otomatik uygulanan değişiklikler.</p>
+              <button onClick={() => void autoCorrectedQuery.refetch()} type="button" className="min-h-10 rounded-xl border border-[#3D586A] px-3 text-[12px] text-slate-200">Yenile</button>
+            </div>
+            {autoCorrectedQuery.isLoading && <p className="text-sm text-slate-400">Kayıtlar yükleniyor...</p>}
+            {autoCorrectedQuery.error && <p className="rounded-xl border border-red-500/30 p-3 text-sm text-red-200">{(autoCorrectedQuery.error as Error).message}</p>}
+            {!autoCorrectedQuery.isLoading && !autoCorrectedQuery.error && autoCorrectedGroups.length === 0 && (
+              <p className="rounded-xl border border-[#304152] p-5 text-center text-sm text-slate-400">Henüz otomatik düzeltilmiş ürün yok.</p>
+            )}
+            {autoCorrectedGroups.map(group => {
+              const p = group[0];
+              return (
+                <article key={getChangeProductKey(p)} className="min-w-0 rounded-2xl border border-[#33495B] bg-[#152536] p-3.5">
+                  <div className="flex min-w-0 gap-3">
+                    <TrackingProductImage imageUrl={p.productImageUrl} title={p.productTitle} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-3 break-words text-[13px] font-semibold text-white">{p.productTitle || `Ürün #${p.trackedProductId}`}</p>
+                      <p className="mt-2 text-[11px] font-medium text-emerald-300">Otomatik düzeltildi</p>
+                      <p className="text-[11px] text-slate-400">{formatDate(p.appliedAt || p.createdAt)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {group.map(change => (
+                      <div key={change.id} className="min-w-0 rounded-xl bg-[#203445] p-3">
+                        <p className="break-words text-[12px] font-semibold text-slate-200">{change.fieldName || change.changeType}</p>
+                        <p className="mt-1 break-all text-[11px] text-slate-300">{formatChangeValue(change.oldValue)} → {formatChangeValue(change.newValue)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        )}
+
+        {mobileSection === "settings" && (
+          <section role="tabpanel" className="space-y-4 rounded-2xl border border-[#33495B] bg-[#152536] p-4">
+            <div>
+              <h2 className="text-[16px] font-semibold text-white">Takip Ayarları</h2>
+              <p className="mt-1 text-[12px] leading-4 text-slate-400">Kaydedilen ayarlar web ve mobil sistemde ortak uygulanır.</p>
+            </div>
+            {settingsQuery.isLoading ? <p className="text-slate-400">Yükleniyor...</p> : (
+              <>
+                {[
+                  { key: "trackingEnabled" as const, title: "Takip sistemi" },
+                  { key: "schedulerEnabled" as const, title: "Otomatik kontrol" },
+                  { key: "autoShopifySyncEnabled" as const, title: "MarktGO otomatik düzeltme" },
+                ].map(item => (
+                  <label key={item.key} className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-[#203445] px-3 py-2">
+                    <span className="min-w-0 flex-1 text-[13px] leading-4 text-slate-200">{item.title}</span>
+                    <Switch
+                      checked={Boolean(settings?.[item.key])}
+                      onCheckedChange={value => setSettingsForm(prev => ({ ...prev, [item.key]: value }))}
+                      aria-label={item.title}
+                    />
+                  </label>
+                ))}
+                {[
+                  { key: "checkIntervalMinutes" as const, label: "Kontrol aralığı (dk)" },
+                  { key: "batchSize" as const, label: "Toplu kontrol adedi" },
+                  { key: "requestDelayMs" as const, label: "İstek bekleme (ms)" },
+                  { key: "maxErrorsBeforePause" as const, label: "Hata sonrası duraklat" },
+                ].map(item => (
+                  <label key={item.key} className="block space-y-1.5">
+                    <span className="text-[12px] text-slate-300">{item.label}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={settings?.[item.key] ?? ""}
+                      onChange={e => setSettingsForm(prev => ({ ...prev, [item.key]: Number(e.target.value) }))}
+                      className="mayk-mobile-input h-12 w-full rounded-xl border border-[#3C5364] bg-[#172839] px-3 text-[16px] text-white focus:border-teal-400 focus:outline-none"
+                    />
+                  </label>
+                ))}
+                <p className="text-[11px] text-slate-400">Sonraki kontrol: {formatDate(st?.nextRunAt ?? null)}</p>
+                <button
+                  type="button"
+                  disabled={saveSettingsMutation.isPending || Object.keys(settingsForm).length === 0}
+                  onClick={() => saveSettingsMutation.mutate(settingsForm)}
+                  className="min-h-12 w-full rounded-xl bg-[#1C7480] font-semibold text-white disabled:opacity-50"
+                >{saveSettingsMutation.isPending ? "Kaydediliyor..." : "Ayarları kaydet"}</button>
+              </>
+            )}
+          </section>
+        )}
+      </main>
+    );
+  }
 
   return (
     <div className={embedded ? "space-y-6" : "container mx-auto p-4 md:p-6 space-y-6 max-w-7xl"}>

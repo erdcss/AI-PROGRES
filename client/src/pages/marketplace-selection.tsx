@@ -18,6 +18,8 @@ import {
 import { RealTimeClock } from "@/components/RealTimeClock";
 import { OrvianHeroBrand } from "@/components/OrvianHeroBrand";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { isMaykNativeApp } from "@/lib/mayk-native";
+import { MaykMobileDashboard } from "@/components/MaykMobileDashboard";
 import { hasShopifyLabel, useDestinationBrand } from "@/hooks/use-destination-brand";
 
 type NavItem = {
@@ -247,6 +249,20 @@ const MarketplaceSelection = ({ workspaceOnly = false }: { workspaceOnly?: boole
   const visibleQuick = hideShopifyNav
     ? quick.filter((item) => !hasShopifyLabel(`${item.path} ${item.label} ${item.testId}`))
     : quick;
+
+  if (isMaykNativeApp()) {
+    return (
+      <MaykMobileDashboard
+        extraction={extraction}
+        reviews={reviews}
+        system={visibleSystem}
+        quick={visibleQuick}
+        restricted={workspaceOnly}
+        destination={dest}
+        onOpen={setLocation}
+      />
+    );
+  }
 
   return (
     <div className="home-orvian relative min-h-screen overflow-x-hidden bg-black">

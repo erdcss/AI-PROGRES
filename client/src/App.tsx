@@ -22,8 +22,10 @@ import {
   subscribeAccountAuth,
 } from "@/lib/account-auth";
 import { markUserInitiatedReload } from "@/lib/dev-stability";
+import { isMaykNativeApp } from "@/lib/mayk-native";
 
 function LoginScreen() {
+  const isNative = isMaykNativeApp();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -51,13 +53,20 @@ function LoginScreen() {
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] flex min-h-screen items-center justify-center bg-slate-950 px-4">
+    <div className="fixed inset-0 z-[10000] flex min-h-screen items-center justify-center overflow-y-auto bg-[#0C1623] px-4 py-6">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950/40 to-slate-950" aria-hidden />
-      <Card className="relative z-10 w-full max-w-md border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-md md:max-w-lg">
+      <Card className="relative z-10 w-full max-w-md min-w-0 border border-[#38576B] bg-[#132333] shadow-2xl backdrop-blur-md md:max-w-lg">
         <CardHeader className="space-y-4 px-4 text-center md:px-8">
-          <img src="/orvian-logo.png" alt="Turmarkt Veri Platformu" className="mx-auto h-10 w-auto object-contain md:h-12" />
+          {isNative ? (
+            <div className="mx-auto flex flex-col items-center gap-2">
+              <img src="/api/mayk/branding/icon.png" alt="M.A.Y.K" className="h-16 w-16 rounded-2xl border border-teal-500/30 object-cover" />
+              <span className="text-[11px] font-medium tracking-widest text-teal-300">AI PROGRES</span>
+            </div>
+          ) : (
+            <img src="/orvian-logo.png" alt="Turmarkt Veri Platformu" className="mx-auto h-10 w-auto object-contain md:h-12" />
+          )}
           <div>
-            <div className="text-xl font-bold text-white">Turmarkt Veri Platformu</div>
+            <div className="text-xl font-bold text-white">{isNative ? "M.A.Y.K" : "Turmarkt Veri Platformu"}</div>
             <CardDescription className="mt-2 text-slate-300">
               {mode === "login" ? "Hesabınızla güvenli giriş yapın" : "Kendi çalışma alanınızı oluşturun"}
             </CardDescription>
@@ -146,6 +155,13 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
 }
 
 function AccountAppShell({ user }: { user: AccountUser }) {
+  useEffect(() => {
+    // Native app menu logout: uses the existing web account logout and cookie flow.
+    const logoutFromNative = () => { void logoutAccount(); };
+    window.addEventListener("mayk:logout", logoutFromNative);
+    return () => window.removeEventListener("mayk:logout", logoutFromNative);
+  }, []);
+
   return (
     <WouterRouter>
       <div className="min-h-screen" style={{ position: "relative" }}>

@@ -516,3 +516,90 @@ html {
     @apply bg-zinc-950/80 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:ring-zinc-700;
   }
 }
+
+
+/* M.A.Y.K iOS — native safe-area layout and no horizontal clipping.
+   Scoped by WebView UA bridge; existing desktop/web layouts remain unchanged. */
+html.mayk-ios,
+html.mayk-ios body,
+html.mayk-ios #root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  background: #0c1623;
+}
+html.mayk-ios,
+html.mayk-ios body {
+  -webkit-text-size-adjust: 100%;
+}
+html.mayk-ios .mayk-mobile-screen,
+html.mayk-ios .mayk-mobile-tracking {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  min-height: 100%;
+  overscroll-behavior-x: none;
+}
+html.mayk-ios .mayk-mobile-screen *,
+html.mayk-ios .mayk-mobile-tracking * {
+  min-width: 0;
+  box-sizing: border-box;
+}
+html.mayk-ios .mayk-mobile-tracking input,
+html.mayk-ios .mayk-mobile-tracking select,
+html.mayk-ios input[type="email"],
+html.mayk-ios input[type="password"] {
+  font-size: 16px;
+  max-width: 100%;
+}
+html.mayk-ios .mayk-mobile-screen button,
+html.mayk-ios .mayk-mobile-tracking button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+html.mayk-ios .mayk-mobile-screen h1,
+html.mayk-ios .mayk-mobile-tracking h1 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 420px) {
+  html.mayk-ios .mayk-mobile-screen,
+  html.mayk-ios .mayk-mobile-tracking { padding-left: 13px; padding-right: 13px; }
+}
+
+
+/* Remaining web modules remain reachable from the native module sheet.
+   Wide data tables scroll inside their own area instead of cutting off the
+   entire iPhone screen, and dialogs never extend outside the viewport. */
+html.mayk-ios .container {
+  max-width: 100% !important;
+  min-width: 0;
+}
+html.mayk-ios div:has(> table),
+html.mayk-ios div:has(> .min-w-full > table) {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+html.mayk-ios [role="dialog"],
+html.mayk-ios [data-radix-popper-content-wrapper] {
+  max-width: calc(100vw - 20px) !important;
+}
+html.mayk-ios [role="dialog"] {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+html.mayk-ios input,
+html.mayk-ios select,
+html.mayk-ios textarea {
+  max-width: 100%;
+}
+@media (max-width: 640px) {
+  html.mayk-ios input:not([type="checkbox"]):not([type="radio"]),
+  html.mayk-ios textarea,
+  html.mayk-ios select {
+    font-size: 16px;
+  }
+}

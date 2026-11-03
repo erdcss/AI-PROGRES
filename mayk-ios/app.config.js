@@ -7,7 +7,7 @@ module.exports = {
   expo: {
     name: "M.A.Y.K",
     slug: "mayk-ios",
-    version: "1.0.0",
+    version: "1.1.0",
     orientation: "portrait",
     platforms: ["ios"],
     scheme: "mayk",
