@@ -257,6 +257,12 @@ export async function syncDashboardStats(stats: {
  */
 export function notifyMobileAfterPersistedChanges(rows: DetectedChange[]): void {
   try {
+    // M.A.Y.K delivery is independent from the Supabase mobile mirror and Android gateway.
+    void import("./mayk-push.service")
+      .then(({ scheduleMaykChangeWithLookup }) => {
+        for (const row of rows) if (row?.id) scheduleMaykChangeWithLookup(row);
+      })
+      .catch(err => console.warn("[mayk-push] persisted changes:", err instanceof Error ? err.message : String(err)));
     for (const row of rows) {
       if (!row?.id) continue;
       scheduleMobileEventAfterChange(row);

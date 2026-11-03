@@ -133,6 +133,10 @@ export async function runManualProductCheck(trackedProductId: number) {
           .update(trackedProducts)
           .set({ lastCheckedAt: new Date(), updatedAt: new Date() })
           .where(eq(trackedProducts.id, trackedProductId));
+        void import("./mayk-push.service").then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
+          productId:trackedProductId,productTitle:product.sourceTitle,state:"source_warning",
+          at:new Date(),detail:"Kaynak fiyatı doğrulanamadı. Kontrol gerekli.",
+        })).catch(()=>undefined);
         return {
           success: false,
           skipped: true,
@@ -196,6 +200,10 @@ export async function runManualProductCheck(trackedProductId: number) {
           skippedReason: "incomplete_variant_snapshot",
         },
       });
+      void import("./mayk-push.service").then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
+        productId:trackedProductId,productTitle:product.sourceTitle,state:"source_warning",
+        at:new Date(),detail:"Kaynak varyant bilgileri eksik. Kontrol gerekli.",
+      })).catch(()=>undefined);
       return {
         success: false,
         skipped: true,
@@ -389,6 +397,12 @@ async function runSchedulerCycle(allowSchemaRetry = true) {
     schedulerState.lastRunStatus = "error";
     schedulerState.lastRunAt = new Date();
     console.warn("Tracking scheduler cycle error:", err);
+    void import("./mayk-push.service").then(({ scheduleMaykEvent }) => scheduleMaykEvent({
+      key:"scheduler:error:"+Math.floor(Date.now()/300000),
+      type:"scheduler_error",
+      title:"Ürün takip zamanlayıcısı hata verdi",
+      body:"Otomatik takip döngüsünde hata oluştu. Sistem Durumu sayfasını kontrol edin.",
+    })).catch(()=>undefined);
   }
 }
 

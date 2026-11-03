@@ -92,6 +92,7 @@ import { registerTrackingApprovalRoutes } from './routes/tracking-approval-route
 import { registerSourceAccessRoutes } from './routes/source-access-routes';
 import { registerShopifyCategoryRoutes } from './routes/shopify-category-routes';
 import { registerMobilePushRoutes } from './routes/mobile-push-routes';
+import { registerMaykPushRoutes } from './routes/mayk-push-routes';
 import { registerMobileReadRoutes } from './routes/mobile-read-routes';
 import { registerWeboRoutes } from './routes/webo-routes';
 import { registerConnectionAccessRoutes } from './routes/connection-access-routes';
@@ -1269,6 +1270,7 @@ export function registerRoutes(app: Express): Server {
   registerSourceAccessRoutes(app);
   registerShopifyCategoryRoutes(app);
   registerMobilePushRoutes(app);
+  registerMaykPushRoutes(app);
   registerMobileReadRoutes(app);
   registerWeboRoutes(app);
   registerConnectionAccessRoutes(app);

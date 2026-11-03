@@ -6,6 +6,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import WebView from "react-native-webview";
+import { getMaykPushToken, onMaykNotificationTap, getLastMaykNotificationPath } from "./push";
 
 const SITE = (process.env.EXPO_PUBLIC_MAYK_WEB_URL || "https://progres.turmarkt.com").replace(/\/$/, "");
 const ORIGIN = new URL(SITE).origin;
@@ -86,6 +87,51 @@ function WebApp() {
   const [viewKey, setViewKey] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const navigatePathRef = useRef<((path: string) => void) | null>(null);
+  const pushToken = useRef<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pushStatus, setPushStatus] = useState<"idle" | "requesting" | "token" | "ready" | "denied" | "error">("idle");
+
+  const deliverTokenToWeb = useCallback((token: string) => {
+    // The token is posted only to the authenticated same-origin WebView.
+    browser.current?.injectJavaScript(
+      "(function(){window.__maykPushToken=" + JSON.stringify(token) +
+      ";window.dispatchEvent(new Event('mayk:push-token'));})();true;"
+    );
+  }, []);
+
+  const enableNotifications = useCallback(async (requestPermission: boolean) => {
+    if (pushStatus === "requesting") return;
+    setPushStatus("requesting");
+    try {
+      const token = await getMaykPushToken(requestPermission);
+      if (!token) { setPushStatus("denied"); return; }
+      pushToken.current = token;
+      setPushStatus("token");
+      deliverTokenToWeb(token);
+    } catch (error) {
+      setPushStatus("error");
+      if (requestPermission) Alert.alert("Bildirim izni", "iPhone bildirimleri açılamadı. Apple Push Key ve internet bağlantısını kontrol edin.");
+    }
+  }, [deliverTokenToWeb, pushStatus]);
+
+  useEffect(() => {
+    if (!isAuthenticated || pushStatus !== "idle") return;
+    void enableNotifications(true);
+  }, [isAuthenticated, pushStatus, enableNotifications]);
+
+  useEffect(() => {
+    const subscription = onMaykNotificationTap(path => {
+      setMenuOpen(false);
+      navigatePathRef.current?.(path);
+    });
+    void getLastMaykNotificationPath().then(path => {
+      if (path) navigatePathRef.current?.(path);
+    }).catch(() => undefined);
+    return () => subscription.remove();
+  }, []);
+
+
 
   useEffect(() => {
     const onShow = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
@@ -116,6 +162,8 @@ function WebApp() {
     browser.current?.injectJavaScript(`window.location.assign(${JSON.stringify(SITE)} + ${JSON.stringify(path)});true;`);
   }, []);
 
+  navigatePathRef.current = navigate;
+
   const retry = useCallback(() => {
     setMenuOpen(false);
     setHasError(false);
@@ -134,6 +182,17 @@ function WebApp() {
   const onWebMessage = (event: { nativeEvent: { data: string } }) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
+      if (message?.type === "mayk-authenticated") {
+        setIsAuthenticated(true);
+        if (pushToken.current) deliverTokenToWeb(pushToken.current);
+      } else if (message?.type === "mayk-push-registered") {
+        setPushStatus("ready");
+      } else if (message?.type === "mayk-push-error") {
+        setPushStatus("error");
+      } else if (message?.type === "mayk-logout") {
+        setIsAuthenticated(false);
+        setPushStatus("idle");
+      }
       if (message?.type === "mayk-route" && typeof message.path === "string") {
         if (message.path.startsWith("/") && !message.path.startsWith("//")) {
           setActivePath(message.path);
@@ -147,6 +206,7 @@ function WebApp() {
 
   const logout = () => {
     setMenuOpen(false);
+    setIsAuthenticated(false);
     browser.current?.injectJavaScript("window.dispatchEvent(new Event('mayk:logout'));true;");
   };
 
@@ -201,7 +261,10 @@ function WebApp() {
           }}
           onLoadStart={() => { setIsLoading(true); setPageProgress(0); }}
           onLoadProgress={event => setPageProgress(event.nativeEvent.progress)}
-          onLoadEnd={() => setIsLoading(false)}
+          onLoadEnd={() => {
+            setIsLoading(false);
+            if (pushToken.current) deliverTokenToWeb(pushToken.current);
+          }}
           onError={() => { setIsLoading(false); setHasError(true); }}
           onHttpError={event => {
             if (event.nativeEvent.statusCode >= 500 && event.nativeEvent.url === SITE) {
@@ -277,6 +340,27 @@ function WebApp() {
                   <Text style={styles.menuChevron}>›</Text>
                 </Pressable>
               ))}
+              <View style={styles.pushPanel}>
+                <Text style={styles.pushTitle}>Ürün Takip Bildirimleri</Text>
+                <Text style={styles.pushDescription}>
+                  {pushStatus === "ready" ? "Bildirim izni açık. Ürün değişiklikleri bu cihaza gönderilebilir." :
+                    pushStatus === "requesting" ? "Bildirim bağlantısı hazırlanıyor..." :
+                    pushStatus === "token" ? "Cihaz sisteme kaydediliyor..." :
+                    pushStatus === "denied" ? "iPhone ayarlarından bildirim izni vermen gerekiyor." :
+                    pushStatus === "error" ? "Bildirim anahtarı veya ağ bağlantısı doğrulanamadı." :
+                    "Fiyat, stok, manuel düzeltme ve hatalar için anlık uyarı."}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void enableNotifications(true)}
+                  disabled={pushStatus === "requesting"}
+                  style={styles.pushButton}
+                >
+                  <Text style={styles.pushButtonText}>
+                    {pushStatus === "ready" ? "Bildirim bağlantısını yenile" : "Bildirimleri etkinleştir"}
+                  </Text>
+                </Pressable>
+              </View>
               <View style={styles.menuFooter}>
                 <Pressable onPress={() => { setMenuOpen(false); void Share.share({ message: currentUrl, url: currentUrl }); }} style={styles.footerButton}>
                   <Text style={styles.footerText}>Bağlantıyı paylaş</Text>
@@ -346,5 +430,10 @@ const styles = StyleSheet.create({
   menuFooter: { marginTop: 16, gap: 8 },
   footerButton: { borderRadius: 10, backgroundColor: "#1A2D3C", padding: 14 },
   footerText: { color: "#DCEBF0", fontSize: 14, fontWeight: "600" },
+  pushPanel: { backgroundColor: "#162D3B",borderRadius:15,padding:15,marginBottom:12,borderColor:"#376273",borderWidth:1 },
+  pushTitle: { color:"#E6F7F8",fontSize:15,fontWeight:"700" },
+  pushDescription: { color:"#A3B8C7",fontSize:12,lineHeight:18,marginTop:6 },
+  pushButton: { minHeight:45,alignItems:"center",justifyContent:"center",marginTop:12,borderRadius:11,backgroundColor:"#176D79" },
+  pushButtonText: { color:"#FFFFFF",fontWeight:"700",fontSize:13 },
   logoutText: { color: "#FFA4A4" },
 });
