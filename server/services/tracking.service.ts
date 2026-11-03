@@ -902,6 +902,12 @@ export class TrackingService {
       .returning();
 
     if (row) {
+      void import("./mayk-push.service")
+        .then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
+          productId:row.id,productTitle:row.sourceTitle,
+          state:enabled ? "active" : "disabled",at:row.updatedAt,
+        }))
+        .catch(err=>console.warn("[mayk-push] toggle:",(err as Error).message));
       void import("./mobile-sync.service")
         .then(({ upsertMobileProduct }) =>
           upsertMobileProduct({
@@ -928,7 +934,9 @@ export class TrackingService {
     productId: number,
     data: { price: number; stock?: number | null; title: string },
   ) {
-    await db
+    const [previous] = await db.select({ currentStatus: trackedProducts.currentStatus })
+      .from(trackedProducts).where(eq(trackedProducts.id,productId)).limit(1);
+    const [updated] = await db
       .update(trackedProducts)
       .set({
         currentSourcePrice: String(data.price),
@@ -941,11 +949,19 @@ export class TrackingService {
         currentStatus: "active",
         updatedAt: new Date(),
       })
-      .where(eq(trackedProducts.id, productId));
+      .where(eq(trackedProducts.id, productId))
+      .returning();
+    if(previous?.currentStatus === "error" && updated) {
+      void import("./mayk-push.service")
+        .then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
+          productId,productTitle:updated.sourceTitle,state:"recovered",at:updated.updatedAt,
+        }))
+        .catch(err=>console.warn("[mayk-push] recovered:",(err as Error).message));
+    }
   }
 
   async markCheckError(productId: number, message: string) {
-    await db
+    const [updated] = await db
       .update(trackedProducts)
       .set({
         lastCheckedAt: new Date(),
@@ -954,7 +970,16 @@ export class TrackingService {
         currentStatus: "error",
         updatedAt: new Date(),
       })
-      .where(eq(trackedProducts.id, productId));
+      .where(eq(trackedProducts.id, productId))
+      .returning();
+    if(updated) {
+      void import("./mayk-push.service")
+        .then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
+          productId,productTitle:updated.sourceTitle,state:"error",
+          at:updated.updatedAt,detail:String(message).slice(0,100),
+        }))
+        .catch(err=>console.warn("[mayk-push] error:",(err as Error).message));
+    }
   }
 
   async cleanupInvalidRecordsOnStartup() {
