@@ -135,7 +135,7 @@ export async function runManualProductCheck(trackedProductId: number) {
           .where(eq(trackedProducts.id, trackedProductId));
         void import("./mayk-push.service").then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
           productId:trackedProductId,productTitle:product.sourceTitle,state:"source_warning",
-          at:new Date(),detail:fetchResult.message,
+          at:new Date(),detail:"Kaynak fiyatı doğrulanamadı. Kontrol gerekli.",
         })).catch(()=>undefined);
         return {
           success: false,
@@ -202,7 +202,7 @@ export async function runManualProductCheck(trackedProductId: number) {
       });
       void import("./mayk-push.service").then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
         productId:trackedProductId,productTitle:product.sourceTitle,state:"source_warning",
-        at:new Date(),detail:message,
+        at:new Date(),detail:"Kaynak varyant bilgileri eksik. Kontrol gerekli.",
       })).catch(()=>undefined);
       return {
         success: false,
