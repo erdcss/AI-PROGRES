@@ -2,17 +2,28 @@ name: M.A.Y.K TestFlight
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "mayk-ios/.testflight-request-20261103"
+    inputs:
+      operation:
+        description: "Ne yapilsin? Verify sadece kontrolleri, TestFlight ise iOS build ve Apple yuklemesini baslatir."
+        type: choice
+        required: true
+        default: verify
+        options:
+          - verify
+          - testflight
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mayk-testflight
+  cancel-in-progress: false
 
 jobs:
-  build-and-submit:
-    name: iOS Build and TestFlight Upload
+  verify-and-release:
+    name: Verify iOS / TestFlight Release
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: mayk-ios
@@ -26,17 +37,43 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node 20
+
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Fetch published M.A.Y.K logo and generate Apple icon
-        run: npm run prepare:icon
-      - name: Verify Apple and Expo submission configuration
+          node-version: "22"
+
+      - name: Check Apple / Expo setup (TestFlight mode)
+        if: ${{ inputs.operation == 'testflight' }}
         run: node scripts/configure-submit.mjs
-      - name: Validate types
+
+      - name: Install app dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Download active M.A.Y.K icon from Railway and generate iOS assets
+        run: npm run prepare:icon
+
+      - name: Validate TypeScript
         run: npm run typecheck
-      - name: Build iOS and submit to TestFlight
-        run: npx --yes eas-cli@latest build --platform ios --profile production --auto-submit --non-interactive --no-wait
+
+      - name: Verify Expo iOS configuration
+        run: |
+          npx expo config --type public
+          node -e "const c=require('./app.config.js').expo; if(c.name!=='M.A.Y.K' || c.ios?.bundleIdentifier!=='com.turmarkt.mayk' || c.extra?.eas?.projectId!=='904c797e-7ddc-46a6-b5ed-e081f1c39bd3') process.exit(1); console.log('M.A.Y.K bundle, account and EAS project are configured');"
+
+      - name: Build iOS and auto-submit to TestFlight
+        if: ${{ inputs.operation == 'testflight' }}
+        run: npx --yes eas-cli@latest build --platform ios --profile production --auto-submit --non-interactive
+
+      - name: Verification completed
+        if: ${{ inputs.operation == 'verify' }}
+        run: |
+          echo "### M.A.Y.K iOS checks passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Production logo downloaded and app config validated. No binary was built or submitted." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Release tracking links
+        if: ${{ inputs.operation == 'testflight' && success() }}
+        run: |
+          echo "### M.A.Y.K TestFlight release requested" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check the EAS build and EAS submit pages and confirm Apple processing. A successful action does not prove that TestFlight review is finished." >> "$GITHUB_STEP_SUMMARY"
+          echo "Expo: https://expo.dev/accounts/erdcls/projects/mayk-ios/builds" >> "$GITHUB_STEP_SUMMARY"
