@@ -1,8 +1,9 @@
 import fs from "node:fs";
+import appConfig from "../app.config.js";
 const appId = process.env.MAYK_ASC_APP_ID;
-const projectId = process.env.MAYK_EAS_PROJECT_ID;
+const projectId = appConfig?.expo?.extra?.eas?.projectId;
 if (!process.env.EXPO_TOKEN) throw new Error("GitHub Secret EXPO_TOKEN gerekli");
-if (!projectId) throw new Error("GitHub Secret MAYK_EAS_PROJECT_ID gerekli; önce Expo'da M.A.Y.K projesi oluşturulmalı");
+if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(projectId || "")) throw new Error("Geçerli M.A.Y.K Expo projectId app.config.js içinde bulunamadı");
 if (!/^\d+$/.test(appId || "")) throw new Error("GitHub Secret MAYK_ASC_APP_ID gerekli; App Store Connect sayısal Apple ID");
 const file = new URL("../eas.json", import.meta.url);
 const config = JSON.parse(fs.readFileSync(file, "utf8"));
