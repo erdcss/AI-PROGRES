@@ -319,11 +319,53 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("actionable");
   const [mobileSection, setMobileSection] = useState<"products" | "changes" | "fixed" | "settings">("products");
+  const [showMaykNotifications, setShowMaykNotifications] = useState(false);
   const [expandedMobileProduct, setExpandedMobileProduct] = useState<number | null>(null);
   const [kindFilter, setKindFilter] = useState<ChangeKindFilter | null>(null);
   const [authenticityFilter, setAuthenticityFilter] = useState<AuthenticityFilter>("all");
   const [productSearch, setProductSearch] = useState("");
   const [settingsForm, setSettingsForm] = useState<Partial<TrackingSettings>>({});
+
+  const maykNotificationsQuery = useQuery<{
+    success: boolean;
+    items: Array<{ id: string; type: string; title: string; body: string; createdAt: string }>;
+  }>({
+    queryKey: ["mayk-push-notifications"],
+    enabled: isMaykNativeApp(),
+    queryFn: async () => {
+      const res = await fetch("/api/mayk/push/recent?limit=40", { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) throw new Error("Bildirim geçmişi alınamadı");
+      return res.json();
+    },
+    refetchInterval: 15000,
+  });
+  const maykDeviceQuery = useQuery<{ success: boolean; enabledDevices: number }>({
+    queryKey: ["mayk-push-device-status"],
+    enabled: isMaykNativeApp(),
+    queryFn: async () => {
+      const res = await fetch("/api/mayk/push/status", { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) throw new Error("Cihaz durumu alınamadı");
+      return res.json();
+    },
+    refetchInterval: 30000,
+  });
+
+  const sendMaykTestNotification = async () => {
+    try {
+      const res = await fetch("/api/mayk/push/test", {
+        method:"POST",
+        credentials:"same-origin",
+        headers: { "X-Requested-With":"MAYK-IOS", "Content-Type":"application/json" },
+        body:"{}",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Test bildirimi gönderilemedi");
+      toast({ title:"Test bildirimi sıraya alındı", description:"iOS cihazındaki bildirimleri kontrol edin." });
+      void maykNotificationsQuery.refetch();
+    } catch(err) {
+      toast({ title:"Bildirim hatası", description:err instanceof Error?err.message:"İşlem başarısız",variant:"destructive" });
+    }
+  };
 
   const refreshTrackingQueries = () => {
     queryClient.invalidateQueries({ queryKey: ["tracking-products"] });
@@ -785,6 +827,47 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
               <p className="mt-2 text-[25px] font-semibold leading-none tabular-nums text-white">{item.value}</p>
             </div>
           ))}
+        </section>
+
+        <section className="min-w-0 rounded-2xl border border-[#385466] bg-[#142638] px-3.5 py-3">
+          <button
+            type="button"
+            onClick={() => setShowMaykNotifications(v => !v)}
+            className="flex min-h-11 w-full min-w-0 items-center justify-between gap-2 text-left"
+            aria-expanded={showMaykNotifications}
+          >
+            <span className="text-[14px] font-semibold text-slate-100">Bildirim Merkezi</span>
+            <span className="text-[11px] text-teal-200">
+              {maykNotificationsQuery.data?.items?.length ?? 0} kayıt · {maykDeviceQuery.data?.enabledDevices ?? 0} cihaz
+            </span>
+            <span aria-hidden className="text-[20px] text-slate-300">{showMaykNotifications ? "⌃" : "⌄"}</span>
+          </button>
+          {showMaykNotifications && (
+            <div className="mt-3 min-w-0 space-y-2 border-t border-[#3B5265] pt-3">
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => void maykNotificationsQuery.refetch()} className="min-h-10 rounded-xl border border-[#4B687B] px-3 text-[12px] text-white">
+                  Bildirimleri yenile
+                </button>
+                <button type="button" onClick={() => void sendMaykTestNotification()} className="min-h-10 rounded-xl bg-[#1C7480] px-3 text-[12px] font-semibold text-white">
+                  Test bildirimi gönder
+                </button>
+              </div>
+              {maykNotificationsQuery.isLoading && <p className="text-[12px] text-slate-400">Bildirimler yükleniyor...</p>}
+              {maykNotificationsQuery.error && <p className="break-words text-[12px] text-rose-200">Bildirim geçmişine ulaşılamadı.</p>}
+              {!maykNotificationsQuery.isLoading && (maykNotificationsQuery.data?.items?.length ?? 0) === 0 && (
+                <p className="text-[12px] text-slate-400">Henüz ürün takip bildirimi yok.</p>
+              )}
+              {maykNotificationsQuery.data?.items?.slice(0,30).map(item => (
+                <article key={item.id} className="min-w-0 rounded-xl border border-[#30485A] bg-[#1B3041] p-3">
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                    <p className="min-w-0 break-words text-[12px] font-semibold text-teal-100">{item.title}</p>
+                    <span className="text-[10px] text-slate-400">{formatDate(item.createdAt)}</span>
+                  </div>
+                  <p className="mt-1 break-words text-[12px] leading-5 text-slate-300">{item.body}</p>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-[#365061] bg-[#152938] px-4 py-3">
