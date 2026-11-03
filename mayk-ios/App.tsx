@@ -189,6 +189,7 @@ function WebApp() {
           allowsInlineMediaPlayback
           setSupportMultipleWindows={false}
           pullToRefreshEnabled
+          injectedJavaScriptBeforeContentLoaded={"window.__MAYK_NATIVE_APP__ = true; document.documentElement.classList.add('mayk-ios'); true;"}
           injectedJavaScript={ROUTE_BRIDGE}
           onMessage={onWebMessage}
           onNavigationStateChange={state => {
