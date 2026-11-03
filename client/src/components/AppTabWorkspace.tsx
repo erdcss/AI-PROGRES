@@ -13,6 +13,7 @@ import { AppRoutes } from "@/components/AppRoutes";
 import { defaultTitleForPath } from "@/lib/app-tab-paths";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import type { AccountUser } from "@/lib/account-auth";
+import { isMaykNativeApp } from "@/lib/mayk-native";
 
 const MAX_TABS = 6;
 const DEFAULT_DOCUMENT_TITLE = "Turmarkt - Ürün Çekme Uygulaması";
@@ -25,6 +26,9 @@ function labelFor(tab: AppTabRecord, index: number): string {
 
 function AppTabBar({ actions }: { actions?: ReactNode }) {
   const { tabs, activeId, busyCount, selectTab, addTab, closeTab } = useAppTabsStore();
+
+  // The native shell owns the header, tab bar and full-module drawer on iPhone.
+  if (isMaykNativeApp()) return null;
 
   return (
     <div className="sticky top-0 z-40 border-b border-zinc-800/90 bg-zinc-950/95 backdrop-blur-sm">
@@ -228,7 +232,7 @@ export default function AppTabWorkspace({ user, actions }: { user: AccountUser; 
       <GlobalLocationSync activeId={currentActiveId} setTabs={setTabs} />
       <DocumentTitleSync />
       <AppTabBar actions={actions} />
-      {user.systemRole === "admin" ? <MobileNavigation /> : null}
+      {user.systemRole === "admin" && !isMaykNativeApp() ? <MobileNavigation /> : null}
       <AppTabPanels user={user} />
     </AppTabsStoreProvider>
   );
