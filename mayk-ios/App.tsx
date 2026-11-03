@@ -90,7 +90,7 @@ function WebApp() {
   const navigatePathRef = useRef<((path: string) => void) | null>(null);
   const pushToken = useRef<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pushStatus, setPushStatus] = useState<"idle" | "requesting" | "ready" | "denied" | "error">("idle");
+  const [pushStatus, setPushStatus] = useState<"idle" | "requesting" | "token" | "ready" | "denied" | "error">("idle");
 
   const deliverTokenToWeb = useCallback((token: string) => {
     // The token is posted only to the authenticated same-origin WebView.
@@ -107,7 +107,7 @@ function WebApp() {
       const token = await getMaykPushToken(requestPermission);
       if (!token) { setPushStatus("denied"); return; }
       pushToken.current = token;
-      setPushStatus("ready");
+      setPushStatus("token");
       deliverTokenToWeb(token);
     } catch (error) {
       setPushStatus("error");
@@ -187,6 +187,8 @@ function WebApp() {
         if (pushToken.current) deliverTokenToWeb(pushToken.current);
       } else if (message?.type === "mayk-push-registered") {
         setPushStatus("ready");
+      } else if (message?.type === "mayk-push-error") {
+        setPushStatus("error");
       } else if (message?.type === "mayk-logout") {
         setIsAuthenticated(false);
         setPushStatus("idle");
@@ -343,6 +345,7 @@ function WebApp() {
                 <Text style={styles.pushDescription}>
                   {pushStatus === "ready" ? "Bildirim izni açık. Ürün değişiklikleri bu cihaza gönderilebilir." :
                     pushStatus === "requesting" ? "Bildirim bağlantısı hazırlanıyor..." :
+                    pushStatus === "token" ? "Cihaz sisteme kaydediliyor..." :
                     pushStatus === "denied" ? "iPhone ayarlarından bildirim izni vermen gerekiyor." :
                     pushStatus === "error" ? "Bildirim anahtarı veya ağ bağlantısı doğrulanamadı." :
                     "Fiyat, stok, manuel düzeltme ve hatalar için anlık uyarı."}
