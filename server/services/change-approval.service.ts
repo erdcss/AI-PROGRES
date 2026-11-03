@@ -75,6 +75,15 @@ export async function recordAudit(input: {
     success: input.success ?? true,
     errorCode: input.errorCode,
   });
+  // Every successful or failed change transition is visible to M.A.Y.K (including auto corrections).
+  if (input.entityType === "detected_change" && /^\d+$/.test(input.entityId)) {
+    void import("./mayk-push.service")
+      .then(async ({ scheduleMaykChangeWithLookup }) => {
+        const change = await getChangeOrThrow(Number(input.entityId));
+        scheduleMaykChangeWithLookup(change);
+      })
+      .catch(err => console.warn("[mayk-push] change audit:", err instanceof Error ? err.message : String(err)));
+  }
 }
 
 async function getChangeOrThrow(id: number): Promise<DetectedChange> {
