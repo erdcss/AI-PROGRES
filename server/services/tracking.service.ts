@@ -852,6 +852,16 @@ export class TrackingService {
         ),
       );
 
+    if (!existing[0]) {
+      void import("./mayk-push.service")
+        .then(({ scheduleMaykEvent }) => scheduleMaykEvent({
+          key:"product:"+productRow.id+":new",
+          type:"new_product",
+          title:"Yeni ürün takibe alındı",
+          body:String(productRow.sourceTitle || "Ürün").slice(0,200),
+          productId:productRow.id,
+        })).catch(()=>undefined);
+    }
     return productRow;
   }
 
