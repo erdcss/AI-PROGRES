@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { resolveAppAuth } from "../multi-user-auth";
 import {
   countMaykDevices, listMaykEvents, registerMaykDevice,
-  scheduleMaykTest, startMaykPushWorker, unregisterMaykDevice,
+  queueMaykTest, startMaykPushWorker, unregisterMaykDevice,
 } from "../services/mayk-push.service";
 
 async function authorize(req:Request,res:Response) {
@@ -73,8 +73,8 @@ export function registerMaykPushRoutes(app:Express) {
       if(!sameOrigin(req))return res.status(403).json({success:false,error:"İstek kaynağı geçersiz"});
       const deviceCount=await countMaykDevices(auth.userId);
       if(!deviceCount)return res.status(409).json({success:false,error:"Bildirim izni verilmiş iOS cihaz bulunamadı"});
-      scheduleMaykTest(auth.userId);
-      return res.json({success:true,queued:true,deviceCount});
+      const queued=await queueMaykTest(auth.userId);
+      return res.json({success:true,queued,deviceCount});
     }catch(error){return errorResponse(res,error);}
   });
 }
