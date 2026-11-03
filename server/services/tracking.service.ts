@@ -986,7 +986,7 @@ export class TrackingService {
       void import("./mayk-push.service")
         .then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
           productId,productTitle:updated.sourceTitle,state:"error",
-          at:updated.updatedAt,detail:String(message).slice(0,100),
+          at:updated.updatedAt,detail:"Kaynak kontrolünde hata oluştu. Ayrıntıları uygulamadan inceleyin.",
         }))
         .catch(err=>console.warn("[mayk-push] error:",(err as Error).message));
     }
