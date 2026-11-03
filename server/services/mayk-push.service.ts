@@ -174,8 +174,8 @@ export function scheduleMaykTrackingState(input:{
     productId:input.productId,
   });
 }
-export function scheduleMaykTest(userId:string) {
-  scheduleMaykEvent({
+export async function queueMaykTest(userId:string):Promise<boolean> {
+  return emitMaykEvent({
     key:"test:"+userId+":"+randomUUID(),type:"test",
     title:"M.A.Y.K test bildirimi",body:"Ürün takip bildirimleri hazır.",
   });
