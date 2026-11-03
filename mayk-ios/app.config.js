@@ -11,7 +11,7 @@ module.exports = {
     orientation: "portrait",
     platforms: ["ios"],
     scheme: "mayk",
-    ...(process.env.MAYK_EXPO_OWNER ? { owner: process.env.MAYK_EXPO_OWNER } : {}),
+    owner: process.env.MAYK_EXPO_OWNER || "erdcls",
     userInterfaceStyle: "dark",
     icon: "./assets/icon.png",
     splash: {
@@ -32,7 +32,7 @@ module.exports = {
     },
     extra: {
       webUrl: WEB_URL,
-      eas: process.env.MAYK_EAS_PROJECT_ID ? { projectId: process.env.MAYK_EAS_PROJECT_ID } : {},
+      eas: { projectId: process.env.MAYK_EAS_PROJECT_ID || "904c797e-7ddc-46a6-b5ed-e081f1c39bd3" },
     },
   },
 };

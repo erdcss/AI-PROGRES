@@ -12,15 +12,15 @@ npm start
 iOS Simulator için macOS/Xcode gerekir. Gerçek iPhone'a Expo Go ile yerel geliştirme sunucusundan erişilebilir.
 
 ## Webden uygulama simgesi
-Webde `Sistem Durumu → M.A.Y.K — iOS Uygulaması` bölümünden **1024 × 1024 PNG, en fazla 4 MB** logo yükleyin. Yükleme yalnızca `systemRole=admin` oturumlarında açıktır. Görsel özel Supabase Storage bucket'ında `mayk-branding/icons/mayk.png` saklanır. Web önizlemesi hemen yenilenir; iOS ana ekran simgesi yeni build ister.
+Webde `Sistem Durumu → M.A.Y.K — iOS Uygulaması` bölümünden **1024 × 1024 PNG, en fazla 4 MB** logo yükleyin. Yükleme yalnızca `systemRole=admin` oturumlarında açıktır. Görsel Railway PostgreSQL `mayk_branding_assets` tablosunda saklanır. Web önizlemesi hemen yenilenir; iOS ana ekran simgesi yeni build ister.
 
 Derleme öncesi `npm run prepare:icon` `/api/mayk/branding/icon.png` endpoint'inden logoyu alır ve alfa kanalını kaldırarak Apple uyumlu 1024×1024 RGB PNG haline getirir. Logo henüz yüklenmemişse varsayılan M.A.Y.K simgesi kullanılır. Özel simge zorunluysa `MAYK_REQUIRE_REMOTE_ICON=1` verin.
 
 ## TestFlight ön koşulları
-1. Expo hesabı (mevcut repo sahibi: `erdcls`) ile `mayk-ios` isminde **ayrı** EAS projesi oluşturun ve proje UUID'sini `MAYK_EAS_PROJECT_ID` olarak kaydedin. Mevcut ORVIAN Monitor EAS kimliğini kullanmayın.
+1. Expo projesi **oluşturuldu:** `@erdcls/mayk-ios`, UUID `904c797e-7ddc-46a6-b5ed-e081f1c39bd3`. Bu kimlik `app.config.js` içinde tanımlı; `MAYK_EAS_PROJECT_ID` secret olarak gerekmiyor.
 2. Apple Developer üyeliği ve `com.turmarkt.mayk` Bundle ID için App Store Connect uygulama kaydı oluşturun.
 3. Expo EAS'te iOS dağıtım sertifikaları/provisioning ve App Store Connect API Key bağlantısını kurun.
-4. Repo Actions secrets: `EXPO_TOKEN`, `MAYK_EAS_PROJECT_ID`, `MAYK_ASC_APP_ID` (App Store Connect sayısal Apple ID).
+4. Repo Actions secrets: `EXPO_TOKEN`, `MAYK_ASC_APP_ID` (App Store Connect sayısal Apple ID). Bunları hiçbir zaman kaynak koda eklemeyin.
 5. Repo GitHub Actions üzerinden **M.A.Y.K TestFlight** workflow'unu manuel çalıştırın. Workflow sunucudan en güncel logoyu çeker, iOS binary'sini build eder ve `--auto-submit` ile TestFlight'a gönderir.
 
 > GitHub Secrets ve Apple imzalama erişimi mevcut değilse yalnızca kod hazırlanmış olur; TestFlight yüklemesi tamamlanmış sayılmaz. Expo kaynaklı App Store inceleme veya Apple TestFlight işlemleri ayrıca izlenmelidir.
@@ -30,7 +30,8 @@ Derleme öncesi `npm run prepare:icon` `/api/mayk/branding/icon.png` endpoint'in
 cd mayk-ios
 npm install
 npm run prepare:icon
-MAYK_EAS_PROJECT_ID="<Expo project UUID>" npx eas-cli@latest build --platform ios --profile production --auto-submit
+npx eas-cli@latest project:info
+npx eas-cli@latest build --platform ios --profile production --auto-submit
 ```
 Bu yöntem web sitesine yüklenen yeni uygulama simgesini **derleme anında** içeri alır.
 
