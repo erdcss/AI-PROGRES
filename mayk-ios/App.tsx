@@ -135,7 +135,10 @@ function WebApp() {
     try {
       const message = JSON.parse(event.nativeEvent.data);
       if (message?.type === "mayk-route" && typeof message.path === "string") {
-        if (message.path.startsWith("/") && !message.path.startsWith("//")) setActivePath(message.path);
+        if (message.path.startsWith("/") && !message.path.startsWith("//")) {
+          setActivePath(message.path);
+          setCurrentUrl(SITE + message.path);
+        }
       }
     } catch {
       // Ignore unrelated site messages; no page data is passed to the native shell.
