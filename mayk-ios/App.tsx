@@ -53,6 +53,7 @@ function tabForPath(path: string): MainTab {
 // The message contains only a pathname; nothing sensitive or authenticated is transferred.
 const ROUTE_BRIDGE = `
 (function(){
+  document.documentElement.classList.add("mayk-ios");
   if (window.__maykRouteBridge) return true;
   window.__maykRouteBridge = true;
   var notify = function() {
