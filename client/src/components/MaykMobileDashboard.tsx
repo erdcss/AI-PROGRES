@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
-  Activity, ArrowRight, Bell, Boxes, Database, FileCheck2, Package,
+  Activity, ArrowRight, Boxes, FileCheck2, Package,
   RefreshCw, ShieldCheck, Sparkles, TrendingUp,
 } from "lucide-react";
 
@@ -94,7 +94,7 @@ export function MaykMobileDashboard({
   ];
 
   const tracking = system.find(item => item.path === "/urun-takip");
-  const suggested = tracking ? [tracking, ...extraction] : extraction;
+  const suggested = restricted ? extraction.filter(item => item.path.includes("trendyol")) : tracking ? [tracking, ...extraction] : extraction;
   const remainingSystem = system.filter(item => item.path !== "/urun-takip");
 
   return (
@@ -157,7 +157,7 @@ export function MaykMobileDashboard({
             key={item.path}
             item={item}
             onOpen={onOpen}
-            restricted={restricted && i > 0}
+            restricted={restricted && item.path !== "/scraper/trendyol"}
             priority={i < 2}
           />
         ))}
