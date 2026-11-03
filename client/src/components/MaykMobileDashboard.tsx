@@ -120,7 +120,7 @@ export function MaykMobileDashboard({
             ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
             : "border-slate-500/40 bg-slate-700/30 text-slate-200"}`}>
             <span className={`h-2 w-2 rounded-full ${summary?.safeSchedulerRunning ? "bg-emerald-400" : "bg-slate-400"}`} />
-            {status.isLoading ? "Durum yükleniyor" : restricted ? "Kısıtlı çalışma alanı" : summary?.safeSchedulerRunning ? "Otomatik takip aktif" : "Takip durumu pasif"}
+            {status.isLoading ? "Durum yükleniyor" : restricted ? "Kısıtlı çalışma alanı" : status.isError ? "Durum alınamadı" : summary?.safeSchedulerRunning ? "Otomatik takip aktif" : "Takip durumu pasif"}
           </span>
           <button
             type="button"
