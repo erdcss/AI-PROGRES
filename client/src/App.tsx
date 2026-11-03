@@ -146,6 +146,13 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
 }
 
 function AccountAppShell({ user }: { user: AccountUser }) {
+  useEffect(() => {
+    // Native app menu logout: uses the existing web account logout and cookie flow.
+    const logoutFromNative = () => { void logoutAccount(); };
+    window.addEventListener("mayk:logout", logoutFromNative);
+    return () => window.removeEventListener("mayk:logout", logoutFromNative);
+  }, []);
+
   return (
     <WouterRouter>
       <div className="min-h-screen" style={{ position: "relative" }}>
