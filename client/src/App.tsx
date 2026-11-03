@@ -186,6 +186,7 @@ function AccountAppShell({ user }: { user: AccountUser }) {
         }
       } catch (err) {
         console.warn("[M.A.Y.K] Push kaydı tekrarlanacak:", err);
+        if (!canceled) messageNative("mayk-push-error");
       }
     };
 
