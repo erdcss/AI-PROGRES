@@ -1,3 +1,18 @@
+# Merkezi Expo bağlantısı (Çalışkan B2B tokenı ile)
+
+**Önerilen yayınlama merkezi:** [Çalışkan Ortak Expo TestFlight Merkezi](https://github.com/erdcss/CRM-RMA-PANEL/actions/workflows/shared-expo-testflight-hub.yml).
+
+M.A.Y.K artık Çalışkan B2B'nin mevcut `erdcss/CRM-RMA-PANEL` GitHub Actions `EXPO_TOKEN` gizli anahtarıyla **bu merkezi depodan** doğrulanabilir ve yayınlanabilir. Merkezi bağlantı M.A.Y.K için gerçek Expo proje erişim testinden başarıyla geçti. `erdcss/AI-PROGRES` deposuna yeni `EXPO_TOKEN` kopyalamaya gerek yok.
+
+- `app = mayk`, `operation = verify`: logo/Expo proje ve robot erişimini kontrol eder.
+- `app = mayk`, `operation = testflight`: M.A.Y.K imzalı iOS build + TestFlight teslimini başlatır.
+- TestFlight için `mayk_asc_app_id` alanına App Store Connect'te M.A.Y.K uygulamasının **sayısal Apple ID** değerini yazın. Bu bir API anahtarı değildir.
+- M.A.Y.K için Apple App Store dağıtım sertifikası, provisioning ve Expo EAS'te App Store Connect API Key kurulumu yine gerekli.
+
+Aşağıdaki bağımsız GitHub Actions yöntemi ayrıca `AI-PROGRES` deposuna ayrı Expo/Apple Secret ekleyenler içindir. Sadece tek bir ortak Expo tokenı kullanmak isteniyorsa **merkezi yöntemi tercih edin**.
+
+---
+
 # M.A.Y.K — GitHub üzerinden tek tıkla TestFlight
 
 M.A.Y.K Expo projesi: https://expo.dev/accounts/erdcls/projects/mayk-ios  
