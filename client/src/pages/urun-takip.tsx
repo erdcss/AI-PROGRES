@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { isMaykNativeApp } from "@/lib/mayk-native";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { openTrackingSource, resolveTrackingSourceUrl } from "@/lib/tracking-source-link";
 import {
   RefreshCw,
@@ -318,12 +319,20 @@ async function runBulkTrackingAction(
 export default function UrunTakipPage({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isMobileViewport = useIsMobile();
+  const nativeApp = isMaykNativeApp();
+  const isCompactTracking = nativeApp || isMobileViewport;
   const [statusFilter, setStatusFilter] = useState<string>("actionable");
   const [mobileSection, setMobileSection] = useState<"products" | "changes" | "fixed" | "settings">("products");
+  const [mobileAdvancedFilters, setMobileAdvancedFilters] = useState(false);
+  const [expandedChangeGroup, setExpandedChangeGroup] = useState<string | null>(null);
+  const [changeSearch, setChangeSearch] = useState("");
+  const deferredChangeSearch = useDeferredValue(changeSearch);
+  const [visibleChangeGroupCount, setVisibleChangeGroupCount] = useState(20);
+  const [visibleAutoCorrectedCount, setVisibleAutoCorrectedCount] = useState(20);
   const [desktopSection, setDesktopSection] = useState("products");
   const [visibleProductCount, setVisibleProductCount] = useState(40);
-  const nativeApp = isMaykNativeApp();
-  const activeSection = nativeApp && !embedded
+  const activeSection = isCompactTracking && !embedded
     ? mobileSection === "fixed" ? "auto-corrected" : mobileSection
     : desktopSection;
   const [showMaykNotifications, setShowMaykNotifications] = useState(false);
@@ -761,9 +770,20 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         .map((group) => group.filter((c) => matchesAuthenticity(c, authenticityFilter)))
         .filter((group) => group.length > 0);
     }
-    if (!kindFilter) return groups;
-    return groups.filter((group) => getProductChangeKinds(group).has(kindFilter));
-  }, [groupedChanges, kindFilter, authenticityFilter]);
+    if (kindFilter) groups = groups.filter((group) => getProductChangeKinds(group).has(kindFilter));
+    const needle = deferredChangeSearch.trim().toLocaleLowerCase("tr-TR");
+    if (needle) {
+      groups = groups.filter((group) => {
+        const sample = group[0];
+        const haystack = [
+          sample.productTitle, sample.productUrl, sample.trackingUid,
+          sample.trackedProductId, ...group.map(c => c.variantLabel || c.fieldName || c.changeType),
+        ].filter(Boolean).join(" ").toLocaleLowerCase("tr-TR");
+        return haystack.includes(needle);
+      });
+    }
+    return groups;
+  }, [groupedChanges, kindFilter, authenticityFilter, deferredChangeSearch]);
 
   const authenticityCounts = useMemo(() => {
     const counts: Record<AuthenticityFilter, number> = {
@@ -788,13 +808,24 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     return [...new Set(ids)];
   }, [filteredGroupedChanges]);
 
+  useEffect(() => { setVisibleChangeGroupCount(20); setExpandedChangeGroup(null); }, [statusFilter, kindFilter, authenticityFilter, deferredChangeSearch]);
+  useEffect(() => { setVisibleAutoCorrectedCount(20); }, [mobileSection]);
+  const mobileChangeGroups = useMemo(
+    () => filteredGroupedChanges.slice(0, visibleChangeGroupCount),
+    [filteredGroupedChanges, visibleChangeGroupCount],
+  );
+  const mobileCorrectedGroups = useMemo(
+    () => autoCorrectedGroups.slice(0, visibleAutoCorrectedCount),
+    [autoCorrectedGroups, visibleAutoCorrectedCount],
+  );
+
   const st = statusQuery.data;
   const settings = { ...settingsQuery.data, ...settingsForm } as TrackingSettings | undefined;
   const autoCorrectOn = Boolean(settings?.autoShopifySyncEnabled);
   const trackingOff = settings && !settings.trackingEnabled;
 
   // M.A.Y.K iPhone presentation: same live queries and mutations as web, touch-first layout.
-  if (isMaykNativeApp() && !embedded) {
+  if (isCompactTracking && !embedded) {
     const sectionItems = [
       { id: "products" as const, title: "Ürünler", count: productsQuery.data?.length ?? 0 },
       { id: "changes" as const, title: "Değişiklik", count: changeCountsQuery.data?.all ?? 0 },
@@ -812,13 +843,13 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     };
 
     return (
-      <main className="mayk-mobile-tracking mx-auto w-full max-w-[760px] min-w-0 space-y-4 overflow-x-clip bg-[#0C1623] px-3.5 pb-8 pt-4 text-slate-100">
+      <main data-testid="mobile-tracking-screen" className="mayk-mobile-tracking web-mobile-tracking mx-auto w-full max-w-[760px] min-w-0 space-y-4 overflow-x-clip bg-[#0C1623] px-3.5 pb-8 pt-4 text-slate-100">
         <header className="rounded-[22px] border border-[#395568] bg-gradient-to-br from-[#1C3545] to-[#101D2A] p-4">
           <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-bold uppercase tracking-widest text-teal-300">Canlı izleme</p>
               <h1 className="mt-1.5 text-[24px] font-bold leading-tight text-white">Ürün Takip</h1>
-              <p className="mt-1 text-[12px] leading-5 text-slate-300">Kaynak fiyatı, stok ve MarktGO düzeltmeleri</p>
+              <p className="mt-1 text-[12px] leading-5 text-slate-300">Fiyat, stok ve MarktGO değişikliklerini tek ekrandan yönet</p>
             </div>
             <button
               type="button"
@@ -841,21 +872,34 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           </div>
         </header>
 
+        {trackingOff && (
+          <button type="button" onClick={() => setMobileSection("settings")}
+            className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 text-left text-[12px] font-medium text-amber-100">
+            <span>Takip sistemi kapalı. Ayarlardan etkinleştirebilirsin.</span>
+            <span aria-hidden="true">›</span>
+          </button>
+        )}
+
         <section className="grid grid-cols-2 gap-2.5" aria-label="Takip özeti">
           {[
-            { label: "Takip edilen", value: st?.trackedProductsCount ?? "—" },
-            { label: "Aktif ürün", value: st?.activeTrackedProductsCount ?? "—" },
-            { label: "Değişiklik", value: changeCountsQuery.data?.all ?? "—" },
-            { label: "Kontrol gerekli", value: st?.manualReviewCount ?? "—" },
+            { label: "Takip edilen", value: st?.trackedProductsCount ?? "—", section: "products" as const, filter: undefined },
+            { label: "Aktif ürün", value: st?.activeTrackedProductsCount ?? "—", section: "products" as const, filter: undefined },
+            { label: "Değişiklik", value: changeCountsQuery.data?.all ?? "—", section: "changes" as const, filter: "history" },
+            { label: "Kontrol gerekli", value: st?.manualReviewCount ?? "—", section: "changes" as const, filter: "manual_review" },
           ].map(item => (
-            <div key={item.label} className="min-w-0 rounded-2xl border border-[#304152] bg-[#152434] px-3.5 py-3">
+            <button type="button" key={item.label} aria-label={`${item.label} bölümünü aç`}
+              onClick={() => { if (item.filter) setStatusFilter(item.filter); setMobileSection(item.section); }}
+              className="min-w-0 rounded-2xl border border-[#304152] bg-[#152434] px-3.5 py-3 text-left active:bg-[#1E3E4E]">
               <p className="text-[11px] leading-4 text-slate-400">{item.label}</p>
-              <p className="mt-2 text-[25px] font-semibold leading-none tabular-nums text-white">{item.value}</p>
-            </div>
+              <div className="mt-2 flex items-end justify-between gap-1">
+                <p className="text-[25px] font-semibold leading-none tabular-nums text-white">{item.value}</p>
+                <span className="text-[13px] text-teal-300" aria-hidden="true">›</span>
+              </div>
+            </button>
           ))}
         </section>
 
-        <section className="min-w-0 rounded-2xl border border-[#385466] bg-[#142638] px-3.5 py-3">
+        {nativeApp && <section className="min-w-0 rounded-2xl border border-[#385466] bg-[#142638] px-3.5 py-3">
           <button
             type="button"
             onClick={() => setShowMaykNotifications(v => !v)}
@@ -894,7 +938,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
               ))}
             </div>
           )}
-        </section>
+        </section>}
 
         <section className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-[#365061] bg-[#152938] px-4 py-3">
           <div className="min-w-0 flex-1">
@@ -918,7 +962,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           />
         </section>
 
-        <nav className="grid grid-cols-4 gap-1.5 rounded-2xl border border-[#304152] bg-[#132232] p-1.5" role="tablist" aria-label="Ürün takip bölümleri">
+        <nav className={`sticky ${nativeApp ? "top-0" : "top-[60px]"} z-20 grid min-w-0 grid-cols-4 gap-1 rounded-2xl border border-[#304152] bg-[#132232]/95 p-1.5 backdrop-blur-md`} role="tablist" aria-label="Ürün takip bölümleri">
           {sectionItems.map(item => (
             <button
               type="button"
@@ -926,11 +970,11 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
               key={item.id}
               aria-selected={mobileSection === item.id}
               onClick={() => setMobileSection(item.id)}
-              className={`min-h-12 min-w-0 rounded-xl px-1 py-2 text-center transition-colors ${mobileSection === item.id
+              className={`min-h-12 min-w-0 overflow-hidden rounded-xl px-0.5 py-2 text-center transition-colors ${mobileSection === item.id
                 ? "bg-[#2B5260] text-white shadow-sm"
                 : "text-slate-400"}`}
             >
-              <span className="block text-[11px] font-semibold leading-4">{item.title}</span>
+              <span className="block break-words text-[11px] font-semibold leading-4">{item.title}</span>
               {item.count != null && <span className="mt-0.5 block text-[10px] tabular-nums">{item.count}</span>}
             </button>
           ))}
@@ -1056,10 +1100,17 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         )}
 
         {mobileSection === "changes" && (
-          <section role="tabpanel" className="space-y-3">
-            <p className="text-[12px] leading-5 text-slate-400">MarktGO'da bekleyen ürün değişikliklerini incele ve düzelt.</p>
+          <section role="tabpanel" className="min-w-0 space-y-3">
+            <label className="relative block">
+              <span className="sr-only">Değişikliklerde ürün ara</span>
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <input type="search" value={changeSearch} onChange={event => setChangeSearch(event.target.value)}
+                placeholder="Değişikliklerde ürün ara..."
+                className="h-12 w-full min-w-0 rounded-xl border border-[#3C5364] bg-[#172839] pl-11 pr-3 text-[16px] text-white placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
+            </label>
+            <p className="text-[12px] leading-5 text-slate-400">MarktGO değişikliklerini filtrele, kontrol et ve düzelt.</p>
             <div className="flex flex-wrap gap-2">
-              {CHANGE_FILTERS.map(filter => (
+              {CHANGE_FILTERS.filter(filter => ["actionable", "pending", "manual_review", "history"].includes(filter.value)).map(filter => (
                 <button
                   type="button"
                   key={filter.value}
@@ -1069,7 +1120,27 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 >{filter.label} ({changeCountsQuery.data?.[filter.countKey] ?? 0})</button>
               ))}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              aria-expanded={mobileAdvancedFilters}
+              onClick={() => setMobileAdvancedFilters(value => !value)}
+              className="flex min-h-11 w-full items-center justify-between rounded-xl border border-[#3A5265] bg-[#182B3B] px-3 text-left text-[12px] font-semibold text-slate-200"
+            >
+              <span>Detaylı filtreler {kindFilter || authenticityFilter !== "all" || !["actionable","pending","manual_review","history"].includes(statusFilter) ? "· Aktif" : ""}</span>
+              <span aria-hidden>{mobileAdvancedFilters ? "−" : "+"}</span>
+            </button>
+            {mobileAdvancedFilters && (
+              <div className="min-w-0 space-y-3 rounded-xl border border-[#334B5D] bg-[#111F2F] p-3">
+                <div className="flex flex-wrap gap-2">
+                  {CHANGE_FILTERS.filter(filter => !["actionable", "pending", "manual_review", "history"].includes(filter.value)).map(filter => (
+                    <button type="button" key={filter.value}
+                      onClick={() => { setStatusFilter(filter.value); setKindFilter(null); }}
+                      className={`min-h-10 rounded-lg border px-3 text-[12px] ${statusFilter === filter.value ? "border-teal-400/50 bg-[#24515A] text-white" : "border-[#3A5265] text-slate-300"}`}>
+                      {filter.label} ({changeCountsQuery.data?.[filter.countKey] ?? 0})
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
               {AUTHENTICITY_FILTERS.map(filter => (
                 <button
                   type="button"
@@ -1091,7 +1162,11 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                     ? "border-teal-400/50 bg-[#24515A] text-white" : "border-[#3A5265] text-slate-400"}`}
                 >{filter.label} ({kindFilterCounts[filter.value]})</button>
               ))}
-            </div>
+                </div>
+                <button type="button" onClick={() => { setStatusFilter("actionable"); setKindFilter(null); setAuthenticityFilter("all"); setChangeSearch(""); }}
+                  className="min-h-10 w-full rounded-lg border border-[#3A5265] text-[12px] text-slate-300">Filtreleri temizle</button>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               {bulkFixIds.length > 0 && !["ignored", "seen", "applied", "history"].includes(statusFilter) && (
                 <button
@@ -1118,8 +1193,10 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             {!changesQuery.isLoading && !changesQuery.error && filteredGroupedChanges.length === 0 && (
               <div className="rounded-xl border border-[#304152] bg-[#142231] p-6 text-center text-sm text-slate-400">Bu filtrede değişiklik yok.</div>
             )}
-            {filteredGroupedChanges.map(group => {
+            {mobileChangeGroups.map(group => {
               const p = group[0];
+              const productKey = getChangeProductKey(p);
+              const isExpanded = expandedChangeGroup === productKey;
               const syncIds = selectInstantMarktGoSyncIds(group);
               const busy = changeActionMutation.isPending || marktgoSyncMutation.isPending || bulkApproveMutation.isPending || bulkMarktGoSyncMutation.isPending;
               return (
@@ -1132,7 +1209,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       <p className="mt-1 text-[11px] text-slate-400">Son değişiklik: {formatDate(p.createdAt)}</p>
                     </div>
                   </div>
-                  {group.map(change => {
+                  {group.slice(0, isExpanded ? undefined : 2).map(change => {
                     const canSync = syncIds.includes(change.id);
                     const canApprove = ["pending", "manual_review"].includes(change.status);
                     return (
@@ -1161,6 +1238,13 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       </div>
                     );
                   })}
+                  {group.length > 2 && (
+                    <button type="button" onClick={() => setExpandedChangeGroup(current => current === productKey ? null : productKey)}
+                      aria-expanded={isExpanded}
+                      className="min-h-11 w-full rounded-xl border border-[#476477] bg-[#162E3F] px-3 text-[12px] font-semibold text-teal-100">
+                      {isExpanded ? "Ayrıntıları gizle" : `Diğer ${group.length - 2} değişikliği göster`}
+                    </button>
+                  )}
                   {resolveTrackingSourceUrl(p.productUrl) && (
                     <button type="button" onClick={() => openTrackingSource(p.productUrl)}
                       className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#476477] bg-[#172D3D] text-[12px] text-teal-200">
@@ -1176,6 +1260,12 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 </article>
               );
             })}
+            {mobileChangeGroups.length < filteredGroupedChanges.length && (
+              <button type="button" onClick={() => setVisibleChangeGroupCount(count => count + 20)}
+                className="min-h-12 w-full rounded-xl border border-[#466577] bg-[#1B3446] text-[13px] font-semibold text-teal-100">
+                Daha fazla değişiklik göster ({mobileChangeGroups.length}/{filteredGroupedChanges.length})
+              </button>
+            )}
           </section>
         )}
 
@@ -1190,7 +1280,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             {!autoCorrectedQuery.isLoading && !autoCorrectedQuery.error && autoCorrectedGroups.length === 0 && (
               <p className="rounded-xl border border-[#304152] p-5 text-center text-sm text-slate-400">Henüz otomatik düzeltilmiş ürün yok.</p>
             )}
-            {autoCorrectedGroups.map(group => {
+            {mobileCorrectedGroups.map(group => {
               const p = group[0];
               return (
                 <article key={getChangeProductKey(p)} className="min-w-0 rounded-2xl border border-[#33495B] bg-[#152536] p-3.5">
@@ -1213,6 +1303,12 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 </article>
               );
             })}
+            {mobileCorrectedGroups.length < autoCorrectedGroups.length && (
+              <button type="button" onClick={() => setVisibleAutoCorrectedCount(count => count + 20)}
+                className="min-h-12 w-full rounded-xl border border-[#466577] bg-[#1B3446] text-[13px] font-semibold text-teal-100">
+                Daha fazla düzeltilen göster ({mobileCorrectedGroups.length}/{autoCorrectedGroups.length})
+              </button>
+            )}
           </section>
         )}
 
