@@ -603,3 +603,50 @@ html.mayk-ios textarea {
     font-size: 16px;
   }
 }
+
+
+/* AI PROGRES mobile web: match the M.A.Y.K touch-first tracking layout
+   in Safari/Chrome without changing any desktop route. */
+@media (max-width: 767px) {
+  html, body, #root {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  [data-app-tab-active="true"],
+  .web-mobile-tracking {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .web-mobile-tracking {
+    box-sizing: border-box;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+    -webkit-text-size-adjust: 100%;
+  }
+  .web-mobile-tracking *,
+  .web-mobile-tracking *::before,
+  .web-mobile-tracking *::after {
+    box-sizing: border-box;
+    min-width: 0;
+  }
+  .web-mobile-tracking input,
+  .web-mobile-tracking select,
+  .web-mobile-tracking textarea {
+    font-size: 16px;
+    max-width: 100%;
+  }
+  .web-mobile-tracking button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .web-mobile-tracking h1,
+  .web-mobile-tracking p {
+    overflow-wrap: anywhere;
+  }
+  body:has(.web-mobile-tracking input:focus) nav[aria-label="Mobil ana gezinme"] {
+    display: none;
+  }
+}
