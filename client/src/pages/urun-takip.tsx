@@ -325,6 +325,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const [statusFilter, setStatusFilter] = useState<string>("actionable");
   const [mobileSection, setMobileSection] = useState<"products" | "changes" | "fixed" | "settings">("products");
   const [mobileAdvancedFilters, setMobileAdvancedFilters] = useState(false);
+  const [expandedChangeGroup, setExpandedChangeGroup] = useState<string | null>(null);
   const [changeSearch, setChangeSearch] = useState("");
   const deferredChangeSearch = useDeferredValue(changeSearch);
   const [visibleChangeGroupCount, setVisibleChangeGroupCount] = useState(20);
@@ -808,7 +809,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     return [...new Set(ids)];
   }, [filteredGroupedChanges]);
 
-  useEffect(() => { setVisibleChangeGroupCount(20); }, [statusFilter, kindFilter, authenticityFilter, deferredChangeSearch]);
+  useEffect(() => { setVisibleChangeGroupCount(20); setExpandedChangeGroup(null); }, [statusFilter, kindFilter, authenticityFilter, deferredChangeSearch]);
   useEffect(() => { setVisibleAutoCorrectedCount(20); }, [mobileSection]);
   const mobileChangeGroups = useMemo(
     () => filteredGroupedChanges.slice(0, visibleChangeGroupCount),
@@ -1182,6 +1183,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             )}
             {mobileChangeGroups.map(group => {
               const p = group[0];
+              const productKey = getChangeProductKey(p);
+              const isExpanded = expandedChangeGroup === productKey;
               const syncIds = selectInstantMarktGoSyncIds(group);
               const busy = changeActionMutation.isPending || marktgoSyncMutation.isPending || bulkApproveMutation.isPending || bulkMarktGoSyncMutation.isPending;
               return (
@@ -1194,7 +1197,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       <p className="mt-1 text-[11px] text-slate-400">Son değişiklik: {formatDate(p.createdAt)}</p>
                     </div>
                   </div>
-                  {group.map(change => {
+                  {group.slice(0, isExpanded ? undefined : 2).map(change => {
                     const canSync = syncIds.includes(change.id);
                     const canApprove = ["pending", "manual_review"].includes(change.status);
                     return (
@@ -1223,6 +1226,13 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       </div>
                     );
                   })}
+                  {group.length > 2 && (
+                    <button type="button" onClick={() => setExpandedChangeGroup(current => current === productKey ? null : productKey)}
+                      aria-expanded={isExpanded}
+                      className="min-h-11 w-full rounded-xl border border-[#476477] bg-[#162E3F] px-3 text-[12px] font-semibold text-teal-100">
+                      {isExpanded ? "Ayrıntıları gizle" : `Diğer ${group.length - 2} değişikliği göster`}
+                    </button>
+                  )}
                   {resolveTrackingSourceUrl(p.productUrl) && (
                     <button type="button" onClick={() => openTrackingSource(p.productUrl)}
                       className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#476477] bg-[#172D3D] text-[12px] text-teal-200">
