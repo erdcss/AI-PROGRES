@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { useAppTabNavigation } from '@/components/app-tabs-store';
 import { useQuery } from '@tanstack/react-query';
@@ -68,7 +68,7 @@ const categoryNames = {
   system: 'Sistem & Ayarlar'
 };
 
-export function MobileNavigation() {
+export function MobileNavigation({ actions }: { actions?: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [location, setLocation] = useAppTabNavigation();
   const isMobile = useIsMobile();
@@ -81,6 +81,8 @@ export function MobileNavigation() {
       return r.json();
     },
     refetchInterval: 60_000,
+    enabled: isMobile,
+    staleTime: 30_000,
   });
 
   const pendingCount = Number(trackingBadge?.pendingChangesCount ?? 0);
@@ -104,30 +106,63 @@ export function MobileNavigation() {
 
   return (
     <>
-      {/* Hamburger Menu Button */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="fixed top-4 left-4 z-50"
-      >
-        <Button
+      <header className="sticky top-0 z-40 flex h-[60px] min-w-0 items-center gap-3 border-b border-[#253D4E] bg-[#0D1B29]/95 px-3 text-slate-100 shadow-sm backdrop-blur-md">
+        <button
+          type="button"
+          aria-label="Ana menüyü aç"
+          aria-expanded={isOpen}
           onClick={() => setIsOpen(true)}
-          className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-700 to-blue-900 border border-blue-600/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95"
-          size="icon"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#35556A] bg-[#1B3648] text-teal-100"
           data-testid="button-mobile-menu"
         >
-          <Menu className="h-6 w-6 text-white" />
-        </Button>
-      </motion.div>
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-bold tracking-[0.13em] text-teal-200">AI PROGRES</div>
+          <div className="truncate text-[11px] text-slate-400">
+            {location.startsWith("/urun-takip") ? "Ürün Takip Merkezi" : location === "/" ? "Ana Sayfa" : "Yönetim Paneli"}
+          </div>
+        </div>
+        {actions && <div className="min-w-0 shrink-0">{actions}</div>}
+      </header>
+
+      <nav aria-label="Mobil ana gezinme" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#355165] bg-[#0F1F2E]/95 pb-[env(safe-area-inset-bottom)] pt-1.5 shadow-2xl backdrop-blur-lg">
+        {[
+          { path: "/", title: "Ana Sayfa", icon: Home },
+          { path: "/urun-takip", title: "Ürün Takip", icon: Activity },
+          { path: "/scraper/trendyol", title: "Ürün Çek", icon: ShoppingCart },
+        ].map(item => {
+          const Icon = item.icon;
+          const active = location === item.path || (item.path === "/scraper/trendyol" && location === "/trendyol");
+          return (
+            <button key={item.path} type="button" aria-current={active ? "page" : undefined}
+              onClick={() => handleNavigate(item.path)}
+              className={`relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[11px] ${active ? "bg-[#1C3C4A] font-semibold text-teal-200" : "text-slate-400"}`}>
+              <Icon className="h-5 w-5" />
+              <span className="truncate">{item.title}</span>
+              {item.path === "/urun-takip" && pendingCount > 0 && (
+                <span className="absolute right-1.5 top-0 rounded-full bg-rose-600 px-1 text-[9px] text-white">
+                  {pendingCount > 999 ? "999+" : pendingCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+        <button type="button" onClick={() => setIsOpen(true)}
+          className="flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[11px] text-slate-400">
+          <Menu className="h-5 w-5" />
+          <span>Menü</span>
+        </button>
+      </nav>
 
       {/* Navigation Drawer — AnimatePresence kaldırıldı (insertBefore reset) */}
       {isOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={() => setIsOpen(false)}
           />
-          <div className="fixed left-0 top-0 h-full w-80 max-w-[85vw] bg-gradient-to-br from-slate-900 via-blue-900/90 to-slate-900 border-r border-blue-600/30 shadow-2xl z-50 animate-in slide-in-from-left duration-200">
+          <div className="fixed left-0 top-0 z-[80] h-[100dvh] w-80 max-w-[88vw] bg-gradient-to-br from-slate-900 via-blue-900/90 to-slate-900 border-r border-blue-600/30 shadow-2xl animate-in slide-in-from-left duration-200">
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-blue-600/30">
                 <div className="flex items-center gap-3">
@@ -150,7 +185,7 @@ export function MobileNavigation() {
               </div>
 
               {/* Navigation Content */}
-              <div className="overflow-y-auto h-[calc(100%-80px)] p-4 space-y-6">
+              <div className="h-[calc(100dvh-80px)] space-y-6 overflow-y-auto overscroll-contain p-4 pb-10">
                 {Object.entries(groupedItems).map(([category, items]) => (
                   <div key={category}>
                     <h3 className="text-blue-400 text-xs font-black uppercase tracking-wider mb-3 px-2">
