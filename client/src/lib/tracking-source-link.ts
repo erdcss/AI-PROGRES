@@ -45,10 +45,18 @@ export function openTrackingSource(value: unknown): boolean {
     );
     return true;
   }
-  const tab = window.open(source, "_blank", "noopener,noreferrer");
-  if (!tab) {
-    // Pop-up blocker: keep navigation possible from the same user gesture.
+  if (isMaykNativeApp()) {
+    // Older WebView builds intercept external navigations and open Safari.
+    // target="_blank" is unreliable when multi-window support is disabled.
     window.location.assign(source);
+    return true;
   }
+  const link = document.createElement("a");
+  link.href = source;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
   return true;
 }
