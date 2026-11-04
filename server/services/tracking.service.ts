@@ -218,11 +218,13 @@ export class TrackingService {
           .orderBy(desc(trackedProducts.updatedAt))
       : await productsQuery.orderBy(desc(trackedProducts.updatedAt));
 
-    const imagesMap = await this.getLatestImagesMap(trackedRows.map((p) => p.id));
     const ids = trackedRows.map((p) => p.id);
-    const variantPriceRows =
+    const sourceUrls = [...new Set(trackedRows.map((p) => p.sourceUrl).filter(Boolean))];
+    // Independent lookups execute in parallel rather than blocking the product list serially.
+    const [imagesMap, variantPriceRows, transfers, legacyImageRows] = await Promise.all([
+      this.getLatestImagesMap(ids),
       ids.length > 0
-        ? await db
+        ? db
             .select({
               trackedProductId: trackedVariants.trackedProductId,
               minPrice: sql<string>`min(${trackedVariants.currentSourcePrice}::numeric)`,
@@ -230,14 +232,9 @@ export class TrackingService {
             .from(trackedVariants)
             .where(inArray(trackedVariants.trackedProductId, ids))
             .groupBy(trackedVariants.trackedProductId)
-        : [];
-    const variantPriceById = new Map(
-      variantPriceRows.map((row) => [row.trackedProductId, row.minPrice]),
-    );
-    const sourceUrls = [...new Set(trackedRows.map((p) => p.sourceUrl).filter(Boolean))];
-    const transfers =
+        : [],
       sourceUrls.length > 0
-        ? await db
+        ? db
             .select({
               sourceUrl: shopifyTransferredProducts.sourceUrl,
               transferredAt: shopifyTransferredProducts.transferredAt,
@@ -245,12 +242,9 @@ export class TrackingService {
             })
             .from(shopifyTransferredProducts)
             .where(inArray(shopifyTransferredProducts.sourceUrl, sourceUrls))
-        : [];
-    const transferByUrl = new Map(transfers.map((row) => [row.sourceUrl, row]));
-
-    const legacyImageRows =
+        : [],
       sourceUrls.length > 0
-        ? await db
+        ? db
             .select({
               sourceUrl: products.sourceUrl,
               trendyolUrl: products.trendyolUrl,
@@ -263,7 +257,12 @@ export class TrackingService {
                 inArray(products.trendyolUrl, sourceUrls),
               ),
             )
-        : [];
+        : [],
+    ]);
+    const variantPriceById = new Map(
+      variantPriceRows.map((row) => [row.trackedProductId, row.minPrice]),
+    );
+    const transferByUrl = new Map(transfers.map((row) => [row.sourceUrl, row]));
     const legacyImagesByUrl = new Map<string, string[]>();
     for (const row of legacyImageRows) {
       const urls = pickImageUrls(row.images);
