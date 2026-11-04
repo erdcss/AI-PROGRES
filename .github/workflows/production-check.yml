@@ -25,6 +25,8 @@ jobs:
         run: npm run build
       - name: MARKT-GO provider regression tests (blocking)
         run: npm run test:marktgo
+      - name: Tracking source URL regression tests (blocking)
+        run: npx tsx client/src/lib/__tests__/tracking-source-link.test.ts
       - name: M.A.Y.K notification state regression tests (blocking)
         run: npx tsx server/__tests__/mayk-push.service.test.ts
       - name: TypeScript debt report (non-blocking)
