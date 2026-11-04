@@ -6,6 +6,7 @@ import { isMaykNativeApp } from "./mayk-native";
 
 type MaykBridge = Window & {
   ReactNativeWebView?: { postMessage(message: string): void };
+  __MAYK_SOURCE_BROWSER__?: boolean;
 };
 
 export function resolveTrackingSourceUrl(value: unknown): string | null {
@@ -38,7 +39,7 @@ export function openTrackingSource(value: unknown): boolean {
   const source = resolveTrackingSourceUrl(value);
   if (!source) return false;
   const bridge = window as MaykBridge;
-  if (isMaykNativeApp() && bridge.ReactNativeWebView?.postMessage) {
+  if (isMaykNativeApp() && bridge.__MAYK_SOURCE_BROWSER__ && bridge.ReactNativeWebView?.postMessage) {
     bridge.ReactNativeWebView.postMessage(
       JSON.stringify({ type: "mayk-open-source", url: source }),
     );
