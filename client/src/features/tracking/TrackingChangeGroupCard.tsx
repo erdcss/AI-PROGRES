@@ -23,6 +23,7 @@ import {
   getChangeDiffParts,
 } from "./format-change-value";
 import { TrackingProductImage } from "./TrackingProductImage";
+import { openTrackingSource, resolveTrackingSourceUrl } from "@/lib/tracking-source-link";
 import type { TrackingChangeItem } from "./TrackingChangeCard";
 import {
   buildTrackingVariantLabel,
@@ -541,15 +542,14 @@ export function TrackingChangeGroupCard({
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground pt-0.5">
-            {product.productUrl && (
-              <a
-                href={product.productUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 hover:text-foreground"
+            {resolveTrackingSourceUrl(product.productUrl) && (
+              <button
+                type="button"
+                onClick={() => openTrackingSource(product.productUrl)}
+                className="inline-flex min-h-8 items-center gap-1 hover:text-foreground"
               >
-                Kaynak <ExternalLink className="w-3 h-3" />
-              </a>
+                Kaynağa Git <ExternalLink className="w-3 h-3" />
+              </button>
             )}
             {displayTargetProductId && <span>MARKT-GO #{displayTargetProductId}</span>}
             {approvable.length > 0 && syncable.length > 0 && (

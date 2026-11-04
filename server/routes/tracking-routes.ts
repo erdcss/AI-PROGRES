@@ -78,18 +78,15 @@ export function registerTrackingRoutes(app: Express): void {
 
   app.get("/api/tracking/products", async (req, res) => {
     try {
-      void hydrateIncompleteCatalog();
-      try {
-        const { triggerMarktGoCatalogReconcile } = await import(
-          "../services/marktgo/reconcile.service"
+      // Trigger background catalog maintenance; never make listing wait for remote MarktGO API.
+      void Promise.resolve().then(() => hydrateIncompleteCatalog()).catch((err) =>
+        console.warn("[tracking] catalog hydrate skipped:", err instanceof Error ? err.message : String(err)),
+      );
+      void import("../services/marktgo/reconcile.service")
+        .then(({ triggerMarktGoCatalogReconcile }) => triggerMarktGoCatalogReconcile(false))
+        .catch((err) =>
+          console.warn("[marktgo-reconcile] background reconcile skipped:", err instanceof Error ? err.message : String(err)),
         );
-        await triggerMarktGoCatalogReconcile(false);
-      } catch (err) {
-        console.warn(
-          "[marktgo-reconcile] takip sayfası katalog eşitlemesi atlandı:",
-          err instanceof Error ? err.message : String(err),
-        );
-      }
       const includeArchived = req.query.includeArchived === "true";
       const includeUnlinked = req.query.includeUnlinked !== "false";
       const products = await trackingService.listProductsForPanel({

@@ -86,6 +86,8 @@ function WebApp() {
   const [hasError, setHasError] = useState(false);
   const [viewKey, setViewKey] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sourceBrowserUrl, setSourceBrowserUrl] = useState<string | null>(null);
+  const [sourceBrowserLoading, setSourceBrowserLoading] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const navigatePathRef = useRef<((path: string) => void) | null>(null);
   const pushToken = useRef<string | null>(null);
@@ -158,8 +160,11 @@ function WebApp() {
     setHasError(false);
     Keyboard.dismiss();
     setActivePath(path.split("?")[0] || "/");
-    setIsLoading(true);
-    browser.current?.injectJavaScript(`window.location.assign(${JSON.stringify(SITE)} + ${JSON.stringify(path)});true;`);
+    // Keep authenticated React state and query cache alive instead of reloading the whole page.
+    browser.current?.injectJavaScript(
+      "(function(){var path=" + JSON.stringify(path) +
+      ";window.history.pushState({},'',path);window.dispatchEvent(new PopStateEvent('popstate'));})();true;"
+    );
   }, []);
 
   navigatePathRef.current = navigate;
@@ -175,14 +180,24 @@ function WebApp() {
   const onTabPress = (tab: MainTab) => {
     if (tab === "more") { setMenuOpen(true); return; }
     const path = tab === "home" ? "/" : tab === "tracking" ? "/urun-takip" : "/scraper/trendyol";
-    if (activePath === path && !hasError) { browser.current?.reload(); return; }
+    if (activePath === path && !hasError) return;
     navigate(path);
   };
 
   const onWebMessage = (event: { nativeEvent: { data: string } }) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
-      if (message?.type === "mayk-authenticated") {
+      if (message?.type === "mayk-open-source" && typeof message.url === "string") {
+        try {
+          const target = new URL(message.url);
+          if (["https:", "http:"].includes(target.protocol) && target.hostname && !target.username && !target.password) {
+            setSourceBrowserUrl(target.toString());
+            setSourceBrowserLoading(true);
+          }
+        } catch {
+          Alert.alert("Kaynak URL geçersiz", "Ürünün kaynak bağlantısı açılamıyor.");
+        }
+      } else if (message?.type === "mayk-authenticated") {
         setIsAuthenticated(true);
         if (pushToken.current) deliverTokenToWeb(pushToken.current);
       } else if (message?.type === "mayk-push-registered") {
@@ -249,7 +264,7 @@ function WebApp() {
           allowsInlineMediaPlayback
           setSupportMultipleWindows={false}
           pullToRefreshEnabled
-          injectedJavaScriptBeforeContentLoaded={"window.__MAYK_NATIVE_APP__ = true; document.documentElement.classList.add('mayk-ios'); true;"}
+          injectedJavaScriptBeforeContentLoaded={"window.__MAYK_NATIVE_APP__ = true; window.__MAYK_SOURCE_BROWSER__ = true; document.documentElement.classList.add('mayk-ios'); true;"}
           injectedJavaScript={ROUTE_BRIDGE}
           onMessage={onWebMessage}
           onNavigationStateChange={state => {
@@ -315,6 +330,66 @@ function WebApp() {
           })}
         </View>
       )}
+
+      <Modal
+        visible={Boolean(sourceBrowserUrl)}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setSourceBrowserUrl(null)}
+      >
+        <SafeAreaView style={styles.sourceSafe} edges={["top","bottom","left","right"]}>
+          <View style={styles.sourceHeader}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Kaynak görüntüleyiciyi kapat"
+              style={styles.sourceAction}
+              onPress={() => setSourceBrowserUrl(null)}
+            >
+              <Text style={styles.sourceActionText}>Kapat</Text>
+            </Pressable>
+            <View style={styles.sourceHeading}>
+              <Text style={styles.sourceTitle} numberOfLines={1}>Ürün kaynağı</Text>
+              <Text style={styles.sourceHost} numberOfLines={1}>
+                {sourceBrowserUrl ? new URL(sourceBrowserUrl).hostname : ""}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Kaynağı Safari'de aç"
+              style={styles.sourceAction}
+              onPress={() => { if (sourceBrowserUrl) openExternal(sourceBrowserUrl); }}
+            >
+              <Text style={styles.sourceActionText}>Safari</Text>
+            </Pressable>
+          </View>
+          <View style={styles.sourceContent}>
+            {sourceBrowserUrl ? (
+              <WebView
+                key={sourceBrowserUrl}
+                source={{ uri: sourceBrowserUrl }}
+                originWhitelist={["http://*","https://*"]}
+                onShouldStartLoadWithRequest={request => {
+                  try { return ["http:","https:"].includes(new URL(request.url).protocol); }
+                  catch { return false; }
+                }}
+                setSupportMultipleWindows={false}
+                javaScriptEnabled
+                domStorageEnabled
+                incognito
+                onLoadStart={() => setSourceBrowserLoading(true)}
+                onLoadEnd={() => setSourceBrowserLoading(false)}
+                onError={() => setSourceBrowserLoading(false)}
+                style={styles.sourceWebView}
+                startInLoadingState
+                renderLoading={() => <View style={styles.loading}><ActivityIndicator color="#67DBD1" size="large" /></View>}
+              />
+            ) : null}
+            {sourceBrowserLoading ? (
+              <View style={styles.sourceProgress}><ActivityIndicator size="small" color="#69DDD2" /></View>
+            ) : null}
+          </View>
+        </SafeAreaView>
+      </Modal>
 
       <Modal visible={menuOpen} transparent animationType="slide" onRequestClose={() => setMenuOpen(false)}>
         <SafeAreaView style={styles.modalSafe} edges={["top", "bottom"]}>
@@ -435,5 +510,15 @@ const styles = StyleSheet.create({
   pushDescription: { color:"#A3B8C7",fontSize:12,lineHeight:18,marginTop:6 },
   pushButton: { minHeight:45,alignItems:"center",justifyContent:"center",marginTop:12,borderRadius:11,backgroundColor:"#176D79" },
   pushButtonText: { color:"#FFFFFF",fontWeight:"700",fontSize:13 },
+  sourceSafe: { flex:1, backgroundColor:"#0D1827" },
+  sourceHeader: { minHeight:63, backgroundColor:"#132636", flexDirection:"row", alignItems:"center", gap:10, paddingHorizontal:13, borderBottomWidth:1, borderBottomColor:"#335165" },
+  sourceAction: { minHeight:44, minWidth:62, alignItems:"center", justifyContent:"center", paddingHorizontal:10, borderRadius:12, backgroundColor:"#214154" },
+  sourceActionText: { color:"#D6FAF7", fontWeight:"700", fontSize:13 },
+  sourceHeading: { flex:1, minWidth:0, alignItems:"center" },
+  sourceTitle: { color:"#E8F5F9", fontSize:14, fontWeight:"700" },
+  sourceHost: { color:"#99B9CA", fontSize:11, marginTop:3 },
+  sourceContent: { flex:1, minHeight:0, backgroundColor:"#FFFFFF" },
+  sourceWebView: { flex:1, backgroundColor:"#FFFFFF" },
+  sourceProgress: { position:"absolute", top:6, right:10, backgroundColor:"#1B3442", paddingHorizontal:8, paddingVertical:5, borderRadius:9 },
   logoutText: { color: "#FFA4A4" },
 });

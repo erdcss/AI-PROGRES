@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Package } from "lucide-react";
 import { resolvePreviewImageUrl, resolvePreviewProxyUrl } from "@/lib/product-image-url";
 
@@ -22,6 +22,7 @@ export function TrackingProductImage({
   const direct = imageUrl ? resolvePreviewImageUrl(imageUrl) : null;
   const proxy = direct ? resolvePreviewProxyUrl(direct) : null;
   const [src, setSrc] = useState<string | null>(direct);
+  useEffect(() => { setSrc(direct); }, [direct]);
   const dim = SIZE_CLASS[size];
 
   if (!src) {
@@ -43,6 +44,7 @@ export function TrackingProductImage({
         alt={title || "Ürün görseli"}
         className="w-full h-full object-cover"
         loading="lazy"
+        decoding="async"
         onError={() => {
           if (proxy && src !== proxy) setSrc(proxy);
           else setSrc(null);

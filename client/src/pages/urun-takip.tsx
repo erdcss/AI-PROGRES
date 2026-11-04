@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { isMaykNativeApp } from "@/lib/mayk-native";
+import { openTrackingSource, resolveTrackingSourceUrl } from "@/lib/tracking-source-link";
 import {
   RefreshCw,
   Play,
@@ -319,11 +320,19 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("actionable");
   const [mobileSection, setMobileSection] = useState<"products" | "changes" | "fixed" | "settings">("products");
+  const [desktopSection, setDesktopSection] = useState("products");
+  const [visibleProductCount, setVisibleProductCount] = useState(40);
+  const nativeApp = isMaykNativeApp();
+  const activeSection = nativeApp && !embedded
+    ? mobileSection === "fixed" ? "auto-corrected" : mobileSection
+    : desktopSection;
   const [showMaykNotifications, setShowMaykNotifications] = useState(false);
   const [expandedMobileProduct, setExpandedMobileProduct] = useState<number | null>(null);
   const [kindFilter, setKindFilter] = useState<ChangeKindFilter | null>(null);
   const [authenticityFilter, setAuthenticityFilter] = useState<AuthenticityFilter>("all");
   const [productSearch, setProductSearch] = useState("");
+  const deferredProductSearch = useDeferredValue(productSearch);
+  useEffect(() => { setVisibleProductCount(40); }, [deferredProductSearch]);
   const [settingsForm, setSettingsForm] = useState<Partial<TrackingSettings>>({});
 
   const maykNotificationsQuery = useQuery<{
@@ -331,23 +340,25 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     items: Array<{ id: string; type: string; title: string; body: string; createdAt: string }>;
   }>({
     queryKey: ["mayk-push-notifications"],
-    enabled: isMaykNativeApp(),
+    enabled: nativeApp && showMaykNotifications,
     queryFn: async () => {
       const res = await fetch("/api/mayk/push/recent?limit=40", { credentials: "same-origin", cache: "no-store" });
       if (!res.ok) throw new Error("Bildirim geçmişi alınamadı");
       return res.json();
     },
-    refetchInterval: 15000,
+    refetchInterval: showMaykNotifications ? 30_000 : false,
+    staleTime: 15_000,
   });
   const maykDeviceQuery = useQuery<{ success: boolean; enabledDevices: number }>({
     queryKey: ["mayk-push-device-status"],
-    enabled: isMaykNativeApp(),
+    enabled: nativeApp && showMaykNotifications,
     queryFn: async () => {
       const res = await fetch("/api/mayk/push/status", { credentials: "same-origin", cache: "no-store" });
       if (!res.ok) throw new Error("Cihaz durumu alınamadı");
       return res.json();
     },
-    refetchInterval: 30000,
+    refetchInterval: showMaykNotifications ? 60_000 : false,
+    staleTime: 30_000,
   });
 
   const sendMaykTestNotification = async () => {
@@ -383,7 +394,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       if (!res.ok) throw new Error(data.error || "Durum alınamadı");
       return data as SchedulerStatus;
     },
-    refetchInterval: 30_000,
+    refetchInterval: 45_000,
+    staleTime: 10_000,
   });
 
   const settingsQuery = useQuery({
@@ -404,8 +416,11 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       if (!res.ok) throw new Error(data.error || "Liste alınamadı");
       return (data.products || []) as TrackedProduct[];
     },
-    refetchInterval: 15_000,
-    retry: 2,
+    enabled: activeSection === "products",
+    refetchInterval: activeSection === "products" ? 60_000 : false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
   const changesQuery = useQuery({
@@ -422,9 +437,11 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       if (!res.ok) throw new Error(data.error || "Değişiklikler alınamadı");
       return (data.changes || []) as DetectedChange[];
     },
-    refetchInterval: 30_000,
+    enabled: activeSection === "changes",
+    refetchInterval: activeSection === "changes" ? 45_000 : false,
+    refetchOnWindowFocus: false,
     retry: 1,
-    staleTime: 10_000,
+    staleTime: 15_000,
   });
 
   const autoCorrectedQuery = useQuery({
@@ -439,9 +456,11 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       if (!res.ok) throw new Error(data.error || "Otomatik düzeltilenler alınamadı");
       return (data.changes || []) as DetectedChange[];
     },
-    refetchInterval: 30_000,
+    enabled: activeSection === "auto-corrected",
+    refetchInterval: activeSection === "auto-corrected" ? 60_000 : false,
+    refetchOnWindowFocus: false,
     retry: 1,
-    staleTime: 10_000,
+    staleTime: 30_000,
   });
 
   const changeCountsQuery = useQuery({
@@ -462,12 +481,13 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         all: 0,
       }) as ChangeFilterCounts;
     },
-    refetchInterval: 15_000,
+    refetchInterval: 45_000,
+    staleTime: 10_000,
   });
 
   const filteredProducts = useMemo(() => {
     const products = productsQuery.data ?? [];
-    const query = productSearch.trim().toLocaleLowerCase("tr-TR");
+    const query = deferredProductSearch.trim().toLocaleLowerCase("tr-TR");
     if (!query) return products;
 
     return products.filter((product) => {
@@ -488,7 +508,11 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
 
       return searchable.includes(query);
     });
-  }, [productsQuery.data, productSearch]);
+  }, [productsQuery.data, deferredProductSearch]);
+  const visibleProducts = useMemo(
+    () => filteredProducts.slice(0, visibleProductCount),
+    [filteredProducts, visibleProductCount],
+  );
 
   const saveSettingsMutation = useMutation({
     mutationFn: async (patch: Partial<TrackingSettings>) => {
@@ -779,10 +803,12 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     ];
 
     const mobileRefresh = () => {
-      void Promise.all([
-        statusQuery.refetch(), productsQuery.refetch(), changesQuery.refetch(),
-        autoCorrectedQuery.refetch(), changeCountsQuery.refetch(),
-      ]);
+      void statusQuery.refetch();
+      void changeCountsQuery.refetch();
+      if (mobileSection === "products") void productsQuery.refetch();
+      if (mobileSection === "changes") void changesQuery.refetch();
+      if (mobileSection === "fixed") void autoCorrectedQuery.refetch();
+      if (showMaykNotifications) void maykNotificationsQuery.refetch();
     };
 
     return (
@@ -936,7 +962,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 {productSearch ? "Aramayla eşleşen ürün bulunamadı." : "Henüz takip edilen ürün bulunmuyor."}
               </div>
             )}
-            {filteredProducts.map(product => (
+            {visibleProducts.map(product => (
               <article key={product.id} className="min-w-0 overflow-hidden rounded-2xl border border-[#33495B] bg-[#152536] p-3.5">
                 <div className="flex min-w-0 items-start gap-3">
                   <TrackingProductImage imageUrl={product.productImageUrl} title={product.sourceTitle} size="md" />
@@ -1012,12 +1038,20 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                   <button type="button" onClick={() => setExpandedMobileProduct(id => id === product.id ? null : product.id)} className="min-h-10 rounded-xl border border-[#3A5265] px-2 text-[12px] text-slate-200">
                     {expandedMobileProduct === product.id ? "Ayrıntıyı gizle" : "Ayrıntılar"}
                   </button>
-                  {/^https?:\/\//i.test(product.sourceUrl) ? (
-                    <a className="flex min-h-10 items-center justify-center rounded-xl border border-[#3A5265] px-2 text-[12px] text-slate-200" href={product.sourceUrl} target="_blank" rel="noreferrer">Kaynağı aç</a>
-                  ) : <span />}
+                  {resolveTrackingSourceUrl(product.sourceUrl) ? (
+                    <button type="button" onClick={() => openTrackingSource(product.sourceUrl)} className="flex min-h-10 items-center justify-center gap-1 rounded-xl border border-[#3A5265] px-2 text-[12px] font-semibold text-teal-200">
+                      <ExternalLink className="h-3.5 w-3.5" /> Kaynağı aç
+                    </button>
+                  ) : <span className="flex min-h-10 items-center justify-center text-center text-[11px] text-slate-500">Kaynak URL yok</span>}
                 </div>
               </article>
             ))}
+            {visibleProducts.length < filteredProducts.length && (
+              <button type="button" onClick={() => setVisibleProductCount(count => count + 40)}
+                className="min-h-12 w-full rounded-xl border border-teal-500/30 bg-[#1C3446] text-[13px] font-semibold text-teal-100">
+                Daha fazla ürün göster ({visibleProducts.length}/{filteredProducts.length})
+              </button>
+            )}
           </section>
         )}
 
@@ -1127,6 +1161,12 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                       </div>
                     );
                   })}
+                  {resolveTrackingSourceUrl(p.productUrl) && (
+                    <button type="button" onClick={() => openTrackingSource(p.productUrl)}
+                      className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#476477] bg-[#172D3D] text-[12px] text-teal-200">
+                      <ExternalLink className="h-4 w-4" /> Kaynak ürün sayfasına git
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => checkMutation.mutate(p.trackedProductId)}
@@ -1325,7 +1365,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
         ))}
       </div>
 
-      <Tabs defaultValue="products">
+      <Tabs value={desktopSection} onValueChange={setDesktopSection}>
         <TabsList>
           <TabsTrigger value="products">Takip Edilen Ürünler</TabsTrigger>
           <TabsTrigger value="changes">
@@ -1431,7 +1471,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
             )}
 
           <div className="grid gap-3">
-            {filteredProducts.map((p) => (
+            {visibleProducts.map((p) => (
               <article
                 key={p.id}
                 className="rounded-xl border border-border/60 bg-card/50 p-4 flex gap-4"
@@ -1589,16 +1629,21 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                         Etkinleştir
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" asChild>
-                      <a href={p.sourceUrl} target="_blank" rel="noreferrer">
-                        <ExternalLink className="w-4 h-4 mr-1" />
-                        Kaynak
-                      </a>
-                    </Button>
+                    {resolveTrackingSourceUrl(p.sourceUrl) ? (
+                      <Button size="sm" variant="ghost" type="button" onClick={() => openTrackingSource(p.sourceUrl)}>
+                        <ExternalLink className="w-4 h-4 mr-1" /> Kaynağa Git
+                      </Button>
+                    ) : <Badge variant="outline">Kaynak URL yok</Badge>}
                   </div>
                 </div>
               </article>
             ))}
+            {visibleProducts.length < filteredProducts.length && (
+              <Button type="button" variant="outline" className="min-h-11 w-full"
+                onClick={() => setVisibleProductCount(count => count + 40)}>
+                Daha fazla ürün göster ({visibleProducts.length}/{filteredProducts.length})
+              </Button>
+            )}
           </div>
         </TabsContent>
 
