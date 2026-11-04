@@ -320,8 +320,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isMobileViewport = useIsMobile();
-  const isNativeApp = isMaykNativeApp();
-  const isCompactTracking = isNativeApp || isMobileViewport;
+  const nativeApp = isMaykNativeApp();
+  const isCompactTracking = nativeApp || isMobileViewport;
   const [statusFilter, setStatusFilter] = useState<string>("actionable");
   const [mobileSection, setMobileSection] = useState<"products" | "changes" | "fixed" | "settings">("products");
   const [mobileAdvancedFilters, setMobileAdvancedFilters] = useState(false);
@@ -332,7 +332,6 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const [visibleAutoCorrectedCount, setVisibleAutoCorrectedCount] = useState(20);
   const [desktopSection, setDesktopSection] = useState("products");
   const [visibleProductCount, setVisibleProductCount] = useState(40);
-  const nativeApp = isMaykNativeApp();
   const activeSection = isCompactTracking && !embedded
     ? mobileSection === "fixed" ? "auto-corrected" : mobileSection
     : desktopSection;
@@ -873,21 +872,34 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           </div>
         </header>
 
+        {trackingOff && (
+          <button type="button" onClick={() => setMobileSection("settings")}
+            className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 text-left text-[12px] font-medium text-amber-100">
+            <span>Takip sistemi kapalı. Ayarlardan etkinleştirebilirsin.</span>
+            <span aria-hidden="true">›</span>
+          </button>
+        )}
+
         <section className="grid grid-cols-2 gap-2.5" aria-label="Takip özeti">
           {[
-            { label: "Takip edilen", value: st?.trackedProductsCount ?? "—" },
-            { label: "Aktif ürün", value: st?.activeTrackedProductsCount ?? "—" },
-            { label: "Değişiklik", value: changeCountsQuery.data?.all ?? "—" },
-            { label: "Kontrol gerekli", value: st?.manualReviewCount ?? "—" },
+            { label: "Takip edilen", value: st?.trackedProductsCount ?? "—", section: "products" as const, filter: undefined },
+            { label: "Aktif ürün", value: st?.activeTrackedProductsCount ?? "—", section: "products" as const, filter: undefined },
+            { label: "Değişiklik", value: changeCountsQuery.data?.all ?? "—", section: "changes" as const, filter: "history" },
+            { label: "Kontrol gerekli", value: st?.manualReviewCount ?? "—", section: "changes" as const, filter: "manual_review" },
           ].map(item => (
-            <div key={item.label} className="min-w-0 rounded-2xl border border-[#304152] bg-[#152434] px-3.5 py-3">
+            <button type="button" key={item.label} aria-label={`${item.label} bölümünü aç`}
+              onClick={() => { if (item.filter) setStatusFilter(item.filter); setMobileSection(item.section); }}
+              className="min-w-0 rounded-2xl border border-[#304152] bg-[#152434] px-3.5 py-3 text-left active:bg-[#1E3E4E]">
               <p className="text-[11px] leading-4 text-slate-400">{item.label}</p>
-              <p className="mt-2 text-[25px] font-semibold leading-none tabular-nums text-white">{item.value}</p>
-            </div>
+              <div className="mt-2 flex items-end justify-between gap-1">
+                <p className="text-[25px] font-semibold leading-none tabular-nums text-white">{item.value}</p>
+                <span className="text-[13px] text-teal-300" aria-hidden="true">›</span>
+              </div>
+            </button>
           ))}
         </section>
 
-        {isNativeApp && <section className="min-w-0 rounded-2xl border border-[#385466] bg-[#142638] px-3.5 py-3">
+        {nativeApp && <section className="min-w-0 rounded-2xl border border-[#385466] bg-[#142638] px-3.5 py-3">
           <button
             type="button"
             onClick={() => setShowMaykNotifications(v => !v)}
@@ -950,7 +962,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           />
         </section>
 
-        <nav className="sticky top-[60px] z-20 grid min-w-0 grid-cols-4 gap-1 rounded-2xl border border-[#304152] bg-[#132232]/95 p-1.5 backdrop-blur-md" role="tablist" aria-label="Ürün takip bölümleri">
+        <nav className={`sticky ${nativeApp ? "top-0" : "top-[60px]"} z-20 grid min-w-0 grid-cols-4 gap-1 rounded-2xl border border-[#304152] bg-[#132232]/95 p-1.5 backdrop-blur-md`} role="tablist" aria-label="Ürün takip bölümleri">
           {sectionItems.map(item => (
             <button
               type="button"
