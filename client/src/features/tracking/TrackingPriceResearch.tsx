@@ -248,8 +248,13 @@ export function TrackingPriceResearchActions({ trackedProductId, productTitle }:
                         </div>
                         <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
                           <span className="font-semibold text-base tabular-nums">
-                            {offer.verified && offer.price != null ? money(offer.price) : "—"}
+                            {offer.verified && offer.price != null ? money(offer.price) : offer.listedPrice != null ? money(offer.listedPrice) : "—"}
                           </span>
+                          {!offer.verified && offer.listedPrice != null && (
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                              Arama sonucunda görülen · doğrulanmadı
+                            </span>
+                          )}
                           {safeHref(offer.url) && (
                             <a
                               href={safeHref(offer.url) ?? undefined}
