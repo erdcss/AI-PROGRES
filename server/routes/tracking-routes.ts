@@ -1,3 +1,4 @@
+import { getStoredPriceResearch, researchTrackingProductPrice } from "../services/tracking-price-research.service";
 import type { Express, Request, Response } from "express";
 import {
   getTrackingSettings,
@@ -72,6 +73,34 @@ export function registerTrackingRoutes(app: Express): void {
 
       return res.json({ success: true, settings });
     } catch (err) {
+      return migrationErrorResponse(res, err);
+    }
+  });
+
+  // Ürünün internet genelindeki arama sonuçları ve doğrulanabilen canlı fiyatları.
+  // Araştırma read-only'dir: MARKT-GO fiyatını değiştirmez.
+  app.get("/api/tracking/products/:id/price-research", async (req, res) => {
+    const id = parsePositiveInt(req.params.id);
+    if (id === null) return res.status(400).json({ success: false, error: "Geçersiz ürün ID" });
+    try {
+      const product = await trackingService.getProduct(id);
+      if (!product) return res.status(404).json({ success: false, error: "Ürün bulunamadı" });
+      const report = await getStoredPriceResearch(id);
+      return res.json({ success: true, report });
+    } catch (err) { return migrationErrorResponse(res, err); }
+  });
+
+  app.post("/api/tracking/products/:id/price-research", async (req, res) => {
+    const id = parsePositiveInt(req.params.id);
+    if (id === null) return res.status(400).json({ success: false, error: "Geçersiz ürün ID" });
+    try {
+      const report = await researchTrackingProductPrice(id);
+      return res.json({ success: true, report });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("bulunamadı")) return res.status(404).json({ success: false, error: message });
+      if (message.includes("Web arama") || message.includes("Arama servisi"))
+        return res.status(503).json({ success: false, error: message });
       return migrationErrorResponse(res, err);
     }
   });
