@@ -3,7 +3,6 @@ import { db } from "../db";
 import { productSnapshots } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import { discoverDetailedProductOffers, researchSearchLinks } from "./tracking-research-providers.service";
-import type { ResearchHit } from "./tracking-research-providers.service";
 import { pool } from "../db";
 import { trackingService } from "./tracking.service";
 import type {
@@ -339,7 +338,7 @@ async function generateReport(trackedProductId: number): Promise<TrackingPriceRe
     discoverDetailedProductOffers(title,referenceImageUrl),
     ...queries.map(searchWeb),
   ]);
-  const found: Array<SearchHit & {isSource:boolean;imageUrl?:string|null;
+  const found: Array<SearchHit & {isSource:boolean;imageUrl?:string|null;listedPrice?:number|null;
     discoveryMethod?:"source"|"web"|"visual"|"marketplace"}>=[];
   const sourceUrl=publicHttpsUrl(String(product.sourceUrl??""));
   if(sourceUrl)found.push({title,url:sourceUrl,snippet:"",isSource:true,
@@ -387,7 +386,7 @@ async function generateReport(trackedProductId: number): Promise<TrackingPriceRe
       price:null,currency:null,verified:false,
       isSource:hit.isSource,checkedAt:null,
       imageUrl:publicHttpsUrl(hit.imageUrl||""),
-      listedPrice:parseTurkishPrice((hit as ResearchHit).listedPrice),
+      listedPrice:parseTurkishPrice(hit.listedPrice),
       discoveryMethod:hit.discoveryMethod??"web",
       matchScore:hit.isSource?1:deepProductMatch(title,hit.title+" "+hit.snippet),
       availability:"unknown",verificationNote:null,
