@@ -32,4 +32,18 @@ assert.equal(extractVerifiedTryPrice(
 ), null);
 assert.equal(extractVerifiedTryPrice("<div>Ucuz fiyat sadece 199 TL!</div>"), null);
 
+
+import { deepProductMatch, variantConflict } from "../services/tracking-price-research.service";
+assert.ok(deepProductMatch(
+  "Maybelline New York Lash Sensational Yelpaze Etkili Siyah Maskara - Fiyatı",
+  "Maybelline Lash Sensational Yelpaze Etkili Siyah Maskara",
+) >= 0.46);
+assert.equal(deepProductMatch("Maybelline Lash Sensational Siyah Maskara",
+  "Arzum AR2052 Tost Makinesi"), 0);
+assert.ok(deepProductMatch("Arzum AR2052 Tost Makinesi", "Arzum AR2053 Tost Makinesi") === 0);
+assert.equal(variantConflict("Maybelline Lash Sensational Siyah Maskara",
+  "Maybelline Lash Sensational Kahverengi Maskara"), true);
+assert.equal(variantConflict("Maybelline Lash Sensational Siyah Maskara",
+  "Maybelline Lash Sensational Siyah Maskara"), false);
+
 console.log("Tracking web price research regression tests passed");
