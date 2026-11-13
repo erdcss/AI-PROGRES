@@ -1,4 +1,9 @@
 import { load } from "cheerio";
+import { db } from "../db";
+import { productSnapshots } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
+import { discoverDetailedProductOffers, researchSearchLinks } from "./tracking-research-providers.service";
+import type { ResearchHit } from "./tracking-research-providers.service";
 import { pool } from "../db";
 import { trackingService } from "./tracking.service";
 import type {
@@ -15,10 +20,11 @@ const STORE_DOMAINS = [
   "idefix.com", "boyner.com.tr", "ebebek.com", "akakce.com",
   "cimri.com", "karaca.com", "arzum.com.tr", "a101.com.tr",
   "migros.com.tr", "beymen.com", "hepsiglobal.com", "bimeks.com.tr",
+  "watsons.com.tr", "gratis.com", "rossmann.com.tr", "sephora.com.tr", "flormar.com.tr", "eveshop.com.tr", "kozvit.com", "dermoeczanem.com",
 ];
 
-const MAX_RESULTS = 25;
-const MAX_PAGE_CHECKS = 12;
+const MAX_RESULTS = 36;
+const MAX_PAGE_CHECKS = 16;
 const FETCH_TIMEOUT_MS = 7_000;
 const activeResearch = new Map<number, Promise<TrackingPriceResearchReport>>();
 let tableReady: Promise<void> | undefined;
@@ -129,6 +135,53 @@ function isTrustedStore(value: string): boolean {
   if (!url) return false;
   const host = new URL(url).hostname.toLowerCase();
   return STORE_DOMAINS.some((domain) => host === domain || host.endsWith("." + domain));
+}
+
+
+function identityTerms(value: string): string[] {
+  return value.toLocaleLowerCase("tr-TR")
+    .replace(/ı/g,"i").replace(/ğ/g,"g").replace(/ü/g,"u")
+    .replace(/ş/g,"s").replace(/ö/g,"o").replace(/ç/g,"c")
+    .replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean);
+}
+export function deepProductMatch(expected: string, candidate: string): number {
+  const query = identityTerms(expected), page = new Set(identityTerms(candidate));
+  if (!query[0] || !page.has(query[0])) return 0;
+  const model = getModel(expected);
+  if (model && !candidate.toUpperCase().replace(/[^A-Z0-9]/g,"").includes(model)) return 0;
+  const keywords = query.filter((w) => w.length>=4 && w !== query[0] &&
+    !["fiyati","fiyat","turkiye","satin","yeni","urun"].includes(w));
+  const overlap = keywords.filter((w) => page.has(w)).length;
+  if (!model && keywords.length >= 2 && overlap < 2) return 0;
+  const value = model ? 0.75 + 0.25 * overlap/Math.max(1,keywords.length) :
+    .25 + .75 * overlap/Math.max(1,keywords.length);
+  return Math.round(Math.min(1,value)*100)/100;
+}
+export function variantConflict(expected: string, candidate: string): boolean {
+  const a = identityTerms(expected), b = identityTerms(candidate);
+  return [
+    ["siyah","kahverengi"],["black","brown"],["siyah","brown"],
+    ["black","kahverengi"],["kirmizi","mavi"],["pembe","siyah"],
+  ].some(([x,y]) => a.includes(x)&&b.includes(y) || a.includes(y)&&b.includes(x));
+}
+async function getStoredProductImage(id: number): Promise<string|null> {
+  try {
+    const rows = await db.select({images:productSnapshots.images}).from(productSnapshots)
+      .where(eq(productSnapshots.trackedProductId,id))
+      .orderBy(desc(productSnapshots.createdAt)).limit(5);
+    for(const row of rows) {
+      const images = Array.isArray(row.images) ? row.images : [];
+      for(const item of images) {
+        const src = typeof item === "string" ? item :
+          item && typeof item === "object" ? String(
+            (item as Record<string,unknown>).url ||
+            (item as Record<string,unknown>).src ||
+            (item as Record<string,unknown>).imageUrl || "") : "";
+        if(publicHttpsUrl(src)) return src;
+      }
+    }
+  }catch{/* source image is optional */}
+  return null;
 }
 
 function sourceName(value: string): string {
