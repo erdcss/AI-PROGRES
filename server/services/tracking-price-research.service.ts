@@ -41,8 +41,8 @@ export function matchesTrackedProduct(productTitle: string, resultTitle: string,
   if (model) {
     const combined = (resultTitle + " " + snippet).toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!combined.includes(model)) return false;
-    return productWords.length === 0 || resultWords.has(productWords[0]) ||
-      normalizedWords(resultTitle).some((w) => productWords.includes(w) && w.length >= 4);
+    // Model tek başına yeterli değil: başka markanın aynı kodlu ürünü elenir.
+    return productWords.length > 0 && resultWords.has(productWords[0]);
   }
   const significant = productWords.filter((w) => w.length >= 4).slice(0, 9);
   const matched = significant.filter((w) => resultWords.has(w)).length;
