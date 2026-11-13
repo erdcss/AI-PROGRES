@@ -61,11 +61,11 @@ async function aiSearch(title:string,imageUrl:string|null):Promise<{hits:Researc
     max_output_tokens:2800,input:[{role:"user",content}],
   };
   let data:any;
-  try {data=await post("https://api.openai.com/v1/responses",body,"Authorization","Bearer "+key,26000);}
+  try {data=await post("https://api.openai.com/v1/responses",body,"Authorization","Bearer "+key,21000);}
   catch(err){
     if(!imageUrl)throw err;
     body.input[0].content=content.slice(0,1);
-    data=await post("https://api.openai.com/v1/responses",body,"Authorization","Bearer "+key,22000);
+    data=await post("https://api.openai.com/v1/responses",body,"Authorization","Bearer "+key,12000);
     imageUrl=null;
   }
   const output=pick(data,"output"),strings:string[]=[];
