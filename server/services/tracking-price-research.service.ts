@@ -332,10 +332,11 @@ async function generateReport(trackedProductId: number): Promise<TrackingPriceRe
   const title=String(product.sourceTitle??"").trim();
   if(!title)throw new Error("Araştırılacak ürünün başlığı eksik.");
   const referenceImageUrl=await getStoredProductImage(trackedProductId);
-  const queries=buildQueries(title);
+  const searchTitle=title.replace(/\s*[-–—]\s*fiyat[ıi]\s*$/i,"").trim();
+  const queries=buildQueries(searchTitle);
   // AI vision + cited web discovery runs alongside the public-search fallbacks.
   const [deepResult,...fallbacks]=await Promise.allSettled([
-    discoverDetailedProductOffers(title,referenceImageUrl),
+    discoverDetailedProductOffers(searchTitle,referenceImageUrl),
     ...queries.map(searchWeb),
   ]);
   const found: Array<SearchHit & {isSource:boolean;imageUrl?:string|null;listedPrice?:number|null;
@@ -440,7 +441,7 @@ async function generateReport(trackedProductId: number): Promise<TrackingPriceRe
     provider:[...new Set(names)].join(", ")||"Web araması kullanılamadı",
     queries,resultsFound:offers.length,checkedCount:checks.length,offers,summary,warnings,
     referenceImageUrl,visualAnalysis,visualSearchPerformed,visualMatchProvider,
-    researchLinks:researchSearchLinks(title),
+    researchLinks:researchSearchLinks(searchTitle),
     searchedSites:new Set(offers.map(o=>o.site)).size,
     researchVersion:2,
   };
