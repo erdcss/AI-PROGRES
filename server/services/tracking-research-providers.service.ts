@@ -82,6 +82,33 @@ async function aiSearch(title:string,imageUrl:string|null):Promise<{hits:Researc
     hits.push({title:String(item.title||"").slice(0,250),url,snippet:"",
       imageUrl:safe(item.imageUrl),listedPrice:typeof item.price==="number"&&item.price>0&&item.price<10000000?item.price:null,method:"web"});
   }
+  // Recover genuine cited merchant URLs even if the model's JSON is incomplete.
+  // Strict slug matching prevents unrelated web citations becoming product offers.
+  const citationUrls:string[]=[];
+  for(const item of output){
+    if(item.type==="web_search_call")for(const ref of pick(item.action,"sources")){
+      if(safe(ref.url))citationUrls.push(ref.url);
+    }
+    for(const message of pick(item,"content"))
+      for(const annotation of pick(message,"annotations")){
+        if(safe(annotation.url))citationUrls.push(annotation.url);
+      }
+  }
+  const originalWords=title.toLocaleLowerCase("tr-TR").replace(/ı/g,"i")
+    .replace(/[^a-z0-9]+/g," ").split(/\s+/).filter(w=>w.length>=4);
+  for(const candidate of [...new Set(citationUrls)].slice(0,35)){
+    try{
+      const parsedUrl=new URL(candidate);
+      const slug=decodeURIComponent(parsedUrl.pathname).toLocaleLowerCase("tr-TR")
+        .replace(/ı/g,"i").replace(/[^a-z0-9]+/g," ");
+      const words=slug.split(/\s+/);
+      if(!words.includes(originalWords[0]))continue;
+      const matched=originalWords.filter(w=>words.includes(w));
+      if(matched.length<Math.min(3,originalWords.length))continue;
+      if(hits.some(hit=>hit.url===candidate))continue;
+      hits.push({title:slug.slice(0,240),url:candidate,snippet:"Web arama kaynak bağlantısı",method:"web"});
+    }catch{}
+  }
   return {hits,description:typeof obj.visualAnalysis==="string"?obj.visualAnalysis.slice(0,290):null,
     visualUsed:Boolean(imageUrl)};
 }
