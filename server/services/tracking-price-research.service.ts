@@ -1,4 +1,8 @@
 import { load } from "cheerio";
+import { db } from "../db";
+import { productSnapshots } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
+import { discoverDetailedProductOffers, researchSearchLinks } from "./tracking-research-providers.service";
 import { pool } from "../db";
 import { trackingService } from "./tracking.service";
 import type {
@@ -15,9 +19,10 @@ const STORE_DOMAINS = [
   "idefix.com", "boyner.com.tr", "ebebek.com", "akakce.com",
   "cimri.com", "karaca.com", "arzum.com.tr", "a101.com.tr",
   "migros.com.tr", "beymen.com", "hepsiglobal.com", "bimeks.com.tr",
+  "watsons.com.tr", "gratis.com", "rossmann.com.tr", "sephora.com.tr", "flormar.com.tr", "eveshop.com.tr", "kozvit.com", "dermoeczanem.com",
 ];
 
-const MAX_RESULTS = 25;
+const MAX_RESULTS = 36;
 const MAX_PAGE_CHECKS = 12;
 const FETCH_TIMEOUT_MS = 7_000;
 const activeResearch = new Map<number, Promise<TrackingPriceResearchReport>>();
@@ -108,6 +113,20 @@ export function extractVerifiedTryPrice(html: string): number | null {
       $('[itemprop="price"]').first().attr("content");
     return parseTurkishPrice(metaPrice);
   }
+  // Some marketplaces expose the current buy-box price in an explicit product-price
+  // element rather than JSON-LD. Only precise current-price selectors are used.
+  for (const selector of [
+    ".prc-dsc", '[data-testid="product-price"]', '[data-test-id="price-current"]',
+    "#corePriceDisplay_desktop_feature_div .a-price .a-offscreen",
+    "#priceblock_ourprice", '[data-testid="price-current"]',
+  ]) {
+    const el = $(selector).first();
+    if (!el.length) continue;
+    const value = String(el.attr("content") || el.text() || "").replace(/\s+/g," ").trim();
+    const match = value.match(/₺\s*([\d.,]+)|([\d.,]+)\s*(?:TL|₺)/i);
+    const parsed = parseTurkishPrice(match ? match[1] || match[2] : value);
+    if (parsed != null) return parsed;
+  }
   return null;
 }
 
@@ -129,6 +148,53 @@ function isTrustedStore(value: string): boolean {
   if (!url) return false;
   const host = new URL(url).hostname.toLowerCase();
   return STORE_DOMAINS.some((domain) => host === domain || host.endsWith("." + domain));
+}
+
+
+function identityTerms(value: string): string[] {
+  return value.toLocaleLowerCase("tr-TR")
+    .replace(/ı/g,"i").replace(/ğ/g,"g").replace(/ü/g,"u")
+    .replace(/ş/g,"s").replace(/ö/g,"o").replace(/ç/g,"c")
+    .replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean);
+}
+export function deepProductMatch(expected: string, candidate: string): number {
+  const query = identityTerms(expected), page = new Set(identityTerms(candidate));
+  if (!query[0] || !page.has(query[0])) return 0;
+  const model = getModel(expected);
+  if (model && !candidate.toUpperCase().replace(/[^A-Z0-9]/g,"").includes(model)) return 0;
+  const keywords = query.filter((w) => w.length>=4 && w !== query[0] &&
+    !["fiyati","fiyat","turkiye","satin","yeni","urun"].includes(w));
+  const overlap = keywords.filter((w) => page.has(w)).length;
+  if (!model && keywords.length >= 2 && overlap < 2) return 0;
+  const value = model ? 0.75 + 0.25 * overlap/Math.max(1,keywords.length) :
+    .25 + .75 * overlap/Math.max(1,keywords.length);
+  return Math.round(Math.min(1,value)*100)/100;
+}
+export function variantConflict(expected: string, candidate: string): boolean {
+  const a = identityTerms(expected), b = identityTerms(candidate);
+  return [
+    ["siyah","kahverengi"],["black","brown"],["siyah","brown"],
+    ["black","kahverengi"],["kirmizi","mavi"],["pembe","siyah"],
+  ].some(([x,y]) => a.includes(x)&&b.includes(y) || a.includes(y)&&b.includes(x));
+}
+async function getStoredProductImage(id: number): Promise<string|null> {
+  try {
+    const rows = await db.select({images:productSnapshots.images}).from(productSnapshots)
+      .where(eq(productSnapshots.trackedProductId,id))
+      .orderBy(desc(productSnapshots.createdAt)).limit(5);
+    for(const row of rows) {
+      const images = Array.isArray(row.images) ? row.images : [];
+      for(const item of images) {
+        const src = typeof item === "string" ? item :
+          item && typeof item === "object" ? String(
+            (item as Record<string,unknown>).url ||
+            (item as Record<string,unknown>).src ||
+            (item as Record<string,unknown>).imageUrl || "") : "";
+        if(publicHttpsUrl(src)) return src;
+      }
+    }
+  }catch{/* source image is optional */}
+  return null;
 }
 
 function sourceName(value: string): string {
@@ -214,21 +280,43 @@ async function searchWeb(query: string): Promise<{ hits: SearchHit[]; provider: 
   return { hits, provider: "Bing RSS" };
 }
 
-async function fetchLivePrice(url: string): Promise<number | null> {
-  if (!isTrustedStore(url)) return null;
+type VerifiedPage = { price: number | null; imageUrl: string | null; note: string; unavailable: boolean };
+async function fetchLivePrice(url: string, expectedTitle: string): Promise<VerifiedPage> {
+  const empty = (note:string):VerifiedPage => ({price:null,imageUrl:null,note,unavailable:false});
+  if (!isTrustedStore(url)) return empty("Bu bağlantı mağaza ürünü olarak doğrulanamadı.");
   try {
     const response = await fetch(url, {
-      headers: { Accept: "text/html", "User-Agent": "Mozilla/5.0 (compatible; AIProgresPriceResearch/1.0)" },
-      redirect: "manual",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: {
+        Accept: "text/html",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+        "Accept-Language": "tr-TR,tr;q=0.9",
+      }, redirect:"manual", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!response.ok || !String(response.headers.get("content-type") ?? "").includes("html"))
-      return null;
-    const size = Number(response.headers.get("content-length") ?? 0);
-    if (size > 1_500_000) return null;
-    const html = (await response.text()).slice(0, 1_500_000);
-    return extractVerifiedTryPrice(html);
-  } catch { return null; }
+    if(!response.ok)return empty("Mağaza sayfası erişimi kısıtlı (HTTP " + response.status + ").");
+    if(!String(response.headers.get("content-type") ?? "").includes("html"))
+      return empty("Mağaza HTML ürün sayfası döndürmedi.");
+    if(Number(response.headers.get("content-length")||0)>3_000_000)
+      return empty("Mağaza sayfası boyut sınırını aştı.");
+    const html=(await response.text()).slice(0,3_000_000);
+    const $=load(html);
+    const actualTitle=String(
+      $('meta[property="og:title"]').attr("content") ||
+      $("h1").first().text() || $("title").text() || "").trim();
+    if(actualTitle && (deepProductMatch(expectedTitle,actualTitle)<.42 ||
+      variantConflict(expectedTitle,actualTitle)))
+      return empty("Ürün başlığı veya varyantı kaynak ürünle eşleşmiyor.");
+    const imageUrl=publicHttpsUrl(String(
+      $('meta[property="og:image"]').attr("content") ||
+      $('meta[name="twitter:image"]').attr("content") || "" ));
+    const price=extractVerifiedTryPrice(html);
+    const unavailable=/schema\.org\/OutOfStock/i.test(html);
+    return {
+      price, imageUrl, unavailable,
+      note:price===null?"Sayfa fiyatını yapılandırılmış TRY verisiyle doğrulayamıyoruz.":
+        unavailable?"Ürün sayfası stokta yok diyor; fiyat ortalamaya dahil edilmedi.":
+        "Güncel fiyat mağazanın ürün sayfasındaki yapılandırılmış veriden doğrulandı.",
+    };
+  }catch{return empty("Mağaza erişimi engellendi veya zaman aşımı yaşandı.");}
 }
 
 async function ensureReportTable(): Promise<void> {
@@ -253,83 +341,130 @@ export async function getStoredPriceResearch(trackedProductId: number): Promise<
 }
 
 async function generateReport(trackedProductId: number): Promise<TrackingPriceResearchReport> {
-  const product = await trackingService.getProduct(trackedProductId);
-  if (!product) throw new Error("Ürün bulunamadı");
-  const title = String(product.sourceTitle ?? "").trim();
-  if (!title) throw new Error("Ürün adı bulunamadığı için araştırma yapılamıyor");
-
-  const queries = buildQueries(title);
-  const responses = await Promise.allSettled(queries.map(searchWeb));
-  const successful = responses
-    .filter((r): r is PromiseFulfilledResult<{ hits: SearchHit[]; provider: string }> => r.status === "fulfilled")
-    .map((r) => r.value);
-  if (successful.length === 0) throw new Error(
-    "Web arama kaynaklarına erişilemedi. SERPER_API_KEY veya BRAVE_SEARCH_API_KEY tanımlayarak tekrar deneyin.",
-  );
-
-  const unique = new Map<string, SearchHit & { isSource: boolean }>();
-  const sourceUrl = publicHttpsUrl(String(product.sourceUrl ?? ""));
-  if (sourceUrl) unique.set(sourceUrl, { title, url: sourceUrl, snippet: title, isSource: true });
-  for (const result of successful) {
-    for (const hit of result.hits) {
-      const safeUrl = publicHttpsUrl(hit.url);
-      if (!safeUrl || !matchesTrackedProduct(title, hit.title, hit.snippet) || unique.has(safeUrl))
-        continue;
-      unique.set(safeUrl, { ...hit, url: safeUrl, isSource: false });
-      if (unique.size >= MAX_RESULTS) break;
+  const product=await trackingService.getProduct(trackedProductId);
+  if(!product)throw new Error("Ürün bulunamadı");
+  const title=String(product.sourceTitle??"").trim();
+  if(!title)throw new Error("Araştırılacak ürünün başlığı eksik.");
+  const referenceImageUrl=await getStoredProductImage(trackedProductId);
+  const searchTitle=title.replace(/\s*[-–—]\s*fiyat[ıi]\s*$/i,"").trim();
+  const queries=buildQueries(searchTitle);
+  // AI vision + cited web discovery runs alongside the public-search fallbacks.
+  const [deepResult,...fallbacks]=await Promise.allSettled([
+    discoverDetailedProductOffers(searchTitle,referenceImageUrl),
+    ...queries.map(searchWeb),
+  ]);
+  const found: Array<SearchHit & {isSource:boolean;imageUrl?:string|null;listedPrice?:number|null;
+    discoveryMethod?:"source"|"web"|"visual"|"marketplace"}>=[];
+  const sourceUrl=publicHttpsUrl(String(product.sourceUrl??""));
+  if(sourceUrl)found.push({title,url:sourceUrl,snippet:"",isSource:true,
+    imageUrl:referenceImageUrl,discoveryMethod:"source"});
+  const names:string[]=[];
+  const warnings:string[]=[];
+  let visualAnalysis:string|null=null,visualSearchPerformed=false,visualMatchProvider:string|null=null;
+  if(deepResult.status==="fulfilled"){
+    const data=deepResult.value;
+    names.push(...data.provider);
+    warnings.push(...data.warnings);
+    visualAnalysis=data.visualAnalysis;
+    visualSearchPerformed=data.visualUsed || data.reverseImageUsed;
+    if(data.reverseImageUsed)visualMatchProvider="Google Lens";
+    for(const hit of data.hits){
+      if(!isTrustedStore(hit.url))continue;
+      if(variantConflict(title,hit.title))continue;
+      const similarity=deepProductMatch(title,hit.title+" "+hit.snippet);
+      if(similarity<.46 && !matchesTrackedProduct(title,hit.title,hit.snippet))continue;
+      found.push({...hit,isSource:false,discoveryMethod:
+        hit.method==="visual"?"visual":hit.method==="image"?"marketplace":"web"});
+    }
+  }else warnings.push("Yapay zekâ ve görsel arama geçici olarak yanıt vermedi.");
+  for(const r of fallbacks){
+    if(r.status!=="fulfilled")continue;
+    names.push(r.value.provider);
+    for(const hit of r.value.hits){
+      if(!isTrustedStore(hit.url) || variantConflict(title,hit.title))continue;
+      if(deepProductMatch(title,hit.title+" "+hit.snippet)<.46 &&
+        !matchesTrackedProduct(title,hit.title,hit.snippet))continue;
+      found.push({...hit,isSource:false,discoveryMethod:"web"});
     }
   }
-  const hits = [...unique.values()];
-  const checkedAt = new Date().toISOString();
-  const offers: TrackingPriceResearchOffer[] = hits.map((hit) => ({
-    site: sourceName(hit.url), title: hit.title.slice(0, 240),
-    url: hit.url, price: null, currency: null,
-    verified: false, isSource: hit.isSource, checkedAt: null,
-  }));
-
-  const checks = offers.map((offer, index) => ({ offer, index }))
-    .filter(({ offer }) => isTrustedStore(offer.url)).slice(0, MAX_PAGE_CHECKS);
-  for (let i = 0; i < checks.length; i += 3) {
-    const batch = checks.slice(i, i + 3);
-    const prices = await Promise.all(batch.map(({ offer }) => fetchLivePrice(offer.url)));
-    batch.forEach(({ index }, j) => {
-      offers[index].checkedAt = new Date().toISOString();
-      if (prices[j] != null) {
-        offers[index].price = prices[j];
-        offers[index].currency = "TRY";
-        offers[index].verified = true;
+  const unique=new Map<string,TrackingPriceResearchOffer>();
+  for(const hit of found){
+    const url=publicHttpsUrl(hit.url);
+    if(!url)continue;
+    const parsed=new URL(url);
+    // Remove ad-tracking params from dedupe; retain actual product/variant params.
+    const canonical=parsed.hostname+parsed.pathname.replace(/\/$/,"")+
+      [...parsed.searchParams.entries()].filter(([key])=>/^(variant|color|renk|size|beden|sku)$/i.test(key))
+        .map(([key,value])=>key+"="+value).sort().join("&");
+    const candidate:TrackingPriceResearchOffer={
+      site:sourceName(url),title:hit.title.slice(0,240),url,
+      price:null,currency:null,verified:false,
+      isSource:hit.isSource,checkedAt:null,
+      imageUrl:publicHttpsUrl(hit.imageUrl||""),
+      listedPrice:parseTurkishPrice(hit.listedPrice),
+      discoveryMethod:hit.discoveryMethod??"web",
+      matchScore:hit.isSource?1:deepProductMatch(title,hit.title+" "+hit.snippet),
+      availability:"unknown",verificationNote:null,
+    };
+    const previous=unique.get(canonical);
+    if(previous){
+      if(!previous.imageUrl && candidate.imageUrl)previous.imageUrl=candidate.imageUrl;
+      if(candidate.discoveryMethod==="visual")previous.discoveryMethod="visual";
+      continue;
+    }
+    unique.set(canonical,candidate);
+    if(unique.size>=MAX_RESULTS)break;
+  }
+  const offers=[...unique.values()];
+  const checks=offers.filter(o=>isTrustedStore(o.url)).slice(0,MAX_PAGE_CHECKS);
+  for(let i=0;i<checks.length;i+=6){
+    const batch=checks.slice(i,i+6);
+    const parsed=await Promise.all(batch.map(o=>fetchLivePrice(o.url,title)));
+    parsed.forEach((data,j)=>{
+      const offer=batch[j];
+      offer.checkedAt=new Date().toISOString();
+      offer.verificationNote=data.note;
+      if(data.imageUrl)offer.imageUrl=data.imageUrl;
+      offer.availability=data.unavailable?"out_of_stock":"unknown";
+      if(data.price!==null){
+        offer.verified=true;offer.price=data.price;offer.currency="TRY";
       }
     });
   }
-  offers.sort((a, b) =>
-    Number(b.verified) - Number(a.verified) ||
-    (a.price ?? Infinity) - (b.price ?? Infinity) ||
-    Number(b.isSource) - Number(a.isSource),
-  );
-  const prices = offers.flatMap((o) => o.verified && o.price != null ? [o.price] : []);
-  const summary = {
-    verifiedCount: prices.length,
-    lowestPrice: prices.length ? Math.min(...prices) : null,
-    highestPrice: prices.length ? Math.max(...prices) : null,
-    averagePrice: prices.length ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length * 100) / 100 : null,
+  offers.sort((a,b)=>Number(b.verified)-Number(a.verified) ||
+    (a.price??Infinity)-(b.price??Infinity) || Number(b.isSource)-Number(a.isSource));
+  const prices=offers.flatMap(o=>o.verified && o.price!=null && o.availability!=="out_of_stock"?[o.price]:[]);
+  const summary={
+    verifiedCount:prices.length,lowestPrice:prices.length?Math.min(...prices):null,
+    highestPrice:prices.length?Math.max(...prices):null,
+    averagePrice:prices.length?
+      Math.round(prices.reduce((a,b)=>a+b,0)/prices.length*100)/100:null,
   };
-  const warnings: string[] = [];
-  if (summary.verifiedCount === 0)
-    warnings.push("Mağaza sayfalarından doğrulanmış TL fiyatı alınamadı; fiyat uydurulmadı. Kaynak bağlantılarını inceleyin.");
-  if (responses.some((r) => r.status === "rejected"))
-    warnings.push("Arama kaynaklarının bir bölümü yanıt vermedi; rapor eksik olabilir.");
-  const report: TrackingPriceResearchReport = {
-    trackedProductId, productTitle: title, sourceUrl: sourceUrl ?? "",
-    sourcePrice: parseTurkishPrice(product.currentSourcePrice),
-    searchedAt: checkedAt, provider: [...new Set(successful.map((r) => r.provider))].join(", "),
-    queries, resultsFound: hits.length, checkedCount: checks.length, offers, summary, warnings,
+  if(!prices.length)warnings.push(
+    "Mağazalardan fiyat doğrulanamadı; yanlış fiyat göstermemek için yalnızca gerçek bağlantılar listelendi."
+  );
+  if(offers.length<2)warnings.push(
+    "Bağımsız ürün eşleşmesi sınırlı. Altta diğer mağazaların hazır ürün aramalarını açabilirsiniz."
+  );
+  if(referenceImageUrl && !visualSearchPerformed)
+    warnings.push("Görsel tespit edildi ancak görsel araması sağlayıcısı yanıt vermedi.");
+  const report:TrackingPriceResearchReport={
+    trackedProductId,productTitle:title,sourceUrl:sourceUrl??"",
+    sourcePrice:parseTurkishPrice(product.currentSourcePrice),
+    searchedAt:new Date().toISOString(),
+    provider:[...new Set(names)].join(", ")||"Web araması kullanılamadı",
+    queries,resultsFound:offers.length,checkedCount:checks.length,offers,summary,warnings,
+    referenceImageUrl,visualAnalysis,visualSearchPerformed,visualMatchProvider,
+    researchLinks:researchSearchLinks(searchTitle),
+    searchedSites:new Set(offers.map(o=>o.site)).size,
+    researchVersion:2,
   };
   await ensureReportTable();
   await pool!.query(
     "INSERT INTO tracking_price_research_reports (tracked_product_id, report, updated_at) " +
     "VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (tracked_product_id) " +
     "DO UPDATE SET report = EXCLUDED.report, updated_at = NOW()",
-    [trackedProductId, JSON.stringify(report)],
+    [trackedProductId,JSON.stringify(report)],
   );
   return report;
 }

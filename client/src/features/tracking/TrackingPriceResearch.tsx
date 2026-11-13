@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, ExternalLink, FileText, RefreshCw, Search } from "lucide-react";
+import { AlertCircle, CheckCircle2, ExternalLink, FileText, RefreshCw, Search, Image as ImageIcon, Globe2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -92,6 +92,8 @@ export function TrackingPriceResearchActions({ trackedProductId, productTitle }:
                 <>
                   <Badge variant="outline">{report.summary.verifiedCount} doğrulanan fiyat</Badge>
                   <Badge variant="secondary">{report.resultsFound} bağlantı</Badge>
+                  {typeof report.searchedSites === "number" && <Badge variant="outline">{report.searchedSites} mağaza</Badge>}
+                  {report.visualSearchPerformed && <Badge variant="outline"><ImageIcon className="w-3 h-3 mr-1" /> Görsel analizi</Badge>}
                   <span className="self-center">
                     {new Date(report.searchedAt).toLocaleString("tr-TR")}
                   </span>
@@ -106,7 +108,7 @@ export function TrackingPriceResearchActions({ trackedProductId, productTitle }:
 
           {research.isPending && (
             <div role="status" className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
-              Arama motorları ve mağaza sayfaları kontrol ediliyor. Doğrulanan fiyatlar araştırma bittiğinde görünecek.
+              Görsel tanımlama, derin web araması, ürün/varyant eşleştirmesi ve mağaza fiyat doğrulaması yapılıyor. Bu işlem biraz sürebilir.
               {report && <span className="block mt-1">Aşağıda önceki rapor gösteriliyor.</span>}
             </div>
           )}
@@ -148,6 +150,35 @@ export function TrackingPriceResearchActions({ trackedProductId, productTitle }:
                 ))}
               </div>
 
+              {(report.referenceImageUrl || report.visualAnalysis) && (
+                <section className="flex flex-col sm:flex-row items-start gap-4 rounded-xl border border-border/70 bg-muted/15 p-3">
+                  {report.referenceImageUrl && safeHref(report.referenceImageUrl) && (
+                    <img
+                      src={report.referenceImageUrl}
+                      alt="Araştırılan ürünün kaynak görseli"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className="w-28 h-28 rounded-xl bg-white object-contain border border-border/50 shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0 space-y-1.5">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4" /> Görsel ve ürün kimliği araştırması
+                    </h4>
+                    {report.visualAnalysis && (
+                      <p className="text-sm text-foreground/80 leading-relaxed">{report.visualAnalysis}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {report.visualMatchProvider
+                        ? report.visualMatchProvider + " ile tersine görsel arama kullanıldı."
+                        : report.visualSearchPerformed
+                          ? "Kaynak görseli kullanılarak yapay zekâ destekli ürün tanımlama yapıldı."
+                          : "Görsel referans kaydedildi. Tersine görsel arama için Google Lens sağlayıcısı bağlanabilir."}
+                    </p>
+                  </div>
+                </section>
+              )}
+
               {lowest != null && report.sourcePrice != null && (
                 <p className="text-sm text-muted-foreground">
                   Takip fiyatına göre en düşük doğrulanan web fiyatı{" "}
@@ -181,12 +212,27 @@ export function TrackingPriceResearchActions({ trackedProductId, productTitle }:
                     {report.offers.map((offer) => (
                       <div
                         key={offer.url}
-                        className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between rounded-xl border border-border/70 p-3"
+                        className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between rounded-xl border border-border/70 bg-background/25 p-3"
                       >
+                        {offer.imageUrl && safeHref(offer.imageUrl) ? (
+                          <img
+                            src={offer.imageUrl}
+                            alt={offer.title}
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                            className="w-20 h-20 rounded-lg border border-border/40 bg-white object-contain shrink-0"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 hidden sm:flex items-center justify-center rounded-lg bg-muted/35 text-muted-foreground shrink-0">
+                            <ImageIcon className="w-5 h-5" />
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex flex-wrap gap-2 items-center">
                             <span className="text-xs font-semibold text-muted-foreground">{offer.site}</span>
                             {offer.isSource && <Badge variant="outline" className="text-[10px]">Takip edilen kaynak</Badge>}
+                            {offer.discoveryMethod === "visual" && <Badge variant="outline" className="text-[10px]">Görsel eşleşme</Badge>}
+                            {offer.discoveryMethod === "marketplace" && <Badge variant="secondary" className="text-[10px]">Görsel arama sonucu</Badge>}
                             {offer.verified ? (
                               <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
                                 <CheckCircle2 className="w-3.5 h-3.5" /> Fiyat sayfadan doğrulandı
@@ -197,11 +243,18 @@ export function TrackingPriceResearchActions({ trackedProductId, productTitle }:
                           </div>
                           <p className="text-sm font-medium line-clamp-2 leading-snug">{offer.title}</p>
                           <p className="text-xs text-muted-foreground break-all line-clamp-1">{offer.url}</p>
+                          {offer.verificationNote && <p className="text-xs text-muted-foreground/80">{offer.verificationNote}</p>}
+                          {offer.availability === "out_of_stock" && <Badge variant="destructive">Stokta yok</Badge>}
                         </div>
                         <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
                           <span className="font-semibold text-base tabular-nums">
-                            {offer.verified && offer.price != null ? money(offer.price) : "—"}
+                            {offer.verified && offer.price != null ? money(offer.price) : offer.listedPrice != null ? money(offer.listedPrice) : "—"}
                           </span>
+                          {!offer.verified && offer.listedPrice != null && (
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                              Arama sonucunda görülen · doğrulanmadı
+                            </span>
+                          )}
                           {safeHref(offer.url) && (
                             <a
                               href={safeHref(offer.url) ?? undefined}
@@ -218,6 +271,28 @@ export function TrackingPriceResearchActions({ trackedProductId, productTitle }:
                   </div>
                 )}
               </section>
+
+              {(report.researchLinks?.length ?? 0) > 0 && (
+                <section className="space-y-2.5">
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Globe2 className="w-4 h-4" /> Daha fazla mağazada canlı araştır
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Aşağıdakiler ürün bulundu iddiası değildir; mağazaların gerçek arama sayfalarını açar.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {report.researchLinks?.filter((link) => safeHref(link.url)).map((link) => (
+                      <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer"
+                         className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5 text-xs font-medium text-foreground/90 hover:bg-muted/40 transition-colors">
+                        <span className="truncate">{link.label}</span>
+                        <ExternalLink className="w-3 h-3 shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               <p className="text-xs text-muted-foreground border-t border-border pt-3">
                 Fiyatlar yalnızca mağaza sayfasından TRY olarak okunabildiğinde doğrulanır; diğer

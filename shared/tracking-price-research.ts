@@ -8,6 +8,12 @@ export interface TrackingPriceResearchOffer {
   verified: boolean;
   isSource: boolean;
   checkedAt: string | null;
+  imageUrl?: string | null;
+  discoveryMethod?: "source" | "web" | "visual" | "marketplace";
+  matchScore?: number;
+  listedPrice?: number | null;
+  availability?: "in_stock" | "out_of_stock" | "unknown";
+  verificationNote?: string | null;
 }
 
 export interface TrackingPriceResearchReport {
@@ -28,4 +34,11 @@ export interface TrackingPriceResearchReport {
     averagePrice: number | null;
   };
   warnings: string[];
+  referenceImageUrl?: string | null;
+  visualAnalysis?: string | null;
+  visualMatchProvider?: string | null;
+  visualSearchPerformed?: boolean;
+  researchLinks?: Array<{ label: string; url: string }>;
+  searchedSites?: number;
+  researchVersion?: number;
 }
