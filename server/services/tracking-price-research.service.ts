@@ -387,6 +387,7 @@ async function generateReport(trackedProductId: number): Promise<TrackingPriceRe
       price:null,currency:null,verified:false,
       isSource:hit.isSource,checkedAt:null,
       imageUrl:publicHttpsUrl(hit.imageUrl||""),
+      listedPrice:parseTurkishPrice((hit as ResearchHit).listedPrice),
       discoveryMethod:hit.discoveryMethod??"web",
       matchScore:hit.isSource?1:deepProductMatch(title,hit.title+" "+hit.snippet),
       availability:"unknown",verificationNote:null,
