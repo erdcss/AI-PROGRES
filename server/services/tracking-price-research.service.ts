@@ -113,6 +113,20 @@ export function extractVerifiedTryPrice(html: string): number | null {
       $('[itemprop="price"]').first().attr("content");
     return parseTurkishPrice(metaPrice);
   }
+  // Some marketplaces expose the current buy-box price in an explicit product-price
+  // element rather than JSON-LD. Only precise current-price selectors are used.
+  for (const selector of [
+    ".prc-dsc", '[data-testid="product-price"]', '[data-test-id="price-current"]',
+    "#corePriceDisplay_desktop_feature_div .a-price .a-offscreen",
+    "#priceblock_ourprice", '[data-testid="price-current"]',
+  ]) {
+    const el = $(selector).first();
+    if (!el.length) continue;
+    const value = String(el.attr("content") || el.text() || "").replace(/\s+/g," ").trim();
+    const match = value.match(/₺\s*([\d.,]+)|([\d.,]+)\s*(?:TL|₺)/i);
+    const parsed = parseTurkishPrice(match ? match[1] || match[2] : value);
+    if (parsed != null) return parsed;
+  }
   return null;
 }
 
