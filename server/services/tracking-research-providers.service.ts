@@ -2,7 +2,7 @@ import { load } from "cheerio";
 
 export type ResearchHit = {
   title: string; url: string; snippet: string;
-  imageUrl?: string | null; method: "web" | "visual" | "image";
+  imageUrl?: string | null; listedPrice?: number | null; method: "web" | "visual" | "image";
 };
 export type ResearchDiscovery = {
   hits: ResearchHit[]; provider: string[]; visualAnalysis: string | null;
@@ -46,9 +46,9 @@ async function aiSearch(title:string,imageUrl:string|null):Promise<{hits:Researc
     "Görsel verilmişse ambalaj ve marka üzerindeki bilgileri de analiz ederek eşleştir.",
     "Web araması yap; bağlantıları ASLA tahmin etme veya uydurma.",
     "Trendyol, Hepsiburada, Amazon Türkiye, n11, Watsons, Gratis, Akakçe, Cimri ve diğer mağazaları karşılaştır.",
-    "Sadece gerçek ürün sayfası URL'si döndür; özet, arama sayfası ve anasayfa URL'sini ekleme.",
+    "Gördüğün fiyatı bulamıyorsan price=null yaz. Sadece gerçek ürün sayfası URL'si döndür; özet, arama sayfası ve anasayfa URL'sini ekleme.",
     "Yalnızca JSON formatında cevap ver:",
-    '{"visualAnalysis":"görsel açıklaması veya null","offers":[{"title":"ürün adı","url":"https://gerçek-ürün-url"}]}',
+    '{"visualAnalysis":"görsel açıklaması veya null","offers":[{"title":"ürün adı","url":"https://gerçek-ürün-url","price":null}]}',
     "Ürün: "+title.slice(0,320),
   ].join(" ");
   const content:any[]=[{type:"input_text",text:prompt}];
@@ -58,7 +58,7 @@ async function aiSearch(title:string,imageUrl:string|null):Promise<{hits:Researc
     tools:[{type:"web_search",search_context_size:"medium",
       user_location:{type:"approximate",country:"TR",timezone:"Europe/Istanbul"}}],
     tool_choice:"required",include:["web_search_call.action.sources"],store:false,
-    max_output_tokens:1600,input:[{role:"user",content}],
+    max_output_tokens:2800,input:[{role:"user",content}],
   };
   let data:any;
   try {data=await post("https://api.openai.com/v1/responses",body,"Authorization","Bearer "+key,26000);}
@@ -80,7 +80,7 @@ async function aiSearch(title:string,imageUrl:string|null):Promise<{hits:Researc
     const url=safe(item.url||item.link);
     if(!url)continue;
     hits.push({title:String(item.title||"").slice(0,250),url,snippet:"",
-      imageUrl:safe(item.imageUrl),method:"web"});
+      imageUrl:safe(item.imageUrl),listedPrice:typeof item.price==="number"&&item.price>0&&item.price<10000000?item.price:null,method:"web"});
   }
   return {hits,description:typeof obj.visualAnalysis==="string"?obj.visualAnalysis.slice(0,290):null,
     visualUsed:Boolean(imageUrl)};
