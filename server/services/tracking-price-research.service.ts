@@ -406,7 +406,7 @@ async function generateReport(trackedProductId: number): Promise<TrackingPriceRe
   for(let i=0;i<checks.length;i+=6){
     const batch=checks.slice(i,i+6);
     const parsed=await Promise.all(batch.map(o=>fetchLivePrice(o.url,title)));
-    batch.forEach((data,j)=>{
+    parsed.forEach((data,j)=>{
       const offer=batch[j];
       offer.checkedAt=new Date().toISOString();
       offer.verificationNote=data.note;
