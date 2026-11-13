@@ -24,7 +24,7 @@ const STORE_DOMAINS = [
 ];
 
 const MAX_RESULTS = 36;
-const MAX_PAGE_CHECKS = 16;
+const MAX_PAGE_CHECKS = 12;
 const FETCH_TIMEOUT_MS = 7_000;
 const activeResearch = new Map<number, Promise<TrackingPriceResearchReport>>();
 let tableReady: Promise<void> | undefined;
@@ -402,8 +402,8 @@ async function generateReport(trackedProductId: number): Promise<TrackingPriceRe
   }
   const offers=[...unique.values()];
   const checks=offers.filter(o=>isTrustedStore(o.url)).slice(0,MAX_PAGE_CHECKS);
-  for(let i=0;i<checks.length;i+=5){
-    const batch=checks.slice(i,i+5);
+  for(let i=0;i<checks.length;i+=6){
+    const batch=checks.slice(i,i+6);
     const parsed=await Promise.all(batch.map(o=>fetchLivePrice(o.url,title)));
     batch.forEach((data,j)=>{
       const offer=batch[j];
