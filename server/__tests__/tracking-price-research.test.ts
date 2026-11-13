@@ -31,6 +31,8 @@ assert.equal(extractVerifiedTryPrice(
   '</script>',
 ), null);
 assert.equal(extractVerifiedTryPrice("<div>Ucuz fiyat sadece 199 TL!</div>"), null);
+assert.equal(extractVerifiedTryPrice('<div class="prc-dsc">2.248,90 TL</div>'), 2248.9);
+assert.equal(extractVerifiedTryPrice('<div class="old-price">2.999 TL</div>'), null);
 
 
 import { deepProductMatch, variantConflict } from "../services/tracking-price-research.service";
