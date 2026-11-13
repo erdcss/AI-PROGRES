@@ -23,6 +23,7 @@ import {
   getChangeDiffParts,
 } from "./format-change-value";
 import { TrackingProductImage } from "./TrackingProductImage";
+import { TrackingPriceResearchActions } from "./TrackingPriceResearch";
 import { openTrackingSource, resolveTrackingSourceUrl } from "@/lib/tracking-source-link";
 import type { TrackingChangeItem } from "./TrackingChangeCard";
 import {
@@ -466,7 +467,7 @@ export function TrackingChangeGroupCard({
         />
 
         <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex gap-3 items-start justify-between">
+          <div className="flex flex-col xl:flex-row gap-3 items-start justify-between">
             <div className="min-w-0 space-y-1">
               <h3 className="font-semibold leading-snug line-clamp-2 text-[15px]">
                 {product.productTitle || `Ürün #${product.trackedProductId}`}
@@ -492,7 +493,7 @@ export function TrackingChangeGroupCard({
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 shrink-0 items-stretch sm:items-start">
+            <div className="flex flex-wrap gap-2 items-stretch sm:items-start">
               <Button
                 size="sm"
                 variant="outline"
@@ -551,6 +552,10 @@ export function TrackingChangeGroupCard({
                 Kaynağa Git <ExternalLink className="w-3 h-3" />
               </button>
             )}
+            <TrackingPriceResearchActions
+              trackedProductId={product.trackedProductId}
+              productTitle={product.productTitle || "Ürün #" + product.trackedProductId}
+            />
             {displayTargetProductId && <span>MARKT-GO #{displayTargetProductId}</span>}
             {approvable.length > 0 && syncable.length > 0 && (
               <button
