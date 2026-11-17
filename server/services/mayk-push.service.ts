@@ -122,7 +122,7 @@ export async function listMaykEvents(limit=40) {
   );
   return r.rows;
 }
-export async function emitMaykEvent(event: MaykPushEvent): Promise<boolean> {
+export async function emitMaykEvent(event: MaykPushEvent, recipientUserId?: string): Promise<boolean> {
   await ensureTables();
   const key=short(event.key,220);
   if (!key || !event.type) throw new Error("Bildirim anahtarı eksik");
@@ -138,8 +138,9 @@ export async function emitMaykEvent(event: MaykPushEvent): Promise<boolean> {
   if (!result.rowCount) return false;
   await dbPool().query(
     "INSERT INTO mayk_push_deliveries(event_key,expo_token) " +
-    "SELECT $1,expo_token FROM mayk_push_devices WHERE enabled=TRUE ON CONFLICT DO NOTHING",
-    [key],
+    "SELECT $1,expo_token FROM mayk_push_devices WHERE enabled=TRUE " +
+    "AND ($2::text IS NULL OR owner_user_id=$2) ON CONFLICT DO NOTHING",
+    [key, recipientUserId ?? null],
   );
   void processMaykQueue().catch(err => console.warn("[mayk-push] queue:",(err as Error).message));
   return true;
@@ -178,7 +179,7 @@ export async function queueMaykTest(userId:string):Promise<boolean> {
   return emitMaykEvent({
     key:"test:"+userId+":"+randomUUID(),type:"test",
     title:"M.A.Y.K test bildirimi",body:"Ürün takip bildirimleri hazır.",
-  });
+  }, userId);
 }
 
 type PushTicket = {
@@ -192,7 +193,7 @@ async function expoPost(endpoint:string,payload:object) {
     method:"POST",headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(12000),
   });
   const json=await response.json().catch(()=>({})) as {
-    data?:PushTicket|Record<string,PushTicket>;errors?:Array<{message?:string}>;
+    data?:PushTicket|PushTicket[]|Record<string,PushTicket>;errors?:Array<{message?:string}>;
   };
   if(!response.ok)throw new Error(json.errors?.[0]?.message || "Expo HTTP "+response.status);
   return json;
@@ -232,7 +233,10 @@ export async function processMaykQueue() {
           to:row.expo_token,title:e.rows[0].title,body:e.rows[0].body,
           sound:"default",priority:"high",data:e.rows[0].data,
         });
-        const ticket=response.data as PushTicket|undefined;
+        // Expo returns an object for a single message in some responses and an array in others.
+        const ticket=Array.isArray(response.data)
+          ? response.data[0]
+          : response.data as PushTicket|undefined;
         if(ticket?.status==="ok"&&ticket.id) {
           await setDelivery(row.event_key,row.expo_token,"accepted",undefined,ticket.id,row.attempts);
         } else {
