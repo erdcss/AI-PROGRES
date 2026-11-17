@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Image, Keyboard, Linking, Modal, Pressable,
+  ActivityIndicator, Alert, AppState, Image, Keyboard, Linking, Modal, Pressable,
   ScrollView, Share, StyleSheet, Text, View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -121,6 +121,22 @@ function WebApp() {
     if (!isAuthenticated || pushStatus !== "idle") return;
     void enableNotifications(true);
   }, [isAuthenticated, pushStatus, enableNotifications]);
+
+  // If the user grants iOS permission in Settings or the web registration fails,
+  // recheck and register the device when the app returns to the foreground.
+  // Never display the native permission prompt repeatedly on app resume.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active" || !isAuthenticated || pushStatus === "requesting") return;
+      if (pushToken.current && pushStatus === "token") {
+        deliverTokenToWeb(pushToken.current);
+      }
+      if (pushStatus === "denied" || pushStatus === "error") {
+        void enableNotifications(false);
+      }
+    });
+    return () => subscription.remove();
+  }, [isAuthenticated, pushStatus, enableNotifications, deliverTokenToWeb]);
 
   useEffect(() => {
     const subscription = onMaykNotificationTap(path => {
