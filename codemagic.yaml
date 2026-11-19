@@ -64,11 +64,19 @@ workflows:
         script: |
           set -e
           cd mayk-ios
-          workspace="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' | head -n 1)"
-          if [ -z "$workspace" ]; then echo "M.A.Y.K iOS workspace missing"; exit 1; fi
-          scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((s for s in d["workspace"]["schemes"] if not s.startswith("Pods-")), ""))')"
-          if [ -z "$scheme" ]; then echo "M.A.Y.K iOS scheme missing"; exit 1; fi
-          xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
+          # Expo generates the M.A.Y.K app as MAYK.xcodeproj / MAYK scheme.
+          # NEVER pick the first non-Pods workspace scheme: EXApplication is an
+          # Expo library scheme and yields an archive that cannot export to IPA.
+          workspace="ios/MAYK.xcworkspace"
+          project="ios/MAYK.xcodeproj"
+          scheme="MAYK"
+          if [ ! -d "$workspace" ] || [ ! -d "$project" ]; then
+            echo "Expected native M.A.Y.K app workspace/project missing"; exit 1
+          fi
+          xcodebuild -list -json -project "$project" | python3 -c 'import json,sys; schemes=json.load(sys.stdin).get("project",{}).get("schemes",[]); print("[MAYK] App schemes:", schemes); sys.exit(0 if "MAYK" in schemes else 1)'
+          echo "[MAYK] Building actual app scheme: $scheme (not Expo framework EXApplication)"
+          xcode-project build-ipa --workspace "$workspace" --scheme "$scheme" --config Release
+          test -n "$(find build/ios/ipa -maxdepth 1 -name '*.ipa' -type f -print -quit)"
     artifacts:
       - mayk-ios/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
