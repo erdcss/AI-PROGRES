@@ -1,4 +1,11 @@
-# M.A.Y.K — AI PROGRES iOS
+# M.A.Y.K — AI PROGRES iOS + Android
+
+**ChatGPT ile APK/TestFlight komutları:** [CHATGPT-BUILD-COMMANDS.md](./CHATGPT-BUILD-COMMANDS.md).
+
+- `MAYK APK al` — Android'de Expo EAS olmadan, kurulabilir test APK'sı.
+- `MAYK TestFlight al` — iOS Codemagic IPA + App Store Connect'e yükleme isteği (aktif webhook gerekir).
+- `MAYK build al` — Android test APK + iOS TestFlight istekleri.
+- `MAYK APK AAB al` — M.A.Y.K'ye ait kalıcı Android imzalama anahtarları GitHub Secrets'a eklendiğinde Play'e uygun APK + AAB.
 
 **Codemagic ile Expo EAS kullanmadan IPA/TestFlight:** [CODEMAGIC-TESTFLIGHT.md](./CODEMAGIC-TESTFLIGHT.md). GitHub deposunun kökündeki `codemagic.yaml` dosyası `mayk-ios-testflight` iş akışını tanımlar. Apple Developer'da `com.turmarkt.mayk` için App Store provisioning profili kurulmalıdır.
 
