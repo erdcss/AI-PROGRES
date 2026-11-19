@@ -24,8 +24,10 @@ workflows:
       app_store_connect: Codemagic Caliskan B2B
     environment:
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.turmarkt.mayk
+        certificates:
+          - caliskan_b2b_appstore_distribution
+        provisioning_profiles:
+          - mayk_appstore_2026
       vars:
         EXPO_PUBLIC_MAYK_WEB_URL: "https://progres.turmarkt.com"
         MAYK_REQUIRE_REMOTE_ICON: "1"
