@@ -30,7 +30,7 @@ jobs:
             c=YAML.load_file("codemagic.yaml")
             w=c.fetch("workflows").fetch("mayk-ios-testflight")
             signing=w.fetch("environment").fetch("ios_signing")
-            abort "Wrong MAYK signing profile" unless signing["provisioning_profiles"]==["mayk_appstore_2026"]
+            abort "Wrong MAYK signing profile" unless signing["provisioning_profiles"]==["mayk_appstore_push_2026"]
             abort "Wrong Apple Distribution certificate" unless signing["certificates"]==["caliskan_b2b_appstore_distribution"]
             abort "Wrong TestFlight upload configuration" unless w.dig("publishing","app_store_connect","auth")=="integration"
             abort "App Store production submission must stay disabled" unless w.dig("publishing","app_store_connect","submit_to_app_store")==false
