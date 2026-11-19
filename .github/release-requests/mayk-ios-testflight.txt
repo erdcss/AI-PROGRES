@@ -1,12 +1,13 @@
 M.A.Y.K iOS TestFlight build request
-İstek numarası: 2
-Tarih: 2026-11-19 (Europe/Istanbul)
-Kaynak: erdcss/AI-PROGRES / main
-Kullanıcı yüklemesi: ilk Codemagic 'Build signed M.A.Y.K IPA' logunda EXApplication (Expo framework) arşivlenmiş ve exportArchive method expected one {} hatası oluştu.
-Düzeltme: codemagic.yaml artık ios/MAYK.xcodeproj ve MAYK app scheme seçiyor. GitHub preflight test başarılı.
-Amaç: M.A.Y.K 1.2.0 yeniden imzalı IPA derlemesi ve App Store Connect TestFlight upload.
-iOS bundle ID: com.turmarkt.mayk
-Apple signing: caliskan_b2b_appstore_distribution + mayk_appstore_2026
+İstek numarası: 3
+Tarih: 2026-11-19 Europe/Istanbul
+Kullanıcı durumu: Apple Developer Push Notifications destekli App Store profili oluşturuldu ve Codemagic'de sertifika eşleşmesi yeşil olarak doğrulandı.
+Kaynak: erdcss/AI-PROGRES main
 Codemagic workflow: mayk-ios-testflight
-App Store üretim yayını: kapalı
-Bu marker, kullanıcının halen açık TestFlight isteğinde tespit edilen build hatası düzeltildikten sonraki yeniden denemesidir.
+Uygulama: M.A.Y.K, sürüm 1.2.0, bundle com.turmarkt.mayk
+Sertifika: caliskan_b2b_appstore_distribution
+Yeni provisioning profile: mayk_appstore_push_2026
+Düzeltmeler: MAYK uygulama Xcode şeması; Push Notifications / aps-environment profili
+Hedef: imzalı iOS IPA üretimi ve App Store Connect'e TestFlight için yükleme
+Herkese açık App Store yayını veya harici beta incelemesi otomatik başlatılmaz.
+İstek: Kullanıcının tamamlanan profil kurulumunu onaylayan ekranı sonrası, aynı TestFlight kurulum işinin yeniden denenmesi.
