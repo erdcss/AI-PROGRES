@@ -40,9 +40,10 @@ yeni iş akışına bağlanmıştır. API anahtarını kaynak koda veya sohbete 
 5. M.A.Y.K App Store Connect kaydı gerçekten `com.turmarkt.mayk`
    Bundle ID'sine bağlı ve API anahtarı erişimli olmalı.
 
-Codemagic YAML, `ios_signing.distribution_type: app_store` ve
-`bundle_identifier: com.turmarkt.mayk` ile yalnız uygun signing
-profillerini seçer.
+Codemagic YAML, yeşil sertifika eşleşmesi doğrulanan
+`mayk_appstore_2026` provisioning profilini ve mevcut
+`caliskan_b2b_appstore_distribution` Apple Distribution sertifikasını
+**reference name** üzerinden seçer. Bunlar kaynak kodda özel anahtar içermez.
 
 ## 3. İlk imzalı IPA ve TestFlight
 
