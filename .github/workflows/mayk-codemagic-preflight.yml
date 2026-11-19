@@ -8,6 +8,8 @@ on:
       - 'mayk-ios/app.config.js'
       - 'mayk-ios/package.json'
       - 'mayk-ios/scripts/prepare-icon.mjs'
+      - 'mayk-ios/scripts/configure-android-release-signing.cjs'
+      - '.github/workflows/mayk-android-chat-build.yml'
       - '.github/workflows/mayk-codemagic-preflight.yml'
   workflow_dispatch:
 
@@ -34,6 +36,18 @@ jobs:
             abort "App Store production submission must stay disabled" unless w.dig("publishing","app_store_connect","submit_to_app_store")==false
             puts "[MAYK] Codemagic signing and publishing YAML valid."
           '
+      - name: Validate M.A.Y.K Android chat workflow YAML
+        run: |
+          ruby -e '
+            require "yaml"
+            w=YAML.load_file(".github/workflows/mayk-android-chat-build.yml")
+            abort "Android job missing" unless w.dig("jobs","android","steps").is_a?(Array)
+            names=w.dig("jobs","android","steps").map { |s| s["name"] }.compact
+            abort "APK release build missing" unless names.include?("Build standalone APK (and AAB for signed release)")
+            abort "APK signature verification missing" unless names.include?("Verify package, APK signature and AAB signature")
+            puts "[MAYK] Chat-triggered Android workflow YAML valid."
+          '
+          node --check mayk-ios/scripts/configure-android-release-signing.cjs
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -50,3 +64,4 @@ jobs:
           npm run typecheck
           npx expo config --type public
           CI=1 CM_BUILD_ID=preflight PROJECT_BUILD_NUMBER=7 node -e 'const c=require("./app.config.js").expo; if(c.ios.bundleIdentifier!=="com.turmarkt.mayk"||!/^[0-9]{9}$/.test(c.ios.buildNumber)||!c.ios.buildNumber.endsWith("007"))process.exit(1); console.log("[MAYK] iOS version sequence:", c.ios.buildNumber)'
+          MAYK_ANDROID_VERSION_CODE=1007 node -e 'const c=require("./app.config.js").expo; if(!c.platforms.includes("android")||c.android.package!=="com.turmarkt.mayk"||c.android.versionCode!==1007)process.exit(1); console.log("[MAYK] Native Android configuration:",c.android.package,c.android.versionCode)'
