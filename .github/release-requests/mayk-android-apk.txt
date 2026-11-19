@@ -1,8 +1,11 @@
-M.A.Y.K Android test APK release request marker
+M.A.Y.K Android test APK – ChatGPT komut sistemi ilk uçtan uca doğrulama
+İstek numarası: 1
+Tarih: 2026-11-19 Europe/Istanbul
+Kapsam: Kullanıcının "cpt üzerinden komut ile apk testflight alabileceğin sistem kur" isteği sonrası ilk doğrulama.
+Github: erdcss/AI-PROGRES / main
+Expo uygulaması: mayk-ios
 Uygulama kimliği: com.turmarkt.mayk
-Yalnız açık "MAYK APK al" sohbet komutuyla bu dosya güncellenir.
-GitHub Actions: mayk-android-chat-build.yml, kind: apk
-Çıktı: Expo EAS gerektirmeyen, tek başına çalışabilen release APK (TEST).
-İmzalama: Android debug key; Play Store yayını İÇİN DEĞİLDİR.
-Test APK'sının imzası sonraki derlemelerde değişebilir; Android güncellemesi için silip yeniden kurmak gerekebilir.
-İstek no: 0 (kurulum başlangıcı, build başlatılmadı)
+Sürüm: 1.2.0; Android versionCode 1000+GITHUB_RUN_NUMBER
+Hedef: Expo EAS kullanmadan bağımsız kurulabilir release-JS TEST APK.
+İmza: Yalnız test için Android development debug key; Google Play'e UYGUN DEĞİL.
+Uygulama/Play Store yayını YOK. Bu commit otomatik Android Actions derlemesi tetikler.
