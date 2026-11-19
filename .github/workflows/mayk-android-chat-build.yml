@@ -106,14 +106,14 @@ jobs:
           chmod 600 "$MAYK_ANDROID_KEYSTORE_PATH"
           keytool -list -keystore "$MAYK_ANDROID_KEYSTORE_PATH" -alias "$MAYK_ANDROID_KEY_ALIAS" -storepass:env MAYK_ANDROID_KEYSTORE_PASSWORD >/dev/null
           node scripts/configure-android-release-signing.cjs
-          # The Gradle worker in the next step needs the same signing environment.
-          echo "MAYK_ANDROID_KEYSTORE_PATH=$MAYK_ANDROID_KEYSTORE_PATH" >> "$GITHUB_ENV"
-          echo "MAYK_ANDROID_KEYSTORE_PASSWORD=$MAYK_ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "MAYK_ANDROID_KEY_ALIAS=$MAYK_ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
-          echo "MAYK_ANDROID_KEY_PASSWORD=$MAYK_ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
-          echo "::add-mask::$MAYK_ANDROID_KEYSTORE_PASSWORD"
-          echo "::add-mask::$MAYK_ANDROID_KEY_PASSWORD"
+          # Secrets are supplied directly to Gradle through step-scoped env
+          # and are never copied into GitHub output or GITHUB_ENV files.
       - name: Build standalone APK (and AAB for signed release)
+        env:
+          MAYK_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/mayk-sign/mayk-upload.jks
+          MAYK_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.MAYK_ANDROID_KEYSTORE_PASSWORD }}
+          MAYK_ANDROID_KEY_ALIAS: ${{ secrets.MAYK_ANDROID_KEY_ALIAS }}
+          MAYK_ANDROID_KEY_PASSWORD: ${{ secrets.MAYK_ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           if [[ "${{ steps.mode.outputs.kind }}" == signed_release ]]; then
@@ -123,6 +123,10 @@ jobs:
           fi
       - name: Verify package, APK signature and AAB signature
         shell: bash
+        env:
+          MAYK_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/mayk-sign/mayk-upload.jks
+          MAYK_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.MAYK_ANDROID_KEYSTORE_PASSWORD }}
+          MAYK_ANDROID_KEY_ALIAS: ${{ secrets.MAYK_ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
           apk=android/app/build/outputs/apk/release/app-release.apk
