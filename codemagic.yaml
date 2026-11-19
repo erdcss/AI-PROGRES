@@ -1,0 +1,80 @@
+# M.A.Y.K Expo SDK 54: native iOS IPA with Codemagic, no Expo EAS account required.
+# The app source lives in mayk-ios/; codemagic.yaml MUST live at repository root.
+# A push to the explicit request marker is the only automatic build trigger.
+workflows:
+  mayk-ios-testflight:
+    name: M.A.Y.K - iOS IPA and TestFlight (no Expo EAS)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+      cancel_previous_builds: false
+    when:
+      changeset:
+        includes:
+          - '.github/release-requests/mayk-ios-testflight.txt'
+    integrations:
+      # Same Apple Developer team/API connection used for Caliskan B2B.
+      # M.A.Y.K still needs its OWN com.turmarkt.mayk App Store profile.
+      app_store_connect: Codemagic Caliskan B2B
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.turmarkt.mayk
+      vars:
+        EXPO_PUBLIC_MAYK_WEB_URL: "https://progres.turmarkt.com"
+        MAYK_REQUIRE_REMOTE_ICON: "1"
+        CI: "1"
+      node: 22
+      xcode: 26.4
+      cocoapods: default
+    scripts:
+      - name: Install M.A.Y.K dependencies
+        script: |
+          set -e
+          cd mayk-ios
+          npm install --no-audit --no-fund
+      - name: Sync live 1024px M.A.Y.K icon and verify TypeScript
+        script: |
+          set -e
+          cd mayk-ios
+          npm run prepare:icon
+          npm run typecheck
+          node -e 'const c=require("./app.config.js").expo; if(c.name!=="M.A.Y.K"||c.ios.bundleIdentifier!=="com.turmarkt.mayk"||!c.ios.buildNumber)process.exit(1); console.log("[MAYK iOS] bundle, build number, and icon ready:",c.ios.buildNumber);'
+      - name: Generate iOS Xcode project
+        script: |
+          set -e
+          cd mayk-ios
+          npx expo prebuild --platform ios --no-install --clean
+          cd ios
+          pod install
+      - name: Apply App Store signing for com.turmarkt.mayk
+        script: |
+          set -e
+          cd mayk-ios
+          xcode-project use-profiles
+      - name: Build signed M.A.Y.K IPA
+        script: |
+          set -e
+          cd mayk-ios
+          workspace="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' | head -n 1)"
+          if [ -z "$workspace" ]; then echo "M.A.Y.K iOS workspace missing"; exit 1; fi
+          scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((s for s in d["workspace"]["schemes"] if not s.startswith("Pods-")), ""))')"
+          if [ -z "$scheme" ]; then echo "M.A.Y.K iOS scheme missing"; exit 1; fi
+          xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
+    artifacts:
+      - mayk-ios/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    # Upload the signed IPA to the existing App Store Connect application.
+    # TestFlight internal groups are managed on App Store Connect.
+    # No external beta review and no public App Store release.
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
