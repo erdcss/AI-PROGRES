@@ -13,13 +13,21 @@ if (codemagicBuild && (!Number.isSafeInteger(sequence) || sequence < 1 || sequen
 const stamp = new Date().toISOString().slice(2, 10).replace(/-/g, "");
 const iosBuildNumber = codemagicBuild ? stamp + String(sequence).padStart(3, "0") : "1";
 
+// GitHub Actions Android builds use a unique versionCode for every requested APK.
+// Android build signing is configured by Gradle, not Expo EAS.
+const androidCodeRaw = process.env.MAYK_ANDROID_VERSION_CODE || "1";
+const androidVersionCode = Number(androidCodeRaw);
+if (!Number.isSafeInteger(androidVersionCode) || androidVersionCode < 1 || androidVersionCode > 2100000000) {
+  throw new Error("M.A.Y.K Android versionCode geçerli bir pozitif tamsayı olmalıdır");
+}
+
 module.exports = {
   expo: {
     name: "M.A.Y.K",
     slug: "mayk-ios",
     version: "1.2.0",
     orientation: "portrait",
-    platforms: ["ios"],
+    platforms: ["ios", "android"],
     scheme: "mayk",
     plugins: ["expo-notifications"],
     owner: process.env.MAYK_EXPO_OWNER || "erdcls",
@@ -29,6 +37,16 @@ module.exports = {
       image: "./assets/splash.png",
       resizeMode: "contain",
       backgroundColor: "#081327",
+    },
+    android: {
+      package: "com.turmarkt.mayk",
+      versionCode: androidVersionCode,
+      softwareKeyboardLayoutMode: "resize",
+      permissions: ["CAMERA", "POST_NOTIFICATIONS"],
+      adaptiveIcon: {
+        foregroundImage: "./assets/icon.png",
+        backgroundColor: "#081327",
+      },
     },
     ios: {
       bundleIdentifier: "com.turmarkt.mayk",
