@@ -34,7 +34,11 @@ jobs:
             abort "Wrong Apple Distribution certificate" unless signing["certificates"]==["caliskan_b2b_appstore_distribution"]
             abort "Wrong TestFlight upload configuration" unless w.dig("publishing","app_store_connect","auth")=="integration"
             abort "App Store production submission must stay disabled" unless w.dig("publishing","app_store_connect","submit_to_app_store")==false
-            puts "[MAYK] Codemagic signing and publishing YAML valid."
+            ipa_script=w.fetch("scripts").find { |s| s["name"]=="Build signed M.A.Y.K IPA" }&.fetch("script", "")
+            abort "Wrong Xcode scheme: must archive MAYK app, not EXApplication library" unless ipa_script.include?("scheme=\"MAYK\"") && ipa_script.include?("xcode-project build-ipa --workspace") && ipa_script.include?("--scheme \"$scheme\"")
+            abort "Missing app project validation" unless ipa_script.include?("ios/MAYK.xcodeproj")
+            abort "Unexpected first non-Pods scheme discovery" if ipa_script.include?("next((s for s")
+            puts "[MAYK] Codemagic signing, app scheme, and publishing YAML valid."
           '
       - name: Validate M.A.Y.K Android chat workflow YAML
         run: |
