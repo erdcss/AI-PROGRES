@@ -1,0 +1,8 @@
+M.A.Y.K iOS TestFlight build request
+Bu dosya yalnızca kullanıcının sohbetten açıkça "M.A.Y.K TestFlight al/gönder" komutu vermesi üzerine güncellenir.
+İlk Codemagic kurulumu sırasında otomatik build BAŞLATILMAZ.
+Uygulama: M.A.Y.K, bundle ID: com.turmarkt.mayk
+Codemagic workflow: mayk-ios-testflight
+Hedef: imzalı IPA oluştur, App Store Connect'e yükle; herkese açık App Store yayını yapma.
+Son istek numarası: 0
+Son istek durumu: Başlangıç kurulum dosyası, build isteği değil.
