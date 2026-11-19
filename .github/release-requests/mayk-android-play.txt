@@ -1,0 +1,11 @@
+M.A.Y.K Android signed APK/AAB release request marker
+Uygulama kimliği: com.turmarkt.mayk
+Yalnız açık "MAYK APK AAB al" veya "MAYK Play derlemesi al" sohbet komutuyla güncellenir.
+GitHub Actions: mayk-android-chat-build.yml, kind: signed_release
+Çıktı: kalıcı MAYK Android imza anahtarıyla APK + Google Play AAB.
+ÖN KOŞUL: GitHub Actions repository secrets
+MAYK_ANDROID_KEYSTORE_BASE64, MAYK_ANDROID_KEYSTORE_PASSWORD,
+MAYK_ANDROID_KEY_ALIAS, MAYK_ANDROID_KEY_PASSWORD.
+Anahtarlar gizli kalmalı; yerleştirilmezse derleme başarısız olur.
+Google Play'e otomatik YAYIN YAPILMAZ.
+İstek no: 0 (kurulum başlangıcı, build başlatılmadı)
