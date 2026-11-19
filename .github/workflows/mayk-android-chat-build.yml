@@ -1,0 +1,170 @@
+name: M.A.Y.K - Chat APK / Play AAB (Expo EAS olmadan)
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "apk = kurulabilir test APK; signed_release = özel anahtarla APK + Play AAB"
+        required: true
+        type: choice
+        options: [apk, signed_release]
+        default: apk
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/mayk-android-apk.txt'
+      - '.github/release-requests/mayk-android-play.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mayk-android-native
+  cancel-in-progress: false
+
+jobs:
+  android:
+    name: Expo prebuild + native Android Gradle
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mayk-ios
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_PUBLIC_MAYK_WEB_URL: https://progres.turmarkt.com
+      MAYK_REQUIRE_REMOTE_ICON: '1'
+    steps:
+      - name: Checkout exact requested source revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        run: |
+          set -euo pipefail
+          sdkmanager_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -x "$sdkmanager_bin"
+          "$sdkmanager_bin" --sdk_root="$ANDROID_HOME" --install "platforms;android-36" "build-tools;36.0.0"
+      - name: Determine build type and unique versionCode
+        id: mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          kind=apk
+          if [[ "${{ github.event_name }}" == workflow_dispatch ]]; then
+            kind="${{ inputs.kind }}"
+          elif git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | grep -Fxq '.github/release-requests/mayk-android-play.txt'; then
+            kind=signed_release
+          fi
+          [[ "$kind" == apk || "$kind" == signed_release ]]
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          echo "MAYK_ANDROID_VERSION_CODE=$((1000+GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "Mode: $kind; Android versionCode: $((1000+GITHUB_RUN_NUMBER))"
+      - name: Install Expo app dependencies
+        run: npm install --no-audit --no-fund
+      - name: Sync live branding, validate configuration and TypeScript
+        run: |
+          set -euo pipefail
+          npm run prepare:icon
+          npm run typecheck
+          node -e 'const c=require("./app.config.js").expo; if(c.android.package!=="com.turmarkt.mayk"||c.ios.bundleIdentifier!=="com.turmarkt.mayk"||c.android.versionCode<1000)process.exit(1); console.log("[MAYK] Android versionCode:",c.android.versionCode)'
+      - name: Generate native Android Gradle project
+        run: npx expo prebuild --platform android --no-install --clean
+      - name: Verify installable test APK uses debug signing (not Play)
+        if: ${{ steps.mode.outputs.kind == 'apk' }}
+        run: |
+          set -euo pipefail
+          grep -Eq 'signingConfig[[:space:]]+signingConfigs.debug' android/app/build.gradle
+          echo "Test APK uses the Gradle development signing identity. It is a standalone release JS bundle, but it must not be published to Google Play."
+      - name: Configure dedicated M.A.Y.K Play-upload signing
+        if: ${{ steps.mode.outputs.kind == 'signed_release' }}
+        env:
+          MAYK_ANDROID_KEYSTORE_BASE64: ${{ secrets.MAYK_ANDROID_KEYSTORE_BASE64 }}
+          MAYK_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.MAYK_ANDROID_KEYSTORE_PASSWORD }}
+          MAYK_ANDROID_KEY_ALIAS: ${{ secrets.MAYK_ANDROID_KEY_ALIAS }}
+          MAYK_ANDROID_KEY_PASSWORD: ${{ secrets.MAYK_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in MAYK_ANDROID_KEYSTORE_BASE64 MAYK_ANDROID_KEYSTORE_PASSWORD MAYK_ANDROID_KEY_ALIAS MAYK_ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then echo "Missing private M.A.Y.K release signing secret: $name" >&2; exit 1; fi
+          done
+          mkdir -p "$RUNNER_TEMP/mayk-sign"
+          chmod 700 "$RUNNER_TEMP/mayk-sign"
+          export MAYK_ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/mayk-sign/mayk-upload.jks"
+          printf '%s' "$MAYK_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$MAYK_ANDROID_KEYSTORE_PATH"
+          chmod 600 "$MAYK_ANDROID_KEYSTORE_PATH"
+          keytool -list -keystore "$MAYK_ANDROID_KEYSTORE_PATH" -alias "$MAYK_ANDROID_KEY_ALIAS" -storepass:env MAYK_ANDROID_KEYSTORE_PASSWORD >/dev/null
+          node scripts/configure-android-release-signing.cjs
+          # The Gradle worker in the next step needs the same signing environment.
+          echo "MAYK_ANDROID_KEYSTORE_PATH=$MAYK_ANDROID_KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "MAYK_ANDROID_KEYSTORE_PASSWORD=$MAYK_ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "MAYK_ANDROID_KEY_ALIAS=$MAYK_ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "MAYK_ANDROID_KEY_PASSWORD=$MAYK_ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "::add-mask::$MAYK_ANDROID_KEYSTORE_PASSWORD"
+          echo "::add-mask::$MAYK_ANDROID_KEY_PASSWORD"
+      - name: Build standalone APK (and AAB for signed release)
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.mode.outputs.kind }}" == signed_release ]]; then
+            (cd android && ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace)
+          else
+            (cd android && ./gradlew :app:assembleRelease --no-daemon --stacktrace)
+          fi
+      - name: Verify package, APK signature and AAB signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          test -s "$apk"
+          aapt_bin="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          signer="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$aapt_bin"
+          test -x "$signer"
+          "$aapt_bin" dump badging "$apk" | grep -Eq "package: name='com[.]turmarkt[.]mayk'"
+          "$signer" verify --print-certs "$apk"
+          if [[ "${{ steps.mode.outputs.kind }}" == signed_release ]]; then
+            test -s "$aab"
+            jarsigner -verify "$aab" >/dev/null
+            key_sha="$(keytool -list -v -keystore "$MAYK_ANDROID_KEYSTORE_PATH" -alias "$MAYK_ANDROID_KEY_ALIAS" -storepass:env MAYK_ANDROID_KEYSTORE_PASSWORD | grep 'SHA256:' | head -n 1 | sed 's/.*SHA256: *//' | tr -d ': ' | tr '[:lower:]' '[:upper:]')"
+            aab_sha="$(keytool -printcert -jarfile "$aab" | grep 'SHA256:' | head -n 1 | sed 's/.*SHA256: *//' | tr -d ': ' | tr '[:lower:]' '[:upper:]')"
+            apk_sha="$("$signer" verify --print-certs "$apk" | sed -n 's/.*certificate SHA-256 digest: *//p' | head -n 1 | tr -d ': ' | tr '[:lower:]' '[:upper:]')"
+            test -n "$key_sha"
+            if [[ "$key_sha" != "$aab_sha" || "$key_sha" != "$apk_sha" ]]; then
+              echo "M.A.Y.K APK/AAB signing keys do not match the intended keystore." >&2; exit 1
+            fi
+            echo "Verified dedicated M.A.Y.K private release signing for APK + AAB."
+          else
+            echo "Standalone test APK verified. Do not distribute as Google Play release."
+          fi
+      - name: Publish standalone test APK artifact
+        if: ${{ steps.mode.outputs.kind == 'apk' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAYK-Standalone-Test-APK-NOT-PLAY
+          path: mayk-ios/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - name: Publish signed APK and Google Play AAB artifact
+        if: ${{ steps.mode.outputs.kind == 'signed_release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAYK-Signed-APK-AAB-Play
+          path: |
+            mayk-ios/android/app/build/outputs/apk/release/app-release.apk
+            mayk-ios/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
