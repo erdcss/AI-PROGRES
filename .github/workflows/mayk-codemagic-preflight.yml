@@ -1,0 +1,52 @@
+name: M.A.Y.K Codemagic iOS configuration preflight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'codemagic.yaml'
+      - 'mayk-ios/app.config.js'
+      - 'mayk-ios/package.json'
+      - 'mayk-ios/scripts/prepare-icon.mjs'
+      - '.github/workflows/mayk-codemagic-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  config:
+    name: Validate Expo / Codemagic settings without Apple credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Codemagic YAML format and required app-specific signing
+        run: |
+          ruby -e '
+            require "yaml"
+            c=YAML.load_file("codemagic.yaml")
+            w=c.fetch("workflows").fetch("mayk-ios-testflight")
+            signing=w.fetch("environment").fetch("ios_signing")
+            abort "Wrong MAYK bundle identifier" unless signing["bundle_identifier"]=="com.turmarkt.mayk"
+            abort "MAYK iOS must be signed for App Store" unless signing["distribution_type"]=="app_store"
+            abort "Wrong TestFlight upload configuration" unless w.dig("publishing","app_store_connect","auth")=="integration"
+            abort "App Store production submission must stay disabled" unless w.dig("publishing","app_store_connect","submit_to_app_store")==false
+            puts "[MAYK] Codemagic signing and publishing YAML valid."
+          '
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install M.A.Y.K Expo dependencies
+        working-directory: mayk-ios
+        run: npm install --no-audit --no-fund
+      - name: Check live branding, app config, and native iOS version sequence
+        working-directory: mayk-ios
+        env:
+          EXPO_PUBLIC_MAYK_WEB_URL: https://progres.turmarkt.com
+          MAYK_REQUIRE_REMOTE_ICON: '1'
+        run: |
+          npm run prepare:icon
+          npm run typecheck
+          npx expo config --type public
+          CI=1 CM_BUILD_ID=preflight PROJECT_BUILD_NUMBER=7 node -e 'const c=require("./app.config.js").expo; if(c.ios.bundleIdentifier!=="com.turmarkt.mayk"||!/^[0-9]{9}$/.test(c.ios.buildNumber)||!c.ios.buildNumber.endsWith("007"))process.exit(1); console.log("[MAYK] iOS version sequence:", c.ios.buildNumber)'
