@@ -1,6 +1,8 @@
 # M.A.Y.K — AI PROGRES iOS
 
-**GitHub'dan tek tıkla TestFlight:** [GITHUB-TESTFLIGHT.md](./GITHUB-TESTFLIGHT.md) dosyasındaki Türkçe kurulum adımlarını kullanın.
+**Codemagic ile Expo EAS kullanmadan IPA/TestFlight:** [CODEMAGIC-TESTFLIGHT.md](./CODEMAGIC-TESTFLIGHT.md). GitHub deposunun kökündeki `codemagic.yaml` dosyası `mayk-ios-testflight` iş akışını tanımlar. Apple Developer'da `com.turmarkt.mayk` için App Store provisioning profili kurulmalıdır.
+
+**Eski Expo EAS alternatifi (artık önerilen birincil yol değil):** [GITHUB-TESTFLIGHT.md](./GITHUB-TESTFLIGHT.md) dosyasındaki Türkçe kurulum adımlarını kullanın.
 M.A.Y.K, mevcut `https://progres.turmarkt.com` web uygulamasını iOS içinde açar. Başka bir ürün veritabanı, kullanıcı hesabı veya MarktGO API entegrasyonu oluşturmaz. Mevcut webdeki güncel modüller uygulama içinde de açılır.
 
 > Bu proje, `mobile/` dizinindeki ORVIAN Monitor (Android) uygulamasından bağımsızdır.
