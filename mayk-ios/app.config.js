@@ -3,6 +3,16 @@ if (!WEB_URL.startsWith("https://")) {
   throw new Error("M.A.Y.K production web URL must use HTTPS");
 }
 
+// Codemagic builds are independent of EAS remote versioning.
+// Each new Codemagic run gets a higher YYMMDDNNN CFBundleVersion.
+const codemagicBuild = Boolean(process.env.CM_BUILD_ID);
+const sequence = Number(process.env.PROJECT_BUILD_NUMBER);
+if (codemagicBuild && (!Number.isSafeInteger(sequence) || sequence < 1 || sequence > 999)) {
+  throw new Error("M.A.Y.K Codemagic PROJECT_BUILD_NUMBER 1..999 aralığında olmalıdır");
+}
+const stamp = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+const iosBuildNumber = codemagicBuild ? stamp + String(sequence).padStart(3, "0") : "1";
+
 module.exports = {
   expo: {
     name: "M.A.Y.K",
@@ -22,7 +32,7 @@ module.exports = {
     },
     ios: {
       bundleIdentifier: "com.turmarkt.mayk",
-      buildNumber: "1",
+      buildNumber: iosBuildNumber,
       supportsTablet: true,
       infoPlist: {
         NSPhotoLibraryUsageDescription: "Ürün ve uygulama logosu görsellerini seçmek için fotoğraf arşivine erişim kullanılır.",
