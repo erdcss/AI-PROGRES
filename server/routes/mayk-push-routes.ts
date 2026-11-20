@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { resolveAppAuth } from "../multi-user-auth";
 import {
-  countMaykDevices, listMaykEvents, registerMaykDevice,
+  countMaykDevices, listMaykEvents, listMaykTestDeliveries, registerMaykDevice,
   queueMaykTest, startMaykPushWorker, unregisterMaykDevice,
 } from "../services/mayk-push.service";
 
@@ -63,6 +63,15 @@ export function registerMaykPushRoutes(app:Express) {
       if(!sameOrigin(req))return res.status(403).json({success:false,error:"İstek kaynağı geçersiz"});
       await unregisterMaykDevice(String(req.body?.pushToken || ""),auth.userId);
       return res.json({success:true});
+    }catch(error){return errorResponse(res,error);}
+  });
+
+  // Returns Expo submission/receipt diagnostics for this admin's own test events only.
+  app.get("/api/mayk/push/test/status",async(req,res)=>{
+    try{
+      const auth=await authorize(req,res);
+      if(!auth||!("userId" in auth))return;
+      return res.json({success:true,items:await listMaykTestDeliveries(auth.userId)});
     }catch(error){return errorResponse(res,error);}
   });
 
