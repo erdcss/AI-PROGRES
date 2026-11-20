@@ -372,6 +372,25 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     staleTime: 15_000,
   });
 
+  const maykTestDeliveryQuery = useQuery<{
+    success: boolean;
+    items: Array<{
+      id: string; createdAt: string; deviceCount: number;
+      pending: number; accepted: number; delivered: number;
+      retry: number; failed: number; lastError: string | null;
+    }>;
+  }>({
+    queryKey: ["mayk-test-push-delivery-status"],
+    enabled: activeSection === "settings",
+    queryFn: async () => {
+      const res = await fetch("/api/mayk/push/test/status", { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) throw new Error("Bildirim teslim durumu alınamadı");
+      return res.json();
+    },
+    refetchInterval: activeSection === "settings" ? 8_000 : false,
+    staleTime: 5_000,
+  });
+
   const sendMaykTestNotification = async () => {
     if (maykTestSending) return;
     setMaykTestSending(true);
@@ -395,6 +414,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
       toast({ title: "Test bildirimi sıraya alındı", description: `${count} iOS cihazına gönderim başlatıldı.` });
       void queryClient.invalidateQueries({ queryKey: ["mayk-push-notifications"] });
       void queryClient.invalidateQueries({ queryKey: ["mayk-push-device-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["mayk-test-push-delivery-status"] });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Bildirim gönderilemedi";
       setMaykTestResult({ ok: false, message });
@@ -880,6 +900,39 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
           {maykTestResult.message}
         </p>
       )}
+      <div className="space-y-1 border-t border-current/10 pt-3 text-xs" data-testid="mayk-test-delivery-diagnostics">
+        <p className="font-semibold">Son test bildiriminin gerçek gönderim durumu</p>
+        {maykTestDeliveryQuery.isLoading && <p className="opacity-70">Expo/Apple durumu kontrol ediliyor...</p>}
+        {maykTestDeliveryQuery.isError && <p className="text-rose-400">Teslim durumu alınamadı. Yönetici oturumunu kontrol edin.</p>}
+        {!maykTestDeliveryQuery.isLoading && !maykTestDeliveryQuery.isError && !maykTestDeliveryQuery.data?.items?.length && (
+          <p className="opacity-70">Henüz test gönderimi yapılmamış.</p>
+        )}
+        {maykTestDeliveryQuery.data?.items?.slice(0, 1).map(item => {
+          const failed = Number(item.failed) + Number(item.retry);
+          const label = failed > 0 ? "Bildirim gönderimi başarısız / yeniden denenecek"
+            : item.delivered > 0 ? "Expo teslim makbuzu: Apple APNs kabul etti (iPhone ekranı henüz doğrulanmadı)"
+            : item.accepted > 0 ? "Expo bildirimi kabul etti; Apple teslim sonucu bekleniyor"
+            : item.pending > 0 ? "Bildirim gönderim kuyruğunda"
+            : "Bildirim durumu kontrol ediliyor";
+          const detail = item.lastError || "";
+          const advice = /InvalidCredentials|InvalidProviderToken|APNs|credentials/i.test(detail)
+            ? "Apple Push Notifications anahtarını ve com.turmarkt.mayk provisioning profile yetkisini yenileyin; ardından yeni TestFlight sürümünü kurun."
+            : /Expo HTTP 401|Expo HTTP 403|UNAUTHORIZED|unauthorized|access token/i.test(detail)
+            ? "Expo Push Security erişim anahtarını kontrol edin."
+            : /DeviceNotRegistered|not a registered push/i.test(detail)
+            ? "iPhone'daki M.A.Y.K uygulamasını güncelleyip tekrar giriş yapın ve bildirim izni verin."
+            : "";
+          return (
+            <div key={item.id} className={`rounded-lg border px-3 py-2 leading-5 ${failed > 0 ? "border-rose-500/30 text-rose-400" : "border-current/20"}`}>
+              <p className="font-semibold">{label}</p>
+              <p className="opacity-80">Test: {formatDate(item.createdAt)} · Cihaz: {item.deviceCount} · Bekleyen: {item.pending} · Expo'da: {item.accepted} · APNs kabul: {item.delivered} · Hata/tekrar: {failed}</p>
+              {detail && <p className="mt-1 break-words">Expo hatası: {detail}</p>}
+              {advice && <p className="mt-1 break-words font-medium">{advice}</p>}
+            </div>
+          );
+        })}
+        <p className="opacity-60">Sonuçlar her 8 saniyede yenilenir. Expo'nun kabul etmesi telefonda gösterildiğini garanti etmez.</p>
+      </div>
     </section>
   );
 
