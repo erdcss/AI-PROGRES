@@ -336,6 +336,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
     ? mobileSection === "fixed" ? "auto-corrected" : mobileSection
     : desktopSection;
   const [showMaykNotifications, setShowMaykNotifications] = useState(false);
+  const [maykTestSending, setMaykTestSending] = useState(false);
+  const [maykTestResult, setMaykTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [expandedMobileProduct, setExpandedMobileProduct] = useState<number | null>(null);
   const [kindFilter, setKindFilter] = useState<ChangeKindFilter | null>(null);
   const [authenticityFilter, setAuthenticityFilter] = useState<AuthenticityFilter>("all");
@@ -360,30 +362,45 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   });
   const maykDeviceQuery = useQuery<{ success: boolean; enabledDevices: number }>({
     queryKey: ["mayk-push-device-status"],
-    enabled: nativeApp && showMaykNotifications,
+    enabled: activeSection === "settings" || (nativeApp && showMaykNotifications),
     queryFn: async () => {
       const res = await fetch("/api/mayk/push/status", { credentials: "same-origin", cache: "no-store" });
       if (!res.ok) throw new Error("Cihaz durumu alınamadı");
       return res.json();
     },
-    refetchInterval: showMaykNotifications ? 60_000 : false,
-    staleTime: 30_000,
+    refetchInterval: activeSection === "settings" || showMaykNotifications ? 30_000 : false,
+    staleTime: 15_000,
   });
 
   const sendMaykTestNotification = async () => {
+    if (maykTestSending) return;
+    setMaykTestSending(true);
+    setMaykTestResult(null);
     try {
       const res = await fetch("/api/mayk/push/test", {
-        method:"POST",
-        credentials:"same-origin",
-        headers: { "X-Requested-With":"MAYK-IOS", "Content-Type":"application/json" },
-        body:"{}",
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "MAYK-IOS", "Content-Type": "application/json" },
+        body: "{}",
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Test bildirimi gönderilemedi");
-      toast({ title:"Test bildirimi sıraya alındı", description:"iOS cihazındaki bildirimleri kontrol edin." });
-      void maykNotificationsQuery.refetch();
-    } catch(err) {
-      toast({ title:"Bildirim hatası", description:err instanceof Error?err.message:"İşlem başarısız",variant:"destructive" });
+      const data = await res.json().catch(() => ({})) as {
+        success?: boolean; queued?: boolean; deviceCount?: number; error?: string;
+      };
+      if (!res.ok || !data.success || !data.queued) {
+        throw new Error(data.error || "Test bildirimi sıraya alınamadı");
+      }
+      const count = Number(data.deviceCount || 0);
+      const message = `Test bildirimi ${count} kayıtlı iPhone için gönderim kuyruğuna alındı. Telefonun bildirimlerini kontrol edin; bu sonuç cihazda teslim edildiği anlamına gelmez.`;
+      setMaykTestResult({ ok: true, message });
+      toast({ title: "Test bildirimi sıraya alındı", description: `${count} iOS cihazına gönderim başlatıldı.` });
+      void queryClient.invalidateQueries({ queryKey: ["mayk-push-notifications"] });
+      void queryClient.invalidateQueries({ queryKey: ["mayk-push-device-status"] });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Bildirim gönderilemedi";
+      setMaykTestResult({ ok: false, message });
+      toast({ title: "Test bildirimi gönderilemedi", description: message, variant: "destructive" });
+    } finally {
+      setMaykTestSending(false);
     }
   };
 
@@ -824,6 +841,48 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
   const autoCorrectOn = Boolean(settings?.autoShopifySyncEnabled);
   const trackingOff = settings && !settings.trackingEnabled;
 
+  // Both the web settings tab and M.A.Y.K's native WebView use the same authenticated push API.
+  const maykTestSettingsPanel = (
+    <section
+      aria-label="M.A.Y.K test bildirimleri"
+      data-testid="mayk-test-notification-settings"
+      className={`min-w-0 space-y-3 rounded-xl border p-3.5 ${isCompactTracking && !embedded ? "border-[#3C5768] bg-[#203445]" : "border-border/60 bg-muted/30"}`}
+    >
+      <div>
+        <h3 className="text-sm font-semibold">M.A.Y.K iPhone Bildirim Testi</h3>
+        <p className="mt-1 text-xs opacity-75">
+          Kayıtlı iPhone cihazlarına gerçek bir test push bildirimi gönderin. İşlem sadece yönetici yetkisiyle yapılabilir.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 text-xs">
+          {maykDeviceQuery.isLoading ? "Bağlı cihazlar kontrol ediliyor..." :
+            maykDeviceQuery.isError ? "Cihaz durumu alınamadı." :
+            `Bildirimlere kayıtlı iPhone: ${maykDeviceQuery.data?.enabledDevices ?? 0}`}
+        </div>
+        <button
+          type="button"
+          data-testid="mayk-send-test-notification"
+          disabled={maykTestSending}
+          onClick={() => void sendMaykTestNotification()}
+          className="min-h-11 w-full rounded-xl bg-[#1C7480] px-4 text-sm font-semibold text-white transition-opacity disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+        >
+          {maykTestSending ? "Test bildirimi gönderiliyor..." : "Test Bildirimi Gönder"}
+        </button>
+      </div>
+      {maykDeviceQuery.data?.enabledDevices === 0 && (
+        <p className="text-xs text-amber-500">
+          Kayıtlı iPhone yok. Önce M.A.Y.K uygulamasında yönetici hesabıyla giriş yapıp iOS bildirim iznini açın.
+        </p>
+      )}
+      {maykTestResult && (
+        <p role="status" className={`break-words rounded-lg border px-3 py-2 text-xs leading-5 ${maykTestResult.ok ? "border-emerald-500/30 text-emerald-400" : "border-rose-500/30 text-rose-400"}`}>
+          {maykTestResult.message}
+        </p>
+      )}
+    </section>
+  );
+
   // M.A.Y.K iPhone presentation: same live queries and mutations as web, touch-first layout.
   if (isCompactTracking && !embedded) {
     const sectionItems = [
@@ -918,8 +977,8 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
                 <button type="button" onClick={() => void maykNotificationsQuery.refetch()} className="min-h-10 rounded-xl border border-[#4B687B] px-3 text-[12px] text-white">
                   Bildirimleri yenile
                 </button>
-                <button type="button" onClick={() => void sendMaykTestNotification()} className="min-h-10 rounded-xl bg-[#1C7480] px-3 text-[12px] font-semibold text-white">
-                  Test bildirimi gönder
+                <button type="button" disabled={maykTestSending} onClick={() => void sendMaykTestNotification()} className="min-h-10 rounded-xl bg-[#1C7480] px-3 text-[12px] font-semibold text-white disabled:opacity-60">
+                  {maykTestSending ? "Gönderiliyor..." : "Test bildirimi gönder"}
                 </button>
               </div>
               {maykNotificationsQuery.isLoading && <p className="text-[12px] text-slate-400">Bildirimler yükleniyor...</p>}
@@ -1318,6 +1377,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
               <h2 className="text-[16px] font-semibold text-white">Takip Ayarları</h2>
               <p className="mt-1 text-[12px] leading-4 text-slate-400">Kaydedilen ayarlar web ve mobil sistemde ortak uygulanır.</p>
             </div>
+            {maykTestSettingsPanel}
             {settingsQuery.isLoading ? <p className="text-slate-400">Yükleniyor...</p> : (
               <>
                 {[
@@ -2056,6 +2116,7 @@ export default function UrunTakipPage({ embedded = false }: { embedded?: boolean
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 max-w-lg">
+              {maykTestSettingsPanel}
               {settingsQuery.isLoading ? (
                 <p className="text-muted-foreground">Yükleniyor...</p>
               ) : (
