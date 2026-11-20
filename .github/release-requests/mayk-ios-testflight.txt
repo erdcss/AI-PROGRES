@@ -1,13 +1,11 @@
 M.A.Y.K iOS TestFlight build request
-İstek numarası: 3
-Tarih: 2026-11-19 Europe/Istanbul
-Kullanıcı durumu: Apple Developer Push Notifications destekli App Store profili oluşturuldu ve Codemagic'de sertifika eşleşmesi yeşil olarak doğrulandı.
+İstek numarası: 4
+Tarih: 2026-11-20 Europe/Istanbul
+Kullanıcı komutu: MAYK ve Çalışkan B2B TestFlight al
 Kaynak: erdcss/AI-PROGRES main
 Codemagic workflow: mayk-ios-testflight
 Uygulama: M.A.Y.K, sürüm 1.2.0, bundle com.turmarkt.mayk
 Sertifika: caliskan_b2b_appstore_distribution
-Yeni provisioning profile: mayk_appstore_push_2026
-Düzeltmeler: MAYK uygulama Xcode şeması; Push Notifications / aps-environment profili
-Hedef: imzalı iOS IPA üretimi ve App Store Connect'e TestFlight için yükleme
-Herkese açık App Store yayını veya harici beta incelemesi otomatik başlatılmaz.
-İstek: Kullanıcının tamamlanan profil kurulumunu onaylayan ekranı sonrası, aynı TestFlight kurulum işinin yeniden denenmesi.
+Provisioning profile: mayk_appstore_push_2026
+Hedef: Yeni imzalı iOS IPA ve App Store Connect / TestFlight iç test yüklemesi
+App Store üretim yayını veya harici beta incelemesi otomatik başlatılmaz.
