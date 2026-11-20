@@ -1,11 +1,12 @@
 M.A.Y.K iOS TestFlight build request
-İstek numarası: 4
+İstek numarası: 5
 Tarih: 2026-11-20 Europe/Istanbul
-Kullanıcı komutu: MAYK ve Çalışkan B2B TestFlight al
+Kullanıcı komutu: Bildirim sistemini düzelt, ardından TestFlight gönder
 Kaynak: erdcss/AI-PROGRES main
 Codemagic workflow: mayk-ios-testflight
 Uygulama: M.A.Y.K, sürüm 1.2.0, bundle com.turmarkt.mayk
 Sertifika: caliskan_b2b_appstore_distribution
 Provisioning profile: mayk_appstore_push_2026
+APNs: aynı Apple takımından mevcut key Expo M.A.Y.K'ye bağlandı (2026-11-20)
 Hedef: Yeni imzalı iOS IPA ve App Store Connect / TestFlight iç test yüklemesi
 App Store üretim yayını veya harici beta incelemesi otomatik başlatılmaz.
