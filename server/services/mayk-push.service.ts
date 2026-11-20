@@ -122,6 +122,28 @@ export async function listMaykEvents(limit=40) {
   );
   return r.rows;
 }
+/** Latest test pushes are scoped to the logged-in administrator; never expose device tokens. */
+export async function listMaykTestDeliveries(userId: string) {
+  await ensureTables();
+  const result = await dbPool().query(
+    `SELECT e.event_key AS id, e.created_at AS "createdAt",
+      COUNT(d.expo_token)::int AS "deviceCount",
+      COUNT(d.expo_token) FILTER (WHERE d.state IN ('pending','sending'))::int AS "pending",
+      COUNT(d.expo_token) FILTER (WHERE d.state='accepted')::int AS "accepted",
+      COUNT(d.expo_token) FILTER (WHERE d.state='delivered')::int AS "delivered",
+      COUNT(d.expo_token) FILTER (WHERE d.state='retry')::int AS "retry",
+      COUNT(d.expo_token) FILTER (WHERE d.state IN ('invalid','failed'))::int AS "failed",
+      (ARRAY_AGG(d.last_error ORDER BY d.updated_at DESC)
+        FILTER (WHERE d.last_error IS NOT NULL))[1] AS "lastError"
+     FROM mayk_push_events e
+     LEFT JOIN mayk_push_deliveries d ON d.event_key=e.event_key
+     WHERE e.event_type='test' AND starts_with(e.event_key,'test:' || $1::text || ':')
+     GROUP BY e.event_key,e.created_at ORDER BY e.created_at DESC LIMIT 5`,
+    [userId],
+  );
+  return result.rows;
+}
+
 export async function emitMaykEvent(event: MaykPushEvent, recipientUserId?: string): Promise<boolean> {
   await ensureTables();
   const key=short(event.key,220);
@@ -200,12 +222,16 @@ async function expoPost(endpoint:string,payload:object) {
 }
 async function setDelivery(eventKey:string,expoToken:string,state:string,error?:string,receiptId?:string,attempt=1) {
   const invalid=/DeviceNotRegistered|not a registered push notification recipient/i.test(error || "");
-  const delay=state==="accepted"?900:Math.min(1800,45*(2**Math.min(5,attempt)));
+  const permanent=/InvalidCredentials|InvalidProviderToken|MessageTooBig|PUSH_TOO_MANY_EXPERIENCE_IDS/i.test(error || "");
+  const finalState=invalid?"invalid":(permanent || (state==="retry" && attempt>=5))?"failed":state;
+  // Test receipts are polled sooner for interactive diagnostics; normal tracking stays at 15m.
+  const delay=state==="accepted"?(eventKey.startsWith("test:")?120:900):Math.min(1800,45*(2**Math.min(5,attempt)));
   await dbPool().query(
     "UPDATE mayk_push_deliveries SET state=$3,receipt_id=$4,last_error=$5,updated_at=NOW()," +
     "next_attempt_at=NOW()+($6::int*INTERVAL '1 second') WHERE event_key=$1 AND expo_token=$2",
-    [eventKey,expoToken,invalid?"invalid":state,receiptId || null,error?short(error,140):null,delay],
+    [eventKey,expoToken,finalState,receiptId || null,error?short(error,140):null,delay],
   );
+  if(error)console.warn("[mayk-push] delivery",finalState,short(error,140));
   if(invalid)await dbPool().query("UPDATE mayk_push_devices SET enabled=FALSE WHERE expo_token=$1",[expoToken]);
 }
 let busy=false;
@@ -258,8 +284,10 @@ export async function processMaykQueue() {
       for(const row of pending.rows) {
         const receipt=data?.[row.receipt_id];
         if(!receipt) {
-          await dbPool().query("UPDATE mayk_push_deliveries SET next_attempt_at=NOW()+INTERVAL '20 minutes' WHERE event_key=$1 AND expo_token=$2",
-            [row.event_key,row.expo_token]);
+          await dbPool().query(
+            "UPDATE mayk_push_deliveries SET next_attempt_at=NOW()+($3::int*INTERVAL '1 second') WHERE event_key=$1 AND expo_token=$2",
+            [row.event_key,row.expo_token,row.event_key.startsWith("test:")?60:1200],
+          );
         } else if(receipt.status==="ok") {
           await dbPool().query("UPDATE mayk_push_deliveries SET state='delivered',updated_at=NOW() WHERE event_key=$1 AND expo_token=$2",
             [row.event_key,row.expo_token]);
