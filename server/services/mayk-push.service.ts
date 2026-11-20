@@ -197,6 +197,77 @@ export function scheduleMaykTrackingState(input:{
     productId:input.productId,
   });
 }
+/**
+ * A single failed scrape is not a verified product change. Keep the check
+ * warning in sync_logs but send iOS push only after two consecutive failures
+ * of the SAME type. A successful check interrupts that sequence.
+ */
+export type MaykSourceWarningLog = {
+  action: string;
+  status: string;
+  reason: string | null;
+  createdAt: Date | string;
+};
+
+export function hasPersistentMaykSourceWarning(
+  latest: MaykSourceWarningLog[],
+  reason: string,
+  now: Date = new Date(),
+): boolean {
+  if (latest.length !== 2 || !["unreliable_price","incomplete_variant_snapshot"].includes(reason)) return false;
+  const nowMs = now.getTime();
+  return latest.every(row => {
+    const timestamp = new Date(row.createdAt).getTime();
+    return row.action === "source_fetch"
+      && row.status === "warning"
+      && row.reason === reason
+      && Number.isFinite(timestamp)
+      && timestamp <= nowMs
+      && nowMs - timestamp < 24 * 60 * 60 * 1000;
+  });
+}
+
+export function buildMaykSourceWarningEvent(input: {
+  productId: number;
+  productTitle: string;
+  reason: "unreliable_price" | "incomplete_variant_snapshot";
+  at?: Date;
+}): MaykPushEvent {
+  const when = input.at || new Date();
+  const description = input.reason === "unreliable_price"
+    ? "Arka arkaya iki kontrolde güvenilir fiyat alınamadı; önceki fiyat korundu."
+    : "Arka arkaya iki kontrolde varyant listesi eksik geldi; önceki varyantlar korundu.";
+  return {
+    key: `source-warning:${input.productId}:${input.reason}:${when.toISOString().slice(0,10)}`,
+    type: "source_warning",
+    title: "Kaynak kontrolü tekrar gerekli",
+    body: short(input.productTitle + " · " + description, 200),
+    productId: input.productId,
+  };
+}
+
+/** Non-blocking push scheduling; source warning is never treated as a price or stock change. */
+export function scheduleMaykSourceWarning(input: {
+  productId: number;
+  productTitle: string;
+  reason: "unreliable_price" | "incomplete_variant_snapshot";
+}) {
+  void (async () => {
+    await ensureTables();
+    const now = new Date();
+    const history = await dbPool().query(
+      `SELECT action,status,meta->>'skippedReason' AS reason,
+        created_at AS "createdAt" FROM sync_logs
+        WHERE tracked_product_id=$1
+          AND action IN ('source_fetch','tracking_check_completed')
+        ORDER BY id DESC LIMIT 2`,
+      [input.productId],
+    );
+    if (!hasPersistentMaykSourceWarning(history.rows as MaykSourceWarningLog[], input.reason, now)) return;
+    await emitMaykEvent(buildMaykSourceWarningEvent({ ...input, at: now }));
+  })().catch(error => console.warn("[mayk-push] source warning:",error instanceof Error ? error.message : String(error)));
+}
+
 export async function queueMaykTest(userId:string):Promise<boolean> {
   return emitMaykEvent({
     key:"test:"+userId+":"+randomUUID(),type:"test",

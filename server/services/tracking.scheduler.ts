@@ -133,9 +133,10 @@ export async function runManualProductCheck(trackedProductId: number) {
           .update(trackedProducts)
           .set({ lastCheckedAt: new Date(), updatedAt: new Date() })
           .where(eq(trackedProducts.id, trackedProductId));
-        void import("./mayk-push.service").then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
-          productId:trackedProductId,productTitle:product.sourceTitle,state:"source_warning",
-          at:new Date(),detail:"Kaynak fiyatı doğrulanamadı. Kontrol gerekli.",
+        // Transient scrape/price-sanity failures must not spam iPhone notifications.
+        // The failed reading is still logged; only consecutive failures alert.
+        void import("./mayk-push.service").then(({ scheduleMaykSourceWarning }) => scheduleMaykSourceWarning({
+          productId:trackedProductId,productTitle:product.sourceTitle,reason:"unreliable_price",
         })).catch(()=>undefined);
         return {
           success: false,
@@ -200,9 +201,10 @@ export async function runManualProductCheck(trackedProductId: number) {
           skippedReason: "incomplete_variant_snapshot",
         },
       });
-      void import("./mayk-push.service").then(({ scheduleMaykTrackingState }) => scheduleMaykTrackingState({
-        productId:trackedProductId,productTitle:product.sourceTitle,state:"source_warning",
-        at:new Date(),detail:"Kaynak varyant bilgileri eksik. Kontrol gerekli.",
+      // Preserve the previous complete snapshot, and warn only for persistent
+      // consecutive variant-extraction failures, not a single partial page.
+      void import("./mayk-push.service").then(({ scheduleMaykSourceWarning }) => scheduleMaykSourceWarning({
+        productId:trackedProductId,productTitle:product.sourceTitle,reason:"incomplete_variant_snapshot",
       })).catch(()=>undefined);
       return {
         success: false,
